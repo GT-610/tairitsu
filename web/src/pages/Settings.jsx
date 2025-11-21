@@ -53,7 +53,6 @@ function Settings() {
     try {
       await systemAPI.updateSettings(settings)
       setSuccess('设置已成功保存')
-      // 3秒后清除成功消息
       setTimeout(() => setSuccess(''), 3000)
     } catch (err) {
       setError('保存设置失败')
@@ -102,7 +101,7 @@ function Settings() {
               />
             }
             label="自动批准新成员加入"
-          /<FormControlLabel
+          />
           
           <TextField
             fullWidth
@@ -118,7 +117,7 @@ function Settings() {
                 max: 1000
               }
             }}
-          /<TextField
+          />
         </CardContent>
       </Card>
       <Card sx={{ mb: 3 }}>
@@ -141,7 +140,7 @@ function Settings() {
                 max: 3600
               }
             }}
-          /<TextField
+          />
         </CardContent>
       </Card>
       <Card sx={{ mb: 3 }}>

@@ -78,8 +78,8 @@ function NetworkDetail() {
               <Typography variant="body2" color="text.secondary" gutterBottom>
                 网络ID: {network.id}
               </Typography>
-              <Divider sx={{ my: 2 }}>
-              </Typography variant="body1" paragraph>
+              <Divider sx={{ my: 2 }} />
+              <Typography variant="body1" paragraph>
                 {network.description || '暂无描述'}
               </Typography>
               <Box sx={{ display: 'flex', gap: 2, mt: 2 }}>
@@ -124,8 +124,7 @@ function NetworkDetail() {
                     {network.config?.private || true ? '是' : '否'}
                   </Typography>
                 </Box>
-                {network.config?.v4AssignMode?.zt ? (
-                  >
+                {network.config?.v4AssignMode?.zt && (
                     <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 1 }}>
                       <Typography variant="body2" color="text.secondary">
                         IPv4 CIDR
@@ -183,14 +182,14 @@ function NetworkDetail() {
               </Typography>
               <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 1 }}>
                 {network.config?.private ? (
-                  >
+                    <>
                     <Chip label="需要授权" color="primary" size="small" />
                     <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
                       新设备需要管理员批准才能加入网络
                     </Typography>
                   </>
                 ) : (
-                  >
+                    <>
                     <Chip label="开放加入" color="success" size="small" />
                     <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
                       任何设备都可以加入此网络

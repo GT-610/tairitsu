@@ -5,7 +5,7 @@ from '@mui/material'
 function Profile({ user }) {
   if (!user) {
     return (
-      <Box sx={{ p: 3 }}
+      <Box sx={{ p: 3 }}>
         <Typography variant="body1" color="error">
           用户信息不可用
         </Typography>
@@ -14,7 +14,7 @@ function Profile({ user }) {
   }
 
   return (
-    <Box sx={{ p: 3 }}
+    <Box sx={{ p: 3 }}>
       <Typography variant="h4" component="h1" gutterBottom>
         个人信息
       </Typography>
@@ -44,10 +44,10 @@ function Profile({ user }) {
               <Typography variant="h6" gutterBottom>
                 账户信息
               </Typography>
-              <Divider sx={{ mb: 3 }}
+              <Divider sx={{ mb: 3 }} />
               
-              <Box sx={{ display: 'grid', gap: 3 }}
-                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 2fr' }, gap: 2 }}
+              <Box sx={{ display: 'grid', gap: 3 }}>
+                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 2fr' }, gap: 2 }}>
                   <Typography variant="body2" color="text.secondary">
                     用户名
                   </Typography>
@@ -56,7 +56,7 @@ function Profile({ user }) {
                   </Typography>
                 </Box>
                 
-                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 2fr' }, gap: 2 }}
+                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 2fr' }, gap: 2 }}>
                   <Typography variant="body2" color="text.secondary">
                     邮箱
                   </Typography>
@@ -65,7 +65,7 @@ function Profile({ user }) {
                   </Typography>
                 </Box>
                 
-                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 2fr' }, gap: 2 }}
+                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 2fr' }, gap: 2 }}>
                   <Typography variant="body2" color="text.secondary">
                     创建时间
                   </Typography>
@@ -74,7 +74,7 @@ function Profile({ user }) {
                   </Typography>
                 </Box>
                 
-                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 2fr' }, gap: 2 }}
+                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 2fr' }, gap: 2 }}>
                   <Typography variant="body2" color="text.secondary">
                     上次登录
                   </Typography>

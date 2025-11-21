@@ -113,7 +113,7 @@ function Networks() {
           <CircularProgress />
         </Box>
       ) : (
-        >
+        <>
           <TableContainer component={Paper}>
             <Table sx={{ minWidth: 650 }}>
               <TableHead>
@@ -158,6 +158,8 @@ function Networks() {
                           color="error"
                           startIcon={<Delete />}
                           onClick={() => handleDelete(network.id)}
+                        >
+                          删除
                         </Button>
                       </Box>
                     </TableCell>

@@ -1,0 +1,243 @@
+import React, { useState } from 'react';
+import { 
+  Box, 
+  Typography, 
+  Paper, 
+  TextField, 
+  Button, 
+  FormControlLabel, 
+  Checkbox, 
+  Alert,
+  CircularProgress,
+  Container,
+  Grid,
+  Link as MuiLink
+} from '@mui/material';
+import { LockOutlined } from '@mui/icons-material';
+import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '../services/auth';
+
+function Login() {
+  const [formData, setFormData] = useState({
+    username: '',
+    password: ''
+  });
+  const [errors, setErrors] = useState({});
+  const [loading, setLoading] = useState(false);
+  const [loginError, setLoginError] = useState('');
+  const [rememberMe, setRememberMe] = useState(false);
+  const navigate = useNavigate();
+  const { login } = useAuth() || {};
+
+  // 处理输入变化
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+    // 清除对应字段的错误
+    if (errors[name]) {
+      setErrors(prev => ({ ...prev, [name]: '' }));
+    }
+  };
+
+  // 表单验证
+  const validateForm = () => {
+    const newErrors = {};
+    
+    if (!formData.username.trim()) {
+      newErrors.username = '用户名不能为空';
+    }
+    
+    if (!formData.password) {
+      newErrors.password = '密码不能为空';
+    }
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  // 处理登录提交
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    
+    if (!validateForm()) {
+      return;
+    }
+    
+    setLoading(true);
+    setLoginError('');
+    
+    try {
+      // 模拟API调用延迟
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // 模拟登录验证
+      if (formData.username === 'admin' && formData.password === 'password') {
+        // 创建模拟的用户数据
+        const userData = {
+          id: '1',
+          username: 'admin',
+          email: 'admin@example.com',
+          role: 'admin',
+          createdAt: new Date().toISOString(),
+          lastLogin: new Date().toISOString()
+        };
+        
+        // 创建模拟的token
+        const token = 'mock_jwt_token_' + Date.now();
+        
+        // 保存到localStorage
+        if (rememberMe) {
+          localStorage.setItem('user', JSON.stringify(userData));
+          localStorage.setItem('token', token);
+        } else {
+          sessionStorage.setItem('user', JSON.stringify(userData));
+          sessionStorage.setItem('token', token);
+        }
+        
+        // 如果存在登录函数，调用它
+        if (typeof login === 'function') {
+          login(userData, token);
+        }
+        
+        // 登录成功，重定向到仪表盘
+        navigate('/dashboard');
+      } else {
+        setLoginError('用户名或密码错误');
+      }
+    } catch (error) {
+      console.error('登录错误:', error);
+      setLoginError('登录失败，请稍后重试');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const paperStyle = {
+    padding: 20,
+    height: 'auto',
+    maxWidth: 400,
+    margin: '20px auto'
+  };
+
+  const avatarStyle = {
+    backgroundColor: '#1976d2',
+    width: 56,
+    height: 56,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    margin: '0 auto 20px auto',
+    fontSize: 24
+  };
+
+  return (
+    <Container component="main" maxWidth="xs">
+      <Box sx={{ 
+        display: 'flex', 
+        flexDirection: 'column', 
+        alignItems: 'center',
+        minHeight: '100vh',
+        justifyContent: 'center',
+        py: 8
+      }}>
+        <Paper elevation={3} style={paperStyle}>
+          <Box sx={avatarStyle}>
+            <LockOutlined fontSize="large" />
+          </Box>
+          
+          <Typography variant="h5" component="h1" gutterBottom align="center">
+            登录到 Tairitsu
+          </Typography>
+          
+          {loginError && (
+            <Alert severity="error" sx={{ mb: 3 }}>
+              {loginError}
+            </Alert>
+          )}
+          
+          <Box component="form" onSubmit={handleSubmit} sx={{ mt: 1 }}>
+            <TextField
+              margin="normal"
+              required
+              fullWidth
+              id="username"
+              label="用户名"
+              name="username"
+              autoComplete="username"
+              autoFocus
+              value={formData.username}
+              onChange={handleChange}
+              error={!!errors.username}
+              helperText={errors.username}
+              disabled={loading}
+            />
+            
+            <TextField
+              margin="normal"
+              required
+              fullWidth
+              name="password"
+              label="密码"
+              type="password"
+              id="password"
+              autoComplete="current-password"
+              value={formData.password}
+              onChange={handleChange}
+              error={!!errors.password}
+              helperText={errors.password}
+              disabled={loading}
+            />
+            
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  color="primary"
+                  disabled={loading}
+                />
+              }
+              label="记住我"
+            />
+            
+            <Button
+              type="submit"
+              fullWidth
+              variant="contained"
+              sx={{ mt: 3, mb: 2 }}
+              disabled={loading}
+            >
+              {loading ? (
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
+                  <CircularProgress size={20} />
+                  登录中...
+                </Box>
+              ) : (
+                '登录'
+              )}
+            </Button>
+            
+            <Grid container>
+              <Grid item xs>
+                <Link to="/forgot-password" variant="body2" sx={{ textDecoration: 'none' }}>
+                  忘记密码?
+                </Link>
+              </Grid>
+              <Grid item>
+                <Link to="/register" variant="body2" sx={{ textDecoration: 'none' }}>
+                  没有账户? 注册
+                </Link>
+              </Grid>
+            </Grid>
+          </Box>
+        </Paper>
+        
+        <Typography variant="body2" color="text.secondary" align="center" sx={{ mt: 4 }}>
+          © {new Date().getFullYear()} Tairitsu P2P 网络管理系统
+        </Typography>
+      </Box>
+    </Container>
+  );
+}
+
+export default Login;
