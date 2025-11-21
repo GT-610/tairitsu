@@ -9,6 +9,7 @@ import NetworkDetail from './pages/NetworkDetail.jsx'
 import Members from './pages/Members.jsx'
 import Profile from './pages/Profile.jsx'
 import Settings from './pages/Settings.jsx'
+import SetupWizard from './pages/SetupWizard.jsx'
 import api from './services/api.js'
 import { AuthProvider, useAuth } from './services/auth.jsx'
 import './App.css'
@@ -16,7 +17,27 @@ import './App.css'
 // 创建使用AuthContext的内部应用组件
 function AppContent() {
   const [loading, setLoading] = useState(true)
+  const [isFirstRun, setIsFirstRun] = useState(false)
   const { user, token, login, logout } = useAuth() || {};
+
+  // 检查是否是首次运行
+  useEffect(() => {
+    const checkFirstRun = async () => {
+      try {
+        // 尝试获取系统设置状态来判断是否已完成设置
+        const response = await api.get('/api/system/status');
+        // 如果没有管理员用户，则认为是首次运行
+        setIsFirstRun(!response.data.hasAdmin);
+      } catch (error) {
+        // 如果无法获取状态，可能是首次运行
+        setIsFirstRun(true);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    checkFirstRun();
+  }, []);
 
   // 检查用户登录状态
   useEffect(() => {
@@ -36,13 +57,14 @@ function AppContent() {
         sessionStorage.removeItem('token');
         sessionStorage.removeItem('user');
         delete api.defaults.headers.common['Authorization'];
-      } finally {
-        setLoading(false);
       }
     }
 
-    checkAuth();
-  }, [login]);
+    // 只有不是首次运行时才检查认证状态
+    if (!isFirstRun) {
+      checkAuth();
+    }
+  }, [login, isFirstRun]);
 
   // 处理注册成功
   const handleRegisterSuccess = () => {
@@ -67,23 +89,33 @@ function AppContent() {
   return (
     <div className="app">
       <Routes>
-        <Route path="/login" element={<Login />}></Route>
-        <Route path="/register" element={<Register onRegisterSuccess={handleRegisterSuccess} />}></Route>
-        
-        {user ? (
+        {/* 首次运行时显示设置向导 */}
+        {isFirstRun ? (
           <>
-            <Route path="/" element={<Layout user={user} onLogout={logout} />}>
-              <Route index element={<Dashboard />}></Route>
-              <Route path="networks" element={<Networks />}></Route>
-              <Route path="networks/:id" element={<NetworkDetail />}></Route>
-              <Route path="networks/:id/members" element={<Members />}></Route>
-              <Route path="profile" element={<Profile user={user} />}></Route>
-              <Route path="settings" element={<Settings />}></Route>
-            </Route>
+            <Route path="/setup" element={<SetupWizard />}></Route>
+            <Route path="*" element={<Navigate to="/setup" replace />}></Route>
           </>
         ) : (
           <>
-            <Route path="/*" element={<Navigate to="/login" replace />}></Route>
+            <Route path="/login" element={<Login />}></Route>
+            <Route path="/register" element={<Register onRegisterSuccess={handleRegisterSuccess} />}></Route>
+            
+            {user ? (
+              <>
+                <Route path="/" element={<Layout user={user} onLogout={logout} />}>
+                  <Route index element={<Dashboard />}></Route>
+                  <Route path="networks" element={<Networks />}></Route>
+                  <Route path="networks/:id" element={<NetworkDetail />}></Route>
+                  <Route path="networks/:id/members" element={<Members />}></Route>
+                  <Route path="profile" element={<Profile user={user} />}></Route>
+                  <Route path="settings" element={<Settings />}></Route>
+                </Route>
+              </>
+            ) : (
+              <>
+                <Route path="/*" element={<Navigate to="/login" replace />}></Route>
+              </>
+            )}
           </>
         )}
       </Routes>

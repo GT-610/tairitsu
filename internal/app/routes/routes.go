@@ -24,6 +24,7 @@ func SetupRoutes(router *gin.Engine, ztClient *zerotier.Client, jwtSecret string
 	networkHandler := handlers.NewNetworkHandler(networkService)
 	memberHandler := handlers.NewMemberHandler(networkService)
 	authHandler := handlers.NewAuthHandler(userService, jwtService)
+	systemHandler := handlers.NewSystemHandler(networkService, userService)
 
 	// 创建认证中间件
 	authMiddleware := middleware.AuthMiddleware(jwtService)
@@ -35,6 +36,9 @@ func SetupRoutes(router *gin.Engine, ztClient *zerotier.Client, jwtSecret string
 		api.GET("/health", func(c *gin.Context) {
 			c.JSON(200, gin.H{"status": "ok"})
 		})
+
+		// 系统状态检测（无需认证）
+		api.GET("/system/status", systemHandler.GetSystemStatus)
 
 		// 认证路由（无需认证）
 		auth := api.Group("/auth")
