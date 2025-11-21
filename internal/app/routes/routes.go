@@ -63,10 +63,10 @@ func SetupRoutes(router *gin.Engine, ztClient *zerotier.Client, jwtSecret string
 				networks.DELETE("/:id", networkHandler.DeleteNetwork)   // 删除网络
 
 				// 成员管理（嵌套在网络路由中）
-				networks.GET("/:networkId/members", memberHandler.GetMembers)         // 获取成员列表
-				networks.GET("/:networkId/members/:memberId", memberHandler.GetMember) // 获取单个成员
-				networks.PUT("/:networkId/members/:memberId", memberHandler.UpdateMember) // 更新成员
-				networks.DELETE("/:networkId/members/:memberId", memberHandler.DeleteMember) // 删除成员
+				networks.GET("/:id/members", memberHandler.GetMembers)         // 获取成员列表
+				networks.GET("/:id/members/:memberId", memberHandler.GetMember) // 获取单个成员
+				networks.PUT("/:id/members/:memberId", memberHandler.UpdateMember) // 更新成员
+				networks.DELETE("/:id/members/:memberId", memberHandler.DeleteMember) // 删除成员
 			}
 		}
 	}

@@ -49,6 +49,9 @@ func LoadConfig() (*Config, error) {
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
 			return nil, fmt.Errorf("读取配置文件失败: %w", err)
 		}
+		fmt.Println("未找到配置文件，将从环境变量加载配置")
+	} else {
+		fmt.Println("成功读取配置文件")
 	}
 
 	// 创建配置实例
@@ -66,6 +69,14 @@ func LoadConfig() (*Config, error) {
 	if err := viper.Unmarshal(cfg); err != nil {
 		return nil, fmt.Errorf("解析配置失败: %w", err)
 	}
+	
+	// 手动设置配置值
+	cfg.ZeroTier.URL = viper.GetString("ZT_CONTROLLER_URL")
+	cfg.ZeroTier.TokenPath = viper.GetString("ZT_TOKEN_PATH")
+	cfg.Server.Port = viper.GetInt("SERVER_PORT")
+	cfg.Server.Host = viper.GetString("SERVER_HOST")
+	cfg.Security.JWTSecret = viper.GetString("JWT_SECRET")
+	cfg.Security.SessionSecret = viper.GetString("SESSION_SECRET")
 
 	// 确保AppConfig更新
 	AppConfig = cfg

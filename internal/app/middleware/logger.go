@@ -1,10 +1,11 @@
 package middleware
 
 import (
-	"log"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/tairitsu/tairitsu/internal/app/logger"
+	"go.uber.org/zap"
 )
 
 // Logger 自定义日志中间件
@@ -31,12 +32,12 @@ func Logger() gin.HandlerFunc {
 		clientIP := c.ClientIP()
 
 		// 日志格式
-		log.Printf("[GIN] %s | %3d | %13v | %15s | %s",
-			method,
-			statusCode,
-			latency,
-			clientIP,
-			path,
+		logger.Info("GIN Request",
+			zap.String("method", method),
+			zap.Int("status", statusCode),
+			zap.Duration("latency", latency),
+			zap.String("clientIP", clientIP),
+			zap.String("path", path),
 		)
 	}
 }

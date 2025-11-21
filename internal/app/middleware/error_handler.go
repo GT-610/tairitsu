@@ -1,10 +1,11 @@
 package middleware
 
 import (
-	"log"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/tairitsu/tairitsu/internal/app/logger"
+	"go.uber.org/zap"
 )
 
 // ErrorResponse 错误响应结构
@@ -22,7 +23,7 @@ func ErrorHandler() gin.HandlerFunc {
 		// 处理错误
 		if len(c.Errors) > 0 {
 			err := c.Errors.Last()
-			log.Printf("API错误: %v", err.Err)
+			logger.Error("API错误", zap.Error(err.Err))
 
 			// 响应错误
 			c.JSON(http.StatusInternalServerError, ErrorResponse{

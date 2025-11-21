@@ -2,31 +2,33 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"os"
 
 	"github.com/gin-gonic/gin"
 	"github.com/tairitsu/tairitsu/internal/app/config"
+	"github.com/tairitsu/tairitsu/internal/app/logger"
 	"github.com/tairitsu/tairitsu/internal/app/routes"
 	"github.com/tairitsu/tairitsu/internal/zerotier"
+	"go.uber.org/zap"
 )
 
 func main() {
 	fmt.Println("Tairitsu - ZeroTier Controller UI")
 
+	// 初始化日志
+	logger.InitLogger("info")
+
 	// 加载配置
 	cfg, err := config.LoadConfig()
 	if err != nil {
-		log.Fatalf("加载配置失败: %v", err)
+		logger.Fatal("加载配置失败", zap.Error(err))
 	}
 
 	// 创建ZeroTier客户端
-	ztToken, err := config.GetZTToken(cfg.ZeroTier.TokenPath)
+	ztClient, err := zerotier.NewClient()
 	if err != nil {
-		log.Fatalf("获取ZeroTier Token失败: %v", err)
+		logger.Fatal("创建ZeroTier客户端失败", zap.Error(err))
 	}
-
-	ztClient := zerotier.NewClient(cfg.ZeroTier.URL, ztToken)
 
 	// 设置Gin模式
 	if os.Getenv("NODE_ENV") == "production" {
@@ -41,8 +43,8 @@ func main() {
 
 	// 启动服务器
 	serverAddr := fmt.Sprintf(":%d", cfg.Server.Port)
-	log.Printf("服务器启动在 %s", serverAddr)
+	logger.Info("服务器启动在", zap.String("address", serverAddr))
 	if err := router.Run(serverAddr); err != nil {
-		log.Fatalf("启动服务器失败: %v", err)
+		logger.Fatal("启动服务器失败", zap.Error(err))
 	}
 }

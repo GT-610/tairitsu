@@ -118,18 +118,18 @@ func NewClient() (*Client, error) {
 	}
 
 	// 获取ZeroTier令牌
-	token, err := config.GetZTToken()
+	token, err := config.GetZTToken(config.AppConfig.ZeroTier.TokenPath)
 	if err != nil {
 		return nil, fmt.Errorf("获取ZeroTier令牌失败: %w", err)
 	}
 
 	// 创建HTTP客户端
-	httpClient := \u0026http.Client{
+	httpClient := &http.Client{
 		Timeout: 10 * time.Second,
 	}
 
-	return \u0026Client{
-		BaseURL:    config.AppConfig.ZTControllerURL,
+	return &Client{
+		BaseURL:    config.AppConfig.ZeroTier.URL,
 		Token:      token,
 		HTTPClient: httpClient,
 	}, nil
@@ -189,11 +189,11 @@ func (c *Client) GetStatus() (*Status, error) {
 	}
 
 	var status Status
-	if err := json.Unmarshal(respBody, \u0026status); err != nil {
+	if err := json.Unmarshal(respBody, &status); err != nil {
 		return nil, fmt.Errorf("解析状态响应失败: %w", err)
 	}
 
-	return \u0026status, nil
+	return &status, nil
 }
 
 // GetNetworks 获取所有网络列表
@@ -204,7 +204,7 @@ func (c *Client) GetNetworks() ([]Network, error) {
 	}
 
 	var networks []Network
-	if err := json.Unmarshal(respBody, \u0026networks); err != nil {
+	if err := json.Unmarshal(respBody, &networks); err != nil {
 		return nil, fmt.Errorf("解析网络列表失败: %w", err)
 	}
 
@@ -220,11 +220,11 @@ func (c *Client) GetNetwork(networkID string) (*Network, error) {
 	}
 
 	var network Network
-	if err := json.Unmarshal(respBody, \u0026network); err != nil {
+	if err := json.Unmarshal(respBody, &network); err != nil {
 		return nil, fmt.Errorf("解析网络详情失败: %w", err)
 	}
 
-	return \u0026network, nil
+	return &network, nil
 }
 
 // CreateNetwork 创建新网络
@@ -235,11 +235,11 @@ func (c *Client) CreateNetwork(network *Network) (*Network, error) {
 	}
 
 	var createdNetwork Network
-	if err := json.Unmarshal(respBody, \u0026createdNetwork); err != nil {
+	if err := json.Unmarshal(respBody, &createdNetwork); err != nil {
 		return nil, fmt.Errorf("解析创建网络响应失败: %w", err)
 	}
 
-	return \u0026createdNetwork, nil
+	return &createdNetwork, nil
 }
 
 // UpdateNetwork 更新网络配置
@@ -251,11 +251,11 @@ func (c *Client) UpdateNetwork(networkID string, network *Network) (*Network, er
 	}
 
 	var updatedNetwork Network
-	if err := json.Unmarshal(respBody, \u0026updatedNetwork); err != nil {
+	if err := json.Unmarshal(respBody, &updatedNetwork); err != nil {
 		return nil, fmt.Errorf("解析更新网络响应失败: %w", err)
 	}
 
-	return \u0026updatedNetwork, nil
+	return &updatedNetwork, nil
 }
 
 // DeleteNetwork 删除网络
@@ -274,7 +274,7 @@ func (c *Client) GetMembers(networkID string) ([]Member, error) {
 	}
 
 	var members []Member
-	if err := json.Unmarshal(respBody, \u0026members); err != nil {
+	if err := json.Unmarshal(respBody, &members); err != nil {
 		return nil, fmt.Errorf("解析成员列表失败: %w", err)
 	}
 
@@ -290,11 +290,11 @@ func (c *Client) GetMember(networkID, memberID string) (*Member, error) {
 	}
 
 	var member Member
-	if err := json.Unmarshal(respBody, \u0026member); err != nil {
+	if err := json.Unmarshal(respBody, &member); err != nil {
 		return nil, fmt.Errorf("解析成员详情失败: %w", err)
 	}
 
-	return \u0026member, nil
+	return &member, nil
 }
 
 // UpdateMember 更新成员配置
@@ -306,11 +306,11 @@ func (c *Client) UpdateMember(networkID, memberID string, member *Member) (*Memb
 	}
 
 	var updatedMember Member
-	if err := json.Unmarshal(respBody, \u0026updatedMember); err != nil {
+	if err := json.Unmarshal(respBody, &updatedMember); err != nil {
 		return nil, fmt.Errorf("解析更新成员响应失败: %w", err)
 	}
 
-	return \u0026updatedMember, nil
+	return &updatedMember, nil
 }
 
 // DeleteMember 移除网络成员

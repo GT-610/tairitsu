@@ -1,7 +1,9 @@
 package services
 
 import (
+	"github.com/tairitsu/tairitsu/internal/app/logger"
 	"github.com/tairitsu/tairitsu/internal/zerotier"
+	"go.uber.org/zap"
 )
 
 // NetworkService 网络服务
@@ -17,52 +19,162 @@ func NewNetworkService(ztClient *zerotier.Client) *NetworkService {
 	}
 }
 
-// GetStatus 获取ZeroTier状态
+// GetStatus 获取ZeroTier网络状态
 func (s *NetworkService) GetStatus() (*zerotier.Status, error) {
-	return s.ztClient.GetStatus()
+	logger.Info("服务层：开始获取ZeroTier网络状态")
+	
+	status, err := s.ztClient.GetStatus()
+	if err != nil {
+		logger.Error("服务层：获取ZeroTier网络状态失败", zap.Error(err))
+		return nil, err
+	}
+	
+	logger.Info("服务层：成功获取ZeroTier网络状态")
+
+	return status, nil
 }
 
 // GetAllNetworks 获取所有网络
 func (s *NetworkService) GetAllNetworks() ([]zerotier.Network, error) {
-	return s.ztClient.GetNetworks()
+	logger.Info("服务层：开始获取所有网络列表")
+	
+	networks, err := s.ztClient.GetNetworks()
+	if err != nil {
+		logger.Error("服务层：获取网络列表失败", zap.Error(err))
+		return nil, err
+	}
+	
+	logger.Info("服务层：成功获取网络列表", zap.Int("network_count", len(networks)))
+
+	return networks, nil
 }
 
 // GetNetworkByID 根据ID获取网络
-func (s *NetworkService) GetNetworkByID(networkID string) (*zerotier.Network, error) {
-	return s.ztClient.GetNetwork(networkID)
+func (s *NetworkService) GetNetworkByID(id string) (*zerotier.Network, error) {
+	logger.Info("服务层：开始根据ID获取网络", zap.String("network_id", id))
+	
+	network, err := s.ztClient.GetNetwork(id)
+	if err != nil {
+		logger.Error("服务层：根据ID获取网络失败", zap.String("network_id", id), zap.Error(err))
+		return nil, err
+	}
+	
+	if network == nil {
+		logger.Warn("服务层：网络不存在", zap.String("network_id", id))
+		return nil, nil
+	}
+	
+	logger.Info("服务层：成功根据ID获取网络", zap.String("network_id", id))
+
+	return network, nil
 }
 
-// CreateNetwork 创建网络
+// CreateNetwork 创建新网络
 func (s *NetworkService) CreateNetwork(network *zerotier.Network) (*zerotier.Network, error) {
-	return s.ztClient.CreateNetwork(network)
+	logger.Info("服务层：开始创建新网络", zap.String("network_name", network.Name))
+	
+	createdNetwork, err := s.ztClient.CreateNetwork(network)
+	if err != nil {
+		logger.Error("服务层：创建网络失败", zap.String("network_name", network.Name), zap.Error(err))
+		return nil, err
+	}
+	
+	logger.Info("服务层：成功创建网络", zap.String("network_id", createdNetwork.ID), zap.String("network_name", createdNetwork.Name))
+
+	return createdNetwork, nil
 }
 
 // UpdateNetwork 更新网络
-func (s *NetworkService) UpdateNetwork(networkID string, network *zerotier.Network) (*zerotier.Network, error) {
-	return s.ztClient.UpdateNetwork(networkID, network)
+func (s *NetworkService) UpdateNetwork(id string, network *zerotier.Network) (*zerotier.Network, error) {
+	logger.Info("服务层：开始更新网络", zap.String("network_id", id))
+	
+	updatedNetwork, err := s.ztClient.UpdateNetwork(id, network)
+	if err != nil {
+		logger.Error("服务层：更新网络失败", zap.String("network_id", id), zap.Error(err))
+		return nil, err
+	}
+	
+	logger.Info("服务层：成功更新网络", zap.String("network_id", updatedNetwork.ID))
+
+	return updatedNetwork, nil
 }
 
 // DeleteNetwork 删除网络
 func (s *NetworkService) DeleteNetwork(networkID string) error {
-	return s.ztClient.DeleteNetwork(networkID)
+	logger.Info("服务层：开始删除网络", zap.String("network_id", networkID))
+	
+	err := s.ztClient.DeleteNetwork(networkID)
+	if err != nil {
+		logger.Error("服务层：删除网络失败", zap.String("network_id", networkID), zap.Error(err))
+		return err
+	}
+	
+	logger.Info("服务层：成功删除网络", zap.String("network_id", networkID))
+
+	return nil
 }
 
-// GetNetworkMembers 获取网络成员列表
+// GetNetworkMembers 获取网络中的所有成员
 func (s *NetworkService) GetNetworkMembers(networkID string) ([]zerotier.Member, error) {
-	return s.ztClient.GetMembers(networkID)
+	logger.Info("服务层：开始获取网络中的所有成员", zap.String("network_id", networkID))
+	
+	members, err := s.ztClient.GetMembers(networkID)
+	if err != nil {
+		logger.Error("服务层：获取网络成员列表失败", zap.String("network_id", networkID), zap.Error(err))
+		return nil, err
+	}
+	
+	logger.Info("服务层：成功获取网络成员列表", zap.String("network_id", networkID), zap.Int("member_count", len(members)))
+
+	return members, nil
 }
 
-// GetNetworkMember 获取单个网络成员
+// GetNetworkMember 获取网络中的特定成员
 func (s *NetworkService) GetNetworkMember(networkID, memberID string) (*zerotier.Member, error) {
-	return s.ztClient.GetMember(networkID, memberID)
+	logger.Info("服务层：开始获取网络中的特定成员", zap.String("network_id", networkID), zap.String("member_id", memberID))
+	
+	member, err := s.ztClient.GetMember(networkID, memberID)
+	if err != nil {
+		logger.Error("服务层：获取网络成员失败", zap.String("network_id", networkID), zap.String("member_id", memberID), zap.Error(err))
+		return nil, err
+	}
+	
+	if member == nil {
+		logger.Warn("服务层：网络成员不存在", zap.String("network_id", networkID), zap.String("member_id", memberID))
+		return nil, nil
+	}
+	
+	logger.Info("服务层：成功获取网络成员", zap.String("network_id", networkID), zap.String("member_id", memberID))
+
+	return member, nil
 }
 
 // UpdateNetworkMember 更新网络成员
 func (s *NetworkService) UpdateNetworkMember(networkID, memberID string, member *zerotier.Member) (*zerotier.Member, error) {
-	return s.ztClient.UpdateMember(networkID, memberID, member)
+	logger.Info("服务层：开始更新网络成员", zap.String("network_id", networkID), zap.String("member_id", memberID))
+	
+	updatedMember, err := s.ztClient.UpdateMember(networkID, memberID, member)
+	if err != nil {
+		logger.Error("服务层：更新网络成员失败", zap.String("network_id", networkID), zap.String("member_id", memberID), zap.Error(err))
+		return nil, err
+	}
+	
+	logger.Info("服务层：成功更新网络成员", zap.String("network_id", networkID), zap.String("member_id", memberID))
+
+	return updatedMember, nil
 }
 
-// RemoveNetworkMember 移除网络成员
+// RemoveNetworkMember 删除网络成员
 func (s *NetworkService) RemoveNetworkMember(networkID, memberID string) error {
-	return s.ztClient.DeleteMember(networkID, memberID)
+	logger.Info("服务层：开始删除网络成员", zap.String("network_id", networkID), zap.String("member_id", memberID))
+	
+	err := s.ztClient.DeleteMember(networkID, memberID)
+	if err != nil {
+		logger.Error("服务层：删除网络成员失败", zap.String("network_id", networkID), zap.String("member_id", memberID), zap.Error(err))
+		return err
+	}
+	
+	logger.Info("服务层：成功删除网络成员", zap.String("network_id", networkID), zap.String("member_id", memberID))
+
+	return nil
 }
