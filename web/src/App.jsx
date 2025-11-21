@@ -10,49 +10,44 @@ import Members from './pages/Members.jsx'
 import Profile from './pages/Profile.jsx'
 import Settings from './pages/Settings.jsx'
 import api from './services/api.js'
+import { AuthProvider, useAuth } from './services/auth.jsx'
 import './App.css'
 
-function App() {
-  const [user, setUser] = useState(null)
+// 创建使用AuthContext的内部应用组件
+function AppContent() {
   const [loading, setLoading] = useState(true)
+  const { user, token, login, logout } = useAuth() || {};
 
   // 检查用户登录状态
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        const token = localStorage.getItem('token')
-        if (token) {
-          api.defaults.headers.common['Authorization'] = `Bearer ${token}`
-          const response = await api.get('/profile')
-          setUser(response.data)
+        const storedToken = localStorage.getItem('token') || sessionStorage.getItem('token');
+        const storedUser = localStorage.getItem('user') || sessionStorage.getItem('user');
+        
+        if (storedToken && storedUser && login) {
+          api.defaults.headers.common['Authorization'] = `Bearer ${storedToken}`;
+          const userData = JSON.parse(storedUser);
+          login(userData, storedToken);
         }
       } catch (error) {
-        localStorage.removeItem('token')
-        delete api.defaults.headers.common['Authorization']
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        sessionStorage.removeItem('token');
+        sessionStorage.removeItem('user');
+        delete api.defaults.headers.common['Authorization'];
       } finally {
-        setLoading(false)
+        setLoading(false);
       }
     }
 
-    checkAuth()
-  }, [])
+    checkAuth();
+  }, [login]);
 
-  // 处理登录成功
-  const handleLoginSuccess = (userData) => {
-    setUser(userData)
-  }
-  
   // 处理注册成功
   const handleRegisterSuccess = () => {
     // 可以在这里添加注册成功后的逻辑
-    console.log('注册成功')
-  }
-
-  // 处理登出
-  const handleLogout = () => {
-    setUser(null)
-    localStorage.removeItem('token')
-    delete api.defaults.headers.common['Authorization']
+    console.log('注册成功');
   }
 
   if (loading) {
@@ -72,12 +67,12 @@ function App() {
   return (
     <div className="app">
       <Routes>
-        <Route path="/login" element={<Login onLoginSuccess={handleLoginSuccess} />}></Route>
+        <Route path="/login" element={<Login />}></Route>
         <Route path="/register" element={<Register onRegisterSuccess={handleRegisterSuccess} />}></Route>
         
         {user ? (
           <>
-            <Route path="/" element={<Layout user={user} onLogout={handleLogout} />}>
+            <Route path="/" element={<Layout user={user} onLogout={logout} />}>
               <Route index element={<Dashboard />}></Route>
               <Route path="networks" element={<Networks />}></Route>
               <Route path="networks/:id" element={<NetworkDetail />}></Route>
@@ -93,6 +88,15 @@ function App() {
         )}
       </Routes>
     </div>
+  )
+}
+
+// 主App组件，使用AuthProvider包裹
+function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   )
 }
 

@@ -79,4 +79,14 @@ export const statusAPI = {
   getStatus: () => api.get('/status')
 }
 
+// 系统相关API
+export const systemAPI = {
+  // 获取系统状态
+  getStatus: () => api.get('/status'),
+  // 更新系统设置
+  updateSettings: (settings) => api.put('/settings', settings),
+  // 获取系统信息
+  getSystemInfo: () => api.get('/system/info')
+}
+
 export default api

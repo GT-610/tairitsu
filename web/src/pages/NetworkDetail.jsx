@@ -133,8 +133,7 @@ function NetworkDetail() {
                         {network.config?.v4AssignMode?.zt?.cidr || '未设置'}
                       </Typography>
                     </Box>
-                  </>
-                ) : null}
+                )}
               </Box>
             </CardContent>
           </Card>

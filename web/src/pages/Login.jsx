@@ -15,7 +15,7 @@ import {
 } from '@mui/material';
 import { LockOutlined } from '@mui/icons-material';
 import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '../services/auth';
+import { useAuth } from '../services/auth.jsx';
 
 function Login() {
   const [formData, setFormData] = useState({
