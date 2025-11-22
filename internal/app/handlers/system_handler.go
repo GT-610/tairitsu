@@ -18,16 +18,18 @@ import (
 
 // SystemHandler 系统处理器
 type SystemHandler struct {
-	networkService *services.NetworkService
-	userService    *services.UserService
+	networkService   *services.NetworkService
+	userService      *services.UserService
+	reloadRoutesFunc func() // 添加重新加载路由的函数
 	// 数据库配置将存储在配置文件中
 }
 
 // NewSystemHandler 创建新的系统处理器
-func NewSystemHandler(networkService *services.NetworkService, userService *services.UserService) *SystemHandler {
+func NewSystemHandler(networkService *services.NetworkService, userService *services.UserService, reloadRoutesFunc func()) *SystemHandler {
 	return &SystemHandler{
-		networkService: networkService,
-		userService:    userService,
+		networkService:   networkService,
+		userService:      userService,
+		reloadRoutesFunc: reloadRoutesFunc,
 	}
 }
 
@@ -108,11 +110,16 @@ func (h *SystemHandler) ConfigureDatabase(c *gin.Context) {
 		logger.Warn("关闭数据库连接时出现警告", zap.Error(err))
 	}
 
-	// 保存数据库配置到环境变量文件
-	if err := saveDatabaseConfig(dbConfig); err != nil {
+	// 保存数据库配置到JSON文件
+	if err := database.SaveConfigToJSON(dbCfg); err != nil {
 		logger.Error("保存数据库配置失败", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "保存数据库配置失败: " + err.Error()})
 		return
+	}
+
+	// 重新加载路由以注册认证端点
+	if h.reloadRoutesFunc != nil {
+		h.reloadRoutesFunc()
 	}
 
 	logger.Info("数据库配置成功", zap.String("type", dbConfig.Type))
@@ -125,7 +132,7 @@ func (h *SystemHandler) ConfigureDatabase(c *gin.Context) {
 // TestZeroTierConnection 测试ZeroTier连接
 func (h *SystemHandler) TestZeroTierConnection(c *gin.Context) {
 	logger.Info("开始测试ZeroTier连接")
-	
+
 	// 动态创建ZeroTier客户端
 	ztClient, err := zerotier.NewClient()
 	if err != nil {

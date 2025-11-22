@@ -1,6 +1,7 @@
 package database
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"strconv"
@@ -105,6 +106,45 @@ func NewDatabase(config Config) (DBInterface, error) {
 		}
 		return nil, fmt.Errorf("不支持的数据库类型: %s", config.Type)
 	}
+}
+
+// LoadConfig 从JSON配置文件加载数据库配置
+func LoadConfig() Config {
+	// 首先尝试从JSON配置文件读取
+	if config, err := loadConfigFromJSON(); err == nil && config.Type != "" {
+		return config
+	}
+
+	// 如果JSON文件不存在或读取失败，尝试从环境变量读取
+	return LoadConfigFromEnv()
+}
+
+// loadConfigFromJSON 从JSON文件加载数据库配置
+func loadConfigFromJSON() (Config, error) {
+	config := Config{}
+
+	// 读取数据库配置文件
+	data, err := os.ReadFile("./database_config.json")
+	if err != nil {
+		return config, fmt.Errorf("读取数据库配置文件失败: %w", err)
+	}
+
+	// 解析JSON
+	if err := json.Unmarshal(data, &config); err != nil {
+		return config, fmt.Errorf("解析数据库配置失败: %w", err)
+	}
+
+	return config, nil
+}
+
+// SaveConfigToJSON 将数据库配置保存到JSON文件
+func SaveConfigToJSON(config Config) error {
+	data, err := json.MarshalIndent(config, "", "  ")
+	if err != nil {
+		return fmt.Errorf("序列化数据库配置失败: %w", err)
+	}
+
+	return os.WriteFile("./database_config.json", data, 0644)
 }
 
 // LoadConfigFromEnv 从环境变量加载数据库配置

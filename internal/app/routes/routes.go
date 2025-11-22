@@ -11,6 +11,11 @@ import (
 
 // SetupRoutes 设置路由
 func SetupRoutes(router *gin.Engine, ztClient *zerotier.Client, jwtSecret string, db database.DBInterface) {
+	SetupRoutesWithReload(router, ztClient, jwtSecret, db, nil)
+}
+
+// SetupRoutesWithReload 设置路由并接受重新加载函数
+func SetupRoutesWithReload(router *gin.Engine, ztClient *zerotier.Client, jwtSecret string, db database.DBInterface, reloadRoutesFunc func()) {
 	// 应用中间件
 	router.Use(middleware.Logger())
 	router.Use(middleware.CORS())
@@ -18,7 +23,7 @@ func SetupRoutes(router *gin.Engine, ztClient *zerotier.Client, jwtSecret string
 
 	// 创建服务实例
 	networkService := services.NewNetworkService(ztClient)
-	
+
 	// 创建用户服务实例，可能使用nil数据库
 	var userService *services.UserService
 	if db != nil {
@@ -26,14 +31,20 @@ func SetupRoutes(router *gin.Engine, ztClient *zerotier.Client, jwtSecret string
 	} else {
 		userService = services.NewUserServiceWithoutDB() // 创建不使用数据库的服务实例
 	}
-	
+
 	jwtService := services.NewJWTService(jwtSecret)
 
 	// 创建处理器实例
 	networkHandler := handlers.NewNetworkHandler(networkService)
 	memberHandler := handlers.NewMemberHandler(networkService)
 	authHandler := handlers.NewAuthHandler(userService, jwtService)
-	systemHandler := handlers.NewSystemHandler(networkService, userService)
+
+	// 如果没有提供重新加载路由的函数，则使用空函数
+	if reloadRoutesFunc == nil {
+		reloadRoutesFunc = func() {}
+	}
+
+	systemHandler := handlers.NewSystemHandler(networkService, userService, reloadRoutesFunc)
 
 	// 创建认证中间件
 	authMiddleware := middleware.AuthMiddleware(jwtService)
@@ -48,10 +59,10 @@ func SetupRoutes(router *gin.Engine, ztClient *zerotier.Client, jwtSecret string
 
 		// 系统状态检测（无需认证）
 		api.GET("/system/status", systemHandler.GetSystemStatus)
-		
+
 		// 数据库配置（无需认证，仅在初始设置时可用）
 		api.POST("/system/database", systemHandler.ConfigureDatabase)
-		
+
 		// ZeroTier连接测试（无需认证，仅在初始设置时可用）
 		api.GET("/system/zerotier/test", systemHandler.TestZeroTierConnection)
 
@@ -80,16 +91,16 @@ func SetupRoutes(router *gin.Engine, ztClient *zerotier.Client, jwtSecret string
 				// 网络管理
 				networks := authenticated.Group("/networks")
 				{
-					networks.GET("", networkHandler.GetNetworks)           // 获取所有网络
-					networks.POST("", networkHandler.CreateNetwork)         // 创建网络
-					networks.GET("/:id", networkHandler.GetNetwork)         // 获取单个网络
-					networks.PUT("/:id", networkHandler.UpdateNetwork)      // 更新网络
-					networks.DELETE("/:id", networkHandler.DeleteNetwork)   // 删除网络
+					networks.GET("", networkHandler.GetNetworks)          // 获取所有网络
+					networks.POST("", networkHandler.CreateNetwork)       // 创建网络
+					networks.GET("/:id", networkHandler.GetNetwork)       // 获取单个网络
+					networks.PUT("/:id", networkHandler.UpdateNetwork)    // 更新网络
+					networks.DELETE("/:id", networkHandler.DeleteNetwork) // 删除网络
 
 					// 成员管理（嵌套在网络路由中）
-					networks.GET("/:id/members", memberHandler.GetMembers)         // 获取成员列表
-					networks.GET("/:id/members/:memberId", memberHandler.GetMember) // 获取单个成员
-					networks.PUT("/:id/members/:memberId", memberHandler.UpdateMember) // 更新成员
+					networks.GET("/:id/members", memberHandler.GetMembers)                // 获取成员列表
+					networks.GET("/:id/members/:memberId", memberHandler.GetMember)       // 获取单个成员
+					networks.PUT("/:id/members/:memberId", memberHandler.UpdateMember)    // 更新成员
 					networks.DELETE("/:id/members/:memberId", memberHandler.DeleteMember) // 删除成员
 				}
 			}

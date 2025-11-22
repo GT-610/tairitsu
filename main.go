@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"sync"
 
 	"github.com/gin-gonic/gin"
 	"github.com/tairitsu/tairitsu/internal/app/config"
@@ -15,6 +16,65 @@ import (
 
 // GlobalDB 全局数据库实例，在用户完成设置向导后初始化
 var GlobalDB database.DBInterface
+
+// GlobalRouter 全局路由器实例，用于重新加载路由
+var GlobalRouter *gin.Engine
+var routerMutex sync.RWMutex
+
+// ReloadRoutes 重新加载路由
+func ReloadRoutes() {
+	logger.Info("开始重新加载路由")
+	
+	routerMutex.Lock()
+	defer routerMutex.Unlock()
+
+	// 清除现有路由
+	GlobalRouter = gin.New()
+	logger.Info("已创建新的路由器实例")
+
+	// 重新加载数据库配置
+	dbConfig := database.LoadConfig()
+	logger.Info("已加载数据库配置", zap.Any("config", dbConfig))
+	logger.Info("数据库配置详情", zap.String("type", string(dbConfig.Type)), zap.String("path", dbConfig.Path))
+
+	// 如果数据库配置有效，则创建数据库实例
+	if dbConfig.Type != "" {
+		db, err := database.NewDatabase(dbConfig)
+		if err != nil {
+			logger.Error("重新加载路由时创建数据库实例失败", zap.Error(err))
+			GlobalDB = nil
+		} else {
+			if err := db.Init(); err != nil {
+				logger.Error("重新加载路由时数据库初始化失败", zap.Error(err))
+				GlobalDB = nil
+			} else {
+				GlobalDB = db
+				logger.Info("重新加载路由时数据库初始化成功", zap.String("type", string(dbConfig.Type)))
+				logger.Info("数据库实例已设置，认证路由应可用")
+			}
+		}
+	} else {
+		GlobalDB = nil
+		logger.Info("数据库配置为空，跳过数据库初始化")
+	}
+
+	// 添加更多调试日志以诊断问题
+	logger.Info("准备重新注册路由")
+
+	// 重新注册路由
+	var ztClient *zerotier.Client
+	cfg, _ := config.LoadConfig()
+	if cfg != nil {
+		logger.Info("使用配置文件中的JWT密钥重新注册路由")
+		routes.SetupRoutesWithReload(GlobalRouter, ztClient, cfg.Security.JWTSecret, GlobalDB, ReloadRoutes)
+	} else {
+		// 使用默认配置
+		logger.Info("使用默认JWT密钥重新注册路由")
+		routes.SetupRoutesWithReload(GlobalRouter, ztClient, "default-secret-key", GlobalDB, ReloadRoutes)
+	}
+
+	logger.Info("路由重新加载完成")
+}
 
 func main() {
 	fmt.Println("Tairitsu - ZeroTier Controller UI")
@@ -29,7 +89,7 @@ func main() {
 	}
 
 	// 加载数据库配置
-	dbConfig := database.LoadConfigFromEnv()
+	dbConfig := database.LoadConfig()
 	
 	// 只有在配置了数据库类型时才创建数据库实例
 	// 否则，GlobalDB将保持为nil，直到用户通过设置向导配置数据库
@@ -62,15 +122,15 @@ func main() {
 	}
 
 	// 创建路由
-	router := gin.New()
+	GlobalRouter = gin.New()
 
-	// 注册路由，传递全局数据库实例（可能为nil）
-	routes.SetupRoutes(router, ztClient, cfg.Security.JWTSecret, GlobalDB)
+	// 注册路由，传递全局数据库实例（可能为nil）和重新加载路由的函数
+	routes.SetupRoutesWithReload(GlobalRouter, ztClient, cfg.Security.JWTSecret, GlobalDB, ReloadRoutes)
 
 	// 启动服务器
 	serverAddr := fmt.Sprintf(":%d", cfg.Server.Port)
 	logger.Info("服务器启动在", zap.String("address", serverAddr))
-	if err := router.Run(serverAddr); err != nil {
+	if err := GlobalRouter.Run(serverAddr); err != nil {
 		logger.Fatal("启动服务器失败", zap.Error(err))
 	}
 }
