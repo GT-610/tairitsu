@@ -2,6 +2,7 @@ package routes
 
 import (
 	"github.com/gin-gonic/gin"
+	"github.com/tairitsu/tairitsu/internal/app/database"
 	"github.com/tairitsu/tairitsu/internal/app/handlers"
 	"github.com/tairitsu/tairitsu/internal/app/middleware"
 	"github.com/tairitsu/tairitsu/internal/app/services"
@@ -9,7 +10,7 @@ import (
 )
 
 // SetupRoutes 设置路由
-func SetupRoutes(router *gin.Engine, ztClient *zerotier.Client, jwtSecret string) {
+func SetupRoutes(router *gin.Engine, ztClient *zerotier.Client, jwtSecret string, db database.DBInterface) {
 	// 应用中间件
 	router.Use(middleware.Logger())
 	router.Use(middleware.CORS())
@@ -17,7 +18,7 @@ func SetupRoutes(router *gin.Engine, ztClient *zerotier.Client, jwtSecret string
 
 	// 创建服务实例
 	networkService := services.NewNetworkService(ztClient)
-	userService := services.NewUserService()
+	userService := services.NewUserServiceWithDB(db) // 使用传入的数据库实例
 	jwtService := services.NewJWTService(jwtSecret)
 
 	// 创建处理器实例
@@ -39,6 +40,9 @@ func SetupRoutes(router *gin.Engine, ztClient *zerotier.Client, jwtSecret string
 
 		// 系统状态检测（无需认证）
 		api.GET("/system/status", systemHandler.GetSystemStatus)
+		
+		// 数据库配置（无需认证，仅在初始设置时可用）
+		api.POST("/system/database", systemHandler.ConfigureDatabase)
 
 		// 认证路由（无需认证）
 		auth := api.Group("/auth")

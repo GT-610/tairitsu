@@ -1,0 +1,26 @@
+package database
+
+import (
+	"github.com/tairitsu/tairitsu/internal/app/models"
+)
+
+// DBInterface 定义数据库接口，支持多种数据库后端
+type DBInterface interface {
+	// 初始化数据库
+	Init() error
+	
+	// 用户相关操作
+	CreateUser(user *models.User) error
+	GetUserByID(id string) (*models.User, error)
+	GetUserByUsername(username string) (*models.User, error)
+	GetUserByEmail(email string) (*models.User, error)
+	GetAllUsers() ([]*models.User, error)
+	UpdateUser(user *models.User) error
+	DeleteUser(id string) error
+	
+	// 检查是否已存在管理员用户
+	HasAdminUser() (bool, error)
+	
+	// 关闭数据库连接
+	Close() error
+}

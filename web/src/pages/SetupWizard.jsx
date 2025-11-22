@@ -13,7 +13,7 @@ import {
   TextField
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
-import { authAPI, statusAPI } from '../services/api.js';
+import { authAPI, statusAPI, systemAPI } from '../services/api.js';
 
 function SetupWizard() {
   const [activeStep, setActiveStep] = useState(0);
@@ -25,11 +25,21 @@ function SetupWizard() {
     password: '',
     confirmPassword: ''
   });
+  const [dbConfig, setDbConfig] = useState({
+    type: 'sqlite', // 默认选择SQLite
+    path: '', // SQLite路径（由程序控制）
+    host: '',
+    port: '',
+    user: '',
+    pass: '',
+    name: ''
+  });
   const [ztStatus, setZtStatus] = useState(null);
   const navigate = useNavigate();
 
   const steps = [
     '欢迎使用 Tairitsu',
+    '配置数据库',
     '创建管理员账户',
     '检测ZeroTier连接',
     '完成设置'
@@ -51,8 +61,24 @@ function SetupWizard() {
       return;
     }
     
-    // 在创建管理员账户步骤，提交表单
+    // 在配置数据库步骤，保存数据库配置
     if (activeStep === 1) {
+      setLoading(true);
+      try {
+        // 发送数据库配置到后端
+        await systemAPI.configureDatabase(dbConfig);
+        // 继续下一步
+        setActiveStep((prevActiveStep) => prevActiveStep + 1);
+      } catch (err) {
+        setError(err.response?.data?.message || '数据库配置失败');
+      } finally {
+        setLoading(false);
+        return;
+      }
+    }
+    
+    // 在创建管理员账户步骤，提交表单
+    if (activeStep === 2) {
       if (!adminData.username || !adminData.email || !adminData.password) {
         setError('请填写所有必填字段');
         return;
@@ -88,7 +114,7 @@ function SetupWizard() {
     }
     
     // 在检测ZeroTier连接步骤
-    if (activeStep === 2) {
+    if (activeStep === 3) {
       setLoading(true);
       try {
         // 检测ZeroTier连接状态
@@ -119,6 +145,13 @@ function SetupWizard() {
     });
   };
 
+  const handleDbConfigChange = (e) => {
+    setDbConfig({
+      ...dbConfig,
+      [e.target.name]: e.target.value
+    });
+  };
+
   const getStepContent = (step) => {
     switch (step) {
       case 0:
@@ -136,6 +169,60 @@ function SetupWizard() {
           </Box>
         );
       case 1:
+        return (
+          <Box sx={{ py: 2 }}>
+            <Typography variant="h5" gutterBottom>
+              配置数据库
+            </Typography>
+            <Typography variant="body1" sx={{ mb: 3 }}>
+              请选择数据库类型来存储用户数据和网络配置信息。
+            </Typography>
+            
+            <Box sx={{ mb: 3 }}>
+              <Typography variant="subtitle1" gutterBottom>
+                数据库类型
+              </Typography>
+              <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
+                <Button
+                  variant={dbConfig.type === 'sqlite' ? 'contained' : 'outlined'}
+                  onClick={() => handleDbConfigChange({ target: { name: 'type', value: 'sqlite' } })}
+                  disabled={loading}
+                >
+                  SQLite (推荐)
+                </Button>
+                <Button
+                  variant={dbConfig.type === 'postgresql' ? 'contained' : 'outlined'}
+                  onClick={() => handleDbConfigChange({ target: { name: 'type', value: 'postgresql' } })}
+                  disabled={loading}
+                >
+                  PostgreSQL (开发中)
+                </Button>
+                <Button
+                  variant={dbConfig.type === 'mysql' ? 'contained' : 'outlined'}
+                  onClick={() => handleDbConfigChange({ target: { name: 'type', value: 'mysql' } })}
+                  disabled={loading}
+                >
+                  MySQL (开发中)
+                </Button>
+              </Box>
+              
+              {dbConfig.type === 'sqlite' && (
+                <Alert severity="info" sx={{ mb: 2 }}>
+                  SQLite数据库将自动创建在程序数据目录中。SQLite适用于小规模网络部署，
+                  对于大型生产环境建议使用PostgreSQL或MySQL。
+                </Alert>
+              )}
+              
+              {(dbConfig.type === 'postgresql' || dbConfig.type === 'mysql') && (
+                <Alert severity="warning" sx={{ mb: 2 }}>
+                  注意：{dbConfig.type === 'postgresql' ? 'PostgreSQL' : 'MySQL'}支持正在开发中，
+                  当前版本仅支持SQLite数据库。
+                </Alert>
+              )}
+            </Box>
+          </Box>
+        );
+      case 2:
         return (
           <Box sx={{ py: 2 }}>
             <Typography variant="h5" gutterBottom>
@@ -198,7 +285,7 @@ function SetupWizard() {
             />
           </Box>
         );
-      case 2:
+      case 3:
         return (
           <Box sx={{ textAlign: 'center', py: 4 }}>
             <Typography variant="h5" gutterBottom>
@@ -228,7 +315,7 @@ function SetupWizard() {
             )}
           </Box>
         );
-      case 3:
+      case 4:
         return (
           <Box sx={{ textAlign: 'center', py: 4 }}>
             <Typography variant="h4" gutterBottom color="success.main">

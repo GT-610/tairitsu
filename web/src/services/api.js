@@ -85,6 +85,8 @@ export const systemAPI = {
   getStatus: () => api.get('/status'),
   // 获取系统设置状态（用于检测是否是首次运行）
   getSetupStatus: () => api.get('/system/status'),
+  // 配置数据库
+  configureDatabase: (config) => api.post('/system/database', config),
   // 更新系统设置
   updateSettings: (settings) => api.put('/settings', settings),
   // 获取系统信息
