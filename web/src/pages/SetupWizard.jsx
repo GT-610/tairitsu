@@ -63,6 +63,35 @@ function SetupWizard() {
     
     // 在配置数据库步骤，保存数据库配置
     if (activeStep === 1) {
+      // 数据库配置验证
+      if (!dbConfig.type) {
+        setError('请选择数据库类型');
+        return;
+      }
+      
+      // 根据数据库类型进行不同验证
+      if (dbConfig.type === 'sqlite') {
+        // SQLite 路径由程序控制，不需要用户输入
+      } else {
+        // PostgreSQL或MySQL验证
+        if (!dbConfig.host.trim()) {
+          setError('请输入数据库主机地址');
+          return;
+        }
+        if (!dbConfig.port || dbConfig.port <= 0) {
+          setError('请输入有效的数据库端口');
+          return;
+        }
+        if (!dbConfig.user.trim()) {
+          setError('请输入数据库用户名');
+          return;
+        }
+        if (!dbConfig.name.trim()) {
+          setError('请输入数据库名称');
+          return;
+        }
+      }
+      
       setLoading(true);
       try {
         // 发送数据库配置到后端
@@ -70,7 +99,7 @@ function SetupWizard() {
         // 继续下一步
         setActiveStep((prevActiveStep) => prevActiveStep + 1);
       } catch (err) {
-        setError(err.response?.data?.message || '数据库配置失败');
+        setError('数据库配置保存失败: ' + (err.response?.data?.error || err.message));
       } finally {
         setLoading(false);
         return;
@@ -79,34 +108,33 @@ function SetupWizard() {
     
     // 在创建管理员账户步骤，提交表单
     if (activeStep === 2) {
-      if (!adminData.username || !adminData.email || !adminData.password) {
-        setError('请填写所有必填字段');
+      // 表单验证
+      if (!adminData.username.trim()) {
+        setError('请输入用户名');
         return;
       }
-      
+      if (!adminData.email.trim()) {
+        setError('请输入邮箱地址');
+        return;
+      }
+      if (!adminData.password) {
+        setError('请输入密码');
+        return;
+      }
       if (adminData.password !== adminData.confirmPassword) {
         setError('两次输入的密码不一致');
-        return;
-      }
-      
-      if (adminData.password.length < 6) {
-        setError('密码长度至少为6位');
         return;
       }
       
       setLoading(true);
       try {
         // 注册管理员账户
-        await authAPI.register({
-          username: adminData.username,
-          email: adminData.email,
-          password: adminData.password
-        });
+        await authAPI.register(adminData);
         
         // 继续下一步
         setActiveStep((prevActiveStep) => prevActiveStep + 1);
       } catch (err) {
-        setError(err.response?.data?.message || '创建管理员账户失败');
+        setError('管理员账户创建失败: ' + (err.response?.data?.error || err.message));
       } finally {
         setLoading(false);
         return;
@@ -117,10 +145,7 @@ function SetupWizard() {
     if (activeStep === 3) {
       setLoading(true);
       try {
-        // 检测ZeroTier连接状态
-        const response = await systemAPI.getSetupStatus();
-        setZtStatus(response.data.ztStatus);
-        // 继续下一步
+        // 直接继续下一步，无需再次获取系统状态
         setActiveStep((prevActiveStep) => prevActiveStep + 1);
       } catch (err) {
         setError('无法连接到ZeroTier控制器，请检查配置');

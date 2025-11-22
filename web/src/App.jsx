@@ -25,7 +25,7 @@ function AppContent() {
     const checkFirstRun = async () => {
       try {
         // 尝试获取系统设置状态来判断是否已完成设置
-        const response = await api.get('/api/system/status');
+        const response = await api.get('/system/status');
         // 如果没有管理员用户，则认为是首次运行
         setIsFirstRun(!response.data.hasAdmin);
       } catch (error) {
