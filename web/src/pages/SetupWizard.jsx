@@ -51,29 +51,50 @@ function SetupWizard() {
     // 例如检查本地存储或向后端发送请求
   }, []);
 
-  // 当进入第四步（ZeroTier连接检测）时，自动获取ZeroTier状态
+  // 当进入第四步（ZeroTier连接检测）时，自动获取ZeroTier状态并尝试初始化
   useEffect(() => {
     if (activeStep === 3) {
-      fetchZeroTierStatus();
+      testAndInitZeroTier();
     }
   }, [activeStep]);
 
-  // 获取ZeroTier状态
-  const fetchZeroTierStatus = async () => {
+  // 测试并初始化ZeroTier连接
+  const testAndInitZeroTier = async () => {
     setLoading(true);
     setError('');
     try {
-      // 直接使用systemAPI获取系统状态，其中包含ZeroTier状态信息
-      const response = await systemAPI.getSetupStatus();
-      // 系统API返回的数据结构中，ZeroTier状态在ztStatus字段中
-      setZtStatus(response.data.ztStatus);
+      // 首先测试ZeroTier连接
+      await systemAPI.initZeroTierClient();
+      
+      // 初始化成功后获取实际状态
+      const statusResponse = await systemAPI.getSetupStatus();
+      setZtStatus(statusResponse.data.ztStatus);
+      
+      // 确保状态已设置为在线
+      if (statusResponse.data.ztStatus && statusResponse.data.ztStatus.online) {
+        console.log('[设置向导] ZeroTier连接成功');
+      }
     } catch (err) {
+      // 初始化失败时，尝试获取当前状态以提供更多信息
+      try {
+        const statusResponse = await systemAPI.getSetupStatus();
+        setZtStatus(statusResponse.data.ztStatus);
+      } catch (statusErr) {
+        // 如果获取状态也失败，设置为null
+        setZtStatus(null);
+      }
+      
       const errorMsg = '无法连接到ZeroTier控制器，请检查配置';
       setError(errorMsg);
-      console.error('获取ZeroTier状态失败:', err);
+      console.error('[设置向导] ZeroTier连接失败:', err.message || err);
     } finally {
       setLoading(false);
     }
+  };
+
+  // 重试连接（保留供用户手动重试）
+  const retryZeroTier = async () => {
+    await testAndInitZeroTier();
   };
 
   const handleNext = async () => {
@@ -168,26 +189,16 @@ function SetupWizard() {
     
     // 在检测ZeroTier连接步骤
     if (activeStep === 3) {
-      // 只有在ZeroTier状态有效时才能前进
+      // 只有在ZeroTier状态有效且在线时才能前进
       if (!ztStatus || !ztStatus.online) {
         // 如果检测失败，保持在当前页面并显示错误提示
         setError(ztStatus ? 'ZeroTier未在线，请检查连接' : 'ZeroTier连接检测失败，请重试');
         return;
       }
       
-      // 在前进到完成步骤前，初始化ZeroTier客户端
-      setLoading(true);
-      try {
-        // 调用新API端点初始化ZeroTier客户端
-        await systemAPI.initZeroTierClient();
-        // 初始化成功，前进到完成步骤
-        setActiveStep((prevActiveStep) => prevActiveStep + 1);
-      } catch (err) {
-        // 初始化失败，显示错误并保持在当前步骤
-        setError('初始化ZeroTier客户端失败: ' + (err.response?.data?.error || err.message));
-      } finally {
-        setLoading(false);
-      }
+      // 由于已经在进入此步骤时初始化了ZeroTier客户端，这里只需要验证状态
+      // 验证通过，直接前进到完成步骤
+      setActiveStep((prevActiveStep) => prevActiveStep + 1);
       return;
     }
     
@@ -406,7 +417,7 @@ function SetupWizard() {
                     </Typography>
                     <Button 
                       variant="outlined" 
-                      onClick={fetchZeroTierStatus}
+                      onClick={retryZeroTier}
                       color="primary"
                       disabled={loading}
                     >
@@ -424,7 +435,7 @@ function SetupWizard() {
                 )}
                 <Button 
                   variant="outlined" 
-                  onClick={fetchZeroTierStatus}
+                  onClick={retryZeroTier}
                   color="primary"
                   disabled={loading}
                 >

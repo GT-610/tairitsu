@@ -138,12 +138,15 @@ func loadConfigFromJSON() (Config, error) {
 }
 
 // SaveConfigToJSON 将数据库配置保存到JSON文件
+// 注意：此函数会强制覆盖现有的配置文件，不进行文件存在性检查
 func SaveConfigToJSON(config Config) error {
 	data, err := json.MarshalIndent(config, "", "  ")
 	if err != nil {
 		return fmt.Errorf("序列化数据库配置失败: %w", err)
 	}
 
+	// 强制覆盖模式：os.WriteFile默认会覆盖文件，无需额外检查
+	// 确保文件权限为0644（所有者可读写，其他用户可读）
 	return os.WriteFile("./database_config.json", data, 0644)
 }
 

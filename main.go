@@ -17,6 +17,9 @@ import (
 // GlobalDB 全局数据库实例，在用户完成设置向导后初始化
 var GlobalDB database.DBInterface
 
+// GlobalZTClient 全局ZeroTier客户端实例，在初始化后保持
+var GlobalZTClient *zerotier.Client
+
 // GlobalRouter 全局路由器实例，用于重新加载路由
 var GlobalRouter *gin.Engine
 var routerMutex sync.RWMutex
@@ -61,16 +64,15 @@ func ReloadRoutes() {
 	// 添加更多调试日志以诊断问题
 	logger.Info("准备重新注册路由")
 
-	// 重新注册路由
-	var ztClient *zerotier.Client
+	// 重新注册路由，使用全局的ZeroTier客户端
 	cfg, _ := config.LoadConfig()
 	if cfg != nil {
 		logger.Info("使用配置文件中的JWT密钥重新注册路由")
-		routes.SetupRoutesWithReload(GlobalRouter, ztClient, cfg.Security.JWTSecret, GlobalDB, ReloadRoutes)
+		routes.SetupRoutesWithReload(GlobalRouter, GlobalZTClient, cfg.Security.JWTSecret, GlobalDB, ReloadRoutes)
 	} else {
 		// 使用默认配置
 		logger.Info("使用默认JWT密钥重新注册路由")
-		routes.SetupRoutesWithReload(GlobalRouter, ztClient, "default-secret-key", GlobalDB, ReloadRoutes)
+		routes.SetupRoutesWithReload(GlobalRouter, GlobalZTClient, "default-secret-key", GlobalDB, ReloadRoutes)
 	}
 
 	logger.Info("路由重新加载完成")
@@ -113,9 +115,6 @@ func main() {
 		logger.Info("未配置数据库类型，等待用户通过设置向导配置")
 	}
 
-	// 初始化一个空的ZeroTier客户端，将在需要时动态创建
-	var ztClient *zerotier.Client
-
 	// 设置Gin模式
 	if os.Getenv("NODE_ENV") == "production" {
 		gin.SetMode(gin.ReleaseMode)
@@ -125,7 +124,8 @@ func main() {
 	GlobalRouter = gin.New()
 
 	// 注册路由，传递全局数据库实例（可能为nil）和重新加载路由的函数
-	routes.SetupRoutesWithReload(GlobalRouter, ztClient, cfg.Security.JWTSecret, GlobalDB, ReloadRoutes)
+	// 使用全局的GlobalZTClient，初始为nil，将在InitZeroTierClient时设置
+	routes.SetupRoutesWithReload(GlobalRouter, GlobalZTClient, cfg.Security.JWTSecret, GlobalDB, ReloadRoutes)
 
 	// 启动服务器
 	serverAddr := fmt.Sprintf(":%d", cfg.Server.Port)

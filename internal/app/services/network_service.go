@@ -7,6 +7,9 @@ import (
 	"go.uber.org/zap"
 )
 
+// 全局ZeroTier客户端实例，在初始化后保持
+var GlobalZTClient *zerotier.Client
+
 // NetworkService 网络服务
 
 type NetworkService struct {
@@ -15,6 +18,12 @@ type NetworkService struct {
 
 // NewNetworkService 创建网络服务实例
 func NewNetworkService(ztClient *zerotier.Client) *NetworkService {
+	// 优先使用全局ZeroTier客户端（如果已初始化）
+	// 这确保在路由重新加载后，新创建的NetworkService实例也能使用已初始化的客户端
+	if GlobalZTClient != nil && ztClient == nil {
+		logger.Info("服务层：创建NetworkService时使用全局ZeroTier客户端")
+		ztClient = GlobalZTClient
+	}
 	return &NetworkService{
 		ztClient: ztClient,
 	}
@@ -244,8 +253,12 @@ func (s *NetworkService) RemoveNetworkMember(networkID, memberID string) error {
 func (s *NetworkService) SetZTClient(client *zerotier.Client) {
 	if client != nil {
 		logger.Info("服务层：ZeroTier客户端已设置")
+		// 同时更新全局客户端实例，确保路由重新加载后仍然保持
+		GlobalZTClient = client
 	} else {
 		logger.Warn("服务层：尝试设置空的ZeroTier客户端")
+		// 也清空全局实例
+		GlobalZTClient = nil
 	}
 	s.ztClient = client
 }
