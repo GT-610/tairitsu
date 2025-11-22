@@ -87,6 +87,8 @@ export const systemAPI = {
   getSetupStatus: () => api.get('/system/status'),
   // 配置数据库
   configureDatabase: (config) => api.post('/system/database', config),
+  // 初始化ZeroTier客户端
+  initZeroTierClient: () => api.post('/system/zerotier/init'),
   // 更新系统设置
   updateSettings: (settings) => api.put('/settings', settings),
   // 获取系统信息

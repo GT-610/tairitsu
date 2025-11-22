@@ -65,6 +65,9 @@ func SetupRoutesWithReload(router *gin.Engine, ztClient *zerotier.Client, jwtSec
 
 		// ZeroTier连接测试（无需认证，仅在初始设置时可用）
 		api.GET("/system/zerotier/test", systemHandler.TestZeroTierConnection)
+		
+		// ZeroTier客户端初始化（无需认证，仅在初始设置时可用）
+		api.POST("/system/zerotier/init", systemHandler.InitZeroTierClient)
 
 		// 认证路由（无需认证）
 		auth := api.Group("/auth")

@@ -149,4 +149,31 @@ func (h *SystemHandler) TestZeroTierConnection(c *gin.Context) {
 	c.JSON(http.StatusOK, ztStatus)
 }
 
+// InitZeroTierClient 初始化ZeroTier客户端
+func (h *SystemHandler) InitZeroTierClient(c *gin.Context) {
+	logger.Info("开始初始化ZeroTier客户端")
+
+	// 动态创建ZeroTier客户端
+	ztClient, err := zerotier.NewClient()
+	if err != nil {
+		logger.Error("创建ZeroTier客户端失败", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建ZeroTier客户端失败: " + err.Error()})
+		return
+	}
+
+	// 将客户端设置到网络服务中
+	h.networkService.SetZTClient(ztClient)
+
+	// 验证客户端是否正常工作
+	_, err = h.networkService.GetStatus()
+	if err != nil {
+		logger.Error("验证ZeroTier客户端失败", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "ZeroTier客户端初始化后验证失败: " + err.Error()})
+		return
+	}
+
+	logger.Info("成功初始化ZeroTier客户端并验证正常")
+	c.JSON(http.StatusOK, gin.H{"message": "ZeroTier客户端初始化成功"})
+}
+
 // 数据库配置相关函数已迁移到JSON文件存储方式

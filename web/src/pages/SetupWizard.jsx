@@ -63,9 +63,10 @@ function SetupWizard() {
     setLoading(true);
     setError('');
     try {
-      const response = await statusAPI.getStatus();
-      // 假设ZeroTier状态在response.data.zerotier中
-      setZtStatus(response.data.zerotier);
+      // 直接使用systemAPI获取系统状态，其中包含ZeroTier状态信息
+      const response = await systemAPI.getSetupStatus();
+      // 系统API返回的数据结构中，ZeroTier状态在ztStatus字段中
+      setZtStatus(response.data.ztStatus);
     } catch (err) {
       const errorMsg = '无法连接到ZeroTier控制器，请检查配置';
       setError(errorMsg);
@@ -126,8 +127,8 @@ function SetupWizard() {
         setError('数据库配置保存失败: ' + (err.response?.data?.error || err.message));
       } finally {
         setLoading(false);
-        return;
       }
+      return;
     }
     
     // 在创建管理员账户步骤，提交表单
@@ -161,8 +162,8 @@ function SetupWizard() {
         setError('管理员账户创建失败: ' + (err.response?.data?.error || err.message));
       } finally {
         setLoading(false);
-        return;
       }
+      return;
     }
     
     // 在检测ZeroTier连接步骤
@@ -173,12 +174,30 @@ function SetupWizard() {
         setError(ztStatus ? 'ZeroTier未在线，请检查连接' : 'ZeroTier连接检测失败，请重试');
         return;
       }
-      // 状态有效，可以前进
+      
+      // 在前进到完成步骤前，初始化ZeroTier客户端
+      setLoading(true);
+      try {
+        // 调用新API端点初始化ZeroTier客户端
+        await systemAPI.initZeroTierClient();
+        // 初始化成功，前进到完成步骤
+        setActiveStep((prevActiveStep) => prevActiveStep + 1);
+      } catch (err) {
+        // 初始化失败，显示错误并保持在当前步骤
+        setError('初始化ZeroTier客户端失败: ' + (err.response?.data?.error || err.message));
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+    
+    // 欢迎页面直接继续
+    if (activeStep === 0) {
       setActiveStep((prevActiveStep) => prevActiveStep + 1);
       return;
     }
     
-    // 其他步骤直接继续
+    // 最后一个完成步骤，确保前进逻辑清晰
     setActiveStep((prevActiveStep) => prevActiveStep + 1);
   };
 

@@ -239,3 +239,13 @@ func (s *NetworkService) RemoveNetworkMember(networkID, memberID string) error {
 
 	return nil
 }
+
+// SetZTClient 设置ZeroTier客户端
+func (s *NetworkService) SetZTClient(client *zerotier.Client) {
+	if client != nil {
+		logger.Info("服务层：ZeroTier客户端已设置")
+	} else {
+		logger.Warn("服务层：尝试设置空的ZeroTier客户端")
+	}
+	s.ztClient = client
+}
