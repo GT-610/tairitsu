@@ -51,6 +51,30 @@ function SetupWizard() {
     // 例如检查本地存储或向后端发送请求
   }, []);
 
+  // 当进入第四步（ZeroTier连接检测）时，自动获取ZeroTier状态
+  useEffect(() => {
+    if (activeStep === 3) {
+      fetchZeroTierStatus();
+    }
+  }, [activeStep]);
+
+  // 获取ZeroTier状态
+  const fetchZeroTierStatus = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const response = await statusAPI.getStatus();
+      // 假设ZeroTier状态在response.data.zerotier中
+      setZtStatus(response.data.zerotier);
+    } catch (err) {
+      const errorMsg = '无法连接到ZeroTier控制器，请检查配置';
+      setError(errorMsg);
+      console.error('获取ZeroTier状态失败:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleNext = async () => {
     setError('');
     
@@ -143,16 +167,15 @@ function SetupWizard() {
     
     // 在检测ZeroTier连接步骤
     if (activeStep === 3) {
-      setLoading(true);
-      try {
-        // 直接继续下一步，无需再次获取系统状态
-        setActiveStep((prevActiveStep) => prevActiveStep + 1);
-      } catch (err) {
-        setError('无法连接到ZeroTier控制器，请检查配置');
-      } finally {
-        setLoading(false);
+      // 只有在ZeroTier状态有效时才能前进
+      if (!ztStatus || !ztStatus.online) {
+        // 如果检测失败，保持在当前页面并显示错误提示
+        setError(ztStatus ? 'ZeroTier未在线，请检查连接' : 'ZeroTier连接检测失败，请重试');
         return;
       }
+      // 状态有效，可以前进
+      setActiveStep((prevActiveStep) => prevActiveStep + 1);
+      return;
     }
     
     // 其他步骤直接继续
@@ -335,23 +358,63 @@ function SetupWizard() {
               正在检测与ZeroTier控制器的连接...
             </Typography>
             
-            {ztStatus ? (
+            {loading ? (
+              <CircularProgress sx={{ mt: 2 }} />
+            ) : ztStatus ? (
               <Box>
-                <Typography variant="body1" color="success.main">
-                  ✓ 成功连接到ZeroTier控制器
-                </Typography>
-                <Typography variant="body2" sx={{ mt: 2 }}>
-                  版本: {ztStatus.version}
-                </Typography>
-                <Typography variant="body2">
-                  地址: {ztStatus.address}
-                </Typography>
-                <Typography variant="body2">
-                  在线状态: {ztStatus.online ? '在线' : '离线'}
-                </Typography>
+                {ztStatus.online ? (
+                  <>
+                    <Typography variant="body1" color="success.main">
+                      ✓ 成功连接到ZeroTier控制器
+                    </Typography>
+                    <Typography variant="body2" sx={{ mt: 2 }}>
+                      版本: {ztStatus.version}
+                    </Typography>
+                    <Typography variant="body2">
+                      地址: {ztStatus.address}
+                    </Typography>
+                    <Typography variant="body2">
+                      在线状态: 在线
+                    </Typography>
+                  </>
+                ) : (
+                  <>
+                    <Typography variant="body1" color="error.main">
+                      ✗ ZeroTier控制器连接失败
+                    </Typography>
+                    <Typography variant="body2" sx={{ mt: 2, mb: 3 }}>
+                      状态: 离线
+                    </Typography>
+                    <Button 
+                      variant="outlined" 
+                      onClick={fetchZeroTierStatus}
+                      color="primary"
+                      disabled={loading}
+                    >
+                      重试连接
+                    </Button>
+                  </>
+                )}
               </Box>
             ) : (
-              <CircularProgress sx={{ mt: 2 }} />
+              <Box>
+                {error && (
+                  <Typography variant="body1" color="error.main" sx={{ mb: 2 }}>
+                    ✗ {error}
+                  </Typography>
+                )}
+                <Button 
+                  variant="outlined" 
+                  onClick={fetchZeroTierStatus}
+                  color="primary"
+                  disabled={loading}
+                >
+                  检测连接
+                </Button>
+                <Typography variant="body2" sx={{ mt: 3, color: 'text.secondary' }}>
+                  提示: 确保ZeroTier服务已启动且配置正确
+                </Typography>
+              </Box>
             )}
           </Box>
         );

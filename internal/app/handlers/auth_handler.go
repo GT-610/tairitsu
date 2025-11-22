@@ -7,6 +7,7 @@ import (
 	"github.com/tairitsu/tairitsu/internal/app/logger"
 	"github.com/tairitsu/tairitsu/internal/app/models"
 	"github.com/tairitsu/tairitsu/internal/app/services"
+	"github.com/tairitsu/tairitsu/internal/zerotier"
 	"go.uber.org/zap"
 )
 
@@ -43,6 +44,25 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	}
 	
 	logger.Info("用户注册成功", zap.String("user_id", user.ID), zap.String("username", user.Username))
+
+	// 在用户注册成功后初始化ZeroTier客户端
+	// 这将确保在进入ZeroTier检查环节前，客户端已完成实例化和准备工作
+	logger.Info("初始化ZeroTier客户端")
+	ztClient, err := zerotier.NewClient()
+	if err != nil {
+		// 记录错误但不阻止用户注册流程
+		logger.Warn("ZeroTier客户端初始化失败，稍后将再次尝试", zap.Error(err))
+	} else {
+		// 如果客户端初始化成功，验证连接
+		_, err = ztClient.GetStatus()
+		if err != nil {
+			logger.Warn("ZeroTier连接验证失败，稍后将再次尝试", zap.Error(err))
+		} else {
+			logger.Info("ZeroTier客户端初始化和连接验证成功")
+			// 存储到全局状态或缓存中，供后续使用
+			// 这里只是验证连接，实际使用时会按需创建客户端
+		}
+	}
 
 	c.JSON(http.StatusCreated, gin.H{
 		"user":  user.ToResponse(),

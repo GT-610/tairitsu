@@ -92,6 +92,7 @@ configs/production.yaml
 *.db
 *.sqlite
 *.sqlite3
+database_config.json
 
 # 备份文件
 *.backup

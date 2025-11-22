@@ -1,11 +1,7 @@
 package handlers
 
 import (
-	"fmt"
 	"net/http"
-	"os"
-	"strconv"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/tairitsu/tairitsu/internal/app/database"
@@ -153,62 +149,4 @@ func (h *SystemHandler) TestZeroTierConnection(c *gin.Context) {
 	c.JSON(http.StatusOK, ztStatus)
 }
 
-// saveDatabaseConfig 保存数据库配置到环境变量文件
-func saveDatabaseConfig(config models.DatabaseConfig) error {
-	// 读取现有的.env文件内容
-	envFile := ".env"
-	data, err := os.ReadFile(envFile)
-	if err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("读取.env文件失败: %w", err)
-	}
-
-	// 将内容按行分割
-	lines := strings.Split(string(data), "\n")
-
-	// 创建一个映射来存储现有的环境变量
-	envVars := make(map[string]string)
-	for _, line := range lines {
-		if strings.Contains(line, "=") && !strings.HasPrefix(line, "#") {
-			parts := strings.SplitN(line, "=", 2)
-			if len(parts) == 2 {
-				envVars[parts[0]] = parts[1]
-			}
-		}
-	}
-
-	// 更新数据库配置
-	envVars["DATABASE_TYPE"] = config.Type
-	if config.Path != "" {
-		envVars["DATABASE_PATH"] = config.Path
-	}
-	if config.Host != "" {
-		envVars["DATABASE_HOST"] = config.Host
-	}
-	if config.Port != 0 {
-		envVars["DATABASE_PORT"] = strconv.Itoa(config.Port)
-	}
-	if config.User != "" {
-		envVars["DATABASE_USER"] = config.User
-	}
-	if config.Pass != "" {
-		envVars["DATABASE_PASS"] = config.Pass
-	}
-	if config.Name != "" {
-		envVars["DATABASE_NAME"] = config.Name
-	}
-
-	// 重新构建.env文件内容
-	var newLines []string
-	for key, value := range envVars {
-		newLines = append(newLines, fmt.Sprintf("%s=%s", key, value))
-	}
-
-	// 添加一些注释来分隔配置部分
-	content := "# Tairitsu Configuration\n"
-	for _, line := range newLines {
-		content += line + "\n"
-	}
-
-	// 写入文件
-	return os.WriteFile(envFile, []byte(content), 0644)
-}
+// 数据库配置相关函数已迁移到JSON文件存储方式

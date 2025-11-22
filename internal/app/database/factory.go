@@ -110,13 +110,13 @@ func NewDatabase(config Config) (DBInterface, error) {
 
 // LoadConfig 从JSON配置文件加载数据库配置
 func LoadConfig() Config {
-	// 首先尝试从JSON配置文件读取
-	if config, err := loadConfigFromJSON(); err == nil && config.Type != "" {
-		return config
+	// 从JSON配置文件读取
+	config, err := loadConfigFromJSON()
+	if err != nil {
+		// 配置文件不存在或读取失败时返回空配置
+		return Config{}
 	}
-
-	// 如果JSON文件不存在或读取失败，尝试从环境变量读取
-	return LoadConfigFromEnv()
+	return config
 }
 
 // loadConfigFromJSON 从JSON文件加载数据库配置
