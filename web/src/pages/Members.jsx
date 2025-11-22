@@ -24,6 +24,7 @@ import {
 } from '@mui/material';
 import { Add, Edit, Delete, Search, Refresh } from '@mui/icons-material';
 import { useParams } from 'react-router-dom';
+import { memberAPI } from '../services/api';
 
 function Members() {
   const { networkId } = useParams();
@@ -42,28 +43,27 @@ function Members() {
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [confirmDialog, setConfirmDialog] = useState({ open: false, memberId: null });
 
-  // 模拟数据获取
+  // 获取成员数据
   useEffect(() => {
     const fetchMembers = async () => {
       try {
         setLoading(true);
-        // 模拟API调用延迟
-        await new Promise(resolve => setTimeout(resolve, 500));
-        
-        // 模拟成员数据
-        const mockMembers = [
-          { id: '1', username: 'alice', email: 'alice@example.com', role: 'admin', isActive: true, joinedAt: '2023-11-01' },
-          { id: '2', username: 'bob', email: 'bob@example.com', role: 'member', isActive: true, joinedAt: '2023-11-02' },
-          { id: '3', username: 'charlie', email: 'charlie@example.com', role: 'member', isActive: false, joinedAt: '2023-11-03' },
-          { id: '4', username: 'david', email: 'david@example.com', role: 'member', isActive: true, joinedAt: '2023-11-04' },
-          { id: '5', username: 'eve', email: 'eve@example.com', role: 'manager', isActive: true, joinedAt: '2023-11-05' },
-        ];
-        
-        setMembers(mockMembers);
+        const response = await memberAPI.getMembers(networkId);
+        // 格式化从API获取的数据以匹配前端组件的期望格式
+        const formattedMembers = response.data.map(member => ({
+          id: member.id || member.address,
+          username: member.name || member.address,
+          email: `${member.address}@zt.local`, // ZeroTier成员通常没有真实邮箱
+          role: member.role || 'member',
+          isActive: member.config?.authorized || false,
+          joinedAt: member.joinedAt ? new Date(member.joinedAt).toLocaleDateString() : '未知'
+        }));
+        setMembers(formattedMembers);
       } catch (error) {
+        console.error('获取成员列表失败:', error);
         setSnackbar({ 
           open: true, 
-          message: '获取成员列表失败', 
+          message: '获取成员列表失败: ' + (error.response?.data?.message || error.message), 
           severity: 'error' 
         });
       } finally {
@@ -71,7 +71,9 @@ function Members() {
       }
     };
 
-    fetchMembers();
+    if (networkId) {
+      fetchMembers();
+    }
   }, [networkId]);
 
   // 处理搜索
@@ -114,8 +116,7 @@ function Members() {
   // 处理删除成员
   const handleDeleteMember = async () => {
     try {
-      // 模拟API调用
-      await new Promise(resolve => setTimeout(resolve, 300));
+      await memberAPI.deleteMember(networkId, confirmDialog.memberId);
       
       setMembers(prevMembers => 
         prevMembers.filter(member => member.id !== confirmDialog.memberId)
@@ -127,9 +128,10 @@ function Members() {
         severity: 'success' 
       });
     } catch (error) {
+      console.error('删除成员失败:', error);
       setSnackbar({ 
         open: true, 
-        message: '成员删除失败', 
+        message: '成员删除失败: ' + (error.response?.data?.message || error.message), 
         severity: 'error' 
       });
     } finally {
@@ -140,43 +142,51 @@ function Members() {
   // 处理表单提交
   const handleSubmit = async () => {
     try {
-      // 模拟API调用
-      await new Promise(resolve => setTimeout(resolve, 300));
-      
       if (isEditing) {
         // 更新现有成员
+        const updatedData = {
+          authorized: formData.isActive,
+          name: formData.username
+        };
+        
+        const response = await memberAPI.updateMember(networkId, currentMember.id, updatedData);
+        
+        // 更新本地状态
+        const updatedMember = {
+          ...currentMember,
+          ...formData,
+          ...response.data
+        };
+        
         setMembers(prevMembers => 
           prevMembers.map(member => 
             member.id === currentMember.id 
-              ? { ...member, ...formData }
+              ? updatedMember
               : member
           )
         );
+        
         setSnackbar({ 
           open: true, 
           message: '成员信息更新成功', 
           severity: 'success' 
         });
       } else {
-        // 添加新成员
-        const newMember = {
-          id: Date.now().toString(),
-          ...formData,
-          joinedAt: new Date().toISOString().split('T')[0]
-        };
-        setMembers(prevMembers => [...prevMembers, newMember]);
+        // 添加新成员（在ZeroTier中实际上是授权一个新成员）
+        // 这里我们简化处理，显示一个提示信息
         setSnackbar({ 
           open: true, 
-          message: '成员添加成功', 
-          severity: 'success' 
+          message: '在ZeroTier网络中，成员需要先加入网络，然后才能被授权。', 
+          severity: 'info' 
         });
       }
       
       setOpenDialog(false);
     } catch (error) {
+      console.error('成员操作失败:', error);
       setSnackbar({ 
         open: true, 
-        message: isEditing ? '成员信息更新失败' : '成员添加失败', 
+        message: (isEditing ? '成员信息更新失败: ' : '成员操作失败: ') + (error.response?.data?.message || error.message), 
         severity: 'error' 
       });
     }
@@ -185,13 +195,18 @@ function Members() {
   // 处理状态切换
   const handleStatusToggle = async (memberId, newStatus) => {
     try {
-      // 模拟API调用
-      await new Promise(resolve => setTimeout(resolve, 300));
+      // 调用API更新成员状态
+      const updatedData = {
+        authorized: newStatus
+      };
       
+      const response = await memberAPI.updateMember(networkId, memberId, updatedData);
+      
+      // 更新本地状态
       setMembers(prevMembers => 
         prevMembers.map(member => 
           member.id === memberId 
-            ? { ...member, isActive: newStatus }
+            ? { ...member, isActive: newStatus, ...response.data }
             : member
         )
       );
@@ -202,27 +217,45 @@ function Members() {
         severity: 'success' 
       });
     } catch (error) {
+      console.error('状态更新失败:', error);
       setSnackbar({ 
         open: true, 
-        message: '状态更新失败', 
+        message: '状态更新失败: ' + (error.response?.data?.message || error.message), 
         severity: 'error' 
       });
     }
   };
 
   // 刷新成员列表
-  const handleRefresh = () => {
-    setLoading(true);
-    // 模拟刷新操作
-    setTimeout(() => {
-      // 这里可以重新调用获取成员的函数
-      setLoading(false);
+  const handleRefresh = async () => {
+    try {
+      setLoading(true);
+      const response = await memberAPI.getMembers(networkId);
+      // 格式化从API获取的数据以匹配前端组件的期望格式
+      const formattedMembers = response.data.map(member => ({
+        id: member.id || member.address,
+        username: member.name || member.address,
+        email: `${member.address}@zt.local`, // ZeroTier成员通常没有真实邮箱
+        role: member.role || 'member',
+        isActive: member.config?.authorized || false,
+        joinedAt: member.joinedAt ? new Date(member.joinedAt).toLocaleDateString() : '未知'
+      }));
+      setMembers(formattedMembers);
       setSnackbar({ 
         open: true, 
         message: '成员列表已刷新', 
-        severity: 'info' 
+        severity: 'success' 
       });
-    }, 500);
+    } catch (error) {
+      console.error('刷新成员列表失败:', error);
+      setSnackbar({ 
+        open: true, 
+        message: '刷新成员列表失败: ' + (error.response?.data?.message || error.message), 
+        severity: 'error' 
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (

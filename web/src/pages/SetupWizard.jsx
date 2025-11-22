@@ -118,8 +118,8 @@ function SetupWizard() {
       setLoading(true);
       try {
         // 检测ZeroTier连接状态
-        const response = await statusAPI.getStatus();
-        setZtStatus(response.data);
+        const response = await systemAPI.getSetupStatus();
+        setZtStatus(response.data.ztStatus);
         // 继续下一步
         setActiveStep((prevActiveStep) => prevActiveStep + 1);
       } catch (err) {

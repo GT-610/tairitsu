@@ -122,6 +122,30 @@ func (h *SystemHandler) ConfigureDatabase(c *gin.Context) {
 	})
 }
 
+// TestZeroTierConnection 测试ZeroTier连接
+func (h *SystemHandler) TestZeroTierConnection(c *gin.Context) {
+	logger.Info("开始测试ZeroTier连接")
+	
+	// 动态创建ZeroTier客户端
+	ztClient, err := zerotier.NewClient()
+	if err != nil {
+		logger.Error("创建ZeroTier客户端失败", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建ZeroTier客户端失败: " + err.Error()})
+		return
+	}
+
+	// 获取ZeroTier控制器状态
+	ztStatus, err := ztClient.GetStatus()
+	if err != nil {
+		logger.Error("获取ZeroTier状态失败", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "无法连接到ZeroTier控制器: " + err.Error()})
+		return
+	}
+
+	logger.Info("成功连接到ZeroTier控制器")
+	c.JSON(http.StatusOK, ztStatus)
+}
+
 // saveDatabaseConfig 保存数据库配置到环境变量文件
 func saveDatabaseConfig(config models.DatabaseConfig) error {
 	// 读取现有的.env文件内容

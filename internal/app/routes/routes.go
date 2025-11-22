@@ -51,6 +51,9 @@ func SetupRoutes(router *gin.Engine, ztClient *zerotier.Client, jwtSecret string
 		
 		// 数据库配置（无需认证，仅在初始设置时可用）
 		api.POST("/system/database", systemHandler.ConfigureDatabase)
+		
+		// ZeroTier连接测试（无需认证，仅在初始设置时可用）
+		api.GET("/system/zerotier/test", systemHandler.TestZeroTierConnection)
 
 		// 认证路由（无需认证）
 		auth := api.Group("/auth")

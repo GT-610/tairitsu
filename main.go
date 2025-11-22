@@ -53,11 +53,8 @@ func main() {
 		logger.Info("未配置数据库类型，等待用户通过设置向导配置")
 	}
 
-	// 创建ZeroTier客户端
-	ztClient, err := zerotier.NewClient()
-	if err != nil {
-		logger.Fatal("创建ZeroTier客户端失败", zap.Error(err))
-	}
+	// 初始化一个空的ZeroTier客户端，将在需要时动态创建
+	var ztClient *zerotier.Client
 
 	// 设置Gin模式
 	if os.Getenv("NODE_ENV") == "production" {
