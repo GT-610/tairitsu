@@ -25,10 +25,17 @@ function AppContent() {
     const checkFirstRun = async () => {
       try {
         // 尝试获取系统设置状态来判断是否已完成设置
-        const response = await api.get('/system/status');
+        // 设置请求头中的Cache-Control为no-cache，确保获取最新状态
+        const response = await api.get('/system/status', {
+          headers: {
+            'Cache-Control': 'no-cache'
+          }
+        });
         // 如果没有管理员用户，则认为是首次运行
         setIsFirstRun(!response.data.hasAdmin);
+        console.log('系统状态检查:', { hasAdmin: response.data.hasAdmin, isFirstRun: !response.data.hasAdmin });
       } catch (error) {
+        console.error('获取系统状态失败:', error);
         // 如果无法获取状态，可能是首次运行
         setIsFirstRun(true);
       } finally {
@@ -93,6 +100,7 @@ function AppContent() {
         {isFirstRun ? (
           <>
             <Route path="/setup" element={<SetupWizard />}></Route>
+            {/* 使用replace而不是push，防止用户通过浏览器返回按钮回到设置向导 */}
             <Route path="*" element={<Navigate to="/setup" replace />}></Route>
           </>
         ) : (
@@ -113,6 +121,8 @@ function AppContent() {
               </>
             ) : (
               <>
+                {/* 添加根路径直接重定向到登录页面 */}
+                <Route path="/" element={<Navigate to="/login" replace />}></Route>
                 <Route path="/*" element={<Navigate to="/login" replace />}></Route>
               </>
             )}

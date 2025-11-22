@@ -102,8 +102,14 @@ function SetupWizard() {
     
     // 在最后一步，保存设置并重定向到登录页面
     if (activeStep === steps.length - 1) {
-      // 设置完成，重定向到登录页面
-      navigate('/login');
+      console.log('[设置向导] 完成设置，准备跳转到登录页面');
+      
+      // 使用replace方法导航并刷新页面，确保状态更新
+      // 这会清除历史堆栈中的设置向导，防止用户返回到设置向导
+      navigate('/login', { replace: true });
+      
+      // 强制刷新页面，确保App组件重新检查系统状态
+      window.location.reload();
       return;
     }
     
