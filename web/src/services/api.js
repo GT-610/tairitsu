@@ -41,9 +41,9 @@ api.interceptors.response.use(
 // 认证相关API
 export const authAPI = {
   // 用户注册
-  register: (data) => api.post('/register', data),
+  register: (data) => api.post('/auth/register', data),
   // 用户登录
-  login: (data) => api.post('/login', data),
+  login: (data) => api.post('/auth/login', data),
   // 获取用户信息
   getProfile: () => api.get('/profile')
 }

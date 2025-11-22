@@ -29,7 +29,7 @@ function SetupWizard() {
     type: 'sqlite', // 默认选择SQLite
     path: '', // SQLite路径（由程序控制）
     host: '',
-    port: '',
+    port: 0, // 更改为数字类型，默认值为0
     user: '',
     pass: '',
     name: ''
@@ -146,10 +146,25 @@ function SetupWizard() {
   };
 
   const handleDbConfigChange = (e) => {
-    setDbConfig({
-      ...dbConfig,
-      [e.target.name]: e.target.value
-    });
+    // 特殊处理数据库类型变更
+    if (e.target.name === 'type') {
+      const newType = e.target.value;
+      setDbConfig({
+        type: newType,
+        path: newType === 'sqlite' ? '' : dbConfig.path,
+        host: newType === 'sqlite' ? '' : dbConfig.host,
+        port: newType === 'sqlite' ? 0 : dbConfig.port, // SQLite不需要端口
+        user: newType === 'sqlite' ? '' : dbConfig.user,
+        pass: newType === 'sqlite' ? '' : dbConfig.pass,
+        name: newType === 'sqlite' ? '' : dbConfig.name
+      });
+    } else {
+      // 处理其他字段变更
+      setDbConfig({
+        ...dbConfig,
+        [e.target.name]: e.target.value
+      });
+    }
   };
 
   const getStepContent = (step) => {
