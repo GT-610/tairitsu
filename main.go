@@ -13,6 +13,9 @@ import (
 	"go.uber.org/zap"
 )
 
+// GlobalDB 全局数据库实例，在用户完成设置向导后初始化
+var GlobalDB database.DBInterface
+
 func main() {
 	fmt.Println("Tairitsu - ZeroTier Controller UI")
 
@@ -28,15 +31,26 @@ func main() {
 	// 加载数据库配置
 	dbConfig := database.LoadConfigFromEnv()
 	
-	// 创建数据库实例
-	db, err := database.NewDatabase(dbConfig)
-	if err != nil {
-		logger.Fatal("创建数据库实例失败", zap.Error(err))
-	}
-
-	// 初始化数据库
-	if err := db.Init(); err != nil {
-		logger.Fatal("初始化数据库失败", zap.Error(err))
+	// 只有在配置了数据库类型时才创建数据库实例
+	// 否则，GlobalDB将保持为nil，直到用户通过设置向导配置数据库
+	if dbConfig.Type != "" {
+		// 创建数据库实例
+		GlobalDB, err = database.NewDatabase(dbConfig)
+		if err != nil {
+			logger.Error("创建数据库实例失败", zap.Error(err))
+			// 不终止程序，允许通过设置向导配置数据库
+		} else {
+			// 初始化数据库
+			if err := GlobalDB.Init(); err != nil {
+				logger.Error("初始化数据库失败", zap.Error(err))
+				// 不终止程序，允许通过设置向导重新配置数据库
+				GlobalDB = nil
+			} else {
+				logger.Info("数据库初始化成功", zap.String("type", string(dbConfig.Type)))
+			}
+		}
+	} else {
+		logger.Info("未配置数据库类型，等待用户通过设置向导配置")
 	}
 
 	// 创建ZeroTier客户端
@@ -53,8 +67,8 @@ func main() {
 	// 创建路由
 	router := gin.New()
 
-	// 注册路由
-	routes.SetupRoutes(router, ztClient, cfg.Security.JWTSecret, db)
+	// 注册路由，传递全局数据库实例（可能为nil）
+	routes.SetupRoutes(router, ztClient, cfg.Security.JWTSecret, GlobalDB)
 
 	// 启动服务器
 	serverAddr := fmt.Sprintf(":%d", cfg.Server.Port)

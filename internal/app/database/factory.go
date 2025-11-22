@@ -2,7 +2,6 @@ package database
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"strconv"
 
@@ -100,10 +99,9 @@ func NewDatabase(config Config) (DBInterface, error) {
 		return &GormDB{db: db}, nil
 
 	default:
-		// 如果没有指定数据库类型，默认使用内存数据库（用于开发环境）
+		// 如果没有指定数据库类型，返回错误
 		if config.Type == "" {
-			log.Println("警告: 未指定数据库类型，使用内存数据库")
-			return NewMemoryDB(), nil
+			return nil, fmt.Errorf("必须指定数据库类型")
 		}
 		return nil, fmt.Errorf("不支持的数据库类型: %s", config.Type)
 	}

@@ -26,6 +26,13 @@ func NewUserServiceWithDB(db database.DBInterface) *UserService {
 	}
 }
 
+// NewUserServiceWithoutDB 创建不使用数据库的用户服务实例
+func NewUserServiceWithoutDB() *UserService {
+	return &UserService{
+		db: nil,
+	}
+}
+
 // NewUserService 创建用户服务实例（使用默认的SQLite数据库）
 func NewUserService() *UserService {
 	// 创建默认的SQLite数据库实现
@@ -43,6 +50,12 @@ func NewUserService() *UserService {
 
 // Register 用户注册
 func (s *UserService) Register(req *models.RegisterRequest) (*models.User, error) {
+	// 检查数据库是否已初始化
+	if s.db == nil {
+		logger.Error("服务层：注册失败，数据库未初始化")
+		return nil, errors.New("系统尚未配置数据库，请先完成初始设置")
+	}
+	
 	logger.Info("服务层：开始用户注册", zap.String("username", req.Username), zap.String("email", req.Email))
 	
 	// 检查用户名是否已存在
@@ -98,9 +111,15 @@ func (s *UserService) Register(req *models.RegisterRequest) (*models.User, error
 
 // Login 用户登录
 func (s *UserService) Login(req *models.LoginRequest) (*models.User, error) {
-	logger.Info("服务层：用户尝试登录", zap.String("username", req.Username))
+	// 检查数据库是否已初始化
+	if s.db == nil {
+		logger.Error("服务层：登录失败，数据库未初始化")
+		return nil, errors.New("系统尚未配置数据库，请先完成初始设置")
+	}
 	
-	// 查找用户
+	logger.Info("服务层：开始用户登录", zap.String("username", req.Username))
+	
+	// 根据用户名查找用户
 	user, err := s.db.GetUserByUsername(req.Username)
 	if err != nil {
 		logger.Error("服务层：登录失败，查询用户时出错", zap.String("username", req.Username), zap.Error(err))
@@ -112,9 +131,8 @@ func (s *UserService) Login(req *models.LoginRequest) (*models.User, error) {
 	}
 
 	// 验证密码
-	err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password))
-	if err != nil {
-		logger.Error("服务层：登录失败，密码错误", zap.String("username", req.Username))
+	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password)); err != nil {
+		logger.Error("服务层：登录失败，密码错误", zap.String("user_id", user.ID))
 		return nil, errors.New("用户名或密码错误")
 	}
 	
@@ -125,6 +143,12 @@ func (s *UserService) Login(req *models.LoginRequest) (*models.User, error) {
 
 // GetUserByID 根据ID获取用户
 func (s *UserService) GetUserByID(id string) (*models.User, error) {
+	// 检查数据库是否已初始化
+	if s.db == nil {
+		logger.Error("服务层：获取用户失败，数据库未初始化")
+		return nil, errors.New("系统尚未配置数据库，请先完成初始设置")
+	}
+	
 	logger.Info("服务层：开始根据ID获取用户", zap.String("user_id", id))
 	
 	user, err := s.db.GetUserByID(id)
@@ -143,17 +167,19 @@ func (s *UserService) GetUserByID(id string) (*models.User, error) {
 	return user, nil
 }// GetAllUsers 获取所有用户
 func (s *UserService) GetAllUsers() []*models.User {
+	// 检查数据库是否已初始化
+	if s.db == nil {
+		logger.Warn("服务层：数据库未初始化，返回空用户列表")
+		return []*models.User{}
+	}
+	
+	logger.Info("服务层：获取所有用户")
+	
 	users, err := s.db.GetAllUsers()
 	if err != nil {
 		logger.Error("服务层：获取所有用户失败", zap.Error(err))
 		return []*models.User{}
 	}
 	
-	// 转换为指针切片
-	result := make([]*models.User, len(users))
-	for i, user := range users {
-		result[i] = user
-	}
-	
-	return result
+	return users
 }
