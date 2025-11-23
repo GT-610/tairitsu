@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   Box, 
   Container,
@@ -13,7 +13,7 @@ import {
   TextField
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
-import { authAPI, statusAPI, systemAPI } from '../services/api.js';
+import { authAPI, systemAPI } from '../services/api.js';
 
 const SetupWizard = () => {
   const navigate = useNavigate();
@@ -79,8 +79,6 @@ const SetupWizard = () => {
     }
   };
   
-  // 只有在用户点击下一步时才检查状态，避免在第一步加载时发送请求
-
   // 测试ZeroTier连接并初始化客户端
   const testAndInitZtConnection = async () => {
     setLoading(true);
@@ -225,15 +223,31 @@ const SetupWizard = () => {
     // 特殊处理数据库类型变更
     if (e.target.name === 'type') {
       const newType = e.target.value;
-      setDbConfig({
-        type: newType,
-        path: newType === 'sqlite' ? '' : dbConfig.path,
-        host: newType === 'sqlite' ? '' : dbConfig.host,
-        port: newType === 'sqlite' ? 0 : dbConfig.port, // SQLite不需要端口
-        user: newType === 'sqlite' ? '' : dbConfig.user,
-        pass: newType === 'sqlite' ? '' : dbConfig.pass,
-        name: newType === 'sqlite' ? '' : dbConfig.name
-      });
+      // SQLite的默认配置
+      const sqliteConfig = {
+        type: 'sqlite',
+        path: '',
+        host: '',
+        port: 0,
+        user: '',
+        pass: '',
+        name: ''
+      };
+      
+      // 处理MySQL和PostgreSQL的默认配置
+      if (newType === 'sqlite') {
+        // 切换到SQLite，使用默认配置
+        setDbConfig(sqliteConfig);
+      } else {
+        // 切换到MySQL或PostgreSQL，设置默认端口
+        const defaultPort = newType === 'mysql' ? 3306 : 5432;
+        setDbConfig({
+          ...dbConfig,
+          type: newType,
+          // 只有当前端口为空或为0时才设置默认端口
+          port: dbConfig.port || dbConfig.port === 0 ? dbConfig.port : defaultPort
+        });
+      }
     } else {
       // 处理其他字段变更
       setDbConfig({
@@ -249,6 +263,22 @@ const SetupWizard = () => {
       [e.target.name]: e.target.value
     });
   };
+
+  // 渲染错误和成功提示的辅助函数
+  const renderMessages = () => (
+    <>
+      {error && (
+        <Alert severity="error" sx={{ mt: 2 }}>
+          {error}
+        </Alert>
+      )}
+      {success && (
+        <Alert severity="success" sx={{ mt: 2 }}>
+          {success}
+        </Alert>
+      )}
+    </>
+  );
 
   // 渲染步骤内容
   const renderStepContent = (step) => {
@@ -307,16 +337,7 @@ const SetupWizard = () => {
                 disabled={loading}
                 helperText="默认为 /var/lib/zerotier-one/authtoken.secret"
               />
-              {error && (
-                <Alert severity="error" sx={{ mt: 2 }}>
-                  {error}
-                </Alert>
-              )}
-              {success && (
-                <Alert severity="success" sx={{ mt: 2 }}>
-                  {success}
-                </Alert>
-              )}
+              {renderMessages()}
             </form>
           </Paper>
         );
@@ -416,16 +437,7 @@ const SetupWizard = () => {
                 </>
               )}
               
-              {error && (
-                <Alert severity="error" sx={{ mt: 2 }}>
-                  {error}
-                </Alert>
-              )}
-              {success && (
-                <Alert severity="success" sx={{ mt: 2 }}>
-                  {success}
-                </Alert>
-              )}
+              {renderMessages()}
             </form>
           </Paper>
         );
@@ -477,11 +489,7 @@ const SetupWizard = () => {
                 onChange={handleAdminDataChange}
                 disabled={loading}
               />
-              {error && (
-                <Alert severity="error" sx={{ mt: 2 }}>
-                  {error}
-                </Alert>
-              )}
+              {renderMessages()}
             </form>
           </Paper>
         );
@@ -502,16 +510,7 @@ const SetupWizard = () => {
               <li>数据库类型: {dbConfig.type}</li>
               <li>管理员账户: {adminData.username}</li>
             </ul>
-            {error && (
-              <Alert severity="error" sx={{ mt: 2 }}>
-                {error}
-              </Alert>
-            )}
-            {success && (
-              <Alert severity="success" sx={{ mt: 2 }}>
-                {success}
-              </Alert>
-            )}
+            {renderMessages()}
           </Paper>
         );
       default:
