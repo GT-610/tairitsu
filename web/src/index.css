@@ -1,69 +1,90 @@
+/**
+ * 基础样式和变量定义
+ * 提供全局CSS重置、变量定义和基础样式
+ */
+
+/* 全局变量定义 */
 :root {
-  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
-
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
-
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  /* 字体设置 */
+  --font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  --line-height: 1.5;
+  --font-weight-normal: 400;
+  
+  /* 颜色系统 */
+  --bg-primary: #242424;
+  --bg-secondary: #1e1e1e;
+  --text-primary: rgba(255, 255, 255, 0.87);
+  
+  /* 滚动条颜色 */
+  --scrollbar-track: #1e1e1e;
+  --scrollbar-thumb: #4a4a4a;
+  --scrollbar-thumb-hover: #5a5a5a;
+  
+  /* 尺寸变量 */
+  --scrollbar-width: 8px;
+  --border-radius: 4px;
+  
+  /* 动画时长 */
+  --transition-fast: 0.2s;
+  --transition-normal: 0.3s;
 }
 
+/* CSS重置 */
 * {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
 }
 
-body {
+/* 基础结构样式 */
+html, body {
   margin: 0;
+  padding: 0;
   min-width: 320px;
   min-height: 100vh;
+  font-family: var(--font-family);
+  line-height: var(--line-height);
+  font-weight: var(--font-weight-normal);
+  color: var(--text-primary);
+  background-color: var(--bg-primary);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
+/* 应用根容器 */
 #root {
   min-height: 100vh;
 }
 
+/* 按钮基础样式 */
 button {
   cursor: pointer;
 }
 
-/* 自定义滚动条 */
+/* 自定义滚动条样式 */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: var(--scrollbar-width);
+  height: var(--scrollbar-width);
 }
 
 ::-webkit-scrollbar-track {
-  background: #1e1e1e;
+  background: var(--scrollbar-track);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #4a4a4a;
-  border-radius: 4px;
+  background: var(--scrollbar-thumb);
+  border-radius: var(--border-radius);
+  transition: background var(--transition-fast) ease;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #5a5a5a;
+  background: var(--scrollbar-thumb-hover);
 }
 
-/* 动画 */
-.fade-in {
-  animation: fadeIn 0.3s ease-in;
-}
-
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+/* 适配其他浏览器的滚动条 */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
 }

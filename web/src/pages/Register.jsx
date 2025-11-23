@@ -1,57 +1,79 @@
-import React, { useState } from 'react'
-import { Box, TextField, Button, Typography, Container, Paper, Alert, CircularProgress }
+import React, { useState, useCallback } from 'react'
+import { Box, TextField, Button, Typography, Container, Paper, CircularProgress }
 from '@mui/material'
 import { Link, useNavigate } from 'react-router-dom'
 import { authAPI } from '../services/api.js'
+import ErrorAlert from '../components/ErrorAlert.jsx'
 
 function Register() {
-  const [formData, setFormData] = useState({
-    username: '',
-    email: '',
-    password: '',
-    confirmPassword: ''
-  })
-  const [error, setError] = useState('')
-  const [success, setSuccess] = useState('')
-  const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
+  
+  // 合并状态为单个对象，减少渲染次数
+  const [state, setState] = useState({
+    formData: {
+      username: '',
+      email: '',
+      password: '',
+      confirmPassword: ''
+    },
+    error: '',
+    success: '',
+    loading: false
+  })
 
-  const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value
-    })
-  }
+  // 使用useCallback缓存handleChange函数
+  const handleChange = useCallback((e) => {
+    setState(prev => ({
+      ...prev,
+      formData: {
+        ...prev.formData,
+        [e.target.name]: e.target.value
+      }
+    }))
+  }, [])
 
-  const handleSubmit = async (e) => {
+  // 使用useCallback缓存handleSubmit函数
+  const handleSubmit = useCallback(async (e) => {
     e.preventDefault()
-    setError('')
-    setSuccess('')
+    
+    // 防止重复提交
+    if (state.loading) return
+    
+    setState(prev => ({ ...prev, error: '', success: '' }))
 
     // 验证密码
-    if (formData.password !== formData.confirmPassword) {
-      setError('两次输入的密码不一致')
+    if (state.formData.password !== state.formData.confirmPassword) {
+      setState(prev => ({ ...prev, error: '两次输入的密码不一致' }))
       return
     }
 
-    setLoading(true)
+    setState(prev => ({ ...prev, loading: true }))
+    
     try {
+      // 提取表单数据
+      const { username, email, password } = state.formData
+      
       await authAPI.register({
-        username: formData.username,
-        email: formData.email,
-        password: formData.password
+        username,
+        email,
+        password
       })
-      setSuccess('注册成功，请登录')
+      
+      setState(prev => ({ ...prev, success: '注册成功，请登录' }))
+      
       // 3秒后跳转到登录页
       setTimeout(() => {
         navigate('/login')
       }, 3000)
+      
     } catch (err) {
-      setError(err.response?.data?.message || '注册失败，请稍后重试')
+      const errorMessage = err.response?.data?.message || '注册失败，请稍后重试'
+      setState(prev => ({ ...prev, error: errorMessage }))
+      console.error('Registration error:', err)
     } finally {
-      setLoading(false)
+      setState(prev => ({ ...prev, loading: false }))
     }
-  }
+  }, [state.formData, state.loading, navigate])
 
   return (
     <Container component="main" maxWidth="xs" sx={{ mt: 8 }}>
@@ -60,16 +82,19 @@ function Register() {
           用户注册
         </Typography>
         
-        {error && (
-          <Alert severity="error" sx={{ mb: 3 }}>
-            {error}
-          </Alert>
+        {state.error && (
+          <ErrorAlert 
+            message={state.error} 
+            onClose={() => setState(prev => ({ ...prev, error: '' }))} 
+          />
         )}
         
-        {success && (
-          <Alert severity="success" sx={{ mb: 3 }}>
-            {success}
-          </Alert>
+        {state.success && (
+          <ErrorAlert 
+            message={state.success} 
+            severity="success"
+            onClose={() => setState(prev => ({ ...prev, success: '' }))} 
+          />
         )}
         
         <Box component="form" onSubmit={handleSubmit} sx={{ mt: 1 }}>
@@ -82,9 +107,9 @@ function Register() {
             name="username"
             autoComplete="username"
             autoFocus
-            value={formData.username}
+            value={state.formData.username}
             onChange={handleChange}
-            disabled={loading}
+            disabled={state.loading}
           />
           <TextField
             margin="normal"
@@ -95,9 +120,9 @@ function Register() {
             name="email"
             type="email"
             autoComplete="email"
-            value={formData.email}
+            value={state.formData.email}
             onChange={handleChange}
-            disabled={loading}
+            disabled={state.loading}
           />
           <TextField
             margin="normal"
@@ -108,9 +133,9 @@ function Register() {
             type="password"
             id="password"
             autoComplete="new-password"
-            value={formData.password}
+            value={state.formData.password}
             onChange={handleChange}
-            disabled={loading}
+            disabled={state.loading}
           />
           <TextField
             margin="normal"
@@ -120,18 +145,18 @@ function Register() {
             label="确认密码"
             type="password"
             id="confirmPassword"
-            value={formData.confirmPassword}
+            value={state.formData.confirmPassword}
             onChange={handleChange}
-            disabled={loading}
+            disabled={state.loading}
           />
           <Button
             type="submit"
             fullWidth
             variant="contained"
             sx={{ mt: 3, mb: 2 }}
-            disabled={loading}
+            disabled={state.loading}
           >
-            {loading ? 
+            {state.loading ? 
               <CircularProgress size={24} color="inherit" /> : 
               '注册'
             }

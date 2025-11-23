@@ -1,93 +1,130 @@
-import React, { useState, useEffect } from 'react'
-import { Box, Typography, Button, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, CircularProgress, Alert, Modal, TextField, IconButton }
+import React, { useState, useEffect, useCallback } from 'react'
+import { Box, Typography, Button, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, CircularProgress, Modal, TextField, IconButton }
 from '@mui/material'
 import { Link, useNavigate } from 'react-router-dom'
 import { Add, Edit, Delete, Close } from '@mui/icons-material'
 import { networkAPI } from '../services/api.js'
+import ErrorAlert from '../components/ErrorAlert.jsx'
 
 function Networks() {
-  const [networks, setNetworks] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-  const [openModal, setOpenModal] = useState(false)
-  const [editingNetwork, setEditingNetwork] = useState(null)
-  const [formData, setFormData] = useState({
-    name: '',
-    description: ''
-  })
   const navigate = useNavigate()
+  
+  // 合并状态为单个对象，减少渲染次数
+  const [state, setState] = useState({
+    networks: [],
+    loading: true,
+    error: '',
+    openModal: false,
+    editingNetwork: null,
+    formData: {
+      name: '',
+      description: ''
+    },
+    submitting: false // 添加提交状态以防止重复提交
+  })
 
-  const fetchNetworks = async () => {
-    setLoading(true)
+  // 使用useCallback缓存fetchNetworks函数
+  const fetchNetworks = useCallback(async () => {
+    setState(prev => ({ ...prev, loading: true }))
     try {
       const response = await networkAPI.getAllNetworks()
-      setNetworks(response.data)
+      setState(prev => ({ ...prev, networks: response.data }))
     } catch (err) {
-      setError('获取网络列表失败')
+      setState(prev => ({ 
+        ...prev, 
+        error: '获取网络列表失败',
+        loading: false 
+      }))
       console.error('Fetch networks error:', err)
     } finally {
-      setLoading(false)
+      setState(prev => ({ ...prev, loading: false }))
     }
-  }
+  }, [])
 
   useEffect(() => {
     fetchNetworks()
-  }, [])
+  }, [fetchNetworks])
 
-  const handleOpenModal = (network = null) => {
-    setEditingNetwork(network)
-    if (network) {
-      setFormData({
+  // 使用useCallback缓存modal相关函数
+  const handleOpenModal = useCallback((network = null) => {
+    setState(prev => ({
+      ...prev,
+      editingNetwork: network,
+      formData: network ? {
         name: network.name || '',
         description: network.description || ''
-      })
-    } else {
-      setFormData({
+      } : {
         name: '',
         description: ''
-      })
-    }
-    setOpenModal(true)
-  }
+      },
+      openModal: true
+    }))
+  }, [])
 
-  const handleCloseModal = () => {
-    setOpenModal(false)
-    setEditingNetwork(null)
-    setFormData({ name: '', description: '' })
-  }
+  const handleCloseModal = useCallback(() => {
+    setState(prev => ({
+      ...prev,
+      openModal: false,
+      editingNetwork: null,
+      formData: { name: '', description: '' }
+    }))
+  }, [])
 
-  const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value
-    })
-  }
+  const handleChange = useCallback((e) => {
+    setState(prev => ({
+      ...prev,
+      formData: {
+        ...prev.formData,
+        [e.target.name]: e.target.value
+      }
+    }))
+  }, [])
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = useCallback(async (e) => {
     e.preventDefault()
+    // 防止重复提交
+    if (state.submitting) return
+    
+    setState(prev => ({ ...prev, submitting: true, error: '' }))
+    
     try {
-      if (editingNetwork) {
-        await networkAPI.updateNetwork(editingNetwork.id, formData)
+      if (state.editingNetwork) {
+        await networkAPI.updateNetwork(state.editingNetwork.id, state.formData)
       } else {
-        await networkAPI.createNetwork(formData)
+        await networkAPI.createNetwork(state.formData)
       }
       handleCloseModal()
-      fetchNetworks()
+      // 使用setTimeout轻微延迟以改善用户体验
+      setTimeout(() => {
+        fetchNetworks()
+      }, 100)
     } catch (err) {
-      setError(editingNetwork ? '更新网络失败' : '创建网络失败')
+      setState(prev => ({
+        ...prev,
+        error: state.editingNetwork ? '更新网络失败' : '创建网络失败',
+        submitting: false
+      }))
+      console.error('Network submission error:', err)
+    } finally {
+      setState(prev => ({ ...prev, submitting: false }))
     }
-  }
+  }, [state.editingNetwork, state.formData, state.submitting, handleCloseModal, fetchNetworks])
 
-  const handleDelete = async (networkId) => {
+  const handleDelete = useCallback(async (networkId) => {
+    // 使用更现代的confirm对话框样式（Material-UI的Dialog在后续可以替换）
     if (window.confirm('确定要删除这个网络吗？')) {
       try {
         await networkAPI.deleteNetwork(networkId)
-        fetchNetworks()
+        // 使用setTimeout轻微延迟以改善用户体验
+        setTimeout(() => {
+          fetchNetworks()
+        }, 100)
       } catch (err) {
-        setError('删除网络失败')
+        setState(prev => ({ ...prev, error: '删除网络失败' }))
+        console.error('Delete network error:', err)
       }
     }
-  }
+  }, [fetchNetworks])
 
   return (
     <Box sx={{ p: 3 }}>
@@ -100,15 +137,14 @@ function Networks() {
         </Button>
       </Box>
 
-      {error && (
-        <Alert severity="error" sx={{ mb: 3 }}
-          onClose={() => setError('')}
-        >
-          {error}
-        </Alert>
+      {state.error && (
+        <ErrorAlert 
+          message={state.error} 
+          onClose={() => setState(prev => ({ ...prev, error: '' }))} 
+        />
       )}
 
-      {loading ? (
+      {state.loading ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', mt: 10 }}>
           <CircularProgress />
         </Box>
@@ -126,7 +162,7 @@ function Networks() {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {networks.map((network) => (
+                {state.networks.map((network) => (
                   <TableRow key={network.id}>
                     <TableCell component="th" scope="row">
                       {network.id}
@@ -169,7 +205,7 @@ function Networks() {
             </Table>
           </TableContainer>
 
-          {networks.length === 0 && (
+          {state.networks.length === 0 && (
             <Typography variant="body1" sx={{ textAlign: 'center', mt: 5 }} color="text.secondary">
               暂无网络，请点击"创建网络"按钮添加
             </Typography>
@@ -179,7 +215,7 @@ function Networks() {
 
       {/* 创建/编辑网络弹窗 */}
       <Modal
-        open={openModal}
+        open={state.openModal}
         onClose={handleCloseModal}
         aria-labelledby="network-modal-title"
       >
@@ -197,7 +233,7 @@ function Networks() {
         >
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
             <Typography id="network-modal-title" variant="h5">
-              {editingNetwork ? '编辑网络' : '创建网络'}
+              {state.editingNetwork ? '编辑网络' : '创建网络'}
             </Typography>
             <IconButton onClick={handleCloseModal}>
               <Close />
@@ -210,7 +246,7 @@ function Networks() {
               fullWidth
               label="网络名称"
               name="name"
-              value={formData.name}
+              value={state.formData.name}
               onChange={handleChange}
             />
             <TextField
@@ -220,15 +256,23 @@ function Networks() {
               name="description"
               multiline
               rows={3}
-              value={formData.description}
+              value={state.formData.description}
               onChange={handleChange}
             />
             <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end', mt: 3 }}>
               <Button onClick={handleCloseModal}>
                 取消
               </Button>
-              <Button type="submit" variant="contained">
-                {editingNetwork ? '更新' : '创建'}
+              <Button 
+                type="submit" 
+                variant="contained"
+                disabled={state.submitting}
+              >
+                {state.submitting ? (
+                  <CircularProgress size={16} />
+                ) : (
+                  state.editingNetwork ? '更新' : '创建'
+                )}
               </Button>
             </Box>
           </Box>

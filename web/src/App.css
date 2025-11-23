@@ -1,42 +1,76 @@
+/**
+ * 应用样式
+ * 提供应用布局、容器和组件样式
+ */
+
+/* 应用根布局 */
 .app {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
 }
 
-/* 通用样式 */
+/* 页面容器 */
 .page-container {
-  padding: 20px;
-  max-width: 1200px;
+  --container-padding: 20px;
+  --container-max-width: 1200px;
+  
+  padding: var(--container-padding);
+  max-width: var(--container-max-width);
   margin: 0 auto;
   width: 100%;
+  box-sizing: border-box;
 }
 
+/* 卡片组件 */
 .card {
-  background-color: #1e1e1e;
-  border-radius: 8px;
-  padding: 20px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-  margin-bottom: 20px;
+  --card-bg: var(--bg-secondary);
+  --card-border-radius: 8px;
+  --card-padding: 20px;
+  --card-margin-bottom: 20px;
+  --card-box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  
+  background-color: var(--card-bg);
+  border-radius: var(--card-border-radius);
+  padding: var(--card-padding);
+  box-shadow: var(--card-box-shadow);
+  margin-bottom: var(--card-margin-bottom);
+  transition: box-shadow var(--transition-normal) ease;
 }
 
+.card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+/* 表单组件 */
 .form-group {
-  margin-bottom: 16px;
+  --form-group-margin-bottom: 16px;
+  --label-margin-bottom: 8px;
+  --label-font-weight: 500;
+  
+  margin-bottom: var(--form-group-margin-bottom);
 }
 
 .form-group label {
   display: block;
-  margin-bottom: 8px;
-  font-weight: 500;
+  margin-bottom: var(--label-margin-bottom);
+  font-weight: var(--label-font-weight);
 }
 
-/* 响应式设计 */
+/* 响应式设计断点 */
 @media (max-width: 768px) {
   .page-container {
-    padding: 15px;
+    --container-padding: 15px;
   }
   
   .card {
-    padding: 15px;
+    --card-padding: 15px;
+  }
+}
+
+/* 平板设备断点 */
+@media (max-width: 1024px) {
+  .page-container {
+    --container-max-width: 100%;
   }
 }

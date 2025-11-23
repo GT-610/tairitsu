@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { 
   Box, 
   Container,
@@ -9,47 +9,51 @@ import {
   StepLabel, 
   Button, 
   CircularProgress,
-  Alert,
   TextField
 } from '@mui/material';
+import ErrorAlert from '../components/ErrorAlert.jsx';
 import { useNavigate } from 'react-router-dom';
-import { authAPI, statusAPI, systemAPI } from '../services/api.js';
+import { authAPI, systemAPI } from '../services/api.js';
 
 const SetupWizard = () => {
   const navigate = useNavigate();
-  const [activeStep, setActiveStep] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
-  const [adminData, setAdminData] = useState({
-    username: '',
-    password: '',
-    email: ''
+  
+  // 使用单个对象状态管理所有表单和UI状态
+  const [state, setState] = useState({
+    activeStep: 0,
+    loading: false,
+    error: '',
+    success: '',
+    adminData: {
+      username: '',
+      password: '',
+      email: ''
+    },
+    dbConfig: {
+      type: 'sqlite',
+      path: '',
+      host: '',
+      port: 0,
+      user: '',
+      pass: '',
+      name: ''
+    },
+    ztConfig: {
+      controllerUrl: 'http://localhost:9993',
+      tokenPath: '/var/lib/zerotier-one/authtoken.secret'
+    },
+    ztStatus: null,
+    ztConnected: false
   });
-  const [dbConfig, setDbConfig] = useState({
-    type: 'sqlite',
-    path: '',
-    host: '',
-    port: 0,
-    user: '',
-    pass: '',
-    name: ''
-  });
-  const [ztConfig, setZtConfig] = useState({
-    controllerUrl: 'http://localhost:9993',
-    tokenPath: '/var/lib/zerotier-one/authtoken.secret'
-  });
-  const [ztStatus, setZtStatus] = useState(null);
-  const [ztConnected, setZtConnected] = useState(false);
 
-  // 重新定义步骤顺序
-  const steps = [
+  // 使用useMemo优化静态数组，避免不必要的重新创建
+  const steps = useMemo(() => [
     '欢迎使用 Tairitsu',
     '配置 ZeroTier 控制器',
     '配置数据库',
     '创建管理员账户',
     '完成设置'
-  ];
+  ], []);
 
   // 在组件挂载时设置标记，表明设置向导已开始
   useEffect(() => {
@@ -81,112 +85,120 @@ const SetupWizard = () => {
   
   // 只有在用户点击下一步时才检查状态，避免在第一步加载时发送请求
 
-  // 测试ZeroTier连接并初始化客户端
-  const testAndInitZtConnection = async () => {
-    setLoading(true);
-    setError('');
-    setSuccess('');
+  // 使用useCallback缓存测试ZeroTier连接函数
+  const testAndInitZtConnection = useCallback(async () => {
+    setState(prev => ({ 
+      ...prev, 
+      loading: true, 
+      error: '', 
+      success: '' 
+    }));
     try {
       // 保存配置并同时测试连接
-      const response = await systemAPI.saveZtConfig(ztConfig);
+      const response = await systemAPI.saveZtConfig(state.ztConfig);
       // 从响应中获取ZeroTier状态信息
-      setZtStatus(response.data.status);
-      setZtConnected(true);
-      setSuccess('ZeroTier 连接成功！');
+      setState(prev => ({
+        ...prev,
+        ztStatus: response.data.status,
+        ztConnected: true,
+        success: 'ZeroTier 连接成功！',
+        loading: false
+      }));
       return true;
     } catch (err) {
-      setError('ZeroTier 连接失败: ' + (err.response?.data?.error || err.message));
-      setZtConnected(false);
+      setState(prev => ({
+        ...prev,
+        error: 'ZeroTier 连接失败: ' + (err.response?.data?.error || err.message),
+        ztConnected: false,
+        loading: false
+      }));
       return false;
-    } finally {
-      setLoading(false);
     }
-  };
+  }, [state.ztConfig]);
 
-  // 处理表单提交
-  const handleSubmit = async () => {
-    setLoading(true);
-    setError('');
-    setSuccess('');
+  // 使用useCallback缓存提交处理函数
+  const handleSubmit = useCallback(async () => {
+    setState(prev => ({ 
+      ...prev, 
+      loading: true, 
+      error: '', 
+      success: '' 
+    }));
     
     try {
       // 根据当前步骤执行不同的操作
-      if (activeStep === 0) {
+      if (state.activeStep === 0) {
         // 欢迎页面，检查系统状态后进入下一步
         await checkSystemStatus();
         // 如果checkSystemStatus没有跳转，则继续执行
-        if (activeStep === 0) {
-          setActiveStep((prevActiveStep) => prevActiveStep + 1);
-        }
-      } else if (activeStep === 1) {
+        setState(prev => ({ ...prev, activeStep: prev.activeStep + 1 }));
+      } else if (state.activeStep === 1) {
         // ZeroTier 配置步骤 - 直接验证并初始化
         const success = await testAndInitZtConnection();
         if (success) {
           // 验证成功，进入下一步
-          setActiveStep((prevActiveStep) => prevActiveStep + 1);
+          setState(prev => ({ ...prev, activeStep: prev.activeStep + 1 }));
         }
-      } else if (activeStep === 2) {
+      } else if (state.activeStep === 2) {
         // 数据库配置验证
-        if (!dbConfig.type) {
-          setError('请选择数据库类型');
+        if (!state.dbConfig.type) {
+          setState(prev => ({ ...prev, error: '请选择数据库类型', loading: false }));
           return;
         }
         
         // 根据数据库类型进行不同验证
-        if (dbConfig.type === 'sqlite') {
-          // SQLite 路径由程序控制，不需要用户输入
-        } else {
+        if (state.dbConfig.type !== 'sqlite') {
           // PostgreSQL或MySQL验证
-          if (!dbConfig.host.trim()) {
-            setError('请输入数据库主机地址');
+          if (!state.dbConfig.host.trim()) {
+            setState(prev => ({ ...prev, error: '请输入数据库主机地址', loading: false }));
             return;
           }
-          if (!dbConfig.port || dbConfig.port <= 0) {
-            setError('请输入有效的数据库端口');
+          if (!state.dbConfig.port || state.dbConfig.port <= 0) {
+            setState(prev => ({ ...prev, error: '请输入有效的数据库端口', loading: false }));
             return;
           }
-          if (!dbConfig.user.trim()) {
-            setError('请输入数据库用户名');
+          if (!state.dbConfig.user.trim()) {
+            setState(prev => ({ ...prev, error: '请输入数据库用户名', loading: false }));
             return;
           }
-          if (!dbConfig.name.trim()) {
-            setError('请输入数据库名称');
+          if (!state.dbConfig.name.trim()) {
+            setState(prev => ({ ...prev, error: '请输入数据库名称', loading: false }));
             return;
           }
         }
         
         // 发送数据库配置到后端
-        await systemAPI.configureDatabase(dbConfig);
+        await systemAPI.configureDatabase(state.dbConfig);
         // 继续下一步
-        setActiveStep((prevActiveStep) => prevActiveStep + 1);
-      } else if (activeStep === 3) {
+        setState(prev => ({ ...prev, activeStep: prev.activeStep + 1, loading: false }));
+      } else if (state.activeStep === 3) {
         // 创建管理员账户步骤
         // 表单验证
-        if (!adminData.username.trim()) {
-          setError('请输入用户名');
+        if (!state.adminData.username.trim()) {
+          setState(prev => ({ ...prev, error: '请输入用户名', loading: false }));
           return;
         }
-        if (!adminData.password || adminData.password.length < 6) {
-          setError('密码长度至少为6位');
+        if (!state.adminData.password || state.adminData.password.length < 6) {
+          setState(prev => ({ ...prev, error: '密码长度至少为6位', loading: false }));
           return;
         }
-        if (!adminData.email.trim()) {
-          setError('请输入邮箱地址');
+        if (!state.adminData.email.trim()) {
+          setState(prev => ({ ...prev, error: '请输入邮箱地址', loading: false }));
           return;
         }
         
         // 简单的邮箱格式验证
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(adminData.email)) {
-          setError('请输入有效的邮箱地址');
+        if (!emailRegex.test(state.adminData.email)) {
+          setState(prev => ({ ...prev, error: '请输入有效的邮箱地址', loading: false }));
           return;
         }
         
         // 创建管理员账户
-        await authAPI.register(adminData);
+        await authAPI.register(state.adminData);
         // 继续下一步
-        setActiveStep((prevActiveStep) => prevActiveStep + 1);
-      } else if (activeStep === 4) {
+        setState(prev => ({ ...prev, activeStep: prev.activeStep + 1, loading: false }));
+      } else if (state.activeStep === 4) {
         // 完成设置步骤
         // 设置系统为已初始化状态
         await systemAPI.setInitialized(true);
@@ -194,61 +206,81 @@ const SetupWizard = () => {
         localStorage.setItem('tairitsu_initialized', 'true');
         localStorage.removeItem('tairitsu_setup_started');
         // 设置成功消息
-        setSuccess('系统初始化完成！即将跳转到登录页面...');
+        setState(prev => ({ ...prev, success: '系统初始化完成！即将跳转到登录页面...', loading: false }));
         // 延迟跳转到登录页面
         setTimeout(() => {
           navigate('/login');
         }, 2000);
       } else {
         // 默认情况：前进到下一步
-        setActiveStep((prevActiveStep) => prevActiveStep + 1);
+        setState(prev => ({ ...prev, activeStep: prev.activeStep + 1, loading: false }));
       }
     } catch (err) {
-        setError('操作失败: ' + (err.response?.data?.error || err.message));
-      } finally {
-        setLoading(false);
+      setState(prev => ({
+        ...prev,
+        error: '操作失败: ' + (err.response?.data?.error || err.message),
+        loading: false
+      }));
     }
-  };
+  }, [state, checkSystemStatus, testAndInitZtConnection, navigate]);
 
-  const handleBack = () => {
-    setActiveStep((prevActiveStep) => prevActiveStep - 1);
-  };
+  // 使用useCallback缓存返回处理函数
+  const handleBack = useCallback(() => {
+    setState(prev => ({ ...prev, activeStep: prev.activeStep - 1 }));
+  }, []);
 
-  const handleAdminDataChange = (e) => {
-    setAdminData({
-      ...adminData,
-      [e.target.name]: e.target.value
-    });
-  };
-
-  const handleDbConfigChange = (e) => {
-    // 特殊处理数据库类型变更
-    if (e.target.name === 'type') {
-      const newType = e.target.value;
-      setDbConfig({
-        type: newType,
-        path: newType === 'sqlite' ? '' : dbConfig.path,
-        host: newType === 'sqlite' ? '' : dbConfig.host,
-        port: newType === 'sqlite' ? 0 : dbConfig.port, // SQLite不需要端口
-        user: newType === 'sqlite' ? '' : dbConfig.user,
-        pass: newType === 'sqlite' ? '' : dbConfig.pass,
-        name: newType === 'sqlite' ? '' : dbConfig.name
-      });
-    } else {
-      // 处理其他字段变更
-      setDbConfig({
-        ...dbConfig,
+  // 使用useCallback缓存管理数据变更处理函数
+  const handleAdminDataChange = useCallback((e) => {
+    setState(prev => ({
+      ...prev,
+      adminData: {
+        ...prev.adminData,
         [e.target.name]: e.target.value
-      });
-    }
-  };
+      }
+    }));
+  }, []);
 
-  const handleZtConfigChange = (e) => {
-    setZtConfig({
-      ...ztConfig,
-      [e.target.name]: e.target.value
+  // 使用useCallback缓存数据库配置变更处理函数
+  const handleDbConfigChange = useCallback((e) => {
+    setState(prev => {
+      // 特殊处理数据库类型变更
+      if (e.target.name === 'type') {
+        const newType = e.target.value;
+        return {
+          ...prev,
+          dbConfig: {
+            type: newType,
+            path: newType === 'sqlite' ? '' : prev.dbConfig.path,
+            host: newType === 'sqlite' ? '' : prev.dbConfig.host,
+            port: newType === 'sqlite' ? 0 : prev.dbConfig.port, // SQLite不需要端口
+            user: newType === 'sqlite' ? '' : prev.dbConfig.user,
+            pass: newType === 'sqlite' ? '' : prev.dbConfig.pass,
+            name: newType === 'sqlite' ? '' : prev.dbConfig.name
+          }
+        };
+      } else {
+        // 处理其他字段变更
+        return {
+          ...prev,
+          dbConfig: {
+            ...prev.dbConfig,
+            [e.target.name]: e.target.value
+          }
+        };
+      }
     });
-  };
+  }, []);
+
+  // 使用useCallback缓存ZeroTier配置变更处理函数
+  const handleZtConfigChange = useCallback((e) => {
+    setState(prev => ({
+      ...prev,
+      ztConfig: {
+        ...prev.ztConfig,
+        [e.target.name]: e.target.value
+      }
+    }));
+  }, []);
 
   // 渲染步骤内容
   const renderStepContent = (step) => {
@@ -307,15 +339,18 @@ const SetupWizard = () => {
                 disabled={loading}
                 helperText="默认为 /var/lib/zerotier-one/authtoken.secret"
               />
-              {error && (
-                <Alert severity="error" sx={{ mt: 2 }}>
-                  {error}
-                </Alert>
+              {state.error && (
+                <ErrorAlert 
+                  message={state.error} 
+                  onClose={() => setState(prev => ({ ...prev, error: '' }))} 
+                />
               )}
-              {success && (
-                <Alert severity="success" sx={{ mt: 2 }}>
-                  {success}
-                </Alert>
+              {state.success && (
+                <ErrorAlert 
+                  message={state.success} 
+                  severity="success"
+                  onClose={() => setState(prev => ({ ...prev, success: '' }))} 
+                />
               )}
             </form>
           </Paper>
@@ -341,7 +376,7 @@ const SetupWizard = () => {
                 SelectProps={{
                   native: true,
                 }}
-                value={dbConfig.type}
+                value={state.dbConfig.type}
                 onChange={handleDbConfigChange}
                 disabled={loading}
               >
@@ -360,7 +395,7 @@ const SetupWizard = () => {
                     label="主机地址"
                     name="host"
                     autoComplete="hostname"
-                    value={dbConfig.host}
+                    value={state.dbConfig.host}
                     onChange={handleDbConfigChange}
                     disabled={loading}
                   />
@@ -372,7 +407,7 @@ const SetupWizard = () => {
                     label="端口"
                     name="port"
                     type="number"
-                    value={dbConfig.port || ''}
+                    value={state.dbConfig.port || ''}
                     onChange={handleDbConfigChange}
                     disabled={loading}
                     placeholder={dbConfig.type === 'mysql' ? '3306' : '5432'}
@@ -385,7 +420,7 @@ const SetupWizard = () => {
                     label="用户名"
                     name="user"
                     autoComplete="username"
-                    value={dbConfig.user}
+                    value={state.dbConfig.user}
                     onChange={handleDbConfigChange}
                     disabled={loading}
                   />
@@ -398,7 +433,7 @@ const SetupWizard = () => {
                     name="pass"
                     type="password"
                     autoComplete="current-password"
-                    value={dbConfig.pass}
+                    value={state.dbConfig.pass}
                     onChange={handleDbConfigChange}
                     disabled={loading}
                   />
@@ -409,22 +444,25 @@ const SetupWizard = () => {
                     id="name"
                     label="数据库名称"
                     name="name"
-                    value={dbConfig.name}
+                    value={state.dbConfig.name}
                     onChange={handleDbConfigChange}
                     disabled={loading}
                   />
                 </>
               )}
               
-              {error && (
-                <Alert severity="error" sx={{ mt: 2 }}>
-                  {error}
-                </Alert>
+              {state.error && (
+                <ErrorAlert 
+                  message={state.error} 
+                  onClose={() => setState(prev => ({ ...prev, error: '' }))} 
+                />
               )}
-              {success && (
-                <Alert severity="success" sx={{ mt: 2 }}>
-                  {success}
-                </Alert>
+              {state.success && (
+                <ErrorAlert 
+                  message={state.success} 
+                  severity="success"
+                  onClose={() => setState(prev => ({ ...prev, success: '' }))} 
+                />
               )}
             </form>
           </Paper>
@@ -447,7 +485,7 @@ const SetupWizard = () => {
                 label="用户名"
                 name="username"
                 autoComplete="username"
-                value={adminData.username}
+                value={state.adminData.username}
                 onChange={handleAdminDataChange}
                 disabled={loading}
               />
@@ -460,7 +498,7 @@ const SetupWizard = () => {
                 type="password"
                 id="password"
                 autoComplete="new-password"
-                value={adminData.password}
+                value={state.adminData.password}
                 onChange={handleAdminDataChange}
                 disabled={loading}
                 helperText="密码长度至少为6位"
@@ -473,14 +511,15 @@ const SetupWizard = () => {
                 label="邮箱地址"
                 name="email"
                 autoComplete="email"
-                value={adminData.email}
+                value={state.adminData.email}
                 onChange={handleAdminDataChange}
                 disabled={loading}
               />
-              {error && (
-                <Alert severity="error" sx={{ mt: 2 }}>
-                  {error}
-                </Alert>
+              {state.error && (
+                <ErrorAlert 
+                  message={state.error} 
+                  onClose={() => setState(prev => ({ ...prev, error: '' }))} 
+                />
               )}
             </form>
           </Paper>
@@ -498,20 +537,23 @@ const SetupWizard = () => {
               配置概要：
             </Typography>
             <ul>
-              <li>ZeroTier 控制器: {ztConfig.controllerUrl}</li>
-              <li>数据库类型: {dbConfig.type}</li>
-              <li>管理员账户: {adminData.username}</li>
+              <li>ZeroTier 控制器: {state.ztConfig.controllerUrl}</li>
+              <li>数据库类型: {state.dbConfig.type}</li>
+              <li>管理员账户: {state.adminData.username}</li>
             </ul>
-            {error && (
-              <Alert severity="error" sx={{ mt: 2 }}>
-                {error}
-              </Alert>
-            )}
-            {success && (
-              <Alert severity="success" sx={{ mt: 2 }}>
-                {success}
-              </Alert>
-            )}
+            {state.error && (
+                <ErrorAlert 
+                  message={state.error} 
+                  onClose={() => setState(prev => ({ ...prev, error: '' }))} 
+                />
+              )}
+              {state.success && (
+                <ErrorAlert 
+                  message={state.success} 
+                  severity="success"
+                  onClose={() => setState(prev => ({ ...prev, success: '' }))} 
+                />
+              )}
           </Paper>
         );
       default:
@@ -525,20 +567,20 @@ const SetupWizard = () => {
         <Typography component="h1" variant="h4" align="center" gutterBottom>
           Tairitsu 初始化向导
         </Typography>
-        <Stepper activeStep={activeStep} sx={{ mb: 4 }}>
+        <Stepper activeStep={state.activeStep} sx={{ mb: 4 }}>
           {steps.map((label, index) => (
             <Step key={index}>
               <StepLabel>{label}</StepLabel>
             </Step>
           ))}
         </Stepper>
-        <div>{renderStepContent(activeStep)}</div>
+        <div>{renderStepContent(state.activeStep)}</div>
         <Box sx={{ mt: 4, display: 'flex', justifyContent: 'space-between' }}>
-          {activeStep > 0 && (
+          {state.activeStep > 0 && (
             <Button 
               variant="outlined" 
               onClick={handleBack}
-              disabled={loading || (activeStep === 4 && !!success)}
+              disabled={state.loading || (state.activeStep === 4 && !!state.success)}
             >
               返回
             </Button>
@@ -547,10 +589,10 @@ const SetupWizard = () => {
             variant="contained" 
             color="primary" 
             onClick={handleSubmit}
-            disabled={loading}
+            disabled={state.loading}
           >
-            {loading ? <CircularProgress size={24} /> : 
-              activeStep === 4 ? '完成设置' : '下一步'}
+            {state.loading ? <CircularProgress size={24} /> : 
+              state.activeStep === 4 ? '完成设置' : '下一步'}
           </Button>
         </Box>
       </Paper>

@@ -1,63 +1,126 @@
-import React, { useState, useEffect } from 'react'
-import { Routes, Route, Navigate } from 'react-router-dom'
+import React, { useState, useEffect, lazy, Suspense } from 'react'
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import Layout from './components/Layout.jsx'
-import Login from './pages/Login.jsx'
-import Register from './pages/Register.jsx'
-import Dashboard from './pages/Dashboard.jsx'
-import Networks from './pages/Networks.jsx'
-import NetworkDetail from './pages/NetworkDetail.jsx'
-import Members from './pages/Members.jsx'
-import Profile from './pages/Profile.jsx'
-import Settings from './pages/Settings.jsx'
-import SetupWizard from './pages/SetupWizard.jsx'
+import { CSSTransition, TransitionGroup } from 'react-transition-group'
+import './TransitionStyles.css'
+// 使用懒加载优化资源加载性能
+const Login = lazy(() => import('./pages/Login.jsx'))
+const Register = lazy(() => import('./pages/Register.jsx'))
+const Dashboard = lazy(() => import('./pages/Dashboard.jsx'))
+const Networks = lazy(() => import('./pages/Networks.jsx'))
+const NetworkDetail = lazy(() => import('./pages/NetworkDetail.jsx'))
+const Members = lazy(() => import('./pages/Members.jsx'))
+const Profile = lazy(() => import('./pages/Profile.jsx'))
+const Settings = lazy(() => import('./pages/Settings.jsx'))
+const SetupWizard = lazy(() => import('./pages/SetupWizard.jsx'))
 import api from './services/api.js'
 import { AuthProvider, useAuth } from './services/auth.jsx'
 import './App.css'
 
-// 创建使用AuthContext的内部应用组件
-function AppContent() {
+// 路由内容组件，用于添加过渡效果
+function RouteContent({ user, logout, isFirstRun, handleRegisterSuccess }) {
+  // 在BrowserRouter内部使用useLocation
+  const location = useLocation();
+  const nodeRef = React.useRef(null);
+  
+  return (
+    <TransitionGroup>
+      <CSSTransition
+        key={location.pathname}
+        timeout={300}
+        classNames="page-transition"
+        nodeRef={nodeRef}
+      >
+        <div ref={nodeRef}>
+          <Routes location={location}>
+            {/* 首次运行时显示设置向导 */}
+            {isFirstRun ? (
+              <>
+                <Route path="/setup" element={<SetupWizard />}></Route>
+                <Route path="*" element={<Navigate to="/setup" replace />}></Route>
+              </>
+            ) : (
+              <>
+                <Route path="/login" element={<Login />}></Route>
+                <Route path="/register" element={<Register onRegisterSuccess={handleRegisterSuccess} />}></Route>
+                
+                {user ? (
+                  <>
+                    <Route path="/" element={<Layout user={user} onLogout={logout} />}>
+                      <Route index element={<Dashboard />}></Route>
+                      <Route path="networks" element={<Networks />}></Route>
+                      <Route path="networks/:id" element={<NetworkDetail />}></Route>
+                      <Route path="networks/:id/members" element={<Members />}></Route>
+                      <Route path="profile" element={<Profile user={user} />}></Route>
+                      <Route path="settings" element={<Settings />}></Route>
+                    </Route>
+                  </>
+                ) : (
+                  <>
+                    <Route path="/" element={<Navigate to="/login" replace />}></Route>
+                    <Route path="/*" element={<Navigate to="/login" replace />}></Route>
+                  </>
+                )}
+              </>
+            )}
+          </Routes>
+        </div>
+      </CSSTransition>
+    </TransitionGroup>
+  )
+}
+
+// 内部应用内容组件，在BrowserRouter内部使用
+function AppContentInternal() {
   const [loading, setLoading] = useState(true)
   const [isFirstRun, setIsFirstRun] = useState(false)
-  const { user, token, login, logout } = useAuth() || {};
+  const { user, login, logout } = useAuth() || {};
 
-  // 检查是否是首次运行 - 优化：避免直接发送请求
+  // 合并系统状态检查逻辑，优化性能
   useEffect(() => {
-    const checkFirstRun = () => {
-      // 先检查URL是否是设置向导页面
-      const isSetupWizardPage = window.location.pathname === '/setup';
-      
-      // 检查localStorage中是否有设置向导已开始的标记
-      const setupWizardStarted = localStorage.getItem('tairitsu_setup_started') === 'true';
-      
-      // 如果是设置向导页面或设置已开始，直接设为首次运行
-      if (isSetupWizardPage || setupWizardStarted) {
-        setIsFirstRun(true);
-        setLoading(false);
-        return;
-      }
-      
-      // 只有在非设置向导页面且没有设置开始标记时，才发送请求检查系统状态
-      const fetchSystemStatus = async () => {
-        try {
-          const response = await api.get('/system/status', {
-            headers: {
-              'Cache-Control': 'no-cache'
-            }
-          });
-          setIsFirstRun(!response.data.initialized);
-          console.log('系统状态检查:', { initialized: response.data.initialized, isFirstRun: !response.data.initialized });
-        } catch (error) {
-          console.error('获取系统状态失败:', error);
-          setIsFirstRun(true);
-        } finally {
-          setLoading(false);
+    const checkSystemStatus = async () => {
+      try {
+        // 先检查URL是否是设置向导页面
+        const isSetupWizardPage = window.location.pathname === '/setup';
+        
+        // 检查localStorage中的初始化状态（优先级最高）
+        const localStorageInitialized = localStorage.getItem('tairitsu_initialized') === 'true';
+        const setupWizardStarted = localStorage.getItem('tairitsu_setup_started') === 'true';
+        
+        // 如果有初始化标记，直接设为非首次运行
+        if (localStorageInitialized) {
+          setIsFirstRun(false);
+          return;
         }
-      };
-      
-      fetchSystemStatus();
+        
+        // 如果是设置向导页面或设置已开始，直接设为首次运行
+        if (isSetupWizardPage || setupWizardStarted) {
+          setIsFirstRun(true);
+          return;
+        }
+        
+        // 只有在必要时才发送请求检查系统状态
+        const response = await api.get('/system/status', {
+          headers: {
+            'Cache-Control': 'no-cache'
+          }
+        });
+        const initialized = response.data.initialized;
+        setIsFirstRun(!initialized);
+        
+        // 如果后端返回已初始化，更新localStorage
+        if (initialized) {
+          localStorage.setItem('tairitsu_initialized', 'true');
+        }
+      } catch (error) {
+        console.error('获取系统状态失败:', error);
+        setIsFirstRun(true);
+      } finally {
+        setLoading(false);
+      }
     };
 
-    checkFirstRun();
+    checkSystemStatus();
   }, []);
 
   // 检查用户登录状态
@@ -87,71 +150,15 @@ function AppContent() {
     }
   }, [login, isFirstRun]);
 
-  // 监听系统初始化状态变化，当设置向导完成后，重新检查系统状态
+  // 监听系统初始化状态变化
   useEffect(() => {
-    // 定义一个函数来刷新系统状态
-    const refreshSystemStatus = async () => {
-      try {
-        // 检查是否是设置向导页面，如果是则不发送请求
-        const isSetupWizardPage = window.location.pathname === '/setup';
-        if (isSetupWizardPage) {
-          return;
-        }
-        
-        // 首先检查localStorage中的初始化状态
-        const localStorageInitialized = localStorage.getItem('tairitsu_initialized');
-        if (localStorageInitialized === 'true') {
-          setIsFirstRun(false);
-          console.log('[App] 从localStorage检测到系统已初始化');
-          // 如果localStorage中标记为已初始化，同步到后端检查
-          try {
-            const response = await api.get('/system/status', {
-              headers: {
-                'Cache-Control': 'no-cache'
-              }
-            });
-            // 以后端状态为准，更新前端状态
-            setIsFirstRun(!response.data.initialized);
-            console.log('[App] 后端验证系统初始化状态:', response.data.initialized);
-          } catch (backendError) {
-            console.warn('[App] 后端验证失败，但仍使用localStorage状态');
-          }
-          return;
-        }
-        
-        // 如果localStorage中没有，从后端获取
-        const response = await api.get('/system/status', {
-          headers: {
-            'Cache-Control': 'no-cache'
-          }
-        });
-        // 根据系统的initialized状态来更新
-        setIsFirstRun(!response.data.initialized);
-        console.log('[App] 从后端刷新系统状态，初始化状态:', response.data.initialized);
-        
-        // 如果后端返回已初始化，更新localStorage
-        if (response.data.initialized) {
-          localStorage.setItem('tairitsu_initialized', 'true');
-        }
-      } catch (error) {
-        console.error('[App] 刷新系统状态失败:', error);
-      }
-    };
-
-    // 监听存储事件，当有其他标签页更新时，也刷新系统状态
+    // 监听存储事件，当有其他标签页更新时，刷新系统状态
     const handleStorageChange = (event) => {
-      if (event.key === 'tairitsu_initialized') {
-        console.log('[App] 检测到初始化状态变化，刷新系统状态');
-        refreshSystemStatus();
+      if (event.key === 'tairitsu_initialized' && event.newValue === 'true') {
+        console.log('[App] 检测到初始化状态变化，更新为已初始化');
+        setIsFirstRun(false);
       }
     };
-    
-    // 检查是否是设置向导页面，如果不是才执行刷新
-    const isSetupWizardPage = window.location.pathname === '/setup';
-    if (!isSetupWizardPage) {
-      // 非设置向导页面才检查localStorage
-      refreshSystemStatus();
-    }
 
     // 添加监听器
     window.addEventListener('storage', handleStorageChange);
@@ -184,42 +191,31 @@ function AppContent() {
 
   return (
     <div className="app">
-      <Routes>
-        {/* 首次运行时显示设置向导 */}
-        {isFirstRun ? (
-          <>
-            <Route path="/setup" element={<SetupWizard />}></Route>
-            {/* 使用replace而不是push，防止用户通过浏览器返回按钮回到设置向导 */}
-            <Route path="*" element={<Navigate to="/setup" replace />}></Route>
-          </>
-        ) : (
-          <>
-            <Route path="/login" element={<Login />}></Route>
-            <Route path="/register" element={<Register onRegisterSuccess={handleRegisterSuccess} />}></Route>
-            
-            {user ? (
-              <>
-                <Route path="/" element={<Layout user={user} onLogout={logout} />}>
-                  <Route index element={<Dashboard />}></Route>
-                  <Route path="networks" element={<Networks />}></Route>
-                  <Route path="networks/:id" element={<NetworkDetail />}></Route>
-                  <Route path="networks/:id/members" element={<Members />}></Route>
-                  <Route path="profile" element={<Profile user={user} />}></Route>
-                  <Route path="settings" element={<Settings />}></Route>
-                </Route>
-              </>
-            ) : (
-              <>
-                {/* 添加根路径直接重定向到登录页面 */}
-                <Route path="/" element={<Navigate to="/login" replace />}></Route>
-                <Route path="/*" element={<Navigate to="/login" replace />}></Route>
-              </>
-            )}
-          </>
-        )}
-      </Routes>
+      <Suspense fallback={
+        <div style={{ 
+          display: 'flex', 
+          justifyContent: 'center', 
+          alignItems: 'center', 
+          height: '100vh',
+          fontSize: '18px'
+        }}>
+          加载中...
+        </div>
+      }>
+        <RouteContent 
+          user={user} 
+          logout={logout}
+          isFirstRun={isFirstRun}
+          handleRegisterSuccess={handleRegisterSuccess}
+        />
+      </Suspense>
     </div>
   )
+}
+
+// AppContent组件，直接返回内部内容组件，使用main.jsx中提供的BrowserRouter
+function AppContent() {
+  return <AppContentInternal />;
 }
 
 // 主App组件，使用AuthProvider包裹

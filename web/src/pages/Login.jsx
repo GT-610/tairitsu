@@ -1,3 +1,7 @@
+/**
+ * 登录页面组件
+ * 提供用户登录功能，包括表单验证、错误处理和成功后的重定向
+ */
 import React, { useState } from 'react';
 import { 
   Box, 
@@ -10,36 +14,58 @@ import {
   Alert,
   CircularProgress,
   Container,
-  Grid,
-  Link as MuiLink
+  Grid
 } from '@mui/material';
 import { LockOutlined } from '@mui/icons-material';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../services/auth.jsx';
 
+/**
+ * 登录页面组件
+ * 
+ * @component
+ * @returns {React.ReactNode}
+ */
 function Login() {
+  // 表单状态管理
   const [formData, setFormData] = useState({
     username: '',
     password: ''
   });
-  const [errors, setErrors] = useState({});
-  const [loading, setLoading] = useState(false);
+  
+  // 验证错误状态
+  const [validationErrors, setValidationErrors] = useState({});
+  
+  // UI状态管理
+  const [isLoading, setIsLoading] = useState(false);
   const [loginError, setLoginError] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
+  
+  // 路由和认证钩子
   const navigate = useNavigate();
   const { login } = useAuth() || {};
 
-  // 处理输入变化
-  const handleChange = (e) => {
+  /**
+   * 处理表单输入变化
+   * 
+   * @param {React.ChangeEvent<HTMLInputElement>} e - 输入变化事件
+   * @returns {void}
+   */
+  const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
-    // 清除对应字段的错误
-    if (errors[name]) {
-      setErrors(prev => ({ ...prev, [name]: '' }));
+    
+    // 清除对应字段的验证错误
+    if (validationErrors[name]) {
+      setValidationErrors(prev => ({ ...prev, [name]: '' }));
     }
   };
 
-  // 表单验证
+  /**
+   * 验证表单数据
+   * 
+   * @returns {boolean} 表单数据是否有效
+   */
   const validateForm = () => {
     const newErrors = {};
     
@@ -51,11 +77,16 @@ function Login() {
       newErrors.password = '密码不能为空';
     }
     
-    setErrors(newErrors);
+    setValidationErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  // 处理登录提交
+  /**
+   * 处理登录表单提交
+   * 
+   * @param {React.FormEvent} e - 表单提交事件
+   * @returns {Promise<void>}
+   */
   const handleSubmit = async (e) => {
     e.preventDefault();
     
@@ -63,14 +94,14 @@ function Login() {
       return;
     }
     
-    setLoading(true);
+    setIsLoading(true);
     setLoginError('');
     
     try {
       // 模拟API调用延迟
       await new Promise(resolve => setTimeout(resolve, 1000));
       
-      // 模拟登录验证
+      // 模拟登录验证（在实际应用中应替换为真实API调用）
       if (formData.username === 'admin' && formData.password === 'password') {
         // 创建模拟的用户数据
         const userData = {
@@ -82,21 +113,17 @@ function Login() {
           lastLogin: new Date().toISOString()
         };
         
-        // 创建模拟的token
-        const token = 'mock_jwt_token_' + Date.now();
+        // 创建模拟的认证令牌
+        const authToken = 'mock_jwt_token_' + Date.now();
         
-        // 保存到localStorage
-        if (rememberMe) {
-          localStorage.setItem('user', JSON.stringify(userData));
-          localStorage.setItem('token', token);
-        } else {
-          sessionStorage.setItem('user', JSON.stringify(userData));
-          sessionStorage.setItem('token', token);
-        }
+        // 根据rememberMe选项保存到对应的存储
+        const storage = rememberMe ? localStorage : sessionStorage;
+        storage.setItem('user', JSON.stringify(userData));
+        storage.setItem('token', authToken);
         
-        // 如果存在登录函数，调用它
+        // 如果存在登录函数，调用它更新认证上下文
         if (typeof login === 'function') {
-          login(userData, token);
+          login(userData, authToken);
         }
         
         // 登录成功，重定向到仪表盘
@@ -108,10 +135,11 @@ function Login() {
       console.error('登录错误:', error);
       setLoginError('登录失败，请稍后重试');
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
 
+  // 样式定义
   const paperStyle = {
     padding: 20,
     height: 'auto',
@@ -132,30 +160,38 @@ function Login() {
 
   return (
     <Container component="main" maxWidth="xs">
-      <Box sx={{ 
-        display: 'flex', 
-        flexDirection: 'column', 
-        alignItems: 'center',
-        minHeight: '100vh',
-        justifyContent: 'center',
-        py: 8
-      }}>
+      <Box 
+        sx={{ 
+          display: 'flex', 
+          flexDirection: 'column', 
+          alignItems: 'center',
+          minHeight: '100vh',
+          justifyContent: 'center',
+          py: 8
+        }}
+      >
+        {/* 登录表单卡片 */}
         <Paper elevation={3} style={paperStyle}>
+          {/* 登录图标容器 */}
           <Box sx={avatarStyle}>
             <LockOutlined fontSize="large" />
           </Box>
           
+          {/* 标题 */}
           <Typography variant="h5" component="h1" gutterBottom align="center">
             登录到 Tairitsu
           </Typography>
           
+          {/* 登录错误提示 */}
           {loginError && (
             <Alert severity="error" sx={{ mb: 3 }}>
               {loginError}
             </Alert>
           )}
           
+          {/* 登录表单 */}
           <Box component="form" onSubmit={handleSubmit} sx={{ mt: 1 }}>
+            {/* 用户名输入框 */}
             <TextField
               margin="normal"
               required
@@ -166,12 +202,14 @@ function Login() {
               autoComplete="username"
               autoFocus
               value={formData.username}
-              onChange={handleChange}
-              error={!!errors.username}
-              helperText={errors.username}
-              disabled={loading}
+              onChange={handleInputChange}
+              error={!!validationErrors.username}
+              helperText={validationErrors.username}
+              disabled={isLoading}
+              className="form-input"
             />
             
+            {/* 密码输入框 */}
             <TextField
               margin="normal"
               required
@@ -182,32 +220,36 @@ function Login() {
               id="password"
               autoComplete="current-password"
               value={formData.password}
-              onChange={handleChange}
-              error={!!errors.password}
-              helperText={errors.password}
-              disabled={loading}
+              onChange={handleInputChange}
+              error={!!validationErrors.password}
+              helperText={validationErrors.password}
+              disabled={isLoading}
+              className="form-input"
             />
             
+            {/* 记住我选项 */}
             <FormControlLabel
               control={
                 <Checkbox
                   checked={rememberMe}
                   onChange={(e) => setRememberMe(e.target.checked)}
                   color="primary"
-                  disabled={loading}
+                  disabled={isLoading}
                 />
               }
               label="记住我"
             />
             
+            {/* 登录按钮 */}
             <Button
               type="submit"
               fullWidth
               variant="contained"
               sx={{ mt: 3, mb: 2 }}
-              disabled={loading}
+              disabled={isLoading}
+              className="animated-button"
             >
-              {loading ? (
+              {isLoading ? (
                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
                   <CircularProgress size={20} />
                   登录中...
@@ -217,6 +259,7 @@ function Login() {
               )}
             </Button>
             
+            {/* 其他操作链接 */}
             <Grid container>
               <Grid item xs>
                 <Link to="/forgot-password" variant="body2" sx={{ textDecoration: 'none' }}>
@@ -232,6 +275,7 @@ function Login() {
           </Box>
         </Paper>
         
+        {/* 版权信息 */}
         <Typography variant="body2" color="text.secondary" align="center" sx={{ mt: 4 }}>
           © {new Date().getFullYear()} Tairitsu P2P 网络管理系统
         </Typography>

@@ -1,0 +1,131 @@
+/**
+ * 过渡和动画样式
+ * 提供页面过渡、交互反馈和加载动画样式
+ */
+
+/* 页面过渡动画 */
+.page-transition-enter {
+  opacity: 0;
+  transform: translateY(20px);
+}
+
+.page-transition-enter-active {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity var(--transition-normal), transform var(--transition-normal);
+  position: absolute;
+  width: 100%;
+  top: 0;
+  left: 0;
+  z-index: 10;
+}
+
+.page-transition-exit {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.page-transition-exit-active {
+  opacity: 0;
+  transform: translateY(-20px);
+  transition: opacity var(--transition-normal), transform var(--transition-normal);
+  position: absolute;
+  width: 100%;
+  top: 0;
+  left: 0;
+  z-index: 10;
+}
+
+/* 交互反馈样式 */
+
+/* 表单输入聚焦效果 */
+.form-input:focus-within {
+  transition: all var(--transition-normal) ease;
+  transform: translateY(-2px);
+}
+
+/* 按钮动画效果 */
+.animated-button {
+  transition: all var(--transition-normal) ease;
+  --button-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.animated-button:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--button-shadow);
+}
+
+.animated-button:active {
+  transform: translateY(0);
+}
+
+/* 核心动画类 */
+
+/* 淡入动画 */
+.fade-in {
+  --fade-animation-duration: 0.5s;
+  animation: fadeIn var(--fade-animation-duration) ease-in;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* 滑动进入动画 */
+.slide-in {
+  --slide-animation-duration: 0.4s;
+  --slide-distance: -30px;
+  animation: slideIn var(--slide-animation-duration) ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(var(--slide-distance));
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+/* 加载动画 */
+.loading-spinner {
+  --spinner-size: 40px;
+  --spinner-border: 4px;
+  --spinner-color: rgba(255, 255, 255, 0.3);
+  --spinner-top-color: #fff;
+  --spinner-animation: 1s ease-in-out infinite;
+  
+  display: inline-block;
+  width: var(--spinner-size);
+  height: var(--spinner-size);
+  border: var(--spinner-border) solid var(--spinner-color);
+  border-radius: 50%;
+  border-top-color: var(--spinner-top-color);
+  animation: spin var(--spinner-animation);
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* 卡片交互效果 */
+.hover-card {
+  --hover-transform: translateY(-5px);
+  --hover-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+  
+  transition: all var(--transition-normal) ease;
+}
+
+.hover-card:hover {
+  transform: var(--hover-transform);
+  box-shadow: var(--hover-shadow);
+}

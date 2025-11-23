@@ -1,35 +1,52 @@
 import React, { useState, useEffect } from 'react'
-import { Box, Typography, Grid, Paper, Card, CardContent, CircularProgress, Alert }
+import { Box, Typography, Grid, Paper, CircularProgress }
 from '@mui/material'
-import { statusAPI, networkAPI } from '../services/api.js'
+import { systemAPI, networkAPI } from '../services/api.js'
+import StatusCard from '../components/StatusCard.jsx'
+import ErrorAlert from '../components/ErrorAlert.jsx'
 
 function Dashboard() {
-  const [status, setStatus] = useState(null)
-  const [networks, setNetworks] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
+  // 使用单个对象状态减少多次re-render
+  const [dashboardData, setDashboardData] = useState({
+    status: null,
+    networks: [],
+    loading: true,
+    error: ''
+  })
+
+  // 使用useCallback缓存fetch函数，避免在依赖中重复创建
+  const fetchData = React.useCallback(async () => {
+    try {
+      setDashboardData(prev => ({ ...prev, loading: true, error: '' }))
+      // 获取系统状态和网络列表
+      const [statusResponse, networksResponse] = await Promise.all([
+        systemAPI.getStatus(),
+        networkAPI.getAllNetworks()
+      ])
+
+      setDashboardData({
+        status: statusResponse.data,
+        networks: networksResponse.data,
+        loading: false,
+        error: ''
+      })
+    } catch (err) {
+      setDashboardData(prev => ({
+        ...prev,
+        loading: false,
+        error: '获取数据失败，请稍后重试'
+      }))
+      console.error('Dashboard fetch error:', err)
+    }
+  }, [])
 
   useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true)
-      try {
-        // 获取系统状态
-        const statusResponse = await statusAPI.getStatus()
-        setStatus(statusResponse.data)
-        
-        // 获取网络列表
-        const networksResponse = await networkAPI.getAllNetworks()
-        setNetworks(networksResponse.data)
-      } catch (err) {
-        setError('获取数据失败，请稍后重试')
-        console.error('Dashboard fetch error:', err)
-      } finally {
-        setLoading(false)
-      }
-    }
-
     fetchData()
-  }, [])
+    // 每分钟刷新一次数据
+    const interval = setInterval(fetchData, 60000)
+
+    return () => clearInterval(interval)
+  }, [fetchData])
 
   return (
     <Box sx={{ p: 3 }}>
@@ -37,13 +54,12 @@ function Dashboard() {
         仪表盘
       </Typography>
       
-      {error && (
-        <Alert severity="error" sx={{ mb: 3 }}>
-          {error}
-        </Alert>
-      )}
+      <ErrorAlert 
+        message={dashboardData.error} 
+        onClose={() => setDashboardData(prev => ({ ...prev, error: '' }))} 
+      />
 
-      {loading ? (
+      {dashboardData.loading ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', mt: 10 }}>
           <CircularProgress />
         </Box>
@@ -51,43 +67,24 @@ function Dashboard() {
         <>
           <Grid container spacing={3} sx={{ mb: 3 }}>
             <Grid item xs={12} md={4}>
-              <Card sx={{ backgroundColor: '#2c3e50' }}>
-                <CardContent>
-                  <Typography variant="h6" color="text.secondary" gutterBottom>
-                    活跃网络数
-                  </Typography>
-                  <Typography variant="h4">
-                    {networks.length}
-                  </Typography>
-                </CardContent>
-              </Card>
-            </Grid>
-            <Grid item xs={12} md={4}>
-              <Card sx={{ backgroundColor: '#2c3e50' }}>
-                <CardContent>
-                  <Typography variant="h6" color="text.secondary" gutterBottom>
-                    ZeroTier状态
-                  </Typography>
-                  <Typography variant="h4"
-                    color={status?.zerotier?.status === 'online' ? 'success.main' : 'error.main'}
-                  >
-                    {status?.zerotier?.status === 'online' ? '在线' : '离线'}
-                  </Typography>
-                </CardContent>
-              </Card>
-            </Grid>
-            <Grid item xs={12} md={4}>
-              <Card sx={{ backgroundColor: '#2c3e50' }}>
-                <CardContent>
-                  <Typography variant="h6" color="text.secondary" gutterBottom>
-                    总设备数
-                  </Typography>
-                  <Typography variant="h4">
-                    {status?.zerotier?.peerCount || 0}
-                  </Typography>
-                </CardContent>
-              </Card>
-            </Grid>
+            <StatusCard 
+              title="活跃网络数" 
+              value={dashboardData.networks.length} 
+            />
+          </Grid>
+          <Grid item xs={12} md={4}>
+            <StatusCard 
+              title="ZeroTier状态" 
+              value={dashboardData.status?.zerotier?.status === 'online' ? '在线' : '离线'}
+              color={dashboardData.status?.zerotier?.status === 'online' ? 'success.main' : 'error.main'}
+            />
+          </Grid>
+          <Grid item xs={12} md={4}>
+            <StatusCard 
+              title="总设备数" 
+              value={dashboardData.status?.zerotier?.peerCount || 0}
+            />
+          </Grid>
           </Grid>
 
           <Paper elevation={3} sx={{ p: 3, mb: 3 }}>
