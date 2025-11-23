@@ -92,7 +92,9 @@ export const systemAPI = {
   // 更新系统设置
   updateSettings: (settings) => api.put('/settings', settings),
   // 获取系统信息
-  getSystemInfo: () => api.get('/system/info')
+  getSystemInfo: () => api.get('/system/info'),
+  // 设置系统初始化状态
+  setInitialized: (initialized) => api.post('/system/initialized', { initialized })
 }
 
 export default api

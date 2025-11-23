@@ -1,15 +1,14 @@
 package database
 
 import (
-	"encoding/json"
 	"fmt"
-	"os"
-	"strconv"
 
 	"gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
+
+	"github.com/tairitsu/tairitsu/internal/app/config"
 )
 
 // DatabaseType 数据库类型
@@ -108,65 +107,51 @@ func NewDatabase(config Config) (DBInterface, error) {
 	}
 }
 
-// LoadConfig 从JSON配置文件加载数据库配置
+// LoadConfig 从统一配置管理模块加载数据库配置
 func LoadConfig() Config {
-	// 从JSON配置文件读取
-	config, err := loadConfigFromJSON()
-	if err != nil {
-		// 配置文件不存在或读取失败时返回空配置
+	// 从统一配置管理模块获取配置
+	cfg := config.AppConfig
+	if cfg == nil {
+		// 如果配置未初始化，返回空配置
 		return Config{}
 	}
-	return config
+
+	// 获取解密后的密码
+	password, _ := config.GetDatabasePassword() // 忽略错误，使用空密码
+
+	// 从配置中提取数据库相关信息
+	return Config{
+		Type: DatabaseType(cfg.Database.Type),
+		Path: cfg.Database.Path,
+		Host: cfg.Database.Host,
+		Port: cfg.Database.Port,
+		User: cfg.Database.User,
+		Pass: password,
+		Name: cfg.Database.Name,
+	}
 }
 
-// loadConfigFromJSON 从JSON文件加载数据库配置
-func loadConfigFromJSON() (Config, error) {
-	config := Config{}
-
-	// 读取数据库配置文件
-	data, err := os.ReadFile("./database_config.json")
-	if err != nil {
-		return config, fmt.Errorf("读取数据库配置文件失败: %w", err)
+// SaveConfig 保存数据库配置到统一配置管理模块
+func SaveConfig(dbConfig Config) error {
+	// 获取配置实例
+	cfg := config.AppConfig
+	if cfg == nil {
+		return fmt.Errorf("配置未初始化")
 	}
 
-	// 解析JSON
-	if err := json.Unmarshal(data, &config); err != nil {
-		return config, fmt.Errorf("解析数据库配置失败: %w", err)
+	// 更新数据库配置
+	cfg.Database.Type = config.DatabaseType(dbConfig.Type)
+	cfg.Database.Path = dbConfig.Path
+	cfg.Database.Host = dbConfig.Host
+	cfg.Database.Port = dbConfig.Port
+	cfg.Database.User = dbConfig.User
+	cfg.Database.Name = dbConfig.Name
+
+	// 使用加密方式保存密码
+	if err := config.SetDatabasePassword(dbConfig.Pass); err != nil {
+		return fmt.Errorf("保存数据库密码失败: %w", err)
 	}
 
-	return config, nil
-}
-
-// SaveConfigToJSON 将数据库配置保存到JSON文件
-// 注意：此函数会强制覆盖现有的配置文件，不进行文件存在性检查
-func SaveConfigToJSON(config Config) error {
-	data, err := json.MarshalIndent(config, "", "  ")
-	if err != nil {
-		return fmt.Errorf("序列化数据库配置失败: %w", err)
-	}
-
-	// 强制覆盖模式：os.WriteFile默认会覆盖文件，无需额外检查
-	// 确保文件权限为0644（所有者可读写，其他用户可读）
-	return os.WriteFile("./database_config.json", data, 0644)
-}
-
-// LoadConfigFromEnv 从环境变量加载数据库配置
-func LoadConfigFromEnv() Config {
-	config := Config{
-		Type: DatabaseType(os.Getenv("DATABASE_TYPE")),
-		Path: os.Getenv("DATABASE_PATH"),
-		Host: os.Getenv("DATABASE_HOST"),
-		User: os.Getenv("DATABASE_USER"),
-		Pass: os.Getenv("DATABASE_PASS"),
-		Name: os.Getenv("DATABASE_NAME"),
-	}
-
-	// 解析端口号
-	if portStr := os.Getenv("DATABASE_PORT"); portStr != "" {
-		if port, err := strconv.Atoi(portStr); err == nil {
-			config.Port = port
-		}
-	}
-
-	return config
+	// 保存配置到文件
+	return config.SaveConfig(cfg)
 }

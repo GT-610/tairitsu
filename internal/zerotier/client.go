@@ -118,7 +118,7 @@ func NewClient() (*Client, error) {
 	}
 
 	// 获取ZeroTier令牌
-	token, err := config.GetZTToken(config.AppConfig.ZeroTier.TokenPath)
+	token, err := config.GetZTToken()
 	if err != nil {
 		return nil, fmt.Errorf("获取ZeroTier令牌失败: %w", err)
 	}

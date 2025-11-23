@@ -1,106 +1,299 @@
 package config
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
 
+	"github.com/tairitsu/tairitsu/internal/app/crypto"
 	"github.com/spf13/viper"
 )
 
+// DatabaseConfig 数据库配置
+type DatabaseConfig struct {
+	Type DatabaseType `json:"type"`
+	Path string       `json:"path"`
+	Host string       `json:"host"`
+	Port int          `json:"port"`
+	User string       `json:"user"`
+	Pass string       `json:"pass"` // 加密后的密码
+	Name string       `json:"name"`
+}
+
+// DatabaseType 数据库类型
+type DatabaseType string
+
+const (
+	SQLite     DatabaseType = "sqlite"
+	PostgreSQL DatabaseType = "postgresql"
+	MySQL      DatabaseType = "mysql"
+)
+
+// ZeroTierConfig ZeroTier配置
+type ZeroTierConfig struct {
+	URL   string `json:"url"`
+	Token string `json:"token"` // 加密后的令牌
+}
+
+// ServerConfig 服务器配置
+type ServerConfig struct {
+	Port int    `json:"port"`
+	Host string `json:"host"`
+}
+
+// SecurityConfig 安全配置
+type SecurityConfig struct {
+	JWTSecret     string `json:"jwt_secret"`
+	SessionSecret string `json:"session_secret"`
+}
+
 // Config 应用程序配置结构体
 type Config struct {
-	// ZeroTier配置
-	ZeroTier struct {
-		URL       string `mapstructure:"ZT_CONTROLLER_URL"`
-		TokenPath string `mapstructure:"ZT_TOKEN_PATH"`
-	}
-
-	// 服务器配置
-	Server struct {
-		Port int    `mapstructure:"SERVER_PORT"`
-		Host string `mapstructure:"SERVER_HOST"`
-	}
-
-	// 安全配置
-	Security struct {
-		JWTSecret    string `mapstructure:"JWT_SECRET"`
-		SessionSecret string `mapstructure:"SESSION_SECRET"`
-	}
-
-	// 数据库配置（可选）
-	DatabaseURL string `mapstructure:"DATABASE_URL"`
+	Initialized bool           `json:"initialized"`          // 初始化状态标识
+	Database    DatabaseConfig `json:"database"`             // 数据库配置
+	ZeroTier    ZeroTierConfig `json:"zerotier"`             // ZeroTier配置
+	Server      ServerConfig   `json:"server"`               // 服务器配置
+	Security    SecurityConfig `json:"security"`             // 安全配置
 }
 
 // AppConfig 全局配置实例
 var AppConfig *Config
 
-// LoadConfig 加载配置
+const configFilePath = "./config.json"
+
+// LoadConfig 加载配置（从config.json）
 func LoadConfig() (*Config, error) {
-	viper.SetConfigName(".env")
-	viper.SetConfigType("env")
-	viper.AddConfigPath("./")
-	viper.AutomaticEnv()
-	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
-
-	// 读取环境变量文件
-	if err := viper.ReadInConfig(); err != nil {
-		// 如果.env文件不存在，尝试从环境变量加载
-		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
-			return nil, fmt.Errorf("读取配置文件失败: %w", err)
-		}
-		fmt.Println("未找到配置文件，将从环境变量加载配置")
-	} else {
-		fmt.Println("成功读取配置文件")
+	// 首先尝试从config.json加载
+	cfg, err := loadConfigFromJSON()
+	if err == nil {
+		AppConfig = cfg
+		return cfg, nil
 	}
 
-	// 创建配置实例
-	cfg := &Config{}
+	// 如果config.json不存在或读取失败，创建默认配置
+	cfg = createDefaultConfig()
 
-	// 设置默认值
-	viper.SetDefault("ZT_CONTROLLER_URL", "http://localhost:9993")
-	viper.SetDefault("ZT_TOKEN_PATH", "/var/lib/zerotier-one/authtoken.secret")
-	viper.SetDefault("SERVER_PORT", 8080)
-	viper.SetDefault("SERVER_HOST", "0.0.0.0")
-	viper.SetDefault("JWT_SECRET", "default_jwt_secret_key_change_in_production")
-	viper.SetDefault("SESSION_SECRET", "default_session_secret_change_in_production")
+	// 尝试从.env文件或环境变量加载部分配置
+	loadEnvConfig(cfg)
 
-	// 解析配置到结构体
-	if err := viper.Unmarshal(cfg); err != nil {
-		return nil, fmt.Errorf("解析配置失败: %w", err)
-	}
-	
-	// 手动设置配置值
-	cfg.ZeroTier.URL = viper.GetString("ZT_CONTROLLER_URL")
-	cfg.ZeroTier.TokenPath = viper.GetString("ZT_TOKEN_PATH")
-	cfg.Server.Port = viper.GetInt("SERVER_PORT")
-	cfg.Server.Host = viper.GetString("SERVER_HOST")
-	cfg.Security.JWTSecret = viper.GetString("JWT_SECRET")
-	cfg.Security.SessionSecret = viper.GetString("SESSION_SECRET")
-
-	// 确保AppConfig更新
 	AppConfig = cfg
+	return cfg, nil
+}
+
+// loadConfigFromJSON 从JSON文件加载配置
+func loadConfigFromJSON() (*Config, error) {
+	// 检查配置文件是否存在
+	if _, err := os.Stat(configFilePath); os.IsNotExist(err) {
+		return nil, fmt.Errorf("配置文件不存在")
+	}
+
+	// 读取配置文件
+	data, err := os.ReadFile(configFilePath)
+	if err != nil {
+		return nil, fmt.Errorf("读取配置文件失败: %w", err)
+	}
+
+	// 解析JSON
+	cfg := &Config{}
+	if err := json.Unmarshal(data, cfg); err != nil {
+		return nil, fmt.Errorf("解析配置文件失败: %w", err)
+	}
 
 	return cfg, nil
 }
 
-// GetZTToken 获取ZeroTier令牌
-func GetZTToken(tokenPath string) (string, error) {
-	// 首先尝试从环境变量获取
+// SaveConfig 保存配置到JSON文件
+func SaveConfig(cfg *Config) error {
+	// 序列化配置
+	data, err := json.MarshalIndent(cfg, "", "  ")
+	if err != nil {
+		return fmt.Errorf("序列化配置失败: %w", err)
+	}
+
+	// 写入文件，设置适当的权限（仅所有者可读写）
+	return os.WriteFile(configFilePath, data, 0600)
+}
+
+// createDefaultConfig 创建默认配置
+func createDefaultConfig() *Config {
+	return &Config{
+		Initialized: false,
+		Database: DatabaseConfig{
+			Type: SQLite,
+			Path: "tairitsu.db",
+		},
+		ZeroTier: ZeroTierConfig{
+			URL: "http://localhost:9993",
+		},
+		Server: ServerConfig{
+			Port: 8080,
+			Host: "0.0.0.0",
+		},
+		Security: SecurityConfig{
+			JWTSecret:     "default_jwt_secret_key_change_in_production",
+			SessionSecret: "default_session_secret_change_in_production",
+		},
+	}
+}
+
+// loadEnvConfig 从环境变量加载部分配置（仅读取.env中存在的配置）
+func loadEnvConfig(cfg *Config) {
+	viper.SetConfigName(".env")
+	viper.SetConfigType("env")
+	viper.AddConfigPath("./")
+	viper.AutomaticEnv()
+
+	// 尝试读取.env文件
+	_ = viper.ReadInConfig() // 忽略错误，仅尝试读取
+
+	// 从环境变量更新配置，只读取.env中存在的配置项
+	if url := viper.GetString("ZT_CONTROLLER_URL"); url != "" {
+		cfg.ZeroTier.URL = url
+	}
+	cfg.Server.Port = viper.GetInt("SERVER_PORT")
+	if jwt := viper.GetString("JWT_SECRET"); jwt != "" {
+		cfg.Security.JWTSecret = jwt
+	}
+	if session := viper.GetString("SESSION_SECRET"); session != "" {
+		cfg.Security.SessionSecret = session
+	}
+	// 读取ZT_TOKEN_PATH，但不直接使用，仅作为兼容性支持
+	_ = viper.GetString("ZT_TOKEN_PATH")
+}
+
+// GetZTToken 获取ZeroTier令牌（自动解密）
+func GetZTToken() (string, error) {
+	if AppConfig == nil {
+		return "", fmt.Errorf("配置未加载")
+	}
+
+	// 解密令牌
+	if AppConfig.ZeroTier.Token != "" {
+		decryptedToken, err := decryptSensitiveData(AppConfig.ZeroTier.Token)
+		if err != nil {
+			// 如果解密失败，可能是未加密的数据，尝试直接返回
+			// 这是为了兼容可能的未加密数据
+			return AppConfig.ZeroTier.Token, nil
+		}
+		return decryptedToken, nil
+	}
+
+	// 如果配置中没有，尝试从环境变量获取
 	token := viper.GetString("ZT_TOKEN")
 	if token != "" {
 		return token, nil
 	}
 
-	// 如果没有直接配置，则尝试从文件读取
-	if _, err := os.Stat(tokenPath); os.IsNotExist(err) {
-		return "", fmt.Errorf("ZT令牌文件不存在: %s", tokenPath)
+	return "", fmt.Errorf("ZeroTier令牌未配置")
+}
+
+// SetZTToken 设置ZeroTier令牌（自动加密）
+func SetZTToken(token string) error {
+	if AppConfig == nil {
+		return fmt.Errorf("配置未加载")
 	}
 
-	content, err := os.ReadFile(tokenPath)
+	// 加密令牌
+	encryptedToken, err := encryptSensitiveData(token)
 	if err != nil {
-		return "", fmt.Errorf("读取ZT令牌文件失败: %w", err)
+		return fmt.Errorf("加密令牌失败: %w", err)
 	}
 
-	return strings.TrimSpace(string(content)), nil
+	AppConfig.ZeroTier.Token = encryptedToken
+	return nil
+}
+
+// GetDatabasePassword 获取数据库密码（自动解密）
+func GetDatabasePassword() (string, error) {
+	if AppConfig == nil {
+		return "", fmt.Errorf("配置未加载")
+	}
+
+	if AppConfig.Database.Pass != "" {
+		decryptedPass, err := decryptSensitiveData(AppConfig.Database.Pass)
+		if err != nil {
+			// 如果解密失败，可能是未加密的数据，尝试直接返回
+			return AppConfig.Database.Pass, nil
+		}
+		return decryptedPass, nil
+	}
+
+	return "", nil
+}
+
+// SetDatabasePassword 设置数据库密码（自动加密）
+func SetDatabasePassword(password string) error {
+	if AppConfig == nil {
+		return fmt.Errorf("配置未加载")
+	}
+
+	// 加密密码
+	encryptedPass, err := encryptSensitiveData(password)
+	if err != nil {
+		return fmt.Errorf("加密密码失败: %w", err)
+	}
+
+	AppConfig.Database.Pass = encryptedPass
+	return nil
+}
+
+// encryptSensitiveData 加密敏感数据
+func encryptSensitiveData(data string) (string, error) {
+	if AppConfig == nil {
+		return "", fmt.Errorf("配置未加载")
+	}
+
+	// 使用JWT密钥作为加密密钥（简化方案）
+	// 在生产环境中，建议使用单独的加密密钥
+	key := AppConfig.Security.JWTSecret
+
+	// 导入crypto包
+	encrypted, err := crypto.Encrypt(data, key)
+	if err != nil {
+		return "", err
+	}
+
+	// 添加加密标识前缀
+	return "encrypted:" + encrypted, nil
+}
+
+// decryptSensitiveData 解密敏感数据
+func decryptSensitiveData(data string) (string, error) {
+	if AppConfig == nil {
+		return "", fmt.Errorf("配置未加载")
+	}
+
+	// 检查是否带有加密标识前缀
+	if !strings.HasPrefix(data, "encrypted:") {
+		// 如果没有加密标识，直接返回原始数据
+		return data, nil
+	}
+
+	// 移除加密标识前缀
+	encryptedData := strings.TrimPrefix(data, "encrypted:")
+
+	// 使用JWT密钥作为解密密钥
+	key := AppConfig.Security.JWTSecret
+
+	// 导入crypto包
+	return crypto.Decrypt(encryptedData, key)
+}
+
+// SetInitialized 设置初始化状态
+func SetInitialized(initialized bool) error {
+	if AppConfig == nil {
+		return fmt.Errorf("配置未加载")
+	}
+
+	AppConfig.Initialized = initialized
+	return SaveConfig(AppConfig)
+}
+
+// IsInitialized 检查是否已初始化
+func IsInitialized() bool {
+	if AppConfig == nil {
+		return false
+	}
+	return AppConfig.Initialized
 }

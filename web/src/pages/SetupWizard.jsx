@@ -104,6 +104,24 @@ function SetupWizard() {
     if (activeStep === steps.length - 1) {
       console.log('[设置向导] 完成设置，准备跳转到登录页面');
       
+      setLoading(true);
+      try {
+        // 调用API设置系统为已初始化状态
+        await systemAPI.setInitialized(true);
+        console.log('[设置向导] 系统初始化状态更新成功');
+        
+        // 存储初始化状态到localStorage，用于通知其他标签页
+        localStorage.setItem('tairitsu_initialized', 'true');
+        // 触发自定义事件，通知其他标签页
+        window.dispatchEvent(new StorageEvent('storage', { key: 'tairitsu_initialized' }));
+      } catch (err) {
+        console.error('[设置向导] 更新系统初始化状态失败:', err);
+        // 即使更新失败，仍然继续跳转到登录页面
+        // 因为数据库配置和管理员账户已经创建完成
+      } finally {
+        setLoading(false);
+      }
+      
       // 使用replace方法导航并刷新页面，确保状态更新
       // 这会清除历史堆栈中的设置向导，防止用户返回到设置向导
       navigate('/login', { replace: true });

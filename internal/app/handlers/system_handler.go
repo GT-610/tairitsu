@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/tairitsu/tairitsu/internal/app/config"
 	"github.com/tairitsu/tairitsu/internal/app/database"
 	"github.com/tairitsu/tairitsu/internal/app/logger"
 	"github.com/tairitsu/tairitsu/internal/app/models"
@@ -31,13 +32,26 @@ func NewSystemHandler(networkService *services.NetworkService, userService *serv
 
 // GetSystemStatus 获取系统状态
 func (h *SystemHandler) GetSystemStatus(c *gin.Context) {
-	// 检查是否有管理员用户
-	users := h.userService.GetAllUsers()
+	// 从配置管理模块获取系统初始化状态
+	sysConfig := config.AppConfig
+	initialized := false
+	hasDatabase := false
+
+	if sysConfig != nil {
+		initialized = sysConfig.Initialized
+		// 检查是否配置了数据库
+		hasDatabase = sysConfig.Database.Type != ""
+	}
+
+	// 只有在数据库已配置时才检查管理员用户
 	hasAdmin := false
-	for _, user := range users {
-		if user.Role == "admin" {
-			hasAdmin = true
-			break
+	if hasDatabase && h.userService != nil {
+		users := h.userService.GetAllUsers()
+		for _, user := range users {
+			if user.Role == "admin" {
+				hasAdmin = true
+				break
+			}
 		}
 	}
 
@@ -54,8 +68,10 @@ func (h *SystemHandler) GetSystemStatus(c *gin.Context) {
 	}
 
 	response := map[string]interface{}{
-		"hasAdmin": hasAdmin,
-		"ztStatus": ztStatus,
+		"initialized": initialized,
+		"hasDatabase": hasDatabase,
+		"hasAdmin":    hasAdmin,
+		"ztStatus":    ztStatus,
 	}
 
 	c.JSON(http.StatusOK, response)
@@ -113,9 +129,8 @@ func (h *SystemHandler) ConfigureDatabase(c *gin.Context) {
 		logger.Info("SQLite数据库路径已设置", zap.String("path", dbCfg.Path))
 	}
 
-	// 保存数据库配置到JSON文件
-	// 注意：os.WriteFile默认会覆盖文件，满足强制覆盖的需求
-	if err := database.SaveConfigToJSON(dbCfg); err != nil {
+	// 保存数据库配置到统一配置管理模块
+	if err := database.SaveConfig(dbCfg); err != nil {
 		logger.Error("保存数据库配置失败", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "保存数据库配置失败: " + err.Error()})
 		return
@@ -182,4 +197,26 @@ func (h *SystemHandler) InitZeroTierClient(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "ZeroTier客户端初始化成功"})
 }
 
-// 数据库配置相关函数已迁移到JSON文件存储方式
+// SetInitialized 设置系统初始化状态
+func (h *SystemHandler) SetInitialized(c *gin.Context) {
+	var req struct {
+		Initialized bool `json:"initialized" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		logger.Error("设置初始化状态参数绑定失败", zap.Error(err))
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	logger.Info("设置系统初始化状态", zap.Bool("initialized", req.Initialized))
+
+	// 调用配置模块设置初始化状态
+	if err := config.SetInitialized(req.Initialized); err != nil {
+		logger.Error("设置初始化状态失败", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "设置初始化状态失败: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "初始化状态更新成功"})
+}

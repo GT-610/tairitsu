@@ -31,9 +31,10 @@ function AppContent() {
             'Cache-Control': 'no-cache'
           }
         });
-        // 如果没有管理员用户，则认为是首次运行
-        setIsFirstRun(!response.data.hasAdmin);
-        console.log('系统状态检查:', { hasAdmin: response.data.hasAdmin, isFirstRun: !response.data.hasAdmin });
+        // 根据系统的initialized状态来判断是否是首次运行
+        // 如果系统未初始化，则认为是首次运行
+        setIsFirstRun(!response.data.initialized);
+        console.log('系统状态检查:', { initialized: response.data.initialized, isFirstRun: !response.data.initialized });
       } catch (error) {
         console.error('获取系统状态失败:', error);
         // 如果无法获取状态，可能是首次运行
@@ -72,6 +73,71 @@ function AppContent() {
       checkAuth();
     }
   }, [login, isFirstRun]);
+
+  // 监听系统初始化状态变化，当设置向导完成后，重新检查系统状态
+  useEffect(() => {
+    // 定义一个函数来刷新系统状态
+    const refreshSystemStatus = async () => {
+      try {
+        // 首先检查localStorage中的初始化状态
+        const localStorageInitialized = localStorage.getItem('tairitsu_initialized');
+        if (localStorageInitialized === 'true') {
+          setIsFirstRun(false);
+          console.log('[App] 从localStorage检测到系统已初始化');
+          // 如果localStorage中标记为已初始化，同步到后端检查
+          try {
+            const response = await api.get('/system/status', {
+              headers: {
+                'Cache-Control': 'no-cache'
+              }
+            });
+            // 以后端状态为准，更新前端状态
+            setIsFirstRun(!response.data.initialized);
+            console.log('[App] 后端验证系统初始化状态:', response.data.initialized);
+          } catch (backendError) {
+            console.warn('[App] 后端验证失败，但仍使用localStorage状态');
+          }
+          return;
+        }
+        
+        // 如果localStorage中没有，从后端获取
+        const response = await api.get('/system/status', {
+          headers: {
+            'Cache-Control': 'no-cache'
+          }
+        });
+        // 根据系统的initialized状态来更新
+        setIsFirstRun(!response.data.initialized);
+        console.log('[App] 从后端刷新系统状态，初始化状态:', response.data.initialized);
+        
+        // 如果后端返回已初始化，更新localStorage
+        if (response.data.initialized) {
+          localStorage.setItem('tairitsu_initialized', 'true');
+        }
+      } catch (error) {
+        console.error('[App] 刷新系统状态失败:', error);
+      }
+    };
+
+    // 监听存储事件，当有其他标签页更新时，也刷新系统状态
+    const handleStorageChange = (event) => {
+      if (event.key === 'tairitsu_initialized') {
+        console.log('[App] 检测到初始化状态变化，刷新系统状态');
+        refreshSystemStatus();
+      }
+    };
+    
+    // 组件挂载时立即检查localStorage
+    refreshSystemStatus();
+
+    // 添加监听器
+    window.addEventListener('storage', handleStorageChange);
+
+    // 清理监听器
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, []);
 
   // 处理注册成功
   const handleRegisterSuccess = () => {
