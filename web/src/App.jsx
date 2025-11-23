@@ -20,28 +20,41 @@ function AppContent() {
   const [isFirstRun, setIsFirstRun] = useState(false)
   const { user, token, login, logout } = useAuth() || {};
 
-  // 检查是否是首次运行
+  // 检查是否是首次运行 - 优化：避免直接发送请求
   useEffect(() => {
-    const checkFirstRun = async () => {
-      try {
-        // 尝试获取系统设置状态来判断是否已完成设置
-        // 设置请求头中的Cache-Control为no-cache，确保获取最新状态
-        const response = await api.get('/system/status', {
-          headers: {
-            'Cache-Control': 'no-cache'
-          }
-        });
-        // 根据系统的initialized状态来判断是否是首次运行
-        // 如果系统未初始化，则认为是首次运行
-        setIsFirstRun(!response.data.initialized);
-        console.log('系统状态检查:', { initialized: response.data.initialized, isFirstRun: !response.data.initialized });
-      } catch (error) {
-        console.error('获取系统状态失败:', error);
-        // 如果无法获取状态，可能是首次运行
+    const checkFirstRun = () => {
+      // 先检查URL是否是设置向导页面
+      const isSetupWizardPage = window.location.pathname === '/setup';
+      
+      // 检查localStorage中是否有设置向导已开始的标记
+      const setupWizardStarted = localStorage.getItem('tairitsu_setup_started') === 'true';
+      
+      // 如果是设置向导页面或设置已开始，直接设为首次运行
+      if (isSetupWizardPage || setupWizardStarted) {
         setIsFirstRun(true);
-      } finally {
         setLoading(false);
+        return;
       }
+      
+      // 只有在非设置向导页面且没有设置开始标记时，才发送请求检查系统状态
+      const fetchSystemStatus = async () => {
+        try {
+          const response = await api.get('/system/status', {
+            headers: {
+              'Cache-Control': 'no-cache'
+            }
+          });
+          setIsFirstRun(!response.data.initialized);
+          console.log('系统状态检查:', { initialized: response.data.initialized, isFirstRun: !response.data.initialized });
+        } catch (error) {
+          console.error('获取系统状态失败:', error);
+          setIsFirstRun(true);
+        } finally {
+          setLoading(false);
+        }
+      };
+      
+      fetchSystemStatus();
     };
 
     checkFirstRun();
@@ -79,6 +92,12 @@ function AppContent() {
     // 定义一个函数来刷新系统状态
     const refreshSystemStatus = async () => {
       try {
+        // 检查是否是设置向导页面，如果是则不发送请求
+        const isSetupWizardPage = window.location.pathname === '/setup';
+        if (isSetupWizardPage) {
+          return;
+        }
+        
         // 首先检查localStorage中的初始化状态
         const localStorageInitialized = localStorage.getItem('tairitsu_initialized');
         if (localStorageInitialized === 'true') {
@@ -127,8 +146,12 @@ function AppContent() {
       }
     };
     
-    // 组件挂载时立即检查localStorage
-    refreshSystemStatus();
+    // 检查是否是设置向导页面，如果不是才执行刷新
+    const isSetupWizardPage = window.location.pathname === '/setup';
+    if (!isSetupWizardPage) {
+      // 非设置向导页面才检查localStorage
+      refreshSystemStatus();
+    }
 
     // 添加监听器
     window.addEventListener('storage', handleStorageChange);

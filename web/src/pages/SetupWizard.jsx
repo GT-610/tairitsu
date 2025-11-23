@@ -51,23 +51,35 @@ const SetupWizard = () => {
     '完成设置'
   ];
 
+  // 在组件挂载时设置标记，表明设置向导已开始
   useEffect(() => {
-    // 检查系统状态，确定是否需要显示设置向导
-    const checkSystemStatus = async () => {
-      try {
-        const response = await systemAPI.getSetupStatus();
-        if (response.data.initialized) {
-          // 如果系统已初始化，重定向到登录页面
-          navigate('/login');
-        }
-      } catch (err) {
-        console.error('检查系统状态失败:', err);
-        // 即使检查失败，也继续显示设置向导
+    // 设置标记表示设置向导已开始
+    localStorage.setItem('tairitsu_setup_started', 'true');
+    
+    // 组件卸载时清理标记
+    return () => {
+      // 只有在设置未完成时才移除标记
+      if (!localStorage.getItem('tairitsu_initialized')) {
+        localStorage.removeItem('tairitsu_setup_started');
       }
     };
-
-    checkSystemStatus();
-  }, [navigate]);
+  }, []);
+  
+  // 这个函数将在需要时手动调用
+  const checkSystemStatus = async () => {
+    try {
+      const response = await systemAPI.getSetupStatus();
+      if (response.data.initialized) {
+        // 如果系统已初始化，重定向到登录页面
+        navigate('/login');
+      }
+    } catch (err) {
+      console.error('检查系统状态失败:', err);
+      // 即使检查失败，也继续显示设置向导
+    }
+  };
+  
+  // 只有在用户点击下一步时才检查状态，避免在第一步加载时发送请求
 
   // 测试ZeroTier连接并初始化客户端
   const testAndInitZtConnection = async () => {
@@ -92,125 +104,110 @@ const SetupWizard = () => {
   };
 
   // 处理表单提交
-  const handleSubmit = async (event) => {
-    event.preventDefault();
+  const handleSubmit = async () => {
+    setLoading(true);
     setError('');
     setSuccess('');
-
-    // 根据当前步骤执行不同的操作
-    if (activeStep === 1) {
-      // ZeroTier 配置步骤 - 直接验证并初始化
-      const success = await testAndInitZtConnection();
-      if (success) {
-        // 验证成功，进入下一步
-        setActiveStep((prevActiveStep) => prevActiveStep + 1);
-      }
-      return;
-    }
-
-    if (activeStep === 2) {
-      // 数据库配置验证
-      if (!dbConfig.type) {
-        setError('请选择数据库类型');
-        return;
-      }
-      
-      // 根据数据库类型进行不同验证
-      if (dbConfig.type === 'sqlite') {
-        // SQLite 路径由程序控制，不需要用户输入
-      } else {
-        // PostgreSQL或MySQL验证
-        if (!dbConfig.host.trim()) {
-          setError('请输入数据库主机地址');
+    
+    try {
+      // 根据当前步骤执行不同的操作
+      if (activeStep === 0) {
+        // 欢迎页面，检查系统状态后进入下一步
+        await checkSystemStatus();
+        // 如果checkSystemStatus没有跳转，则继续执行
+        if (activeStep === 0) {
+          setActiveStep((prevActiveStep) => prevActiveStep + 1);
+        }
+      } else if (activeStep === 1) {
+        // ZeroTier 配置步骤 - 直接验证并初始化
+        const success = await testAndInitZtConnection();
+        if (success) {
+          // 验证成功，进入下一步
+          setActiveStep((prevActiveStep) => prevActiveStep + 1);
+        }
+      } else if (activeStep === 2) {
+        // 数据库配置验证
+        if (!dbConfig.type) {
+          setError('请选择数据库类型');
           return;
         }
-        if (!dbConfig.port || dbConfig.port <= 0) {
-          setError('请输入有效的数据库端口');
-          return;
+        
+        // 根据数据库类型进行不同验证
+        if (dbConfig.type === 'sqlite') {
+          // SQLite 路径由程序控制，不需要用户输入
+        } else {
+          // PostgreSQL或MySQL验证
+          if (!dbConfig.host.trim()) {
+            setError('请输入数据库主机地址');
+            return;
+          }
+          if (!dbConfig.port || dbConfig.port <= 0) {
+            setError('请输入有效的数据库端口');
+            return;
+          }
+          if (!dbConfig.user.trim()) {
+            setError('请输入数据库用户名');
+            return;
+          }
+          if (!dbConfig.name.trim()) {
+            setError('请输入数据库名称');
+            return;
+          }
         }
-        if (!dbConfig.user.trim()) {
-          setError('请输入数据库用户名');
-          return;
-        }
-        if (!dbConfig.name.trim()) {
-          setError('请输入数据库名称');
-          return;
-        }
-      }
-      
-      setLoading(true);
-      try {
+        
         // 发送数据库配置到后端
         await systemAPI.configureDatabase(dbConfig);
         // 继续下一步
         setActiveStep((prevActiveStep) => prevActiveStep + 1);
-      } catch (err) {
-        setError('数据库配置保存失败: ' + (err.response?.data?.error || err.message));
-      } finally {
-        setLoading(false);
-      }
-      return;
-    }
-    
-    if (activeStep === 3) {
-      // 创建管理员账户步骤
-      // 表单验证
-      if (!adminData.username.trim()) {
-        setError('请输入用户名');
-        return;
-      }
-      if (!adminData.password || adminData.password.length < 6) {
-        setError('密码长度至少为6位');
-        return;
-      }
-      if (!adminData.email.trim()) {
-        setError('请输入邮箱地址');
-        return;
-      }
-      
-      // 简单的邮箱格式验证
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(adminData.email)) {
-        setError('请输入有效的邮箱地址');
-        return;
-      }
-      
-      setLoading(true);
-      try {
+      } else if (activeStep === 3) {
+        // 创建管理员账户步骤
+        // 表单验证
+        if (!adminData.username.trim()) {
+          setError('请输入用户名');
+          return;
+        }
+        if (!adminData.password || adminData.password.length < 6) {
+          setError('密码长度至少为6位');
+          return;
+        }
+        if (!adminData.email.trim()) {
+          setError('请输入邮箱地址');
+          return;
+        }
+        
+        // 简单的邮箱格式验证
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(adminData.email)) {
+          setError('请输入有效的邮箱地址');
+          return;
+        }
+        
         // 创建管理员账户
         await authAPI.register(adminData);
         // 继续下一步
         setActiveStep((prevActiveStep) => prevActiveStep + 1);
-      } catch (err) {
-        setError('创建管理员账户失败: ' + (err.response?.data?.error || err.message));
-      } finally {
-        setLoading(false);
-      }
-      return;
-    }
-    
-    if (activeStep === 4) {
-      // 完成设置步骤
-      setLoading(true);
-      try {
+      } else if (activeStep === 4) {
+        // 完成设置步骤
         // 设置系统为已初始化状态
         await systemAPI.setInitialized(true);
+        // 更新localStorage标记，表示系统已初始化
+        localStorage.setItem('tairitsu_initialized', 'true');
+        localStorage.removeItem('tairitsu_setup_started');
         // 设置成功消息
         setSuccess('系统初始化完成！即将跳转到登录页面...');
         // 延迟跳转到登录页面
         setTimeout(() => {
           navigate('/login');
         }, 2000);
-      } catch (err) {
-        setError('完成设置失败: ' + (err.response?.data?.error || err.message));
+      } else {
+        // 默认情况：前进到下一步
+        setActiveStep((prevActiveStep) => prevActiveStep + 1);
+      }
+    } catch (err) {
+        setError('操作失败: ' + (err.response?.data?.error || err.message));
       } finally {
         setLoading(false);
-      }
-      return;
     }
-    
-    // 默认情况：前进到下一步
-    setActiveStep((prevActiveStep) => prevActiveStep + 1);
   };
 
   const handleBack = () => {
