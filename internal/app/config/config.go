@@ -32,8 +32,9 @@ const (
 
 // ZeroTierConfig ZeroTier配置
 type ZeroTierConfig struct {
-	URL   string `json:"url"`
-	Token string `json:"token"` // 加密后的令牌
+	URL       string `json:"url"`
+	Token     string `json:"token"`     // 加密后的令牌
+	TokenPath string `json:"tokenPath"` // 令牌文件路径
 }
 
 // ServerConfig 服务器配置
@@ -124,7 +125,8 @@ func createDefaultConfig() *Config {
 			Path: "tairitsu.db",
 		},
 		ZeroTier: ZeroTierConfig{
-			URL: "http://localhost:9993",
+			URL:       "http://localhost:9993",
+			TokenPath: "/var/lib/zerotier-one/authtoken.secret",
 		},
 		Server: ServerConfig{
 			Port: 8080,
@@ -158,8 +160,13 @@ func loadEnvConfig(cfg *Config) {
 	if session := viper.GetString("SESSION_SECRET"); session != "" {
 		cfg.Security.SessionSecret = session
 	}
-	// 读取ZT_TOKEN_PATH，但不直接使用，仅作为兼容性支持
-	_ = viper.GetString("ZT_TOKEN_PATH")
+	
+	// 读取ZT_TOKEN_PATH并尝试从文件中读取令牌
+	if tokenPath := viper.GetString("ZT_TOKEN_PATH"); tokenPath != "" {
+		cfg.ZeroTier.TokenPath = tokenPath
+		// 尝试读取令牌文件
+		_ = LoadTokenFromPath(tokenPath)
+	}
 }
 
 // GetZTToken 获取ZeroTier令牌（自动解密）
@@ -202,6 +209,45 @@ func SetZTToken(token string) error {
 
 	AppConfig.ZeroTier.Token = encryptedToken
 	return nil
+}
+
+// SetZTConfig 设置ZeroTier配置
+func SetZTConfig(url, tokenPath string) error {
+	if AppConfig == nil {
+		return fmt.Errorf("配置未加载")
+	}
+
+	AppConfig.ZeroTier.URL = url
+	AppConfig.ZeroTier.TokenPath = tokenPath
+	
+	// 尝试从新的tokenPath读取令牌
+	err := LoadTokenFromPath(tokenPath)
+	if err != nil {
+		return fmt.Errorf("读取令牌文件失败: %w", err)
+	}
+	
+	return SaveConfig(AppConfig)
+}
+
+// LoadTokenFromPath 从指定路径加载ZeroTier令牌
+func LoadTokenFromPath(path string) error {
+	if AppConfig == nil {
+		return fmt.Errorf("配置未加载")
+	}
+
+	// 尝试读取令牌文件
+	tokenBytes, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("读取令牌文件失败: %w", err)
+	}
+
+	// 成功读取文件，去除换行符并设置令牌
+	token := strings.TrimSpace(string(tokenBytes))
+	if token == "" {
+		return fmt.Errorf("令牌文件为空")
+	}
+
+	return SetZTToken(token)
 }
 
 // GetDatabasePassword 获取数据库密码（自动解密）

@@ -117,7 +117,10 @@ func NewClient() (*Client, error) {
 		return nil, fmt.Errorf("配置未初始化")
 	}
 
-	// 获取ZeroTier令牌
+	// 尝试从TokenPath加载令牌到配置中
+	err := config.LoadTokenFromPath(config.AppConfig.ZeroTier.TokenPath)
+	
+	// 获取令牌（可能是从文件加载的，也可能是已存在于配置中的）
 	token, err := config.GetZTToken()
 	if err != nil {
 		return nil, fmt.Errorf("获取ZeroTier令牌失败: %w", err)
@@ -128,8 +131,14 @@ func NewClient() (*Client, error) {
 		Timeout: 10 * time.Second,
 	}
 
+	// 使用配置中的URL创建客户端
+	baseURL := config.AppConfig.ZeroTier.URL
+	if baseURL == "" {
+		baseURL = "http://localhost:9993"
+	}
+
 	return &Client{
-		BaseURL:    config.AppConfig.ZeroTier.URL,
+		BaseURL:    baseURL,
 		Token:      token,
 		HTTPClient: httpClient,
 	}, nil

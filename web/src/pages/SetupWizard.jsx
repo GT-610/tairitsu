@@ -15,124 +15,100 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { authAPI, statusAPI, systemAPI } from '../services/api.js';
 
-function SetupWizard() {
+const SetupWizard = () => {
+  const navigate = useNavigate();
   const [activeStep, setActiveStep] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [adminData, setAdminData] = useState({
     username: '',
-    email: '',
     password: '',
-    confirmPassword: ''
+    email: ''
   });
   const [dbConfig, setDbConfig] = useState({
-    type: 'sqlite', // 默认选择SQLite
-    path: '', // SQLite路径（由程序控制）
+    type: 'sqlite',
+    path: '',
     host: '',
-    port: 0, // 更改为数字类型，默认值为0
+    port: 0,
     user: '',
     pass: '',
     name: ''
   });
+  const [ztConfig, setZtConfig] = useState({
+    controllerUrl: 'http://localhost:9993',
+    tokenPath: '/var/lib/zerotier-one/authtoken.secret'
+  });
   const [ztStatus, setZtStatus] = useState(null);
-  const navigate = useNavigate();
+  const [ztConnected, setZtConnected] = useState(false);
 
+  // 重新定义步骤顺序
   const steps = [
     '欢迎使用 Tairitsu',
+    '配置 ZeroTier 控制器',
     '配置数据库',
     '创建管理员账户',
-    '检测ZeroTier连接',
     '完成设置'
   ];
 
-  // 检查是否已经完成设置
   useEffect(() => {
-    // 这里可以添加检查是否已经完成设置的逻辑
-    // 例如检查本地存储或向后端发送请求
-  }, []);
+    // 检查系统状态，确定是否需要显示设置向导
+    const checkSystemStatus = async () => {
+      try {
+        const response = await systemAPI.getSetupStatus();
+        if (response.data.initialized) {
+          // 如果系统已初始化，重定向到登录页面
+          navigate('/login');
+        }
+      } catch (err) {
+        console.error('检查系统状态失败:', err);
+        // 即使检查失败，也继续显示设置向导
+      }
+    };
 
-  // 当进入第四步（ZeroTier连接检测）时，自动获取ZeroTier状态并尝试初始化
-  useEffect(() => {
-    if (activeStep === 3) {
-      testAndInitZeroTier();
-    }
-  }, [activeStep]);
+    checkSystemStatus();
+  }, [navigate]);
 
-  // 测试并初始化ZeroTier连接
-  const testAndInitZeroTier = async () => {
+  // 测试ZeroTier连接并初始化客户端
+  const testAndInitZtConnection = async () => {
     setLoading(true);
     setError('');
+    setSuccess('');
     try {
-      // 首先测试ZeroTier连接
-      await systemAPI.initZeroTierClient();
-      
-      // 初始化成功后获取实际状态
-      const statusResponse = await systemAPI.getSetupStatus();
-      setZtStatus(statusResponse.data.ztStatus);
-      
-      // 确保状态已设置为在线
-      if (statusResponse.data.ztStatus && statusResponse.data.ztStatus.online) {
-        console.log('[设置向导] ZeroTier连接成功');
-      }
+      // 保存配置并同时测试连接
+      const response = await systemAPI.saveZtConfig(ztConfig);
+      // 从响应中获取ZeroTier状态信息
+      setZtStatus(response.data.status);
+      setZtConnected(true);
+      setSuccess('ZeroTier 连接成功！');
+      return true;
     } catch (err) {
-      // 初始化失败时，尝试获取当前状态以提供更多信息
-      try {
-        const statusResponse = await systemAPI.getSetupStatus();
-        setZtStatus(statusResponse.data.ztStatus);
-      } catch (statusErr) {
-        // 如果获取状态也失败，设置为null
-        setZtStatus(null);
-      }
-      
-      const errorMsg = '无法连接到ZeroTier控制器，请检查配置';
-      setError(errorMsg);
-      console.error('[设置向导] ZeroTier连接失败:', err.message || err);
+      setError('ZeroTier 连接失败: ' + (err.response?.data?.error || err.message));
+      setZtConnected(false);
+      return false;
     } finally {
       setLoading(false);
     }
   };
 
-  // 重试连接（保留供用户手动重试）
-  const retryZeroTier = async () => {
-    await testAndInitZeroTier();
-  };
-
-  const handleNext = async () => {
+  // 处理表单提交
+  const handleSubmit = async (event) => {
+    event.preventDefault();
     setError('');
-    
-    // 在最后一步，保存设置并重定向到登录页面
-    if (activeStep === steps.length - 1) {
-      console.log('[设置向导] 完成设置，准备跳转到登录页面');
-      
-      setLoading(true);
-      try {
-        // 调用API设置系统为已初始化状态
-        await systemAPI.setInitialized(true);
-        console.log('[设置向导] 系统初始化状态更新成功');
-        
-        // 存储初始化状态到localStorage，用于通知其他标签页
-        localStorage.setItem('tairitsu_initialized', 'true');
-        // 触发自定义事件，通知其他标签页
-        window.dispatchEvent(new StorageEvent('storage', { key: 'tairitsu_initialized' }));
-      } catch (err) {
-        console.error('[设置向导] 更新系统初始化状态失败:', err);
-        // 即使更新失败，仍然继续跳转到登录页面
-        // 因为数据库配置和管理员账户已经创建完成
-      } finally {
-        setLoading(false);
+    setSuccess('');
+
+    // 根据当前步骤执行不同的操作
+    if (activeStep === 1) {
+      // ZeroTier 配置步骤 - 直接验证并初始化
+      const success = await testAndInitZtConnection();
+      if (success) {
+        // 验证成功，进入下一步
+        setActiveStep((prevActiveStep) => prevActiveStep + 1);
       }
-      
-      // 使用replace方法导航并刷新页面，确保状态更新
-      // 这会清除历史堆栈中的设置向导，防止用户返回到设置向导
-      navigate('/login', { replace: true });
-      
-      // 强制刷新页面，确保App组件重新检查系统状态
-      window.location.reload();
       return;
     }
-    
-    // 在配置数据库步骤，保存数据库配置
-    if (activeStep === 1) {
+
+    if (activeStep === 2) {
       // 数据库配置验证
       if (!dbConfig.type) {
         setError('请选择数据库类型');
@@ -176,63 +152,64 @@ function SetupWizard() {
       return;
     }
     
-    // 在创建管理员账户步骤，提交表单
-    if (activeStep === 2) {
+    if (activeStep === 3) {
+      // 创建管理员账户步骤
       // 表单验证
       if (!adminData.username.trim()) {
         setError('请输入用户名');
+        return;
+      }
+      if (!adminData.password || adminData.password.length < 6) {
+        setError('密码长度至少为6位');
         return;
       }
       if (!adminData.email.trim()) {
         setError('请输入邮箱地址');
         return;
       }
-      if (!adminData.password) {
-        setError('请输入密码');
-        return;
-      }
-      if (adminData.password !== adminData.confirmPassword) {
-        setError('两次输入的密码不一致');
+      
+      // 简单的邮箱格式验证
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(adminData.email)) {
+        setError('请输入有效的邮箱地址');
         return;
       }
       
       setLoading(true);
       try {
-        // 注册管理员账户
+        // 创建管理员账户
         await authAPI.register(adminData);
-        
         // 继续下一步
         setActiveStep((prevActiveStep) => prevActiveStep + 1);
       } catch (err) {
-        setError('管理员账户创建失败: ' + (err.response?.data?.error || err.message));
+        setError('创建管理员账户失败: ' + (err.response?.data?.error || err.message));
       } finally {
         setLoading(false);
       }
       return;
     }
     
-    // 在检测ZeroTier连接步骤
-    if (activeStep === 3) {
-      // 只有在ZeroTier状态有效且在线时才能前进
-      if (!ztStatus || !ztStatus.online) {
-        // 如果检测失败，保持在当前页面并显示错误提示
-        setError(ztStatus ? 'ZeroTier未在线，请检查连接' : 'ZeroTier连接检测失败，请重试');
-        return;
+    if (activeStep === 4) {
+      // 完成设置步骤
+      setLoading(true);
+      try {
+        // 设置系统为已初始化状态
+        await systemAPI.setInitialized(true);
+        // 设置成功消息
+        setSuccess('系统初始化完成！即将跳转到登录页面...');
+        // 延迟跳转到登录页面
+        setTimeout(() => {
+          navigate('/login');
+        }, 2000);
+      } catch (err) {
+        setError('完成设置失败: ' + (err.response?.data?.error || err.message));
+      } finally {
+        setLoading(false);
       }
-      
-      // 由于已经在进入此步骤时初始化了ZeroTier客户端，这里只需要验证状态
-      // 验证通过，直接前进到完成步骤
-      setActiveStep((prevActiveStep) => prevActiveStep + 1);
       return;
     }
     
-    // 欢迎页面直接继续
-    if (activeStep === 0) {
-      setActiveStep((prevActiveStep) => prevActiveStep + 1);
-      return;
-    }
-    
-    // 最后一个完成步骤，确保前进逻辑清晰
+    // 默认情况：前进到下一步
     setActiveStep((prevActiveStep) => prevActiveStep + 1);
   };
 
@@ -269,280 +246,319 @@ function SetupWizard() {
     }
   };
 
-  const getStepContent = (step) => {
+  const handleZtConfigChange = (e) => {
+    setZtConfig({
+      ...ztConfig,
+      [e.target.name]: e.target.value
+    });
+  };
+
+  // 渲染步骤内容
+  const renderStepContent = (step) => {
     switch (step) {
       case 0:
         return (
-          <Box sx={{ textAlign: 'center', py: 4 }}>
-            <Typography variant="h4" gutterBottom>
-              欢迎使用 Tairitsu 控制台
+          <Paper sx={{ p: 3 }}>
+            <Typography variant="h5" gutterBottom>
+              欢迎使用 Tairitsu
             </Typography>
-            <Typography variant="body1" sx={{ mb: 3 }}>
-              这是一个强大的ZeroTier网络管理工具，可以帮助您轻松管理和监控您的P2P网络。
+            <Typography variant="body1" paragraph>
+              Tairitsu 是一个基于 Web 的 ZeroTier 网络管理平台，帮助您更轻松地管理和配置 ZeroTier 网络。
             </Typography>
-            <Typography variant="body1">
-              我们将引导您完成初始设置过程，这只需要几分钟时间。
+            <Typography variant="body1" paragraph>
+              在完成设置向导之前，您需要进行以下配置：
             </Typography>
-          </Box>
+            <ul>
+              <li>配置 ZeroTier 控制器连接</li>
+              <li>设置数据库</li>
+              <li>创建管理员账户</li>
+            </ul>
+          </Paper>
         );
       case 1:
         return (
-          <Box sx={{ py: 2 }}>
+          <Paper sx={{ p: 3 }}>
             <Typography variant="h5" gutterBottom>
-              配置数据库
+              配置 ZeroTier 控制器
             </Typography>
-            <Typography variant="body1" sx={{ mb: 3 }}>
-              请选择数据库类型来存储用户数据和网络配置信息。
+            <Typography variant="body1" paragraph>
+              请输入您的 ZeroTier 控制器信息，以便 Tairitsu 能够连接和管理您的网络。
             </Typography>
-            
-            <Box sx={{ mb: 3 }}>
-              <Typography variant="subtitle1" gutterBottom>
-                数据库类型
-              </Typography>
-              <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
-                <Button
-                  variant={dbConfig.type === 'sqlite' ? 'contained' : 'outlined'}
-                  onClick={() => handleDbConfigChange({ target: { name: 'type', value: 'sqlite' } })}
-                  disabled={loading}
-                >
-                  SQLite (推荐)
-                </Button>
-                <Button
-                  variant={dbConfig.type === 'postgresql' ? 'contained' : 'outlined'}
-                  onClick={() => handleDbConfigChange({ target: { name: 'type', value: 'postgresql' } })}
-                  disabled={loading}
-                >
-                  PostgreSQL (开发中)
-                </Button>
-                <Button
-                  variant={dbConfig.type === 'mysql' ? 'contained' : 'outlined'}
-                  onClick={() => handleDbConfigChange({ target: { name: 'type', value: 'mysql' } })}
-                  disabled={loading}
-                >
-                  MySQL (开发中)
-                </Button>
-              </Box>
-              
-              {dbConfig.type === 'sqlite' && (
-                <Alert severity="info" sx={{ mb: 2 }}>
-                  SQLite数据库将自动创建在程序数据目录中。SQLite适用于小规模网络部署，
-                  对于大型生产环境建议使用PostgreSQL或MySQL。
+            <form onSubmit={handleSubmit}>
+              <TextField
+                margin="normal"
+                required
+                fullWidth
+                id="controllerUrl"
+                label="ZeroTier 控制器 URL"
+                name="controllerUrl"
+                autoComplete="url"
+                value={ztConfig.controllerUrl}
+                onChange={handleZtConfigChange}
+                disabled={loading}
+              />
+              <TextField
+                margin="normal"
+                required
+                fullWidth
+                id="tokenPath"
+                label="认证令牌文件路径"
+                name="tokenPath"
+                autoComplete="file-path"
+                value={ztConfig.tokenPath}
+                onChange={handleZtConfigChange}
+                disabled={loading}
+                helperText="默认为 /var/lib/zerotier-one/authtoken.secret"
+              />
+              {error && (
+                <Alert severity="error" sx={{ mt: 2 }}>
+                  {error}
                 </Alert>
               )}
-              
-              {(dbConfig.type === 'postgresql' || dbConfig.type === 'mysql') && (
-                <Alert severity="warning" sx={{ mb: 2 }}>
-                  注意：{dbConfig.type === 'postgresql' ? 'PostgreSQL' : 'MySQL'}支持正在开发中，
-                  当前版本仅支持SQLite数据库。
+              {success && (
+                <Alert severity="success" sx={{ mt: 2 }}>
+                  {success}
                 </Alert>
               )}
-            </Box>
-          </Box>
+            </form>
+          </Paper>
         );
       case 2:
         return (
-          <Box sx={{ py: 2 }}>
+          <Paper sx={{ p: 3 }}>
             <Typography variant="h5" gutterBottom>
-              创建管理员账户
+              配置数据库
             </Typography>
-            <Typography variant="body1" sx={{ mb: 3 }}>
-              请创建一个管理员账户来管理您的Tairitsu控制台。
+            <Typography variant="body1" paragraph>
+              请选择并配置您要使用的数据库。Tairitsu 支持 SQLite、MySQL 和 PostgreSQL。
             </Typography>
-            
-            <TextField
-              margin="normal"
-              required
-              fullWidth
-              id="username"
-              label="用户名"
-              name="username"
-              autoComplete="username"
-              autoFocus
-              value={adminData.username}
-              onChange={handleAdminDataChange}
-              disabled={loading}
-            />
-            <TextField
-              margin="normal"
-              required
-              fullWidth
-              id="email"
-              label="邮箱"
-              name="email"
-              type="email"
-              autoComplete="email"
-              value={adminData.email}
-              onChange={handleAdminDataChange}
-              disabled={loading}
-            />
-            <TextField
-              margin="normal"
-              required
-              fullWidth
-              name="password"
-              label="密码"
-              type="password"
-              id="password"
-              autoComplete="new-password"
-              value={adminData.password}
-              onChange={handleAdminDataChange}
-              disabled={loading}
-            />
-            <TextField
-              margin="normal"
-              required
-              fullWidth
-              name="confirmPassword"
-              label="确认密码"
-              type="password"
-              id="confirmPassword"
-              value={adminData.confirmPassword}
-              onChange={handleAdminDataChange}
-              disabled={loading}
-            />
-          </Box>
+            <form onSubmit={handleSubmit}>
+              <TextField
+                margin="normal"
+                required
+                fullWidth
+                id="type"
+                label="数据库类型"
+                name="type"
+                select
+                SelectProps={{
+                  native: true,
+                }}
+                value={dbConfig.type}
+                onChange={handleDbConfigChange}
+                disabled={loading}
+              >
+                <option value="sqlite">SQLite</option>
+                <option value="mysql">MySQL</option>
+                <option value="postgres">PostgreSQL</option>
+              </TextField>
+              
+              {dbConfig.type !== 'sqlite' && (
+                <>
+                  <TextField
+                    margin="normal"
+                    required
+                    fullWidth
+                    id="host"
+                    label="主机地址"
+                    name="host"
+                    autoComplete="hostname"
+                    value={dbConfig.host}
+                    onChange={handleDbConfigChange}
+                    disabled={loading}
+                  />
+                  <TextField
+                    margin="normal"
+                    required
+                    fullWidth
+                    id="port"
+                    label="端口"
+                    name="port"
+                    type="number"
+                    value={dbConfig.port || ''}
+                    onChange={handleDbConfigChange}
+                    disabled={loading}
+                    placeholder={dbConfig.type === 'mysql' ? '3306' : '5432'}
+                  />
+                  <TextField
+                    margin="normal"
+                    required
+                    fullWidth
+                    id="user"
+                    label="用户名"
+                    name="user"
+                    autoComplete="username"
+                    value={dbConfig.user}
+                    onChange={handleDbConfigChange}
+                    disabled={loading}
+                  />
+                  <TextField
+                    margin="normal"
+                    required
+                    fullWidth
+                    id="pass"
+                    label="密码"
+                    name="pass"
+                    type="password"
+                    autoComplete="current-password"
+                    value={dbConfig.pass}
+                    onChange={handleDbConfigChange}
+                    disabled={loading}
+                  />
+                  <TextField
+                    margin="normal"
+                    required
+                    fullWidth
+                    id="name"
+                    label="数据库名称"
+                    name="name"
+                    value={dbConfig.name}
+                    onChange={handleDbConfigChange}
+                    disabled={loading}
+                  />
+                </>
+              )}
+              
+              {error && (
+                <Alert severity="error" sx={{ mt: 2 }}>
+                  {error}
+                </Alert>
+              )}
+              {success && (
+                <Alert severity="success" sx={{ mt: 2 }}>
+                  {success}
+                </Alert>
+              )}
+            </form>
+          </Paper>
         );
       case 3:
         return (
-          <Box sx={{ textAlign: 'center', py: 4 }}>
+          <Paper sx={{ p: 3 }}>
             <Typography variant="h5" gutterBottom>
-              检测ZeroTier连接
+              创建管理员账户
             </Typography>
-            <Typography variant="body1" sx={{ mb: 3 }}>
-              正在检测与ZeroTier控制器的连接...
+            <Typography variant="body1" paragraph>
+              请创建一个管理员账户，用于登录和管理 Tairitsu 平台。
             </Typography>
-            
-            {loading ? (
-              <CircularProgress sx={{ mt: 2 }} />
-            ) : ztStatus ? (
-              <Box>
-                {ztStatus.online ? (
-                  <>
-                    <Typography variant="body1" color="success.main">
-                      ✓ 成功连接到ZeroTier控制器
-                    </Typography>
-                    <Typography variant="body2" sx={{ mt: 2 }}>
-                      版本: {ztStatus.version}
-                    </Typography>
-                    <Typography variant="body2">
-                      地址: {ztStatus.address}
-                    </Typography>
-                    <Typography variant="body2">
-                      在线状态: 在线
-                    </Typography>
-                  </>
-                ) : (
-                  <>
-                    <Typography variant="body1" color="error.main">
-                      ✗ ZeroTier控制器连接失败
-                    </Typography>
-                    <Typography variant="body2" sx={{ mt: 2, mb: 3 }}>
-                      状态: 离线
-                    </Typography>
-                    <Button 
-                      variant="outlined" 
-                      onClick={retryZeroTier}
-                      color="primary"
-                      disabled={loading}
-                    >
-                      重试连接
-                    </Button>
-                  </>
-                )}
-              </Box>
-            ) : (
-              <Box>
-                {error && (
-                  <Typography variant="body1" color="error.main" sx={{ mb: 2 }}>
-                    ✗ {error}
-                  </Typography>
-                )}
-                <Button 
-                  variant="outlined" 
-                  onClick={retryZeroTier}
-                  color="primary"
-                  disabled={loading}
-                >
-                  检测连接
-                </Button>
-                <Typography variant="body2" sx={{ mt: 3, color: 'text.secondary' }}>
-                  提示: 确保ZeroTier服务已启动且配置正确
-                </Typography>
-              </Box>
-            )}
-          </Box>
+            <form onSubmit={handleSubmit}>
+              <TextField
+                margin="normal"
+                required
+                fullWidth
+                id="username"
+                label="用户名"
+                name="username"
+                autoComplete="username"
+                value={adminData.username}
+                onChange={handleAdminDataChange}
+                disabled={loading}
+              />
+              <TextField
+                margin="normal"
+                required
+                fullWidth
+                name="password"
+                label="密码"
+                type="password"
+                id="password"
+                autoComplete="new-password"
+                value={adminData.password}
+                onChange={handleAdminDataChange}
+                disabled={loading}
+                helperText="密码长度至少为6位"
+              />
+              <TextField
+                margin="normal"
+                required
+                fullWidth
+                id="email"
+                label="邮箱地址"
+                name="email"
+                autoComplete="email"
+                value={adminData.email}
+                onChange={handleAdminDataChange}
+                disabled={loading}
+              />
+              {error && (
+                <Alert severity="error" sx={{ mt: 2 }}>
+                  {error}
+                </Alert>
+              )}
+            </form>
+          </Paper>
         );
       case 4:
         return (
-          <Box sx={{ textAlign: 'center', py: 4 }}>
-            <Typography variant="h4" gutterBottom color="success.main">
-              大功告成！
+          <Paper sx={{ p: 3 }}>
+            <Typography variant="h5" gutterBottom>
+              完成设置
             </Typography>
-            <Typography variant="h6" gutterBottom>
-              您的Tairitsu控制台已设置完成
+            <Typography variant="body1" paragraph>
+              恭喜您！Tairitsu 平台已成功配置。
             </Typography>
-            <Typography variant="body1" sx={{ mb: 3 }}>
-              现在您可以使用刚刚创建的管理员账户登录系统，开始管理您的ZeroTier网络。
+            <Typography variant="body1" paragraph>
+              配置概要：
             </Typography>
-            <Typography variant="body1">
-              感谢您选择Tairitsu！
-            </Typography>
-          </Box>
+            <ul>
+              <li>ZeroTier 控制器: {ztConfig.controllerUrl}</li>
+              <li>数据库类型: {dbConfig.type}</li>
+              <li>管理员账户: {adminData.username}</li>
+            </ul>
+            {error && (
+              <Alert severity="error" sx={{ mt: 2 }}>
+                {error}
+              </Alert>
+            )}
+            {success && (
+              <Alert severity="success" sx={{ mt: 2 }}>
+                {success}
+              </Alert>
+            )}
+          </Paper>
         );
       default:
-        return '未知步骤';
+        return <div>未知步骤</div>;
     }
   };
 
   return (
-    <Container component="main" maxWidth="md" sx={{ mt: 4, mb: 4 }}>
+    <Container component="main" maxWidth="md" sx={{ mt: 8 }}>
       <Paper elevation={3} sx={{ p: 4, borderRadius: 2 }}>
-        <Typography component="h1" variant="h4" align="center" sx={{ mb: 4 }}>
-          Tairitsu 设置向导
+        <Typography component="h1" variant="h4" align="center" gutterBottom>
+          Tairitsu 初始化向导
         </Typography>
-        
-        <Stepper activeStep={activeStep} alternativeLabel sx={{ mb: 4 }}>
-          {steps.map((label) => (
-            <Step key={label}>
+        <Stepper activeStep={activeStep} sx={{ mb: 4 }}>
+          {steps.map((label, index) => (
+            <Step key={index}>
               <StepLabel>{label}</StepLabel>
             </Step>
           ))}
         </Stepper>
-        
-        {error && (
-          <Alert severity="error" sx={{ mb: 3 }}>
-            {error}
-          </Alert>
-        )}
-        
-        {getStepContent(activeStep)}
-        
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 4 }}>
-          <Button
-            disabled={activeStep === 0 || loading}
-            onClick={handleBack}
-          >
-            返回
-          </Button>
-          
-          <Button
-            variant="contained"
+        <div>{renderStepContent(activeStep)}</div>
+        <Box sx={{ mt: 4, display: 'flex', justifyContent: 'space-between' }}>
+          {activeStep > 0 && (
+            <Button 
+              variant="outlined" 
+              onClick={handleBack}
+              disabled={loading || (activeStep === 4 && !!success)}
+            >
+              返回
+            </Button>
+          )}
+          <Button 
+            variant="contained" 
+            color="primary" 
+            onClick={handleSubmit}
             disabled={loading}
-            onClick={handleNext}
-            sx={{ ml: 2 }}
           >
-            {loading ? (
-              <CircularProgress size={24} color="inherit" />
-            ) : activeStep === steps.length - 1 ? (
-              '完成设置'
-            ) : (
-              '下一步'
-            )}
+            {loading ? <CircularProgress size={24} /> : 
+              activeStep === 4 ? '完成设置' : '下一步'}
           </Button>
         </Box>
       </Paper>
     </Container>
   );
-}
+};
 
 export default SetupWizard;

@@ -197,6 +197,55 @@ func (h *SystemHandler) InitZeroTierClient(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "ZeroTier客户端初始化成功"})
 }
 
+// SaveZeroTierConfig 保存ZeroTier配置并初始化验证连接
+func (h *SystemHandler) SaveZeroTierConfig(c *gin.Context) {
+	var req struct {
+		ControllerURL string `json:"controllerUrl" binding:"required"`
+		TokenPath     string `json:"tokenPath" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		logger.Error("ZeroTier配置参数绑定失败", zap.Error(err))
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	logger.Info("保存ZeroTier配置", zap.String("controllerUrl", req.ControllerURL), zap.String("tokenPath", req.TokenPath))
+
+	// 调用配置模块保存ZeroTier配置
+	if err := config.SetZTConfig(req.ControllerURL, req.TokenPath); err != nil {
+		logger.Error("保存ZeroTier配置失败", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "保存ZeroTier配置失败: " + err.Error()})
+		return
+	}
+
+	// 尝试创建并验证ZeroTier客户端
+	ztClient, err := zerotier.NewClient()
+	if err != nil {
+		logger.Error("创建ZeroTier客户端失败", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建ZeroTier客户端失败: " + err.Error()})
+		return
+	}
+
+	// 验证客户端是否能正常工作并获取状态信息
+	status, err := ztClient.GetStatus()
+	if err != nil {
+		logger.Error("ZeroTier客户端验证失败", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "ZeroTier客户端验证失败: " + err.Error()})
+		return
+	}
+
+	// 将客户端设置到网络服务中
+	h.networkService.SetZTClient(ztClient)
+
+	logger.Info("ZeroTier配置保存并验证成功")
+	c.JSON(http.StatusOK, gin.H{
+		"message": "ZeroTier配置保存成功",
+		"config":  req,
+		"status":  status,
+	})
+}
+
 // SetInitialized 设置系统初始化状态
 func (h *SystemHandler) SetInitialized(c *gin.Context) {
 	var req struct {

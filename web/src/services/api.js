@@ -89,6 +89,10 @@ export const systemAPI = {
   configureDatabase: (config) => api.post('/system/database', config),
   // 初始化ZeroTier客户端
   initZeroTierClient: () => api.post('/system/zerotier/init'),
+  // 测试ZeroTier连接
+  testZtConnection: () => api.post('/system/zerotier/test'),
+  // 保存ZeroTier配置
+  saveZtConfig: (config) => api.post('/system/zerotier/config', config),
   // 更新系统设置
   updateSettings: (settings) => api.put('/settings', settings),
   // 获取系统信息
