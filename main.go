@@ -10,6 +10,7 @@ import (
 	"github.com/tairitsu/tairitsu/internal/app/database"
 	"github.com/tairitsu/tairitsu/internal/app/logger"
 	"github.com/tairitsu/tairitsu/internal/app/routes"
+	"github.com/tairitsu/tairitsu/internal/app/services"
 	"github.com/tairitsu/tairitsu/internal/zerotier"
 	"go.uber.org/zap"
 )
@@ -23,6 +24,9 @@ var GlobalZTClient *zerotier.Client
 // GlobalRouter 全局路由器实例，用于重新加载路由
 var GlobalRouter *gin.Engine
 var routerMutex sync.RWMutex
+
+// GlobalAuthService 全局认证服务实例
+var GlobalAuthService *services.AuthService
 
 // ReloadRoutes 重新加载路由
 func ReloadRoutes() {
@@ -68,11 +72,14 @@ func ReloadRoutes() {
 	cfg, _ := config.LoadConfig()
 	if cfg != nil {
 		logger.Info("使用配置文件中的JWT密钥重新注册路由")
-		routes.SetupRoutesWithReload(GlobalRouter, GlobalZTClient, cfg.Security.JWTSecret, GlobalDB, ReloadRoutes)
+		// 初始化认证服务
+		GlobalAuthService = services.NewAuthService(cfg.Security.JWTSecret)
+		routes.SetupRoutesWithReload(GlobalRouter, GlobalZTClient, GlobalAuthService, GlobalDB, ReloadRoutes)
 	} else {
 		// 使用默认配置
 		logger.Info("使用默认JWT密钥重新注册路由")
-		routes.SetupRoutesWithReload(GlobalRouter, GlobalZTClient, "default-secret-key", GlobalDB, ReloadRoutes)
+		GlobalAuthService = services.NewAuthService("default-secret-key")
+		routes.SetupRoutesWithReload(GlobalRouter, GlobalZTClient, GlobalAuthService, GlobalDB, ReloadRoutes)
 	}
 
 	logger.Info("路由重新加载完成")
@@ -123,9 +130,12 @@ func main() {
 	// 创建路由
 	GlobalRouter = gin.New()
 
+	// 初始化认证服务
+	GlobalAuthService = services.NewAuthService(cfg.Security.JWTSecret)
+	
 	// 注册路由，传递全局数据库实例（可能为nil）和重新加载路由的函数
 	// 使用全局的GlobalZTClient，初始为nil，将在InitZeroTierClient时设置
-	routes.SetupRoutesWithReload(GlobalRouter, GlobalZTClient, cfg.Security.JWTSecret, GlobalDB, ReloadRoutes)
+	routes.SetupRoutesWithReload(GlobalRouter, GlobalZTClient, GlobalAuthService, GlobalDB, ReloadRoutes)
 
 	// 启动服务器
 	serverAddr := fmt.Sprintf(":%d", cfg.Server.Port)

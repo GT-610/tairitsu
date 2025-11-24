@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { useAuth } from './auth.jsx'
 
 // 创建axios实例
 const api = axios.create({
@@ -9,10 +10,26 @@ const api = axios.create({
   }
 })
 
+// 获取当前认证令牌的方法
+const getAuthToken = () => {
+  // 优先从auth上下文获取令牌
+  try {
+    // 直接从存储中获取令牌作为备用方案
+    const tempToken = sessionStorage.getItem('tempToken')
+    if (tempToken) {
+      return tempToken
+    }
+    return localStorage.getItem('token') || sessionStorage.getItem('token')
+  } catch (error) {
+    console.error('Error getting auth token:', error)
+    return null
+  }
+}
+
 // 请求拦截器
 api.interceptors.request.use(
   config => {
-    const token = localStorage.getItem('token')
+    const token = getAuthToken()
     if (token) {
       config.headers['Authorization'] = `Bearer ${token}`
     }
@@ -31,8 +48,23 @@ api.interceptors.response.use(
   error => {
     // 处理401错误
     if (error.response && error.response.status === 401) {
+      // 清除所有认证信息
       localStorage.removeItem('token')
-      window.location.href = '/login'
+      localStorage.removeItem('user')
+      sessionStorage.removeItem('token')
+      sessionStorage.removeItem('user')
+      sessionStorage.removeItem('tempToken')
+      sessionStorage.removeItem('isSetupWizard')
+      
+      // 根据当前路径决定重定向到哪里
+      const currentPath = window.location.pathname
+      if (currentPath.startsWith('/setup')) {
+        // 设置向导路径，可能需要重新获取临时令牌
+        window.location.href = '/setup'
+      } else {
+        // 其他路径重定向到登录页
+        window.location.href = '/login'
+      }
     }
     return Promise.reject(error)
   }
@@ -100,7 +132,11 @@ export const systemAPI = {
   // 设置系统初始化状态
   setInitialized: (initialized) => api.post('/system/initialized', { initialized }),
   // 初始化管理员账户创建步骤
-  initializeAdminCreation: () => api.post('/system/admin/init')
+  initializeAdminCreation: () => api.post('/system/admin/init'),
+  // 生成设置向导临时令牌
+  generateSetupWizardToken: () => api.post('/system/setup/token'),
+  // 完成设置向导
+  completeSetupWizard: () => api.post('/system/setup/complete')
 }
 
 export default api

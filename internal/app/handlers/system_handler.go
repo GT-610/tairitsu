@@ -17,15 +17,17 @@ import (
 type SystemHandler struct {
 	networkService   *services.NetworkService
 	userService      *services.UserService
+	authService      *services.AuthService
 	reloadRoutesFunc func() // 添加重新加载路由的函数
 	// 数据库配置将存储在配置文件中
 }
 
 // NewSystemHandler 创建新的系统处理器
-func NewSystemHandler(networkService *services.NetworkService, userService *services.UserService, reloadRoutesFunc func()) *SystemHandler {
+func NewSystemHandler(networkService *services.NetworkService, userService *services.UserService, reloadRoutesFunc func(), authService *services.AuthService) *SystemHandler {
 	return &SystemHandler{
 		networkService:   networkService,
 		userService:      userService,
+		authService:      authService,
 		reloadRoutesFunc: reloadRoutesFunc,
 	}
 }
@@ -39,7 +41,7 @@ func (h *SystemHandler) GetSystemStatus(c *gin.Context) {
 	if sysConfig != nil {
 		// 优先检查config.json中的initialized字段
 		initialized = sysConfig.Initialized
-		
+
 		// 如果未初始化，直接返回未初始化状态
 		if !initialized {
 			c.JSON(http.StatusOK, map[string]interface{}{
@@ -273,7 +275,7 @@ func (h *SystemHandler) InitializeAdminCreation(c *gin.Context) {
 	if resetDone == "true" {
 		logger.Info("数据库重置已在之前执行，跳过重置操作")
 		c.JSON(http.StatusOK, gin.H{
-			"message": "管理员账户创建步骤已初始化",
+			"message":   "管理员账户创建步骤已初始化",
 			"resetDone": true,
 		})
 		return
@@ -304,8 +306,8 @@ func (h *SystemHandler) InitializeAdminCreation(c *gin.Context) {
 	logger.Info("设置重置操作完成标志")
 
 	c.JSON(http.StatusOK, gin.H{
-		"message": "管理员账户创建步骤初始化成功",
-		"resetDone": true,
+		"message":      "管理员账户创建步骤初始化成功",
+		"resetDone":    true,
 		"databaseType": string(dbConfig.Type),
 	})
 }
@@ -324,6 +326,12 @@ func (h *SystemHandler) SetInitialized(c *gin.Context) {
 
 	logger.Info("设置系统初始化状态", zap.Bool("initialized", req.Initialized))
 
+	// 如果设置为已初始化，销毁设置向导的临时密钥
+	if req.Initialized && h.authService != nil {
+		h.authService.RevokeAllTempKeys()
+		logger.Info("设置向导临时密钥已销毁")
+	}
+
 	// 调用配置模块设置初始化状态
 	if err := config.SetInitialized(req.Initialized); err != nil {
 		logger.Error("设置初始化状态失败", zap.Error(err))
@@ -332,4 +340,54 @@ func (h *SystemHandler) SetInitialized(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "初始化状态更新成功"})
+}
+
+// GenerateSetupWizardToken 生成设置向导的临时认证令牌
+func (h *SystemHandler) GenerateSetupWizardToken(c *gin.Context) {
+	// 确保系统未初始化
+	if config.IsInitialized() {
+		c.JSON(http.StatusForbidden, gin.H{"error": "系统已初始化，无法访问设置向导"})
+		return
+	}
+
+	// 生成设置向导临时令牌
+	token, err := h.authService.GenerateSetupWizardToken()
+	if err != nil {
+		logger.Error("生成设置向导临时令牌失败", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "生成设置向导临时令牌失败: " + err.Error()})
+		return
+	}
+
+	logger.Info("设置向导临时令牌生成成功")
+	c.JSON(http.StatusOK, gin.H{
+		"token":   token,
+		"message": "设置向导临时令牌生成成功",
+	})
+}
+
+// CompleteSetupWizard 完成设置向导并销毁临时密钥
+func (h *SystemHandler) CompleteSetupWizard(c *gin.Context) {
+	// 调用配置模块设置初始化状态
+	if err := config.SetInitialized(true); err != nil {
+		logger.Error("设置初始化状态失败", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "设置初始化状态失败: " + err.Error()})
+		return
+	}
+
+	// 销毁设置向导的临时密钥
+	if h.authService != nil {
+		h.authService.RevokeAllTempKeys()
+		logger.Info("设置向导临时密钥已销毁")
+	}
+
+	// 重新加载路由以启用正常使用的路由
+	if h.reloadRoutesFunc != nil {
+		h.reloadRoutesFunc()
+	}
+
+	logger.Info("设置向导完成，系统已初始化")
+	c.JSON(http.StatusOK, gin.H{
+		"message":     "设置向导完成，系统已初始化",
+		"initialized": true,
+	})
 }

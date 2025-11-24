@@ -1,6 +1,8 @@
 module github.com/tairitsu/tairitsu
 
-go 1.20
+go 1.21
+
+toolchain go1.22.2
 
 require (
 	github.com/gin-gonic/gin v1.9.1
@@ -29,6 +31,7 @@ require (
 	github.com/go-playground/validator/v10 v10.14.0 // indirect
 	github.com/go-sql-driver/mysql v1.8.1 // indirect
 	github.com/goccy/go-json v0.10.2 // indirect
+	github.com/golang-jwt/jwt/v5 v5.3.0 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
