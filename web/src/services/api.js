@@ -98,7 +98,9 @@ export const systemAPI = {
   // 获取系统信息
   getSystemInfo: () => api.get('/system/info'),
   // 设置系统初始化状态
-  setInitialized: (initialized) => api.post('/system/initialized', { initialized })
+  setInitialized: (initialized) => api.post('/system/initialized', { initialized }),
+  // 初始化管理员账户创建步骤
+  initializeAdminCreation: () => api.post('/system/admin/init')
 }
 
 export default api

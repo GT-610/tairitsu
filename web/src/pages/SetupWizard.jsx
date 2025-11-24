@@ -92,7 +92,7 @@ const SetupWizard = () => {
       // Get ZeroTier status information from response
       setZtStatus(response.data.status);
       setZtConnected(true);
-      setSuccess('ZeroTier 连接成功！');
+      setSuccess('ZeroTier 连接成功！已自动前往下一步。');
       return true;
     } catch (err) {
       setError('ZeroTier 连接失败: ' + (err.response?.data?.error || err.message));
@@ -199,6 +199,25 @@ const SetupWizard = () => {
   };
 
   // Main form submission handler - routes to appropriate step processor
+  // 处理进入创建管理员账户步骤的初始化
+  const initializeAdminStep = async () => {
+    try {
+      console.log('初始化管理员账户创建步骤');
+      await systemAPI.initializeAdminCreation();
+      console.log('管理员账户创建步骤初始化成功');
+    } catch (err) {
+      console.error('管理员账户创建步骤初始化失败:', err);
+      // 非致命错误，不阻止用户继续
+    }
+  };
+  
+  // 监听步骤变化，当进入创建管理员账户步骤时执行初始化
+  useEffect(() => {
+    if (activeStep === 3) {
+      initializeAdminStep();
+    }
+  }, [activeStep]);
+
   const handleSubmit = async () => {
     setLoading(true);
     setError('');

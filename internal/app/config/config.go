@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 
 	"github.com/tairitsu/tairitsu/internal/app/crypto"
 	"github.com/spf13/viper"
@@ -60,6 +61,10 @@ type Config struct {
 
 // AppConfig 全局配置实例
 var AppConfig *Config
+
+// tempSettings 内存中的临时设置，用于存储不需要持久化的配置
+var tempSettings = make(map[string]string)
+var tempSettingsMutex sync.RWMutex
 
 const configFilePath = "./config.json"
 
@@ -342,4 +347,20 @@ func IsInitialized() bool {
 		return false
 	}
 	return AppConfig.Initialized
+}
+
+// GetTempSetting 获取临时设置
+// 临时设置存储在内存中，不会持久化到配置文件
+func GetTempSetting(key string) string {
+	tempSettingsMutex.RLock()
+	defer tempSettingsMutex.RUnlock()
+	return tempSettings[key]
+}
+
+// SetTempSetting 设置临时设置
+// 临时设置存储在内存中，不会持久化到配置文件
+func SetTempSetting(key, value string) {
+	tempSettingsMutex.Lock()
+	defer tempSettingsMutex.Unlock()
+	tempSettings[key] = value
 }

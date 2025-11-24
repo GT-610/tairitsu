@@ -74,6 +74,9 @@ func SetupRoutesWithReload(router *gin.Engine, ztClient *zerotier.Client, jwtSec
 		
 		// 设置系统初始化状态（无需认证，仅在初始设置时可用）
 		api.POST("/system/initialized", systemHandler.SetInitialized)
+		
+		// 初始化管理员账户创建步骤（无需认证，仅在初始设置时可用）
+		api.POST("/system/admin/init", systemHandler.InitializeAdminCreation)
 
 		// 认证路由（无需认证）
 		auth := api.Group("/auth")

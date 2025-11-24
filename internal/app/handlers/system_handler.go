@@ -260,6 +260,56 @@ func (h *SystemHandler) SaveZeroTierConfig(c *gin.Context) {
 	})
 }
 
+// InitializeAdminCreation 初始化管理员账户创建步骤
+// 此函数在用户进入创建管理员账户步骤时调用，确保数据库状态正确
+func (h *SystemHandler) InitializeAdminCreation(c *gin.Context) {
+	logger.Info("初始化管理员账户创建步骤")
+
+	// 检查是否已经执行过重置操作的标志
+	resetDoneKey := "admin_creation_reset_done"
+	resetDone := config.GetTempSetting(resetDoneKey)
+
+	// 如果已经执行过重置操作，则不再执行
+	if resetDone == "true" {
+		logger.Info("数据库重置已在之前执行，跳过重置操作")
+		c.JSON(http.StatusOK, gin.H{
+			"message": "管理员账户创建步骤已初始化",
+			"resetDone": true,
+		})
+		return
+	}
+
+	// 获取当前数据库配置
+	dbConfig := database.LoadConfig()
+	logger.Info("获取数据库配置", zap.String("type", string(dbConfig.Type)))
+
+	// 仅对SQLite数据库执行重置操作
+	if dbConfig.Type == database.SQLite {
+		logger.Info("准备重置SQLite数据库")
+
+		// 执行数据库重置
+		if err := database.ResetDatabase(dbConfig); err != nil {
+			logger.Error("数据库重置失败", zap.Error(err))
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "初始化管理员账户创建步骤失败: " + err.Error()})
+			return
+		}
+
+		logger.Info("SQLite数据库重置成功")
+	} else {
+		logger.Info("当前数据库类型不是SQLite，跳过数据库重置", zap.String("type", string(dbConfig.Type)))
+	}
+
+	// 设置标志表示已执行重置操作
+	config.SetTempSetting(resetDoneKey, "true")
+	logger.Info("设置重置操作完成标志")
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "管理员账户创建步骤初始化成功",
+		"resetDone": true,
+		"databaseType": string(dbConfig.Type),
+	})
+}
+
 // SetInitialized 设置系统初始化状态
 func (h *SystemHandler) SetInitialized(c *gin.Context) {
 	var req struct {

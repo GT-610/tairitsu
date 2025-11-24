@@ -2,6 +2,7 @@ package database
 
 import (
 	"fmt"
+	"os"
 
 	"gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
@@ -9,6 +10,8 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/tairitsu/tairitsu/internal/app/config"
+	"github.com/tairitsu/tairitsu/internal/app/logger"
+	"go.uber.org/zap"
 )
 
 // DatabaseType 数据库类型
@@ -128,6 +131,62 @@ func LoadConfig() Config {
 		User: cfg.Database.User,
 		Pass: password,
 		Name: cfg.Database.Name,
+	}
+}
+
+// ResetDatabase 重置数据库的通用处理函数
+// 注意：此操作将清空数据库中的所有数据，请谨慎使用
+func ResetDatabase(config Config) error {
+	logger.Info("开始重置数据库", zap.String("type", string(config.Type)))
+
+	switch config.Type {
+	case SQLite:
+		// 如果没有指定路径，使用默认路径
+		if config.Path == "" {
+			config.Path = "tairitsu.db"
+		}
+
+		logger.Info("重置SQLite数据库", zap.String("path", config.Path))
+
+		// 关闭现有的数据库连接
+		existingDB, err := NewDatabase(config)
+		if err == nil {
+			logger.Info("关闭现有数据库连接")
+			existingDB.Close()
+		} else {
+			logger.Warn("无法创建数据库连接以关闭", zap.Error(err))
+		}
+
+		// 删除SQLite数据库文件以实现重置
+		err = os.Remove(config.Path)
+		if err != nil && !os.IsNotExist(err) {
+			logger.Error("删除SQLite数据库文件失败", zap.Error(err))
+			return fmt.Errorf("重置SQLite数据库失败: %w", err)
+		}
+
+		// 如果文件不存在，记录信息但不报错
+		if os.IsNotExist(err) {
+			logger.Info("SQLite数据库文件不存在，将创建新文件")
+		}
+
+		logger.Info("SQLite数据库重置成功")
+		return nil
+
+	case MySQL:
+		// TODO: 实现MySQL数据库重置功能
+		// 注意：MySQL重置需要考虑数据备份、表结构重建等复杂操作
+		logger.Warn("MySQL数据库重置功能尚未实现")
+		return nil
+
+	case PostgreSQL:
+		// TODO: 实现PostgreSQL数据库重置功能
+		// 注意：PostgreSQL重置需要考虑数据备份、表结构重建等复杂操作
+		logger.Warn("PostgreSQL数据库重置功能尚未实现")
+		return nil
+
+	default:
+		logger.Error("不支持的数据库类型", zap.String("type", string(config.Type)))
+		return fmt.Errorf("不支持的数据库类型: %s", config.Type)
 	}
 }
 
