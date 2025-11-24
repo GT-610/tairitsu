@@ -579,7 +579,7 @@ const SetupWizard = () => {
               返回
             </Button>
           )}
-          {activeStep > 1 && (
+          {activeStep > 0 && (
             <Button 
               variant="contained" 
               color="primary" 

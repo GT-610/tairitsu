@@ -22,7 +22,7 @@ function AppContent() {
 
   // 检查是否是首次运行 - 优化：避免直接发送请求
   useEffect(() => {
-    const checkFirstRun = () => {
+    const checkFirstRun = async () => {
       // 先检查URL是否是设置向导页面
       const isSetupWizardPage = window.location.pathname === '/setup';
       
@@ -36,29 +36,44 @@ function AppContent() {
         return;
       }
       
-      // 只有在非设置向导页面且没有设置开始标记时，才发送请求检查系统状态
-      const fetchSystemStatus = async () => {
-        try {
-          const response = await api.get('/system/status', {
-            headers: {
-              'Cache-Control': 'no-cache'
-            }
-          });
-          setIsFirstRun(!response.data.initialized);
-          console.log('系统状态检查:', { initialized: response.data.initialized, isFirstRun: !response.data.initialized });
-        } catch (error) {
-          console.error('获取系统状态失败:', error);
-          setIsFirstRun(true);
-        } finally {
-          setLoading(false);
-        }
-      };
-      
-      fetchSystemStatus();
+      // 优先通过后端API检查初始化状态
+      try {
+        const response = await api.get('/system/status', {
+          headers: {
+            'Cache-Control': 'no-cache'
+          }
+        });
+        
+        // 确保response.data存在且包含initialized字段
+        const isBackendInitialized = response.data && response.data.initialized;
+        
+        // 完全依赖后端API状态，不使用本地存储
+        setIsFirstRun(!isBackendInitialized);
+        
+        // 记录API响应，帮助调试
+        console.log('系统状态检查:', { 
+          initialized: isBackendInitialized, 
+          isFirstRun: !isBackendInitialized,
+          // 如果后端返回了更多信息，也记录下来以便调试
+          additionalInfo: {
+            hasDatabase: response.data?.hasDatabase,
+            hasAdmin: response.data?.hasAdmin,
+            ztStatus: response.data?.ztStatus
+          }
+        });
+      } catch (error) {
+        console.error('获取后端初始化状态失败:', error);
+        // 当后端不可用时，默认显示为首次运行，要求用户连接到后端
+        // 不再使用本地存储作为回退机制，完全依赖后端API
+        setIsFirstRun(true);
+      } finally {
+        setLoading(false);
+      }
     };
 
     checkFirstRun();
   }, []);
+
 
   // 检查用户登录状态
   useEffect(() => {

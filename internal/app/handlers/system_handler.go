@@ -35,10 +35,23 @@ func (h *SystemHandler) GetSystemStatus(c *gin.Context) {
 	// 从配置管理模块获取系统初始化状态
 	sysConfig := config.AppConfig
 	initialized := false
-	hasDatabase := false
 
 	if sysConfig != nil {
+		// 优先检查config.json中的initialized字段
 		initialized = sysConfig.Initialized
+		
+		// 如果未初始化，直接返回未初始化状态
+		if !initialized {
+			c.JSON(http.StatusOK, map[string]interface{}{
+				"initialized": false,
+			})
+			return
+		}
+	}
+
+	// 如果已初始化，则获取其他状态信息
+	hasDatabase := false
+	if sysConfig != nil && initialized {
 		// 检查是否配置了数据库
 		hasDatabase = sysConfig.Database.Type != ""
 	}
@@ -67,8 +80,9 @@ func (h *SystemHandler) GetSystemStatus(c *gin.Context) {
 		}
 	}
 
+	// 当已初始化时，返回完整的状态信息
 	response := map[string]interface{}{
-		"initialized": initialized,
+		"initialized": true,
 		"hasDatabase": hasDatabase,
 		"hasAdmin":    hasAdmin,
 		"ztStatus":    ztStatus,
