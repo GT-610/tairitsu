@@ -194,11 +194,11 @@ const SetupWizard = () => {
           localStorage.removeItem('tairitsu_setup_started');
           
           // Set success message
-          setSuccess('系统初始化完成！即将跳转到登录页面...');
+          setSuccess('系统初始化完成！正在刷新页面...');
           
-          // Delay navigation to login page
+          // Delay page refresh to show success message
           setTimeout(() => {
-            navigate('/login');
+            window.location.reload();
           }, 2000);
         } catch (err) {
           setError('完成设置失败: ' + (err.response?.data?.error || err.message));
