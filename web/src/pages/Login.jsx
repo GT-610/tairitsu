@@ -97,6 +97,8 @@ function Login() {
       console.error('登录错误:', error);
       if (error.response && error.response.data && error.response.data.error) {
         setLoginError(error.response.data.error);
+      } else if (error.response && error.response.status === 401) {
+        setLoginError('用户名或密码错误');
       } else {
         setLoginError('登录失败，请稍后重试');
       }

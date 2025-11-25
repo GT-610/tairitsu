@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import SetupWizard from './pages/SetupWizard';
@@ -14,10 +14,48 @@ import api from './services/api.js';
 import './App.css';
 
 function AppContent() {
+  const navigate = useNavigate();
   const [user, setUser] = useState(null);
   const [isFirstRun, setIsFirstRun] = useState(null);
   const [loading, setLoading] = useState(true);
   const location = useLocation();
+
+  // 监听API错误并在401时处理登出
+  useEffect(() => {
+    const handleApiError = (error) => {
+      // 检查是否是401未授权错误
+      if (error.response && error.response.status === 401) {
+        // 清除认证信息
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        sessionStorage.removeItem('token');
+        sessionStorage.removeItem('user');
+        delete api.defaults.headers.common['Authorization'];
+        
+        // 更新用户状态
+        setUser(null);
+        
+        // 重定向到登录页面（使用React Router而非window.location）
+        if (location.pathname !== '/login') {
+          navigate('/login');
+        }
+      }
+    };
+
+    // 添加响应拦截器
+    const interceptor = api.interceptors.response.use(
+      response => response,
+      error => {
+        handleApiError(error);
+        return Promise.reject(error);
+      }
+    );
+
+    // 清理函数
+    return () => {
+      api.interceptors.response.eject(interceptor);
+    };
+  }, [navigate, location.pathname]);
 
   // 检查系统是否已初始化（仅在应用启动时执行一次）
   useEffect(() => {
