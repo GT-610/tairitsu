@@ -10,23 +10,29 @@ import {
   Button, 
   CircularProgress,
   Alert,
-  TextField
+  TextField,
+  IconButton
 } from '@mui/material';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import { useNavigate } from 'react-router-dom';
 import { authAPI, systemAPI } from '../services/api.js';
 
+// Main component for the setup wizard
 const SetupWizard = () => {
   const navigate = useNavigate();
   const [activeStep, setActiveStep] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  
+  // Admin account data
   const [adminData, setAdminData] = useState({
     username: '',
     password: '',
     email: ''
   });
+  
+  // Database configuration
   const [dbConfig, setDbConfig] = useState({
     type: 'sqlite',
     path: '',
@@ -36,10 +42,13 @@ const SetupWizard = () => {
     pass: '',
     name: ''
   });
+  
+  // ZeroTier configuration
   const [ztConfig, setZtConfig] = useState({
     controllerUrl: 'http://localhost:9993',
     tokenPath: '/var/lib/zerotier-one/authtoken.secret'
   });
+  
   const [ztStatus, setZtStatus] = useState(null);
   const [ztConnected, setZtConnected] = useState(false);
 
@@ -102,39 +111,40 @@ const SetupWizard = () => {
     }
   };
 
+  // Handle form submission for each step
   const handleSubmit = async () => {
     setLoading(true);
     setError('');
     setSuccess('');
     
     try {
-      // 根据当前步骤执行不同的操作
+      // Execute different actions based on current step
       if (activeStep === 0) {
-        // 欢迎页面，检查系统状态后进入下一步
+        // Welcome page - check system status before proceeding
         await checkSystemStatus();
-    // If checkSystemStatus didn't redirect, continue execution
+        // If checkSystemStatus didn't redirect, continue execution
         if (activeStep === 0) {
           setActiveStep((prevActiveStep) => prevActiveStep + 1);
         }
       } else if (activeStep === 1) {
-        // ZeroTier 配置步骤 - 直接验证并初始化
+        // ZeroTier configuration step - validate and initialize
         const success = await testAndInitZtConnection();
         if (success) {
-          // 验证成功，进入下一步
+          // Validation successful, proceed to next step
           setActiveStep((prevActiveStep) => prevActiveStep + 1);
         }
       } else if (activeStep === 2) {
-        // 数据库配置验证
+        // Database configuration validation
         if (!dbConfig.type) {
           setError('请选择数据库类型');
           return;
         }
         
-        // 根据数据库类型进行不同验证
+        // Validate based on database type
         if (dbConfig.type === 'sqlite') {
-          // SQLite 路径由程序控制，不需要用户输入
+          // SQLite path is controlled by the program, no user input required
         } else {
-          // PostgreSQL或MySQL验证
+          // Validate PostgreSQL or MySQL configuration
           if (!dbConfig.host.trim()) {
             setError('请输入数据库主机地址');
             return;
@@ -153,13 +163,13 @@ const SetupWizard = () => {
           }
         }
         
-        // 发送数据库配置到后端
+        // Send database configuration to backend
         await systemAPI.configureDatabase(dbConfig);
-        // 继续下一步
+        // Proceed to next step
         setActiveStep((prevActiveStep) => prevActiveStep + 1);
       } else if (activeStep === 3) {
-        // 创建管理员账户步骤
-        // 表单验证
+        // Create administrator account step
+        // Form validation
         if (!adminData.username.trim()) {
           setError('请输入用户名');
           return;
@@ -173,32 +183,32 @@ const SetupWizard = () => {
           return;
         }
         
-        // 简单的邮箱格式验证
+        // Simple email format validation
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         if (!emailRegex.test(adminData.email)) {
           setError('请输入有效的邮箱地址');
           return;
         }
         
-        // 创建管理员账户
+        // Create administrator account
         await authAPI.register(adminData);
-        // 继续下一步
+        // Proceed to next step
         setActiveStep((prevActiveStep) => prevActiveStep + 1);
       } else if (activeStep === 4) {
-        // 完成设置步骤
-        // 设置系统为已初始化状态
+        // Finalize setup step
+        // Mark system as initialized
         await systemAPI.setInitialized(true);
-        // 更新localStorage标记，表示系统已初始化
+        // Update localStorage flag to indicate system initialization
         localStorage.setItem('tairitsu_initialized', 'true');
         localStorage.removeItem('tairitsu_setup_started');
-        // 设置成功消息
+        // Set success message
         setSuccess('系统初始化完成！即将跳转到登录页面...');
-        // 延迟跳转到登录页面
+        // Delay navigation to login page
         setTimeout(() => {
           navigate('/login');
         }, 2000);
       } else {
-        // 默认情况：前进到下一步
+        // Default case: proceed to next step
         setActiveStep((prevActiveStep) => prevActiveStep + 1);
       }
     } catch (err) {
@@ -208,10 +218,12 @@ const SetupWizard = () => {
     }
   };
 
+  // Navigate to previous step
   const handleBack = () => {
     setActiveStep((prevActiveStep) => prevActiveStep - 1);
   };
 
+  // Handle changes to admin account data
   const handleAdminDataChange = (e) => {
     setAdminData({
       ...adminData,
@@ -219,11 +231,12 @@ const SetupWizard = () => {
     });
   };
 
+  // Handle changes to database configuration
   const handleDbConfigChange = (e) => {
-    // 特殊处理数据库类型变更
+    // Special handling for database type changes
     if (e.target.name === 'type') {
       const newType = e.target.value;
-      // SQLite的默认配置
+      // Default configuration for SQLite
       const sqliteConfig = {
         type: 'sqlite',
         path: '',
@@ -234,22 +247,22 @@ const SetupWizard = () => {
         name: ''
       };
       
-      // 处理MySQL和PostgreSQL的默认配置
+      // Handle switching between database types
       if (newType === 'sqlite') {
-        // 切换到SQLite，使用默认配置
+        // Switch to SQLite with default configuration
         setDbConfig(sqliteConfig);
       } else {
-        // 切换到MySQL或PostgreSQL，设置默认端口
+        // Switch to MySQL or PostgreSQL with default ports
         const defaultPort = newType === 'mysql' ? 3306 : 5432;
         setDbConfig({
           ...dbConfig,
           type: newType,
-          // 只有当前端口为空或为0时才设置默认端口
+          // Set default port only if current port is empty or zero
           port: dbConfig.port || dbConfig.port === 0 ? dbConfig.port : defaultPort
         });
       }
     } else {
-      // 处理其他字段变更
+      // Handle changes to other fields
       setDbConfig({
         ...dbConfig,
         [e.target.name]: e.target.value
@@ -257,6 +270,7 @@ const SetupWizard = () => {
     }
   };
 
+  // Handle changes to ZeroTier configuration
   const handleZtConfigChange = (e) => {
     setZtConfig({
       ...ztConfig,
@@ -264,7 +278,7 @@ const SetupWizard = () => {
     });
   };
 
-  // 渲染错误和成功提示的辅助函数
+  // Helper function to render error and success messages
   const renderMessages = () => (
     <>
       {error && (
@@ -280,26 +294,29 @@ const SetupWizard = () => {
     </>
   );
 
-  // 渲染步骤内容
+  // Render content for each step
   const renderStepContent = (step) => {
     switch (step) {
       case 0:
         return (
-          <Paper sx={{ p: 3 }}>
-            <Typography variant="h5" gutterBottom>
+          <Paper sx={{ p: 3, height: '300px', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
+            <Typography variant="h3" gutterBottom align="center" sx={{ mb: 4 }}>
               欢迎使用 Tairitsu
             </Typography>
-            <Typography variant="body1" paragraph>
-              Tairitsu 是一个基于 Web 的 ZeroTier 网络管理平台，帮助您更轻松地管理和配置 ZeroTier 网络。
-            </Typography>
-            <Typography variant="body1" paragraph>
-              在完成设置向导之前，您需要进行以下配置：
-            </Typography>
-            <ul>
-              <li>配置 ZeroTier 控制器连接</li>
-              <li>设置数据库</li>
-              <li>创建管理员账户</li>
-            </ul>
+            <IconButton 
+              onClick={handleSubmit}
+              sx={{ 
+                width: 60, 
+                height: 60, 
+                borderRadius: '50%', 
+                backgroundColor: 'primary.main',
+                '&:hover': {
+                  backgroundColor: 'primary.dark'
+                }
+              }}
+            >
+              <ArrowForwardIcon sx={{ color: 'white', fontSize: 30 }} />
+            </IconButton>
           </Paper>
         );
       case 1:
@@ -542,15 +559,17 @@ const SetupWizard = () => {
               返回
             </Button>
           )}
-          <Button 
-            variant="contained" 
-            color="primary" 
-            onClick={handleSubmit}
-            disabled={loading}
-          >
-            {loading ? <CircularProgress size={24} /> : 
-              activeStep === 4 ? '完成设置' : '下一步'}
-          </Button>
+          {activeStep !== 0 && (
+            <Button 
+              variant="contained" 
+              color="primary" 
+              onClick={handleSubmit}
+              disabled={loading}
+            >
+              {loading ? <CircularProgress size={24} /> : 
+                activeStep === 4 ? '完成设置' : '下一步'}
+            </Button>
+          )}
         </Box>
       </Paper>
     </Container>
