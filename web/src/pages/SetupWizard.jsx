@@ -10,8 +10,7 @@ import {
   Button, 
   CircularProgress,
   Alert,
-  TextField,
-  IconButton
+  TextField
 } from '@mui/material';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import { useNavigate } from 'react-router-dom';
@@ -103,158 +102,109 @@ const SetupWizard = () => {
     }
   };
 
-  // Process welcome step submission
-  const handleWelcomeStepSubmit = async () => {
-    await checkSystemStatus();
-    // If checkSystemStatus didn't redirect, continue execution
-    if (activeStep === 0) {
-      setActiveStep((prevActiveStep) => prevActiveStep + 1);
-    }
-  };
-
-  // Validate and process ZeroTier configuration
-  const handleZtStepSubmit = async () => {
-    const success = await testAndInitZtConnection();
-    if (success) {
-      // Validation successful, proceed to next step
-      setActiveStep((prevActiveStep) => prevActiveStep + 1);
-    }
-  };
-
-  // Validate and submit database configuration
-  const handleDbStepSubmit = async () => {
-    // Basic validation for all database types
-    if (!dbConfig.type) {
-      setError('请选择数据库类型');
-      return false;
-    }
-    
-    // Additional validation for MySQL and PostgreSQL
-    if (dbConfig.type !== 'sqlite') {
-      // PostgreSQL or MySQL validation
-      if (!dbConfig.host.trim()) {
-        setError('请输入数据库主机地址');
-        return false;
-      }
-      if (!dbConfig.port || dbConfig.port <= 0) {
-        setError('请输入有效的数据库端口');
-        return false;
-      }
-      if (!dbConfig.user.trim()) {
-        setError('请输入数据库用户名');
-        return false;
-      }
-      if (!dbConfig.name.trim()) {
-        setError('请输入数据库名称');
-        return false;
-      }
-    }
-    
-    // Send database configuration to backend
-    await systemAPI.configureDatabase(dbConfig);
-    return true;
-  };
-
-  // Validate administrator account creation form
-  const handleAdminStepSubmit = async () => {
-    // Form validation
-    if (!adminData.username.trim()) {
-      setError('请输入用户名');
-      return false;
-    }
-    if (!adminData.password || adminData.password.length < 6) {
-      setError('密码长度至少为6位');
-      return false;
-    }
-    if (!adminData.email.trim()) {
-      setError('请输入邮箱地址');
-      return false;
-    }
-    
-    // Simple email format validation
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(adminData.email)) {
-      setError('请输入有效的邮箱地址');
-      return false;
-    }
-    
-    // Create admin account
-    await authAPI.register(adminData);
-    return true;
-  };
-
-  // Finalize system setup and mark as initialized
-  const handleCompletionStepSubmit = async () => {
-    // Set system to initialized state
-    await systemAPI.setInitialized(true);
-    // Update localStorage flag to indicate system is initialized
-    localStorage.setItem('tairitsu_initialized', 'true');
-    localStorage.removeItem('tairitsu_setup_started');
-    // Set success message
-    setSuccess('系统初始化完成！即将跳转到登录页面...');
-    // Delay redirect to login page
-    setTimeout(() => {
-      navigate('/login');
-    }, 2000);
-  };
-
-  // Main form submission handler - routes to appropriate step processor
-  // 处理进入创建管理员账户步骤的初始化
-  const initializeAdminStep = async () => {
-    try {
-      console.log('初始化管理员账户创建步骤');
-      await systemAPI.initializeAdminCreation();
-      console.log('管理员账户创建步骤初始化成功');
-    } catch (err) {
-      console.error('管理员账户创建步骤初始化失败:', err);
-      // 非致命错误，不阻止用户继续
-    }
-  };
-  
-  // 监听步骤变化，当进入创建管理员账户步骤时执行初始化
-  useEffect(() => {
-    if (activeStep === 3) {
-      initializeAdminStep();
-    }
-  }, [activeStep]);
-
   const handleSubmit = async () => {
     setLoading(true);
     setError('');
     setSuccess('');
     
     try {
-      // Execute different operations based on current step
-      switch (activeStep) {
-        case 0:
-          await handleWelcomeStepSubmit();
-          break;
-        case 1:
-          await handleZtStepSubmit();
-          break;
-        case 2:
-          const dbSuccess = await handleDbStepSubmit();
-          if (dbSuccess) {
-            setActiveStep((prevActiveStep) => prevActiveStep + 1);
-          }
-          break;
-        case 3:
-          const adminSuccess = await handleAdminStepSubmit();
-          if (adminSuccess) {
-            setActiveStep((prevActiveStep) => prevActiveStep + 1);
-          }
-          break;
-        case 4:
-          await handleCompletionStepSubmit();
-          break;
-        default:
-          // Default case: proceed to next step
+      // 根据当前步骤执行不同的操作
+      if (activeStep === 0) {
+        // 欢迎页面，检查系统状态后进入下一步
+        await checkSystemStatus();
+    // If checkSystemStatus didn't redirect, continue execution
+        if (activeStep === 0) {
           setActiveStep((prevActiveStep) => prevActiveStep + 1);
+        }
+      } else if (activeStep === 1) {
+        // ZeroTier 配置步骤 - 直接验证并初始化
+        const success = await testAndInitZtConnection();
+        if (success) {
+          // 验证成功，进入下一步
+          setActiveStep((prevActiveStep) => prevActiveStep + 1);
+        }
+      } else if (activeStep === 2) {
+        // 数据库配置验证
+        if (!dbConfig.type) {
+          setError('请选择数据库类型');
+          return;
+        }
+        
+        // 根据数据库类型进行不同验证
+        if (dbConfig.type === 'sqlite') {
+          // SQLite 路径由程序控制，不需要用户输入
+        } else {
+          // PostgreSQL或MySQL验证
+          if (!dbConfig.host.trim()) {
+            setError('请输入数据库主机地址');
+            return;
+          }
+          if (!dbConfig.port || dbConfig.port <= 0) {
+            setError('请输入有效的数据库端口');
+            return;
+          }
+          if (!dbConfig.user.trim()) {
+            setError('请输入数据库用户名');
+            return;
+          }
+          if (!dbConfig.name.trim()) {
+            setError('请输入数据库名称');
+            return;
+          }
+        }
+        
+        // 发送数据库配置到后端
+        await systemAPI.configureDatabase(dbConfig);
+        // 继续下一步
+        setActiveStep((prevActiveStep) => prevActiveStep + 1);
+      } else if (activeStep === 3) {
+        // 创建管理员账户步骤
+        // 表单验证
+        if (!adminData.username.trim()) {
+          setError('请输入用户名');
+          return;
+        }
+        if (!adminData.password || adminData.password.length < 6) {
+          setError('密码长度至少为6位');
+          return;
+        }
+        if (!adminData.email.trim()) {
+          setError('请输入邮箱地址');
+          return;
+        }
+        
+        // 简单的邮箱格式验证
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(adminData.email)) {
+          setError('请输入有效的邮箱地址');
+          return;
+        }
+        
+        // 创建管理员账户
+        await authAPI.register(adminData);
+        // 继续下一步
+        setActiveStep((prevActiveStep) => prevActiveStep + 1);
+      } else if (activeStep === 4) {
+        // 完成设置步骤
+        // 设置系统为已初始化状态
+        await systemAPI.setInitialized(true);
+        // 更新localStorage标记，表示系统已初始化
+        localStorage.setItem('tairitsu_initialized', 'true');
+        localStorage.removeItem('tairitsu_setup_started');
+        // 设置成功消息
+        setSuccess('系统初始化完成！即将跳转到登录页面...');
+        // 延迟跳转到登录页面
+        setTimeout(() => {
+          navigate('/login');
+        }, 2000);
+      } else {
+        // 默认情况：前进到下一步
+        setActiveStep((prevActiveStep) => prevActiveStep + 1);
       }
     } catch (err) {
-      setError('操作失败: ' + (err.response?.data?.error || err.message));
-    } finally {
-      setLoading(false);
+        setError('操作失败: ' + (err.response?.data?.error || err.message));
+      } finally {
+        setLoading(false);
     }
   };
 
@@ -262,20 +212,18 @@ const SetupWizard = () => {
     setActiveStep((prevActiveStep) => prevActiveStep - 1);
   };
 
-  // Generic form field change handler for state updates
-  const handleFormChange = (setState, currentState) => (e) => {
-    setState({
-      ...currentState,
+  const handleAdminDataChange = (e) => {
+    setAdminData({
+      ...adminData,
       [e.target.name]: e.target.value
     });
   };
 
-  // Enhanced handler for database configuration with type-specific logic
   const handleDbConfigChange = (e) => {
-    // Handle database type switching with appropriate default configurations
+    // 特殊处理数据库类型变更
     if (e.target.name === 'type') {
       const newType = e.target.value;
-      // Default configuration for SQLite
+      // SQLite的默认配置
       const sqliteConfig = {
         type: 'sqlite',
         path: '',
@@ -286,31 +234,37 @@ const SetupWizard = () => {
         name: ''
       };
       
-      // Handle default configurations for MySQL and PostgreSQL
+      // 处理MySQL和PostgreSQL的默认配置
       if (newType === 'sqlite') {
-        // Switching to SQLite, using default configuration
+        // 切换到SQLite，使用默认配置
         setDbConfig(sqliteConfig);
       } else {
-        // Switching to MySQL or PostgreSQL, set default port
+        // 切换到MySQL或PostgreSQL，设置默认端口
         const defaultPort = newType === 'mysql' ? 3306 : 5432;
         setDbConfig({
           ...dbConfig,
           type: newType,
-          // Only set default port if current port is empty or 0
+          // 只有当前端口为空或为0时才设置默认端口
           port: dbConfig.port || dbConfig.port === 0 ? dbConfig.port : defaultPort
         });
       }
     } else {
-      // Use generic function to handle other field changes
-      handleFormChange(setDbConfig, dbConfig)(e);
+      // 处理其他字段变更
+      setDbConfig({
+        ...dbConfig,
+        [e.target.name]: e.target.value
+      });
     }
   };
 
-  // Apply generic handler to specific form sections
-  const handleAdminDataChange = handleFormChange(setAdminData, adminData);
-  const handleZtConfigChange = handleFormChange(setZtConfig, ztConfig);
+  const handleZtConfigChange = (e) => {
+    setZtConfig({
+      ...ztConfig,
+      [e.target.name]: e.target.value
+    });
+  };
 
-  // Render error and success feedback messages
+  // 渲染错误和成功提示的辅助函数
   const renderMessages = () => (
     <>
       {error && (
@@ -325,130 +279,78 @@ const SetupWizard = () => {
       )}
     </>
   );
-  
-  // Reusable step content container component with consistent styling
-  const StepContent = ({ title, description, children, showMessages = true }) => (
-    <Paper sx={{ p: 3 }}>
-      <Typography variant="h5" gutterBottom>
-        {title}
-      </Typography>
-      {description && (
-        <Typography variant="body1" paragraph>
-          {description}
-        </Typography>
-      )}
-      {children}
-      {showMessages && renderMessages()}
-    </Paper>
-  );
-  
 
-  // Generic form field generator to standardize input elements
-  const formField = ({ 
-    name, 
-    label, 
-    type = 'text', 
-    required = false, 
-    value, 
-    onChange, 
-    autoComplete, 
-    helperText, 
-    placeholder 
-  }) => (
-    <TextField
-      margin="normal"
-      required={required}
-      fullWidth
-      id={name}
-      label={label}
-      name={name}
-      type={type}
-      autoComplete={autoComplete}
-      value={value}
-      onChange={onChange}
-      disabled={loading}
-      helperText={helperText}
-      placeholder={placeholder}
-    />
-  );
-
-  // Render appropriate content based on current step
+  // 渲染步骤内容
   const renderStepContent = (step) => {
     switch (step) {
       case 0:
         return (
-          <StepContent 
-            title=""
-            description=""
-            showMessages={false}
-          >
-            <Box 
-              sx={{ 
-                display: 'flex', 
-                flexDirection: 'column', 
-                alignItems: 'center', 
-                justifyContent: 'center', 
-                minHeight: 300,
-                textAlign: 'center'
-              }}
-            >
-              <Typography variant="h3" gutterBottom>
-                欢迎使用 Tairitsu
-              </Typography>
-              <IconButton 
-                sx={{ 
-                  mt: 4, 
-                  width: 80, 
-                  height: 80, 
-                  backgroundColor: '#1976d2',
-                  color: 'white',
-                  '&:hover': {
-                    backgroundColor: '#1565c0',
-                  }
-                }}
-                onClick={handleSubmit}
-                disabled={loading}
-              >
-                {loading ? <CircularProgress size={40} sx={{ color: 'white' }} /> : 
-                  <ArrowForwardIcon sx={{ width: 40, height: 40 }} />}
-              </IconButton>
-            </Box>
-          </StepContent>
+          <Paper sx={{ p: 3 }}>
+            <Typography variant="h5" gutterBottom>
+              欢迎使用 Tairitsu
+            </Typography>
+            <Typography variant="body1" paragraph>
+              Tairitsu 是一个基于 Web 的 ZeroTier 网络管理平台，帮助您更轻松地管理和配置 ZeroTier 网络。
+            </Typography>
+            <Typography variant="body1" paragraph>
+              在完成设置向导之前，您需要进行以下配置：
+            </Typography>
+            <ul>
+              <li>配置 ZeroTier 控制器连接</li>
+              <li>设置数据库</li>
+              <li>创建管理员账户</li>
+            </ul>
+          </Paper>
         );
       case 1:
         return (
-          <StepContent 
-            title="配置 ZeroTier 控制器"
-            description="请输入您的 ZeroTier 控制器信息，以便 Tairitsu 能够连接和管理您的网络。"
-          >
-            <div>
-              {formField({
-                name: 'controllerUrl',
-                label: 'ZeroTier 控制器 URL',
-                required: true,
-                autoComplete: 'url',
-                value: ztConfig.controllerUrl,
-                onChange: handleZtConfigChange
-              })}
-              {formField({
-                name: 'tokenPath',
-                label: '认证令牌文件路径',
-                required: true,
-                autoComplete: 'file-path',
-                value: ztConfig.tokenPath,
-                onChange: handleZtConfigChange,
-                helperText: '默认为 /var/lib/zerotier-one/authtoken.secret'
-              })}
-            </div>
-          </StepContent>
+          <Paper sx={{ p: 3 }}>
+            <Typography variant="h5" gutterBottom>
+              配置 ZeroTier 控制器
+            </Typography>
+            <Typography variant="body1" paragraph>
+              请输入您的 ZeroTier 控制器信息，以便 Tairitsu 能够连接和管理您的网络。
+            </Typography>
+            <form onSubmit={handleSubmit}>
+              <TextField
+                margin="normal"
+                required
+                fullWidth
+                id="controllerUrl"
+                label="ZeroTier 控制器 URL"
+                name="controllerUrl"
+                autoComplete="url"
+                value={ztConfig.controllerUrl}
+                onChange={handleZtConfigChange}
+                disabled={loading}
+              />
+              <TextField
+                margin="normal"
+                required
+                fullWidth
+                id="tokenPath"
+                label="认证令牌文件路径"
+                name="tokenPath"
+                autoComplete="file-path"
+                value={ztConfig.tokenPath}
+                onChange={handleZtConfigChange}
+                disabled={loading}
+                helperText="默认为 /var/lib/zerotier-one/authtoken.secret"
+              />
+              {renderMessages()}
+            </form>
+          </Paper>
         );
       case 2:
         return (
-          <StepContent 
-            title="配置数据库"
-            description="请选择并配置您要使用的数据库。Tairitsu 支持 SQLite、MySQL 和 PostgreSQL。"
-          >
-            <div>
+          <Paper sx={{ p: 3 }}>
+            <Typography variant="h5" gutterBottom>
+              配置数据库
+            </Typography>
+            <Typography variant="body1" paragraph>
+              请选择并配置您要使用的数据库。Tairitsu 支持 SQLite、MySQL 和 PostgreSQL。
+            </Typography>
+            <form onSubmit={handleSubmit}>
               <TextField
                 margin="normal"
                 required
@@ -471,94 +373,135 @@ const SetupWizard = () => {
               
               {dbConfig.type !== 'sqlite' && (
                 <>
-                  {formField({
-                    name: 'host',
-                    label: '主机地址',
-                    required: true,
-                    autoComplete: 'hostname',
-                    value: dbConfig.host,
-                    onChange: handleDbConfigChange
-                  })}
-                  {formField({
-                    name: 'port',
-                    label: '端口',
-                    required: true,
-                    type: 'number',
-                    value: dbConfig.port || '',
-                    onChange: handleDbConfigChange,
-                    placeholder: dbConfig.type === 'mysql' ? '3306' : '5432'
-                  })}
-                  {formField({
-                    name: 'user',
-                    label: '用户名',
-                    required: true,
-                    autoComplete: 'username',
-                    value: dbConfig.user,
-                    onChange: handleDbConfigChange
-                  })}
-                  {formField({
-                    name: 'pass',
-                    label: '密码',
-                    required: true,
-                    type: 'password',
-                    autoComplete: 'current-password',
-                    value: dbConfig.pass,
-                    onChange: handleDbConfigChange
-                  })}
-                  {formField({
-                    name: 'name',
-                    label: '数据库名称',
-                    required: true,
-                    value: dbConfig.name,
-                    onChange: handleDbConfigChange
-                  })}
+                  <TextField
+                    margin="normal"
+                    required
+                    fullWidth
+                    id="host"
+                    label="主机地址"
+                    name="host"
+                    autoComplete="hostname"
+                    value={dbConfig.host}
+                    onChange={handleDbConfigChange}
+                    disabled={loading}
+                  />
+                  <TextField
+                    margin="normal"
+                    required
+                    fullWidth
+                    id="port"
+                    label="端口"
+                    name="port"
+                    type="number"
+                    value={dbConfig.port || ''}
+                    onChange={handleDbConfigChange}
+                    disabled={loading}
+                    placeholder={dbConfig.type === 'mysql' ? '3306' : '5432'}
+                  />
+                  <TextField
+                    margin="normal"
+                    required
+                    fullWidth
+                    id="user"
+                    label="用户名"
+                    name="user"
+                    autoComplete="username"
+                    value={dbConfig.user}
+                    onChange={handleDbConfigChange}
+                    disabled={loading}
+                  />
+                  <TextField
+                    margin="normal"
+                    required
+                    fullWidth
+                    id="pass"
+                    label="密码"
+                    name="pass"
+                    type="password"
+                    autoComplete="current-password"
+                    value={dbConfig.pass}
+                    onChange={handleDbConfigChange}
+                    disabled={loading}
+                  />
+                  <TextField
+                    margin="normal"
+                    required
+                    fullWidth
+                    id="name"
+                    label="数据库名称"
+                    name="name"
+                    value={dbConfig.name}
+                    onChange={handleDbConfigChange}
+                    disabled={loading}
+                  />
                 </>
               )}
-            </div>
-          </StepContent>
+              
+              {renderMessages()}
+            </form>
+          </Paper>
         );
       case 3:
         return (
-          <StepContent 
-            title="创建管理员账户"
-            description="请创建一个管理员账户，用于登录和管理 Tairitsu 平台。"
-          >
-            <div>
-              {formField({
-                name: 'username',
-                label: '用户名',
-                required: true,
-                autoComplete: 'username',
-                value: adminData.username,
-                onChange: handleAdminDataChange
-              })}
-              {formField({
-                name: 'password',
-                label: '密码',
-                required: true,
-                type: 'password',
-                autoComplete: 'new-password',
-                value: adminData.password,
-                onChange: handleAdminDataChange,
-                helperText: '密码长度至少为6位'
-              })}
-              {formField({
-                name: 'email',
-                label: '邮箱地址',
-                required: true,
-                autoComplete: 'email',
-                value: adminData.email,
-                onChange: handleAdminDataChange
-              })}
-            </div>
-          </StepContent>
+          <Paper sx={{ p: 3 }}>
+            <Typography variant="h5" gutterBottom>
+              创建管理员账户
+            </Typography>
+            <Typography variant="body1" paragraph>
+              请创建一个管理员账户，用于登录和管理 Tairitsu 平台。
+            </Typography>
+            <form onSubmit={handleSubmit}>
+              <TextField
+                margin="normal"
+                required
+                fullWidth
+                id="username"
+                label="用户名"
+                name="username"
+                autoComplete="username"
+                value={adminData.username}
+                onChange={handleAdminDataChange}
+                disabled={loading}
+              />
+              <TextField
+                margin="normal"
+                required
+                fullWidth
+                name="password"
+                label="密码"
+                type="password"
+                id="password"
+                autoComplete="new-password"
+                value={adminData.password}
+                onChange={handleAdminDataChange}
+                disabled={loading}
+                helperText="密码长度至少为6位"
+              />
+              <TextField
+                margin="normal"
+                required
+                fullWidth
+                id="email"
+                label="邮箱地址"
+                name="email"
+                autoComplete="email"
+                value={adminData.email}
+                onChange={handleAdminDataChange}
+                disabled={loading}
+              />
+              {renderMessages()}
+            </form>
+          </Paper>
         );
       case 4:
         return (
-          <StepContent 
-            title="完成设置"
-            description="恭喜您！Tairitsu 平台已成功配置。"
-          >
+          <Paper sx={{ p: 3 }}>
+            <Typography variant="h5" gutterBottom>
+              完成设置
+            </Typography>
+            <Typography variant="body1" paragraph>
+              恭喜您！Tairitsu 平台已成功配置。
+            </Typography>
             <Typography variant="body1" paragraph>
               配置概要：
             </Typography>
@@ -567,7 +510,8 @@ const SetupWizard = () => {
               <li>数据库类型: {dbConfig.type}</li>
               <li>管理员账户: {adminData.username}</li>
             </ul>
-          </StepContent>
+            {renderMessages()}
+          </Paper>
         );
       default:
         return <div>未知步骤</div>;
@@ -598,17 +542,15 @@ const SetupWizard = () => {
               返回
             </Button>
           )}
-          {activeStep > 0 && (
-            <Button 
-              variant="contained" 
-              color="primary" 
-              onClick={handleSubmit}
-              disabled={loading}
-            >
-              {loading ? <CircularProgress size={24} /> : 
-                activeStep === 4 ? '完成设置' : '下一步'}
-            </Button>
-          )}
+          <Button 
+            variant="contained" 
+            color="primary" 
+            onClick={handleSubmit}
+            disabled={loading}
+          >
+            {loading ? <CircularProgress size={24} /> : 
+              activeStep === 4 ? '完成设置' : '下一步'}
+          </Button>
         </Box>
       </Paper>
     </Container>
