@@ -75,8 +75,6 @@ const SetupWizard = () => {
     };
   }, []);
   
-  // 移除了SetupWizard中的系统状态检查，因为App.jsx已经完成了这个检查
-  
   // Validate ZeroTier controller connection and save configuration
   const testAndInitZtConnection = async () => {
     setLoading(true);
@@ -184,17 +182,27 @@ const SetupWizard = () => {
         setActiveStep((prevActiveStep) => prevActiveStep + 1);
       } else if (activeStep === 4) {
         // Finalize setup step
-        // Mark system as initialized
-        await systemAPI.setInitialized(true);
-        // Update localStorage flag to indicate system initialization
-        localStorage.setItem('tairitsu_initialized', 'true');
-        localStorage.removeItem('tairitsu_setup_started');
-        // Set success message
-        setSuccess('系统初始化完成！即将跳转到登录页面...');
-        // Delay navigation to login page
-        setTimeout(() => {
-          navigate('/login');
-        }, 2000);
+        try {
+          // Mark system as initialized
+          await systemAPI.setInitialized(true);
+          
+          // Reload routes to ensure proper initialization
+          await systemAPI.reloadRoutes();
+          
+          // Update localStorage flag to indicate system initialization
+          localStorage.setItem('tairitsu_initialized', 'true');
+          localStorage.removeItem('tairitsu_setup_started');
+          
+          // Set success message
+          setSuccess('系统初始化完成！即将跳转到登录页面...');
+          
+          // Delay navigation to login page
+          setTimeout(() => {
+            navigate('/login');
+          }, 2000);
+        } catch (err) {
+          setError('完成设置失败: ' + (err.response?.data?.error || err.message));
+        }
       } else {
         // Default case: proceed to next step
         setActiveStep((prevActiveStep) => prevActiveStep + 1);
