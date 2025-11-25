@@ -1,6 +1,6 @@
 import axios from 'axios'
 
-// 创建axios实例
+// Create axios instance
 const api = axios.create({
   baseURL: '/api',
   timeout: 10000,
@@ -9,7 +9,7 @@ const api = axios.create({
   }
 })
 
-// 请求拦截器
+// Request interceptor
 api.interceptors.request.use(
   config => {
     const token = localStorage.getItem('token')
@@ -23,13 +23,13 @@ api.interceptors.request.use(
   }
 )
 
-// 响应拦截器
+// Response interceptor
 api.interceptors.response.use(
   response => {
     return response
   },
   error => {
-    // 处理401错误
+    // Handle 401 error
     if (error.response && error.response.status === 401) {
       localStorage.removeItem('token')
       window.location.href = '/login'
@@ -38,68 +38,70 @@ api.interceptors.response.use(
   }
 )
 
-// 认证相关API
+// Authentication related APIs
 export const authAPI = {
-  // 用户注册
+  // User registration
   register: (data) => api.post('/auth/register', data),
-  // 用户登录
+  // User login
   login: (data) => api.post('/auth/login', data),
-  // 获取用户信息
+  // Get user profile
   getProfile: () => api.get('/profile')
 }
 
-// ZeroTier网络相关API
+// ZeroTier network related APIs
 export const networkAPI = {
-  // 获取所有网络
+  // Get all networks
   getAllNetworks: () => api.get('/networks'),
-  // 获取单个网络
+  // Get a single network
   getNetwork: (networkId) => api.get(`/networks/${networkId}`),
-  // 创建网络
+  // Create a network
   createNetwork: (data) => api.post('/networks', data),
-  // 更新网络
+  // Update a network
   updateNetwork: (networkId, data) => api.put(`/networks/${networkId}`, data),
-  // 删除网络
+  // Delete a network
   deleteNetwork: (networkId) => api.delete(`/networks/${networkId}`)
 }
 
-// 成员相关API
+// Member related APIs
 export const memberAPI = {
-  // 获取网络成员
+  // Get network members
   getMembers: (networkId) => api.get(`/networks/${networkId}/members`),
-  // 获取单个成员
+  // Get a single member
   getMember: (networkId, memberId) => api.get(`/networks/${networkId}/members/${memberId}`),
-  // 更新成员
+  // Update a member
   updateMember: (networkId, memberId, data) => api.put(`/networks/${networkId}/members/${memberId}`, data),
-  // 删除成员
+  // Delete a member
   deleteMember: (networkId, memberId) => api.delete(`/networks/${networkId}/members/${memberId}`)
 }
 
-// 系统状态API
+// System status API
 export const statusAPI = {
   getStatus: () => api.get('/status')
 }
 
-// 系统相关API
+// System related APIs
 export const systemAPI = {
-  // 获取系统状态
+  // Get system status
   getStatus: () => api.get('/status'),
-  // 获取系统设置状态（用于检测是否是首次运行）
+  // Get system setup status (used to check if it's first run)
   getSetupStatus: () => api.get('/system/status'),
-  // 配置数据库
+  // Configure database
   configureDatabase: (config) => api.post('/system/database', config),
-  // 初始化ZeroTier客户端
+  // Reload routes
+  reloadRoutes: () => api.post('/system/reload'),
+  // Initialize ZeroTier client
   initZeroTierClient: () => api.post('/system/zerotier/init'),
-  // 测试ZeroTier连接
+  // Test ZeroTier connection
   testZtConnection: () => api.post('/system/zerotier/test'),
-  // 保存ZeroTier配置
+  // Save ZeroTier configuration
   saveZtConfig: (config) => api.post('/system/zerotier/config', config),
-  // 更新系统设置
+  // Update system settings
   updateSettings: (settings) => api.put('/settings', settings),
-  // 获取系统信息
+  // Get system information
   getSystemInfo: () => api.get('/system/info'),
-  // 设置系统初始化状态
+  // Set system initialization status
   setInitialized: (initialized) => api.post('/system/initialized', { initialized }),
-  // 初始化管理员账户创建步骤
+  // Initialize admin account creation step
   initializeAdminCreation: () => api.post('/system/admin/init')
 }
 

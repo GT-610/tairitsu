@@ -13,15 +13,15 @@ import (
 	"go.uber.org/zap"
 )
 
-// SystemHandler 系统处理器
+// SystemHandler handles system-related API endpoints and operations
 type SystemHandler struct {
 	networkService   *services.NetworkService
 	userService      *services.UserService
-	reloadRoutesFunc func() // 添加重新加载路由的函数
-	// 数据库配置将存储在配置文件中
+	reloadRoutesFunc func() // Function to reload application routes
+	// Database configuration is stored in config file
 }
 
-// NewSystemHandler 创建新的系统处理器
+// NewSystemHandler creates a new system handler instance
 func NewSystemHandler(networkService *services.NetworkService, userService *services.UserService, reloadRoutesFunc func()) *SystemHandler {
 	return &SystemHandler{
 		networkService:   networkService,
@@ -30,17 +30,17 @@ func NewSystemHandler(networkService *services.NetworkService, userService *serv
 	}
 }
 
-// GetSystemStatus 获取系统状态
+// GetSystemStatus retrieves the current system status
 func (h *SystemHandler) GetSystemStatus(c *gin.Context) {
-	// 从配置管理模块获取系统初始化状态
+	// Get system initialization status from config module
 	sysConfig := config.AppConfig
 	initialized := false
 
 	if sysConfig != nil {
-		// 优先检查config.json中的initialized字段
+		// Check initialized field from config.json first
 		initialized = sysConfig.Initialized
 		
-		// 如果未初始化，直接返回未初始化状态
+		// If not initialized, return uninitialized status directly
 		if !initialized {
 			c.JSON(http.StatusOK, map[string]interface{}{
 				"initialized": false,
@@ -49,14 +49,14 @@ func (h *SystemHandler) GetSystemStatus(c *gin.Context) {
 		}
 	}
 
-	// 如果已初始化，则获取其他状态信息
+	// If initialized, retrieve additional status information
 	hasDatabase := false
 	if sysConfig != nil && initialized {
-		// 检查是否配置了数据库
+		// Check if database is configured
 		hasDatabase = sysConfig.Database.Type != ""
 	}
 
-	// 只有在数据库已配置时才检查管理员用户
+	// Check for admin user only if database is configured
 	hasAdmin := false
 	if hasDatabase && h.userService != nil {
 		users := h.userService.GetAllUsers()
@@ -68,11 +68,11 @@ func (h *SystemHandler) GetSystemStatus(c *gin.Context) {
 		}
 	}
 
-	// 检查ZeroTier连接状态
+	// Check ZeroTier connection status
 	ztStatus, err := h.networkService.GetStatus()
 	if err != nil {
 		logger.Debug("[系统状态] ZeroTier状态检查失败", zap.Error(err))
-		// 即使ZeroTier连接失败，也返回系统状态
+		// Return system status even if ZeroTier connection fails
 		ztStatus = &zerotier.Status{
 			Version: "unknown",
 			Address: "",
@@ -91,7 +91,7 @@ func (h *SystemHandler) GetSystemStatus(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
-// ConfigureDatabase 配置数据库
+// ConfigureDatabase configures the database connection settings
 func (h *SystemHandler) ConfigureDatabase(c *gin.Context) {
 	var dbConfig models.DatabaseConfig
 	if err := c.ShouldBindJSON(&dbConfig); err != nil {
@@ -102,7 +102,7 @@ func (h *SystemHandler) ConfigureDatabase(c *gin.Context) {
 
 	logger.Info("开始配置数据库", zap.String("type", dbConfig.Type))
 
-	// 验证数据库配置
+	// Validate database configuration
 	dbCfg := database.Config{
 		Type: database.DatabaseType(dbConfig.Type),
 		Path: dbConfig.Path,
@@ -113,7 +113,7 @@ func (h *SystemHandler) ConfigureDatabase(c *gin.Context) {
 		Name: dbConfig.Name,
 	}
 
-	// 尝试连接数据库
+	// Try connecting to database
 	db, err := database.NewDatabase(dbCfg)
 	if err != nil {
 		logger.Error("数据库连接失败", zap.Error(err))
@@ -121,38 +121,33 @@ func (h *SystemHandler) ConfigureDatabase(c *gin.Context) {
 		return
 	}
 
-	// 初始化数据库
+	// Initialize database schema
 	if err := db.Init(); err != nil {
 		logger.Error("数据库初始化失败", zap.Error(err))
 		c.JSON(http.StatusBadRequest, gin.H{"error": "数据库初始化失败: " + err.Error()})
 		return
 	}
 
-	// 关闭数据库连接
+	// Close database connection
 	if err := db.Close(); err != nil {
 		logger.Warn("关闭数据库连接时出现警告", zap.Error(err))
 	}
 
-	// 对于SQLite，确保路径被正确保存到配置中
-	// NewDatabase函数可能会在Path为空时设置默认路径
+	// For SQLite, ensure path is properly saved to config
+	// NewDatabase function might set default path if Path is empty
 	if dbCfg.Type == database.SQLite {
-		// 从factory.go中我们知道，如果Path为空，会使用默认值"tairitsu.db"
+		// From factory.go we know if Path is empty, default value "tairitsu.db" will be used
 		if dbConfig.Path == "" {
 			dbCfg.Path = "tairitsu.db"
 		}
 		logger.Info("SQLite数据库路径已设置", zap.String("path", dbCfg.Path))
 	}
 
-	// 保存数据库配置到统一配置管理模块
+	// Save database configuration to unified config management module
 	if err := database.SaveConfig(dbCfg); err != nil {
 		logger.Error("保存数据库配置失败", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "保存数据库配置失败: " + err.Error()})
 		return
-	}
-
-	// 重新加载路由以注册认证端点
-	if h.reloadRoutesFunc != nil {
-		h.reloadRoutesFunc()
 	}
 
 	logger.Info("数据库配置成功", zap.String("type", dbConfig.Type))
@@ -162,9 +157,9 @@ func (h *SystemHandler) ConfigureDatabase(c *gin.Context) {
 	})
 }
 
-// TestZeroTierConnection 测试ZeroTier连接
+// TestZeroTierConnection tests connectivity to the ZeroTier controller
 func (h *SystemHandler) TestZeroTierConnection(c *gin.Context) {
-	// 动态创建ZeroTier客户端
+	// Dynamically create ZeroTier client
 	ztClient, err := zerotier.NewClient()
 	if err != nil {
 		logger.Error("[ZeroTier] 连接测试失败: 创建客户端失败", zap.Error(err))
@@ -184,11 +179,11 @@ func (h *SystemHandler) TestZeroTierConnection(c *gin.Context) {
 	c.JSON(http.StatusOK, ztStatus)
 }
 
-// InitZeroTierClient 初始化ZeroTier客户端
+// InitZeroTierClient initializes the ZeroTier client for the application
 func (h *SystemHandler) InitZeroTierClient(c *gin.Context) {
 	logger.Info("[系统初始化] 开始初始化ZeroTier客户端")
 
-	// 动态创建ZeroTier客户端
+	// Dynamically create ZeroTier client
 	ztClient, err := zerotier.NewClient()
 	if err != nil {
 		logger.Error("[ZeroTier] 创建客户端失败", zap.Error(err))
@@ -196,7 +191,7 @@ func (h *SystemHandler) InitZeroTierClient(c *gin.Context) {
 		return
 	}
 
-	// 将客户端设置到网络服务中
+	// Set client in network service
 	h.networkService.SetZTClient(ztClient)
 
 	// 验证客户端是否正常工作
@@ -211,7 +206,7 @@ func (h *SystemHandler) InitZeroTierClient(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "ZeroTier客户端初始化成功"})
 }
 
-// SaveZeroTierConfig 保存ZeroTier配置并初始化验证连接
+// SaveZeroTierConfig saves ZeroTier configuration and initializes connection
 func (h *SystemHandler) SaveZeroTierConfig(c *gin.Context) {
 	var req struct {
 		ControllerURL string `json:"controllerUrl" binding:"required"`
@@ -226,14 +221,14 @@ func (h *SystemHandler) SaveZeroTierConfig(c *gin.Context) {
 
 	logger.Info("保存ZeroTier配置", zap.String("controllerUrl", req.ControllerURL), zap.String("tokenPath", req.TokenPath))
 
-	// 调用配置模块保存ZeroTier配置
+	// Call config module to save ZeroTier configuration
 	if err := config.SetZTConfig(req.ControllerURL, req.TokenPath); err != nil {
 		logger.Error("保存ZeroTier配置失败", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "保存ZeroTier配置失败: " + err.Error()})
 		return
 	}
 
-	// 尝试创建并验证ZeroTier客户端
+	// Try creating and validating ZeroTier client with new config
 	ztClient, err := zerotier.NewClient()
 	if err != nil {
 		logger.Error("创建ZeroTier客户端失败", zap.Error(err))
@@ -241,7 +236,7 @@ func (h *SystemHandler) SaveZeroTierConfig(c *gin.Context) {
 		return
 	}
 
-	// 验证客户端是否能正常工作并获取状态信息
+	// Validate client works and get status information
 	status, err := ztClient.GetStatus()
 	if err != nil {
 		logger.Error("ZeroTier客户端验证失败", zap.Error(err))
@@ -249,7 +244,7 @@ func (h *SystemHandler) SaveZeroTierConfig(c *gin.Context) {
 		return
 	}
 
-	// 将客户端设置到网络服务中
+	// Set client in network service
 	h.networkService.SetZTClient(ztClient)
 
 	logger.Info("ZeroTier配置保存并验证成功")
@@ -260,16 +255,16 @@ func (h *SystemHandler) SaveZeroTierConfig(c *gin.Context) {
 	})
 }
 
-// InitializeAdminCreation 初始化管理员账户创建步骤
-// 此函数在用户进入创建管理员账户步骤时调用，确保数据库状态正确
+// InitializeAdminCreation prepares the system for admin account creation
+// This function is called when user enters the admin creation step to ensure correct database state
 func (h *SystemHandler) InitializeAdminCreation(c *gin.Context) {
 	logger.Info("初始化管理员账户创建步骤")
 
-	// 检查是否已经执行过重置操作的标志
+	// Check if reset operation has already been performed
 	resetDoneKey := "admin_creation_reset_done"
 	resetDone := config.GetTempSetting(resetDoneKey)
 
-	// 如果已经执行过重置操作，则不再执行
+	// Skip reset if already performed
 	if resetDone == "true" {
 		logger.Info("数据库重置已在之前执行，跳过重置操作")
 		c.JSON(http.StatusOK, gin.H{
@@ -279,15 +274,15 @@ func (h *SystemHandler) InitializeAdminCreation(c *gin.Context) {
 		return
 	}
 
-	// 获取当前数据库配置
+	// Get current database configuration
 	dbConfig := database.LoadConfig()
 	logger.Info("获取数据库配置", zap.String("type", string(dbConfig.Type)))
 
-	// 仅对SQLite数据库执行重置操作
+	// Only perform reset for SQLite databases
 	if dbConfig.Type == database.SQLite {
 		logger.Info("准备重置SQLite数据库")
 
-		// 执行数据库重置
+		// Execute database reset
 		if err := database.ResetDatabase(dbConfig); err != nil {
 			logger.Error("数据库重置失败", zap.Error(err))
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "初始化管理员账户创建步骤失败: " + err.Error()})
@@ -299,7 +294,7 @@ func (h *SystemHandler) InitializeAdminCreation(c *gin.Context) {
 		logger.Info("当前数据库类型不是SQLite，跳过数据库重置", zap.String("type", string(dbConfig.Type)))
 	}
 
-	// 设置标志表示已执行重置操作
+	// Set flag indicating reset operation is complete
 	config.SetTempSetting(resetDoneKey, "true")
 	logger.Info("设置重置操作完成标志")
 
@@ -310,7 +305,7 @@ func (h *SystemHandler) InitializeAdminCreation(c *gin.Context) {
 	})
 }
 
-// SetInitialized 设置系统初始化状态
+// SetInitialized updates the system initialization status
 func (h *SystemHandler) SetInitialized(c *gin.Context) {
 	var req struct {
 		Initialized bool `json:"initialized" binding:"required"`
@@ -324,7 +319,7 @@ func (h *SystemHandler) SetInitialized(c *gin.Context) {
 
 	logger.Info("设置系统初始化状态", zap.Bool("initialized", req.Initialized))
 
-	// 调用配置模块设置初始化状态
+	// Call config module to set initialization status
 	if err := config.SetInitialized(req.Initialized); err != nil {
 		logger.Error("设置初始化状态失败", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "设置初始化状态失败: " + err.Error()})
@@ -332,4 +327,19 @@ func (h *SystemHandler) SetInitialized(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "初始化状态更新成功"})
+}
+
+// ReloadRoutes handles API request to reload application routes
+func (h *SystemHandler) ReloadRoutes(c *gin.Context) {
+	logger.Info("收到重新加载路由的API请求")
+
+	// Call internal reload function
+	if h.reloadRoutesFunc != nil {
+		h.reloadRoutesFunc()
+		logger.Info("路由重新加载完成")
+		c.JSON(http.StatusOK, gin.H{"message": "路由重新加载成功"})
+	} else {
+		logger.Warn("重新加载路由函数未定义")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "重新加载路由功能不可用"})
+	}
 }

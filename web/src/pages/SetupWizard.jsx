@@ -165,6 +165,10 @@ const SetupWizard = () => {
         
         // Send database configuration to backend
         await systemAPI.configureDatabase(dbConfig);
+        
+        // Reload routes after database configuration
+        await systemAPI.reloadRoutes();
+        
         // Proceed to next step
         setActiveStep((prevActiveStep) => prevActiveStep + 1);
       } else if (activeStep === 3) {
