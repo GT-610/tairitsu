@@ -90,6 +90,31 @@ func main() {
 		logger.Info("未配置数据库类型，等待用户通过设置向导配置")
 	}
 
+	// Automatically initialize ZeroTier client if system is already initialized
+	if cfg.Initialized {
+		logger.Info("系统已初始化，正在初始化ZeroTier客户端")
+
+		// Dynamically create ZeroTier client
+		ztClient, err := zerotier.NewClient()
+		if err != nil {
+			logger.Error("初始化ZeroTier客户端失败", zap.Error(err))
+		} else {
+			// Set global ZeroTier client
+			GlobalZTClient = ztClient
+			logger.Info("ZeroTier客户端初始化成功")
+
+			// Verify client works by getting status
+			_, err = ztClient.GetStatus()
+			if err != nil {
+				logger.Error("ZeroTier客户端验证失败", zap.Error(err))
+			} else {
+				logger.Info("ZeroTier客户端验证成功")
+			}
+		}
+	} else {
+		logger.Info("系统未初始化，跳过ZeroTier客户端自动初始化")
+	}
+
 	// Set Gin mode based on environment
 	if os.Getenv("NODE_ENV") == "production" {
 		gin.SetMode(gin.ReleaseMode)
