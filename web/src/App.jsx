@@ -1,42 +1,27 @@
-import React, { useState, useEffect } from 'react'
-import { Routes, Route, Navigate } from 'react-router-dom'
-import Layout from './components/Layout.jsx'
-import Login from './pages/Login.jsx'
-import Register from './pages/Register.jsx'
-import Dashboard from './pages/Dashboard.jsx'
-import Networks from './pages/Networks.jsx'
-import NetworkDetail from './pages/NetworkDetail.jsx'
-import Members from './pages/Members.jsx'
-import Profile from './pages/Profile.jsx'
-import Settings from './pages/Settings.jsx'
-import SetupWizard from './pages/SetupWizard.jsx'
-import api from './services/api.js'
-import { AuthProvider, useAuth } from './services/auth.jsx'
-import './App.css'
+import React, { useState, useEffect, useCallback } from 'react';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import Login from './pages/Login';
+import Register from './pages/Register';
+import SetupWizard from './pages/SetupWizard';
+import Dashboard from './pages/Dashboard';
+import Networks from './pages/Networks';
+import NetworkDetail from './pages/NetworkDetail';
+import Members from './pages/Members';
+import Profile from './pages/Profile';
+import Settings from './pages/Settings';
+import Layout from './components/Layout';
+import api from './services/api.js';
+import './App.css';
 
-// 创建使用AuthContext的内部应用组件
 function AppContent() {
-  const [loading, setLoading] = useState(true)
-  const [isFirstRun, setIsFirstRun] = useState(false)
-  const { user, token, login, logout } = useAuth() || {};
+  const [user, setUser] = useState(null);
+  const [isFirstRun, setIsFirstRun] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const location = useLocation();
 
-  // 检查是否是首次运行 - 优化：避免直接发送请求
+  // 检查系统是否已初始化（仅在应用启动时执行一次）
   useEffect(() => {
     const checkFirstRun = async () => {
-      // 先检查URL是否是设置向导页面
-      const isSetupWizardPage = window.location.pathname === '/setup';
-      
-      // 检查localStorage中是否有设置向导已开始的标记
-      const setupWizardStarted = localStorage.getItem('tairitsu_setup_started') === 'true';
-      
-      // 如果是设置向导页面或设置已开始，直接设为首次运行
-      if (isSetupWizardPage || setupWizardStarted) {
-        setIsFirstRun(true);
-        setLoading(false);
-        return;
-      }
-      
-      // 优先通过后端API检查初始化状态
       try {
         const response = await api.get('/system/status', {
           headers: {
@@ -74,7 +59,6 @@ function AppContent() {
     checkFirstRun();
   }, []);
 
-
   // 检查用户登录状态
   useEffect(() => {
     const checkAuth = async () => {
@@ -82,10 +66,10 @@ function AppContent() {
         const storedToken = localStorage.getItem('token') || sessionStorage.getItem('token');
         const storedUser = localStorage.getItem('user') || sessionStorage.getItem('user');
         
-        if (storedToken && storedUser && login) {
+        if (storedToken && storedUser) {
           api.defaults.headers.common['Authorization'] = `Bearer ${storedToken}`;
           const userData = JSON.parse(storedUser);
-          login(userData, storedToken);
+          setUser(userData);
         }
       } catch (error) {
         localStorage.removeItem('token');
@@ -96,86 +80,23 @@ function AppContent() {
       }
     }
 
-    // 只有不是首次运行时才检查认证状态
-    if (!isFirstRun) {
+    // 只有不是首次运行且系统状态检查完成时才检查认证状态
+    if (isFirstRun !== null && !isFirstRun) {
       checkAuth();
     }
-  }, [login, isFirstRun]);
+  }, [isFirstRun]);
 
-  // 监听系统初始化状态变化，当设置向导完成后，重新检查系统状态
-  useEffect(() => {
-    // 定义一个函数来刷新系统状态
-    const refreshSystemStatus = async () => {
-      try {
-        // 检查是否是设置向导页面，如果是则不发送请求
-        const isSetupWizardPage = window.location.pathname === '/setup';
-        if (isSetupWizardPage) {
-          return;
-        }
-        
-        // 首先检查localStorage中的初始化状态
-        const localStorageInitialized = localStorage.getItem('tairitsu_initialized');
-        if (localStorageInitialized === 'true') {
-          setIsFirstRun(false);
-          console.log('[App] 从localStorage检测到系统已初始化');
-          // 如果localStorage中标记为已初始化，同步到后端检查
-          try {
-            const response = await api.get('/system/status', {
-              headers: {
-                'Cache-Control': 'no-cache'
-              }
-            });
-            // 以后端状态为准，更新前端状态
-            setIsFirstRun(!response.data.initialized);
-            console.log('[App] 后端验证系统初始化状态:', response.data.initialized);
-          } catch (backendError) {
-            console.warn('[App] 后端验证失败，但仍使用localStorage状态');
-          }
-          return;
-        }
-        
-        // 如果localStorage中没有，从后端获取
-        const response = await api.get('/system/status', {
-          headers: {
-            'Cache-Control': 'no-cache'
-          }
-        });
-        // 根据系统的initialized状态来更新
-        setIsFirstRun(!response.data.initialized);
-        console.log('[App] 从后端刷新系统状态，初始化状态:', response.data.initialized);
-        
-        // 如果后端返回已初始化，更新localStorage
-        if (response.data.initialized) {
-          localStorage.setItem('tairitsu_initialized', 'true');
-        }
-      } catch (error) {
-        console.error('[App] 刷新系统状态失败:', error);
-      }
-    };
+  // 移除了会导致重复请求的storage事件监听器和refreshSystemStatus函数
 
-    // 监听存储事件，当有其他标签页更新时，也刷新系统状态
-    const handleStorageChange = (event) => {
-      if (event.key === 'tairitsu_initialized') {
-        console.log('[App] 检测到初始化状态变化，刷新系统状态');
-        refreshSystemStatus();
-      }
-    };
-    
-    // 检查是否是设置向导页面，如果不是才执行刷新
-    const isSetupWizardPage = window.location.pathname === '/setup';
-    if (!isSetupWizardPage) {
-      // 非设置向导页面才检查localStorage
-      refreshSystemStatus();
-    }
-
-    // 添加监听器
-    window.addEventListener('storage', handleStorageChange);
-
-    // 清理监听器
-    return () => {
-      window.removeEventListener('storage', handleStorageChange);
-    };
-  }, []);
+  // 处理用户登出
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    sessionStorage.removeItem('token');
+    sessionStorage.removeItem('user');
+    delete api.defaults.headers.common['Authorization'];
+    setUser(null);
+  };
 
   // 处理注册成功
   const handleRegisterSuccess = () => {
@@ -183,7 +104,7 @@ function AppContent() {
     console.log('注册成功');
   }
 
-  if (loading) {
+  if (loading || isFirstRun === null) {
     return (
       <div style={{ 
         display: 'flex', 
@@ -214,7 +135,7 @@ function AppContent() {
             
             {user ? (
               <>
-                <Route path="/" element={<Layout user={user} onLogout={logout} />}>
+                <Route path="/" element={<Layout user={user} onLogout={handleLogout} />}>
                   <Route index element={<Dashboard />}></Route>
                   <Route path="networks" element={<Networks />}></Route>
                   <Route path="networks/:id" element={<NetworkDetail />}></Route>
@@ -237,13 +158,4 @@ function AppContent() {
   )
 }
 
-// 主App组件，使用AuthProvider包裹
-function App() {
-  return (
-    <AuthProvider>
-      <AppContent />
-    </AuthProvider>
-  )
-}
-
-export default App
+export default AppContent;

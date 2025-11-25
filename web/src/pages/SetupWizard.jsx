@@ -75,19 +75,7 @@ const SetupWizard = () => {
     };
   }, []);
   
-  // Verify if system is already initialized before continuing setup
-  const checkSystemStatus = async () => {
-    try {
-      const response = await systemAPI.getSetupStatus();
-      if (response.data.initialized) {
-        // If system is initialized, redirect to login page
-        navigate('/login');
-      }
-    } catch (err) {
-      console.error('检查系统状态失败:', err);
-      // Even if check fails, continue showing setup wizard
-    }
-  };
+  // 移除了SetupWizard中的系统状态检查，因为App.jsx已经完成了这个检查
   
   // Validate ZeroTier controller connection and save configuration
   const testAndInitZtConnection = async () => {
@@ -120,12 +108,8 @@ const SetupWizard = () => {
     try {
       // Execute different actions based on current step
       if (activeStep === 0) {
-        // Welcome page - check system status before proceeding
-        await checkSystemStatus();
-        // If checkSystemStatus didn't redirect, continue execution
-        if (activeStep === 0) {
-          setActiveStep((prevActiveStep) => prevActiveStep + 1);
-        }
+        // Welcome page - proceed to next step directly
+        setActiveStep((prevActiveStep) => prevActiveStep + 1);
       } else if (activeStep === 1) {
         // ZeroTier configuration step - validate and initialize
         const success = await testAndInitZtConnection();
