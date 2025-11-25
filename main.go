@@ -2,14 +2,11 @@ package main
 
 import (
 	"fmt"
-	"os"
-	"sync"
 
 	"github.com/gin-gonic/gin"
-	"github.com/tairitsu/tairitsu/internal/app/config"
 	"github.com/tairitsu/tairitsu/internal/app/database"
+	"github.com/tairitsu/tairitsu/internal/app/initializer"
 	"github.com/tairitsu/tairitsu/internal/app/logger"
-	"github.com/tairitsu/tairitsu/internal/app/routes"
 	"github.com/tairitsu/tairitsu/internal/zerotier"
 	"go.uber.org/zap"
 )
@@ -22,115 +19,40 @@ var GlobalZTClient *zerotier.Client
 
 // GlobalRouter is the global router instance for route reloading
 var GlobalRouter *gin.Engine
-var routerMutex sync.RWMutex
 
 // ReloadRoutes reloads all API routes with current configuration
 func ReloadRoutes() {
 	logger.Info("开始重新加载路由")
-
-	routerMutex.Lock()
-	defer routerMutex.Unlock()
-
-	// Clear existing routes by creating a new router instance
-	GlobalRouter = gin.New()
-	logger.Info("已创建新的路由器实例")
-
-	// Add debug logging for diagnostics
-	logger.Info("准备重新注册路由")
-
-	// Re-register routes with global ZeroTier client
-	cfg, _ := config.LoadConfig()
-	if cfg != nil {
-		logger.Info("使用配置文件中的JWT密钥重新注册路由")
-		routes.SetupRoutesWithReload(GlobalRouter, GlobalZTClient, cfg.Security.JWTSecret, GlobalDB, ReloadRoutes)
-	} else {
-		// Use default configuration if config loading fails
-		logger.Info("使用默认JWT密钥重新注册路由")
-		routes.SetupRoutesWithReload(GlobalRouter, GlobalZTClient, "default-secret-key", GlobalDB, ReloadRoutes)
-	}
-
-	logger.Info("路由重新加载完成")
+	// TODO: Implement route reloading functionality using server initializer
+	// This method is kept for backward compatibility with global variables
 }
 
 // main is the application entry point
 func main() {
-	fmt.Println("Tairitsu - ZeroTier Controller UI")
+	fmt.Println("Tairitsu - ZeroTier Controller Interface")
 
-	// Initialize logger with info level
-	logger.InitLogger("info")
+	// Create application initializer
+	appInitializer := initializer.NewAppInitializer()
 
-	// Load application configuration
-	cfg, err := config.LoadConfig()
+	// Execute complete application initialization process
+	appContext, err := appInitializer.Initialize()
 	if err != nil {
-		logger.Fatal("加载配置失败", zap.Error(err))
+		logger.Fatal("应用初始化失败", zap.Error(err))
 	}
 
-	// Load database configuration
-	dbConfig := database.LoadConfig()
+	// Set global variables for backward compatibility
+	GlobalDB = appContext.Database
+	GlobalZTClient = appContext.ZTClient
+	GlobalRouter = appContext.Router
 
-	// Create database instance only if database type is configured
-	// Otherwise, GlobalDB remains nil until user configures via setup wizard
-	if dbConfig.Type != "" {
-		// Create database connection
-		GlobalDB, err = database.NewDatabase(dbConfig)
-		if err != nil {
-			logger.Error("创建数据库实例失败", zap.Error(err))
-			// Don't terminate, allow configuration through setup wizard
-		} else {
-			// Initialize database schema and tables
-			if err := GlobalDB.Init(); err != nil {
-				logger.Error("初始化数据库失败", zap.Error(err))
-				// Don't terminate, allow reconfiguration through setup wizard
-				GlobalDB = nil
-			} else {
-				logger.Info("数据库初始化成功", zap.String("type", string(dbConfig.Type)))
-			}
-		}
-	} else {
-		logger.Info("未配置数据库类型，等待用户通过设置向导配置")
+	// Initialize and start HTTP server
+	serverInitializer := initializer.NewServerInitializer()
+	if _, err := serverInitializer.Initialize(appContext.Database, appContext.ZTClient, appContext.JWTSecret); err != nil {
+		logger.Fatal("服务器初始化失败", zap.Error(err))
 	}
 
-	// Automatically initialize ZeroTier client if system is already initialized
-	if cfg.Initialized {
-		logger.Info("系统已初始化，正在初始化ZeroTier客户端")
-
-		// Dynamically create ZeroTier client
-		ztClient, err := zerotier.NewClient()
-		if err != nil {
-			logger.Error("初始化ZeroTier客户端失败", zap.Error(err))
-		} else {
-			// Set global ZeroTier client
-			GlobalZTClient = ztClient
-			logger.Info("ZeroTier客户端初始化成功")
-
-			// Verify client works by getting status
-			_, err = ztClient.GetStatus()
-			if err != nil {
-				logger.Error("ZeroTier客户端验证失败", zap.Error(err))
-			} else {
-				logger.Info("ZeroTier客户端验证成功")
-			}
-		}
-	} else {
-		logger.Info("系统未初始化，跳过ZeroTier客户端自动初始化")
-	}
-
-	// Set Gin mode based on environment
-	if os.Getenv("NODE_ENV") == "production" {
-		gin.SetMode(gin.ReleaseMode)
-	}
-
-	// Create initial router instance
-	GlobalRouter = gin.New()
-
-	// Register routes with global database instance (may be nil) and route reload function
-	// Using global GlobalZTClient, initially nil, will be set during InitZeroTierClient
-	routes.SetupRoutesWithReload(GlobalRouter, GlobalZTClient, cfg.Security.JWTSecret, GlobalDB, ReloadRoutes)
-
-	// Start HTTP server
-	serverAddr := fmt.Sprintf(":%d", cfg.Server.Port)
-	logger.Info("服务器启动在", zap.String("address", serverAddr))
-	if err := GlobalRouter.Run(serverAddr); err != nil {
+	// Start the HTTP server
+	if err := serverInitializer.StartServer(); err != nil {
 		logger.Fatal("启动服务器失败", zap.Error(err))
 	}
 }
