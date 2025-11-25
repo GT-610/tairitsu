@@ -1,13 +1,25 @@
 import React from 'react'
-import { Outlet, Link } from 'react-router-dom'
+import { Outlet, Link, useNavigate } from 'react-router-dom'
 import { AppBar, Toolbar, Drawer, List, ListItem, ListItemText, Typography, Button, Box, Avatar }
 from '@mui/material'
+import { useAuth } from '../services/auth.jsx'
 
-function Layout({ user, onLogout }) {
+function Layout({ user }) {
   const [drawerOpen, setDrawerOpen] = React.useState(false)
+  const navigate = useNavigate()
+  const { logout } = useAuth() || {}
+
+  const handleLogout = () => {
+    // 调用auth context中的logout函数
+    if (typeof logout === 'function') {
+      logout()
+    }
+    // 导航到登录页面
+    navigate('/login')
+  }
 
   const menuItems = [
-    { text: '仪表盘', path: '/' },
+    { text: '仪表盘', path: '/dashboard' },
     { text: '网络管理', path: '/networks' },
     { text: '个人设置', path: '/profile' }
   ]
@@ -26,7 +38,7 @@ function Layout({ user, onLogout }) {
             <Avatar sx={{ width: 32, height: 32 }}>
               {user?.username?.[0]?.toUpperCase() || 'U'}
             </Avatar>
-            <Button color="inherit" onClick={onLogout}>
+            <Button color="inherit" onClick={handleLogout}>
               退出
             </Button>
           </Box>

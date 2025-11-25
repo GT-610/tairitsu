@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import Login from './pages/Login';
 import Register from './pages/Register';
@@ -11,11 +11,12 @@ import Profile from './pages/Profile';
 import Settings from './pages/Settings';
 import Layout from './components/Layout';
 import api from './services/api.js';
+import { useAuth } from './services/auth.jsx';
 import './App.css';
 
 function AppContent() {
   const navigate = useNavigate();
-  const [user, setUser] = useState(null);
+  const { user, isAuthenticated } = useAuth() || {};
   const [isFirstRun, setIsFirstRun] = useState(null);
   const [loading, setLoading] = useState(true);
   const location = useLocation();
@@ -31,9 +32,6 @@ function AppContent() {
         sessionStorage.removeItem('token');
         sessionStorage.removeItem('user');
         delete api.defaults.headers.common['Authorization'];
-        
-        // 更新用户状态
-        setUser(null);
         
         // 重定向到登录页面（使用React Router而非window.location）
         if (location.pathname !== '/login') {
@@ -97,51 +95,6 @@ function AppContent() {
     checkFirstRun();
   }, []);
 
-  // 检查用户登录状态
-  useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        const storedToken = localStorage.getItem('token') || sessionStorage.getItem('token');
-        const storedUser = localStorage.getItem('user') || sessionStorage.getItem('user');
-        
-        if (storedToken && storedUser) {
-          api.defaults.headers.common['Authorization'] = `Bearer ${storedToken}`;
-          const userData = JSON.parse(storedUser);
-          setUser(userData);
-        }
-      } catch (error) {
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-        sessionStorage.removeItem('token');
-        sessionStorage.removeItem('user');
-        delete api.defaults.headers.common['Authorization'];
-      }
-    }
-
-    // 只有不是首次运行且系统状态检查完成时才检查认证状态
-    if (isFirstRun !== null && !isFirstRun) {
-      checkAuth();
-    }
-  }, [isFirstRun]);
-
-  // 移除了会导致重复请求的storage事件监听器和refreshSystemStatus函数
-
-  // 处理用户登出
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    sessionStorage.removeItem('token');
-    sessionStorage.removeItem('user');
-    delete api.defaults.headers.common['Authorization'];
-    setUser(null);
-  };
-
-  // 处理注册成功
-  const handleRegisterSuccess = () => {
-    // 可以在这里添加注册成功后的逻辑
-    console.log('注册成功');
-  }
-
   if (loading || isFirstRun === null) {
     return (
       <div style={{ 
@@ -169,12 +122,12 @@ function AppContent() {
         ) : (
           <>
             <Route path="/login" element={<Login />}></Route>
-            <Route path="/register" element={<Register onRegisterSuccess={handleRegisterSuccess} />}></Route>
+            <Route path="/register" element={<Register />}></Route>
             
-            {user ? (
+            {isAuthenticated() ? (
               <>
-                <Route path="/" element={<Layout user={user} onLogout={handleLogout} />}>
-                  <Route index element={<Dashboard />}></Route>
+                <Route path="/" element={<Layout user={user} />}>
+                  <Route path="dashboard" element={<Dashboard />}></Route>
                   <Route path="networks" element={<Networks />}></Route>
                   <Route path="networks/:id" element={<NetworkDetail />}></Route>
                   <Route path="networks/:id/members" element={<Members />}></Route>

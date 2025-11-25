@@ -212,16 +212,36 @@ function Login() {
               )}
             </Button>
             
-            <Grid container>
-              <Grid item xs>
-                <Link to="/forgot-password" variant="body2" sx={{ textDecoration: 'none' }}>
+            <Grid container spacing={2}>
+              <Grid item xs={6}>
+                <Button 
+                  component={Link} 
+                  to="/forgot-password" 
+                  variant="text" 
+                  fullWidth
+                  sx={{ 
+                    justifyContent: 'flex-start',
+                    textTransform: 'none',
+                    fontWeight: 'normal'
+                  }}
+                >
                   忘记密码?
-                </Link>
+                </Button>
               </Grid>
-              <Grid item>
-                <Link to="/register" variant="body2" sx={{ textDecoration: 'none' }}>
+              <Grid item xs={6}>
+                <Button 
+                  component={Link} 
+                  to="/register" 
+                  variant="text" 
+                  fullWidth
+                  sx={{ 
+                    justifyContent: 'flex-end',
+                    textTransform: 'none',
+                    fontWeight: 'normal'
+                  }}
+                >
                   没有账户? 注册
-                </Link>
+                </Button>
               </Grid>
             </Grid>
           </Box>
