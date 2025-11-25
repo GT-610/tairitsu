@@ -16,6 +16,7 @@ import {
 import { LockOutlined } from '@mui/icons-material';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../services/auth.jsx';
+import { authAPI } from '../services/api.js';
 
 function Login() {
   const [formData, setFormData] = useState({
@@ -67,46 +68,38 @@ function Login() {
     setLoginError('');
     
     try {
-      // 模拟API调用延迟
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // 调用后端登录API
+      const response = await authAPI.login({
+        username: formData.username,
+        password: formData.password
+      });
       
-      // 模拟登录验证
-      if (formData.username === 'admin' && formData.password === 'password') {
-        // 创建模拟的用户数据
-        const userData = {
-          id: '1',
-          username: 'admin',
-          email: 'admin@example.com',
-          role: 'admin',
-          createdAt: new Date().toISOString(),
-          lastLogin: new Date().toISOString()
-        };
-        
-        // 创建模拟的token
-        const token = 'mock_jwt_token_' + Date.now();
-        
-        // 保存到localStorage
-        if (rememberMe) {
-          localStorage.setItem('user', JSON.stringify(userData));
-          localStorage.setItem('token', token);
-        } else {
-          sessionStorage.setItem('user', JSON.stringify(userData));
-          sessionStorage.setItem('token', token);
-        }
-        
-        // 如果存在登录函数，调用它
-        if (typeof login === 'function') {
-          login(userData, token);
-        }
-        
-        // 登录成功，重定向到仪表盘
-        navigate('/dashboard');
+      // 从响应中提取用户数据和token
+      const { user, token } = response.data;
+      
+      // 保存到localStorage或sessionStorage
+      if (rememberMe) {
+        localStorage.setItem('user', JSON.stringify(user));
+        localStorage.setItem('token', token);
       } else {
-        setLoginError('用户名或密码错误');
+        sessionStorage.setItem('user', JSON.stringify(user));
+        sessionStorage.setItem('token', token);
       }
+      
+      // 如果存在登录函数，调用它
+      if (typeof login === 'function') {
+        login(user, token);
+      }
+      
+      // 登录成功，重定向到仪表盘
+      navigate('/dashboard');
     } catch (error) {
       console.error('登录错误:', error);
-      setLoginError('登录失败，请稍后重试');
+      if (error.response && error.response.data && error.response.data.error) {
+        setLoginError(error.response.data.error);
+      } else {
+        setLoginError('登录失败，请稍后重试');
+      }
     } finally {
       setLoading(false);
     }
