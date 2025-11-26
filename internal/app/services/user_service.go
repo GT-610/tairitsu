@@ -6,9 +6,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/tairitsu/tairitsu/internal/app/database"
-	"github.com/tairitsu/tairitsu/internal/app/logger"
-	"github.com/tairitsu/tairitsu/internal/app/models"
+	"github.com/GT-610/tairitsu/internal/app/database"
+	"github.com/GT-610/tairitsu/internal/app/logger"
+	"github.com/GT-610/tairitsu/internal/app/models"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
 )

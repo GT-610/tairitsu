@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/tairitsu/tairitsu/internal/app/models"
+	"github.com/GT-610/tairitsu/internal/app/models"
 	_ "github.com/mattn/go-sqlite3"
 )
 

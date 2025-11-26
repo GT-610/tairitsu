@@ -5,10 +5,10 @@ import (
 	"os"
 
 	"github.com/gin-gonic/gin"
-	"github.com/tairitsu/tairitsu/internal/app/config"
-	"github.com/tairitsu/tairitsu/internal/app/database"
-	"github.com/tairitsu/tairitsu/internal/app/logger"
-	"github.com/tairitsu/tairitsu/internal/zerotier"
+	"github.com/GT-610/tairitsu/internal/app/config"
+	"github.com/GT-610/tairitsu/internal/app/database"
+	"github.com/GT-610/tairitsu/internal/app/logger"
+	"github.com/GT-610/tairitsu/internal/zerotier"
 	"go.uber.org/zap"
 )
 

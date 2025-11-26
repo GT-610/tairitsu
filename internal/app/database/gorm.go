@@ -3,7 +3,7 @@ package database
 import (
 	"fmt"
 
-	"github.com/tairitsu/tairitsu/internal/app/models"
+	"github.com/GT-610/tairitsu/internal/app/models"
 	"gorm.io/gorm"
 )
 

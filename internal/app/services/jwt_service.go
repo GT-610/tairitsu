@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v4"
-	"github.com/tairitsu/tairitsu/internal/app/models"
+	"github.com/GT-610/tairitsu/internal/app/models"
 )
 
 // JWTClaims JWT声明结构

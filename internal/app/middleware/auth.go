@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/tairitsu/tairitsu/internal/app/services"
+	"github.com/GT-610/tairitsu/internal/app/services"
 )
 
 // AuthMiddleware 认证中间件

@@ -1,4 +1,4 @@
-module github.com/tairitsu/tairitsu
+module github.com/GT-610/tairitsu
 
 go 1.20
 

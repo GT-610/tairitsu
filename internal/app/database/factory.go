@@ -9,8 +9,8 @@ import (
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 
-	"github.com/tairitsu/tairitsu/internal/app/config"
-	"github.com/tairitsu/tairitsu/internal/app/logger"
+	"github.com/GT-610/tairitsu/internal/app/config"
+	"github.com/GT-610/tairitsu/internal/app/logger"
 	"go.uber.org/zap"
 )
 

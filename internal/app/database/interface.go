@@ -1,7 +1,7 @@
 package database
 
 import (
-	"github.com/tairitsu/tairitsu/internal/app/models"
+	"github.com/GT-610/tairitsu/internal/app/models"
 )
 
 // DBInterface 定义数据库接口，支持多种数据库后端

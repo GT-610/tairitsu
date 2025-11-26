@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/tairitsu/tairitsu/internal/app/config"
+	"github.com/GT-610/tairitsu/internal/app/config"
 )
 
 // Client ZeroTier API客户端

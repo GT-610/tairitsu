@@ -3,8 +3,8 @@ package initializer
 import (
 	"fmt"
 
-	"github.com/tairitsu/tairitsu/internal/app/database"
-	"github.com/tairitsu/tairitsu/internal/app/logger"
+	"github.com/GT-610/tairitsu/internal/app/database"
+	"github.com/GT-610/tairitsu/internal/app/logger"
 	"go.uber.org/zap"
 )
 

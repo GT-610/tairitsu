@@ -7,7 +7,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/tairitsu/tairitsu/internal/app/crypto"
+	"github.com/GT-610/tairitsu/internal/app/crypto"
 	"github.com/spf13/viper"
 )
 

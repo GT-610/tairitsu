@@ -2,11 +2,11 @@ package routes
 
 import (
 	"github.com/gin-gonic/gin"
-	"github.com/tairitsu/tairitsu/internal/app/database"
-	"github.com/tairitsu/tairitsu/internal/app/handlers"
-	"github.com/tairitsu/tairitsu/internal/app/middleware"
-	"github.com/tairitsu/tairitsu/internal/app/services"
-	"github.com/tairitsu/tairitsu/internal/zerotier"
+	"github.com/GT-610/tairitsu/internal/app/database"
+	"github.com/GT-610/tairitsu/internal/app/handlers"
+	"github.com/GT-610/tairitsu/internal/app/middleware"
+	"github.com/GT-610/tairitsu/internal/app/services"
+	"github.com/GT-610/tairitsu/internal/zerotier"
 )
 
 // SetupRoutes configures application routes
