@@ -42,7 +42,7 @@ function Dashboard() {
   }, [])
 
   return (
-    <Box sx={{ p: 3 }}>
+    <Box>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Typography variant="h4" component="h1">
           仪表盘
@@ -148,9 +148,9 @@ function Dashboard() {
               最近连接的设备
             </Typography>
             <TableContainer component={Paper}>
-              <Table sx={{ minWidth: 650 }}>
+              <Table sx={{ minWidth: 650 }} aria-label="recent devices table">
                 <TableHead>
-                  <TableRow sx={{ backgroundColor: '#f5f5f5' }}>
+                  <TableRow>
                     <TableCell>设备名称</TableCell>
                     <TableCell>设备地址</TableCell>
                     <TableCell>连接状态</TableCell>
@@ -159,8 +159,13 @@ function Dashboard() {
                 </TableHead>
                 <TableBody>
                   {recentDevices.map((device) => (
-                    <TableRow key={device.id}>
-                      <TableCell>{device.name}</TableCell>
+                    <TableRow
+                      key={device.id}
+                      sx={{ '&:last-child td, &:last-child th': { border: 0 } }}
+                    >
+                      <TableCell component="th" scope="row">
+                        {device.name}
+                      </TableCell>
                       <TableCell>{device.address}</TableCell>
                       <TableCell>
                         <Chip 
@@ -183,9 +188,9 @@ function Dashboard() {
               网络概览
             </Typography>
             <TableContainer component={Paper}>
-              <Table sx={{ minWidth: 650 }}>
+              <Table sx={{ minWidth: 650 }} aria-label="networks overview table">
                 <TableHead>
-                  <TableRow sx={{ backgroundColor: '#f5f5f5' }}>
+                  <TableRow>
                     <TableCell>网络名称</TableCell>
                     <TableCell>网络ID</TableCell>
                     <TableCell>在线设备数</TableCell>
@@ -194,8 +199,13 @@ function Dashboard() {
                 </TableHead>
                 <TableBody>
                   {networks.length > 0 ? networks.map((network, index) => (
-                    <TableRow key={index}>
-                      <TableCell>{network.name || '未命名网络'}</TableCell>
+                    <TableRow
+                      key={network.id || index}
+                      sx={{ '&:last-child td, &:last-child th': { border: 0 } }}
+                    >
+                      <TableCell component="th" scope="row">
+                        {network.name || '未命名网络'}
+                      </TableCell>
                       <TableCell>{network.id || '未知ID'}</TableCell>
                       <TableCell>{network.peerCount || 0}</TableCell>
                       <TableCell>详情</TableCell>

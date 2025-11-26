@@ -17,9 +17,7 @@ function Layout({ user }) {
 
   return (
     <ResponsiveDrawer title="Tairitsu" user={user} onLogout={handleLogout}>
-      <Box component="main" sx={{ flexGrow: 1, p: 3 }}>
-        <Outlet />
-      </Box>
+      <Outlet />
     </ResponsiveDrawer>
   )
 }
