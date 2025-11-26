@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { 
   Box, 
   Typography, 
@@ -10,37 +10,47 @@ import {
   Alert,
   CircularProgress,
   Container,
-  Grid,
-  Link as MuiLink
-} from '@mui/material';
+  Grid} from '@mui/material';
 import { LockOutlined } from '@mui/icons-material';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../services/auth.jsx';
 import { authAPI } from '../services/api.js';
 
+/**
+ * Login Component
+ * Renders login form with username, password fields and login functionality
+ */
 function Login() {
+  // Form state for username and password
   const [formData, setFormData] = useState({
     username: '',
     password: ''
   });
+  // Validation errors state
   const [errors, setErrors] = useState({});
+  // Loading state for submit button
   const [loading, setLoading] = useState(false);
+  // Global login error message state
   const [loginError, setLoginError] = useState('');
+  // Remember me checkbox state
   const [rememberMe, setRememberMe] = useState(false);
+  
+  // Navigation hook for redirect after login
   const navigate = useNavigate();
+  // Auth service hook for login functionality
   const { login } = useAuth() || {};
 
-  // 处理输入变化
+  // Handle input change
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
-    // 清除对应字段的错误
+    // Clear error for the corresponding field
     if (errors[name]) {
       setErrors(prev => ({ ...prev, [name]: '' }));
     }
   };
 
-  // 表单验证
+  // Form validation
   const validateForm = () => {
     const newErrors = {};
     
@@ -56,7 +66,7 @@ function Login() {
     return Object.keys(newErrors).length === 0;
   };
 
-  // 处理登录提交
+  // Handle login submission
   const handleSubmit = async (e) => {
     e.preventDefault();
     
@@ -68,16 +78,16 @@ function Login() {
     setLoginError('');
     
     try {
-      // 调用后端登录API
+      // Call backend login API
       const response = await authAPI.login({
         username: formData.username,
         password: formData.password
       });
       
-      // 从响应中提取用户数据和token
+      // Extract user data and token from response
       const { user, token } = response.data;
       
-      // 保存到localStorage或sessionStorage
+      // Save to localStorage or sessionStorage
       if (rememberMe) {
         localStorage.setItem('user', JSON.stringify(user));
         localStorage.setItem('token', token);
@@ -86,12 +96,12 @@ function Login() {
         sessionStorage.setItem('token', token);
       }
       
-      // 如果存在登录函数，调用它
+      // Call login function if it exists
       if (typeof login === 'function') {
         login(user, token);
       }
       
-      // 登录成功，重定向到仪表盘
+      // Login successful, redirect to dashboard
       navigate('/dashboard');
     } catch (error) {
       console.error('登录错误:', error);
@@ -107,6 +117,7 @@ function Login() {
     }
   };
 
+  // Paper component styling for login form container
   const paperStyle = {
     padding: 20,
     height: 'auto',
@@ -114,6 +125,7 @@ function Login() {
     margin: '20px auto'
   };
 
+  // Styling for the login lock icon avatar
   const avatarStyle = {
     backgroundColor: '#1976d2',
     width: 56,
@@ -125,6 +137,7 @@ function Login() {
     fontSize: 24
   };
 
+  // Render the login form UI
   return (
     <Container component="main" maxWidth="xs">
       <Box sx={{ 
@@ -248,10 +261,10 @@ function Login() {
         </Paper>
         
         <Typography variant="body2" color="text.secondary" align="center" sx={{ mt: 4 }}>
-          © {new Date().getFullYear()} Tairitsu
-        </Typography>
-      </Box>
-    </Container>
+            © {new Date().getFullYear()} Tairitsu
+          </Typography>
+        </Box>
+      </Container>
   );
 }
 
