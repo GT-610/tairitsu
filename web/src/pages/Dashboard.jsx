@@ -50,7 +50,7 @@ function Dashboard() {
       ) : (
         <>
           <Grid container spacing={3} sx={{ mb: 3 }}>
-            <Grid item xs={12} md={4}>
+            <Grid size={{ xs: 12, md: 4 }}>
               <Card sx={{ backgroundColor: '#2c3e50' }}>
                 <CardContent>
                   <Typography variant="h6" color="text.secondary" gutterBottom>
@@ -62,7 +62,7 @@ function Dashboard() {
                 </CardContent>
               </Card>
             </Grid>
-            <Grid item xs={12} md={4}>
+            <Grid size={{ xs: 12, md: 4 }}>
               <Card sx={{ backgroundColor: '#2c3e50' }}>
                 <CardContent>
                   <Typography variant="h6" color="text.secondary" gutterBottom>
@@ -76,7 +76,7 @@ function Dashboard() {
                 </CardContent>
               </Card>
             </Grid>
-            <Grid item xs={12} md={4}>
+            <Grid size={{ xs: 12, md: 4 }}>
               <Card sx={{ backgroundColor: '#2c3e50' }}>
                 <CardContent>
                   <Typography variant="h6" color="text.secondary" gutterBottom>
