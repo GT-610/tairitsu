@@ -5,44 +5,45 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/GT-610/tairitsu/internal/app/database"
 	"github.com/GT-610/tairitsu/internal/app/logger"
 	"github.com/GT-610/tairitsu/internal/app/models"
+	"github.com/google/uuid"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
 )
 
-// UserService 用户服务
+// UserService handles user-related operations and business logic
 type UserService struct {
-	db    database.DBInterface // 数据库接口
-	mutex sync.RWMutex         // 读写锁，保护并发访问
+	db    database.DBInterface // Database interface for user data operations
+	mutex sync.RWMutex         // Read-write mutex to protect concurrent access
 }
 
-// NewUserServiceWithDB 创建带数据库的用户服务实例
+// NewUserServiceWithDB creates a new UserService instance with database connection
 func NewUserServiceWithDB(db database.DBInterface) *UserService {
 	return &UserService{
 		db: db,
 	}
 }
 
-// NewUserServiceWithoutDB 创建不使用数据库的用户服务实例
+// NewUserServiceWithoutDB creates a new UserService instance without database connection
+// This is typically used for testing or in-memory operations
 func NewUserServiceWithoutDB() *UserService {
 	return &UserService{
 		db: nil,
 	}
 }
 
-// NewUserService 创建用户服务实例（使用默认的SQLite数据库）
+// NewUserService creates a new UserService instance using the default SQLite database
 func NewUserService() *UserService {
-	// 创建默认的SQLite数据库实现
+	// Create default SQLite database implementation
 	db, err := database.NewDatabase(database.Config{
 		Type: database.SQLite,
 	})
 	if err != nil {
 		panic("无法创建默认数据库: " + err.Error())
 	}
-	
+
 	return &UserService{
 		db: db,
 	}
@@ -55,9 +56,9 @@ func (s *UserService) Register(req *models.RegisterRequest) (*models.User, error
 		logger.Error("服务层：注册失败，数据库未初始化")
 		return nil, errors.New("系统尚未配置数据库，请先完成初始设置")
 	}
-	
+
 	logger.Info("服务层：开始用户注册", zap.String("username", req.Username), zap.String("email", req.Email))
-	
+
 	// 检查用户名是否已存在
 	existingUser, err := s.db.GetUserByUsername(req.Username)
 	if err != nil {
@@ -103,7 +104,7 @@ func (s *UserService) Register(req *models.RegisterRequest) (*models.User, error
 		logger.Error("服务层：注册失败，保存用户时出错", zap.String("username", req.Username), zap.Error(err))
 		return nil, err
 	}
-	
+
 	logger.Info("服务层：用户注册成功", zap.String("user_id", user.ID), zap.String("username", user.Username))
 
 	return user, nil
@@ -116,9 +117,9 @@ func (s *UserService) Login(req *models.LoginRequest) (*models.User, error) {
 		logger.Error("服务层：登录失败，数据库未初始化")
 		return nil, errors.New("系统尚未配置数据库，请先完成初始设置")
 	}
-	
+
 	logger.Info("服务层：开始用户登录", zap.String("username", req.Username))
-	
+
 	// 根据用户名查找用户
 	user, err := s.db.GetUserByUsername(req.Username)
 	if err != nil {
@@ -135,7 +136,7 @@ func (s *UserService) Login(req *models.LoginRequest) (*models.User, error) {
 		logger.Error("服务层：登录失败，密码错误", zap.String("user_id", user.ID))
 		return nil, errors.New("用户名或密码错误")
 	}
-	
+
 	logger.Info("服务层：用户登录成功", zap.String("user_id", user.ID), zap.String("username", user.Username))
 
 	return user, nil
@@ -148,38 +149,38 @@ func (s *UserService) GetUserByID(id string) (*models.User, error) {
 		logger.Error("服务层：获取用户失败，数据库未初始化")
 		return nil, errors.New("系统尚未配置数据库，请先完成初始设置")
 	}
-	
+
 	logger.Info("服务层：开始根据ID获取用户", zap.String("user_id", id))
-	
+
 	user, err := s.db.GetUserByID(id)
 	if err != nil {
 		logger.Error("服务层：根据ID获取用户失败", zap.String("user_id", id), zap.Error(err))
 		return nil, err
 	}
-	
+
 	if user == nil {
 		logger.Error("服务层：用户不存在", zap.String("user_id", id))
 		return nil, errors.New("用户不存在")
 	}
-	
+
 	logger.Info("服务层：成功根据ID获取用户", zap.String("user_id", id), zap.String("username", user.Username))
 
 	return user, nil
-}// GetAllUsers 获取所有用户
+} // GetAllUsers 获取所有用户
 func (s *UserService) GetAllUsers() []*models.User {
 	// 检查数据库是否已初始化
 	if s.db == nil {
 		logger.Warn("服务层：数据库未初始化，返回空用户列表")
 		return []*models.User{}
 	}
-	
+
 	logger.Info("服务层：获取所有用户")
-	
+
 	users, err := s.db.GetAllUsers()
 	if err != nil {
 		logger.Error("服务层：获取所有用户失败", zap.Error(err))
 		return []*models.User{}
 	}
-	
+
 	return users
 }

@@ -21,19 +21,19 @@ function AppContent() {
   const [loading, setLoading] = useState(true);
   const location = useLocation();
 
-  // 监听API错误并在401时处理登出
+  // Listen for API errors and handle logout on 401 unauthorized responses
   useEffect(() => {
     const handleApiError = (error) => {
-      // 检查是否是401未授权错误
+      // Check if the error is a 401 unauthorized error
       if (error.response && error.response.status === 401) {
-        // 清除认证信息
+        // Clear authentication information
         localStorage.removeItem('token');
         localStorage.removeItem('user');
         sessionStorage.removeItem('token');
         sessionStorage.removeItem('user');
         delete api.defaults.headers.common['Authorization'];
         
-        // 重定向到登录页面（使用React Router而非window.location）
+        // Redirect to login page (using React Router instead of window.location)
         if (location.pathname !== '/login') {
           navigate('/login');
         }

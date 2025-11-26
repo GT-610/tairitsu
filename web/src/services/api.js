@@ -12,7 +12,7 @@ const api = axios.create({
 // Request interceptor
 api.interceptors.request.use(
   config => {
-    // 优先从localStorage获取令牌，如果不存在则从sessionStorage获取
+    // Prioritize getting token from localStorage, if not present then from sessionStorage
     const token = localStorage.getItem('token') || sessionStorage.getItem('token')
     if (token) {
       config.headers['Authorization'] = `Bearer ${token}`

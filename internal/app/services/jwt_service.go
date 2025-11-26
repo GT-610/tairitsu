@@ -8,31 +8,31 @@ import (
 	"github.com/GT-610/tairitsu/internal/app/models"
 )
 
-// JWTClaims JWT声明结构
+// JWTClaims defines the structure of JWT claims used for authentication
 type JWTClaims struct {
-	UserID   string `json:"user_id"`
-	Username string `json:"username"`
-	Role     string `json:"role"`
-	jwt.RegisteredClaims
+	UserID   string `json:"user_id"`   // Unique identifier for the user
+	Username string `json:"username"` // Username of the authenticated user
+	Role     string `json:"role"`     // User role for authorization purposes
+	jwt.RegisteredClaims               // Standard JWT registered claims
 }
 
-// JWTService JWT服务
+// JWTService handles JWT token generation, validation, and parsing
 type JWTService struct {
-	secretKey     string
-	accessExpiry  time.Duration
+	secretKey     string        // Secret key used for signing tokens
+	accessExpiry  time.Duration // Default expiration time for access tokens
 }
 
-// NewJWTService 创建JWT服务实例
+// NewJWTService creates a new JWT service instance with the provided secret key
 func NewJWTService(secretKey string) *JWTService {
 	return &JWTService{
 		secretKey:     secretKey,
-		accessExpiry:  time.Hour * 24, // 24小时过期
+		accessExpiry:  time.Hour * 24, // 24 hours expiration time
 	}
 }
 
-// GenerateToken 生成JWT令牌
+// GenerateToken creates a new JWT token for the given user
 func (s *JWTService) GenerateToken(user *models.User) (string, error) {
-	// 创建声明
+	// Create claims
 	claims := JWTClaims{
 		UserID:   user.ID,
 		Username: user.Username,
