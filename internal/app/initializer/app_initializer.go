@@ -71,7 +71,6 @@ func (ai *AppInitializer) Initialize() (*AppContext, error) {
 // initializeLogger 初始化日志系统
 func (ai *AppInitializer) initializeLogger() error {
 	logger.InitLogger("info")
-	logger.Info("日志系统初始化完成")
 	return nil
 }
 
@@ -90,7 +89,6 @@ func (ai *AppInitializer) loadConfiguration() error {
 		gin.SetMode(gin.ReleaseMode)
 	}
 
-	logger.Info("配置加载完成")
 	return nil
 }
 
@@ -118,7 +116,6 @@ func (ai *AppInitializer) initializeDatabase() error {
 	}
 
 	ai.context.Database = db
-	logger.Info("数据库初始化完成", zap.String("type", string(dbConfig.Type)))
 	return nil
 }
 
@@ -129,8 +126,6 @@ func (ai *AppInitializer) initializeZeroTierClient() error {
 		logger.Info("系统未初始化，跳过ZeroTier客户端自动初始化")
 		return nil
 	}
-
-	logger.Info("系统已初始化，开始初始化ZeroTier客户端")
 
 	// 动态创建ZeroTier客户端
 	ztClient, err := zerotier.NewClient()
@@ -145,7 +140,6 @@ func (ai *AppInitializer) initializeZeroTierClient() error {
 	}
 
 	ai.context.ZTClient = ztClient
-	logger.Info("ZeroTier客户端初始化完成")
 	return nil
 }
 
@@ -155,7 +149,6 @@ func (ai *AppInitializer) initializeHTTPServer() error {
 	router := gin.New()
 	ai.context.Router = router
 
-	logger.Info("HTTP服务器初始化完成")
 	return nil
 }
 

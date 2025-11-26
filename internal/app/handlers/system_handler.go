@@ -39,7 +39,7 @@ func (h *SystemHandler) GetSystemStatus(c *gin.Context) {
 	if sysConfig != nil {
 		// Check initialized field from config.json first
 		initialized = sysConfig.Initialized
-		
+
 		// If not initialized, return uninitialized status directly
 		if !initialized {
 			c.JSON(http.StatusOK, map[string]interface{}{
@@ -181,12 +181,11 @@ func (h *SystemHandler) TestZeroTierConnection(c *gin.Context) {
 
 // InitZeroTierClient initializes the ZeroTier client for the application
 func (h *SystemHandler) InitZeroTierClient(c *gin.Context) {
-	logger.Info("[系统初始化] 开始初始化ZeroTier客户端")
 
 	// Dynamically create ZeroTier client
 	ztClient, err := zerotier.NewClient()
 	if err != nil {
-		logger.Error("[ZeroTier] 创建客户端失败", zap.Error(err))
+		logger.Error("创建ZeroTier客户端失败", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建ZeroTier客户端失败: " + err.Error()})
 		return
 	}
@@ -195,15 +194,14 @@ func (h *SystemHandler) InitZeroTierClient(c *gin.Context) {
 	h.networkService.SetZTClient(ztClient)
 
 	// 验证客户端是否正常工作
-	_, err = h.networkService.GetStatus()
+	status, err := h.networkService.GetStatus()
 	if err != nil {
-		logger.Error("[ZeroTier] 客户端验证失败", zap.Error(err))
+		logger.Error("ZeroTier客户端验证失败", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "ZeroTier客户端初始化后验证失败: " + err.Error()})
 		return
 	}
 
-	logger.Info("[ZeroTier] 客户端初始化并验证成功")
-	c.JSON(http.StatusOK, gin.H{"message": "ZeroTier客户端初始化成功"})
+	c.JSON(http.StatusOK, gin.H{"message": "ZeroTier客户端初始化成功", "status": status})
 }
 
 // SaveZeroTierConfig saves ZeroTier configuration and initializes connection
@@ -268,7 +266,7 @@ func (h *SystemHandler) InitializeAdminCreation(c *gin.Context) {
 	if resetDone == "true" {
 		logger.Info("数据库重置已在之前执行，跳过重置操作")
 		c.JSON(http.StatusOK, gin.H{
-			"message": "管理员账户创建步骤已初始化",
+			"message":   "管理员账户创建步骤已初始化",
 			"resetDone": true,
 		})
 		return
@@ -299,8 +297,8 @@ func (h *SystemHandler) InitializeAdminCreation(c *gin.Context) {
 	logger.Info("设置重置操作完成标志")
 
 	c.JSON(http.StatusOK, gin.H{
-		"message": "管理员账户创建步骤初始化成功",
-		"resetDone": true,
+		"message":      "管理员账户创建步骤初始化成功",
+		"resetDone":    true,
 		"databaseType": string(dbConfig.Type),
 	})
 }
@@ -331,12 +329,10 @@ func (h *SystemHandler) SetInitialized(c *gin.Context) {
 
 // ReloadRoutes handles API request to reload application routes
 func (h *SystemHandler) ReloadRoutes(c *gin.Context) {
-	logger.Info("收到重新加载路由的API请求")
 
 	// Call internal reload function
 	if h.reloadRoutesFunc != nil {
 		h.reloadRoutesFunc()
-		logger.Info("路由重新加载完成")
 		c.JSON(http.StatusOK, gin.H{"message": "路由重新加载成功"})
 	} else {
 		logger.Warn("重新加载路由函数未定义")

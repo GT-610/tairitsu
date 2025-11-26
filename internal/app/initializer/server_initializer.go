@@ -15,12 +15,12 @@ import (
 
 // ServerInitializer 服务器初始化器
 type ServerInitializer struct {
-	router       *gin.Engine
-	jwtSecret    string
-	db           database.DBInterface
-	ztClient     *zerotier.Client
-	reloadFunc   func()
-	routerMutex  sync.RWMutex
+	router      *gin.Engine
+	jwtSecret   string
+	db          database.DBInterface
+	ztClient    *zerotier.Client
+	reloadFunc  func()
+	routerMutex sync.RWMutex
 }
 
 // NewServerInitializer 创建新的服务器初始化器
@@ -54,7 +54,6 @@ func (si *ServerInitializer) Initialize(db database.DBInterface, ztClient *zerot
 func (si *ServerInitializer) setupRoutes() error {
 	// 使用路由重新加载函数注册路由
 	routes.SetupRoutesWithReload(si.router, si.ztClient, si.jwtSecret, si.db, si.reloadFunc)
-	logger.Info("路由注册完成")
 	return nil
 }
 
@@ -67,9 +66,6 @@ func (si *ServerInitializer) ReloadRoutes() {
 
 	// 清除现有路由，创建新的路由器实例
 	si.router = gin.New()
-	logger.Info("已创建新的路由器实例")
-
-	logger.Info("准备重新注册路由")
 
 	// 重新注册路由
 	if err := si.setupRoutes(); err != nil {
