@@ -213,7 +213,7 @@ function Login() {
             </Button>
             
             <Grid container spacing={2}>
-              <Grid item xs={6}>
+              <Grid size={6}>
                 <Button 
                   component={Link} 
                   to="/forgot-password" 
@@ -228,7 +228,7 @@ function Login() {
                   忘记密码?
                 </Button>
               </Grid>
-              <Grid item xs={6}>
+              <Grid size={6}>
                 <Button 
                   component={Link} 
                   to="/register" 
@@ -248,7 +248,7 @@ function Login() {
         </Paper>
         
         <Typography variant="body2" color="text.secondary" align="center" sx={{ mt: 4 }}>
-          © {new Date().getFullYear()} Tairitsu P2P 网络管理系统
+          © {new Date().getFullYear()} Tairitsu
         </Typography>
       </Box>
     </Container>

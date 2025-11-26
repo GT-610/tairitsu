@@ -1,4 +1,5 @@
-import { createContext, useContext, useState } from 'react';
+import { createContext, useContext, useState, useEffect } from 'react';
+import api from './api.js';
 
 // 创建Auth上下文
 const AuthContext = createContext(null);
@@ -9,10 +10,35 @@ export const AuthProvider = ({ children }) => {
   const [token, setToken] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
 
+  // 在应用启动时从存储中恢复认证状态
+  useEffect(() => {
+    const storedUser = localStorage.getItem('user') || sessionStorage.getItem('user');
+    const storedToken = localStorage.getItem('token') || sessionStorage.getItem('token');
+    
+    if (storedUser && storedToken) {
+      try {
+        const userData = JSON.parse(storedUser);
+        setUser(userData);
+        setToken(storedToken);
+        // 更新API实例的默认请求头
+        api.defaults.headers.common['Authorization'] = `Bearer ${storedToken}`;
+      } catch (error) {
+        console.error('解析存储的用户数据失败:', error);
+        // 如果解析失败，清除存储的数据
+        localStorage.removeItem('user');
+        localStorage.removeItem('token');
+        sessionStorage.removeItem('user');
+        sessionStorage.removeItem('token');
+      }
+    }
+  }, []);
+
   // 登录函数
   const login = (userData, authToken) => {
     setUser(userData);
     setToken(authToken);
+    // 更新API实例的默认请求头
+    api.defaults.headers.common['Authorization'] = `Bearer ${authToken}`;
     return { success: true, user: userData, token: authToken };
   };
 
