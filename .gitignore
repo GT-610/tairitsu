@@ -5,6 +5,7 @@ Thumbs.db
 # IDE和编辑器文件
 .vscode/
 .idea/
+.trae/
 *.suo
 *.ntvs*
 *.njsproj

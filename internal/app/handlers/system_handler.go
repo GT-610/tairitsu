@@ -1,15 +1,19 @@
 package handlers
 
 import (
+	"crypto/rand"
+	"encoding/base64"
+	mathrand "math/rand"
 	"net/http"
+	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/GT-610/tairitsu/internal/app/config"
 	"github.com/GT-610/tairitsu/internal/app/database"
 	"github.com/GT-610/tairitsu/internal/app/logger"
 	"github.com/GT-610/tairitsu/internal/app/models"
 	"github.com/GT-610/tairitsu/internal/app/services"
 	"github.com/GT-610/tairitsu/internal/zerotier"
+	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
 
@@ -317,6 +321,34 @@ func (h *SystemHandler) SetInitialized(c *gin.Context) {
 
 	logger.Info("设置系统初始化状态", zap.Bool("initialized", req.Initialized))
 
+	// Generate JWT and session secrets if not already set
+	if req.Initialized {
+		logger.Info("开始生成安全密钥")
+
+		// Generate random JWT secret if not already set
+		if config.AppConfig.Security.JWTSecret == "" {
+			// Generate 32-byte random secret
+			jwtSecret := generateRandomSecret(32)
+			config.AppConfig.Security.JWTSecret = jwtSecret
+			logger.Info("生成新的JWT密钥")
+		}
+
+		// Generate random session secret if not already set
+		if config.AppConfig.Security.SessionSecret == "" {
+			// Generate 32-byte random secret
+			sessionSecret := generateRandomSecret(32)
+			config.AppConfig.Security.SessionSecret = sessionSecret
+			logger.Info("生成新的会话密钥")
+		}
+
+		// Save updated configuration with new secrets
+		if err := config.SaveConfig(config.AppConfig); err != nil {
+			logger.Error("保存密钥配置失败", zap.Error(err))
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "生成安全密钥失败: " + err.Error()})
+			return
+		}
+	}
+
 	// Call config module to set initialization status
 	if err := config.SetInitialized(req.Initialized); err != nil {
 		logger.Error("设置初始化状态失败", zap.Error(err))
@@ -325,6 +357,26 @@ func (h *SystemHandler) SetInitialized(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "初始化状态更新成功"})
+}
+
+// generateRandomSecret generates a random secret string of specified length
+func generateRandomSecret(length int) string {
+	// Use crypto/rand to generate secure random bytes
+	// This is a simple implementation, in production you might want to use a more robust method
+	bytes := make([]byte, length)
+	if _, err := rand.Read(bytes); err != nil {
+		// Fallback to a less secure method if crypto/rand fails
+		logger.Warn("使用crypto/rand生成随机密钥失败，将使用math/rand作为备选方案", zap.Error(err))
+
+		// Use math/rand as fallback
+		r := mathrand.New(mathrand.NewSource(time.Now().UnixNano()))
+		for i := range bytes {
+			bytes[i] = byte(r.Intn(256))
+		}
+	}
+
+	// Encode to base64 for a safe string representation
+	return base64.URLEncoding.EncodeToString(bytes)
 }
 
 // ReloadRoutes handles API request to reload application routes

@@ -20,24 +20,24 @@ type Client struct {
 
 // Network 网络结构
 type Network struct {
-	ID          string      `json:"id"`
-	Name        string      `json:"name"`
-	Description string      `json:"description"`
-	Config      NetworkConfig `json:"config"`
-	Created     int64       `json:"creationTime"`
-	Modified    int64       `json:"lastModifiedTime"`
+	ID          string        `json:"id"`
+	Name        string        `json:"name" binding:"required"`
+	Description string        `json:"description"`
+	Config      NetworkConfig `json:"config" binding:"required"`
+	Created     int64         `json:"creationTime"`
+	Modified    int64         `json:"lastModifiedTime"`
 }
 
 // NetworkConfig 网络配置
 type NetworkConfig struct {
-	Private      bool             `json:"private"`
-	AllowPassivePortForwarding bool  `json:"allowPassivePortForwarding"`
-	IPAssignmentPools []IPAssignmentPool `json:"ipAssignmentPools"`
-	Routes            []Route            `json:"routes"`
-	Tags              []Tag              `json:"tags"`
-	Rules             []Rule             `json:"rules"`
-	V4AssignMode      AssignmentMode     `json:"v4AssignMode"`
-	V6AssignMode      AssignmentMode     `json:"v6AssignMode"`
+	Private                    bool               `json:"private"`
+	AllowPassivePortForwarding bool               `json:"allowPassivePortForwarding"`
+	IPAssignmentPools          []IPAssignmentPool `json:"ipAssignmentPools"`
+	Routes                     []Route            `json:"routes"`
+	Tags                       []Tag              `json:"tags"`
+	Rules                      []Rule             `json:"rules"`
+	V4AssignMode               AssignmentMode     `json:"v4AssignMode"`
+	V6AssignMode               AssignmentMode     `json:"v6AssignMode"`
 }
 
 // IPAssignmentPool IP分配池
@@ -54,21 +54,21 @@ type Route struct {
 
 // Tag 标签
 type Tag struct {
-	ID    int    `json:"id"`
-	Value int    `json:"value"`
+	ID    int `json:"id"`
+	Value int `json:"value"`
 }
 
 // Rule 规则
 type Rule struct {
-	Not     bool         `json:"not"`
-	Or      []Rule       `json:"or,omitempty"`
-	Type    string       `json:"type"`
-	Metric  int          `json:"metric"`
-	PortMin int          `json:"portMin,omitempty"`
-	PortMax int          `json:"portMax,omitempty"`
-	EthType int          `json:"etherType,omitempty"`
-	IPVersion int        `json:"ipVersion,omitempty"`
-	Action  string       `json:"action"`
+	Not       bool   `json:"not"`
+	Or        []Rule `json:"or,omitempty"`
+	Type      string `json:"type"`
+	Metric    int    `json:"metric"`
+	PortMin   int    `json:"portMin,omitempty"`
+	PortMax   int    `json:"portMax,omitempty"`
+	EthType   int    `json:"etherType,omitempty"`
+	IPVersion int    `json:"ipVersion,omitempty"`
+	Action    string `json:"action"`
 }
 
 // AssignmentMode 分配模式
@@ -78,16 +78,16 @@ type AssignmentMode struct {
 
 // Member 网络成员
 type Member struct {
-	ID           string   `json:"id"`
-	Address      string   `json:"address"`
-	Config       MemberConfig `json:"config"`
-	Identity     string   `json:"identity"`
-	Name         string   `json:"name"`
-	Description  string   `json:"description"`
-	ClientVersion string  `json:"clientVersion"`
-	Online       bool     `json:"online"`
-	LastSeen     int64    `json:"lastOnline"`
-	CreationTime int64    `json:"creationTime"`
+	ID            string       `json:"id"`
+	Address       string       `json:"address"`
+	Config        MemberConfig `json:"config"`
+	Identity      string       `json:"identity"`
+	Name          string       `json:"name"`
+	Description   string       `json:"description"`
+	ClientVersion string       `json:"clientVersion"`
+	Online        bool         `json:"online"`
+	LastSeen      int64        `json:"lastOnline"`
+	CreationTime  int64        `json:"creationTime"`
 }
 
 // MemberConfig 成员配置
@@ -119,7 +119,7 @@ func NewClient() (*Client, error) {
 
 	// 尝试从TokenPath加载令牌到配置中
 	err := config.LoadTokenFromPath(config.AppConfig.ZeroTier.TokenPath)
-	
+
 	// 获取令牌（可能是从文件加载的，也可能是已存在于配置中的）
 	token, err := config.GetZTToken()
 	if err != nil {
@@ -212,9 +212,18 @@ func (c *Client) GetNetworks() ([]Network, error) {
 		return nil, err
 	}
 
-	var networks []Network
-	if err := json.Unmarshal(respBody, &networks); err != nil {
+	// 先解析为map[string]Network，因为ZeroTier API返回的是对象格式
+	networkMap := make(map[string]Network)
+	if err := json.Unmarshal(respBody, &networkMap); err != nil {
 		return nil, fmt.Errorf("解析网络列表失败: %w", err)
+	}
+
+	// 转换为[]Network数组
+	var networks []Network
+	for id, network := range networkMap {
+		// 确保网络对象的ID字段正确设置
+		network.ID = id
+		networks = append(networks, network)
 	}
 
 	return networks, nil

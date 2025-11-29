@@ -1,12 +1,12 @@
 package routes
 
 import (
-	"github.com/gin-gonic/gin"
 	"github.com/GT-610/tairitsu/internal/app/database"
 	"github.com/GT-610/tairitsu/internal/app/handlers"
 	"github.com/GT-610/tairitsu/internal/app/middleware"
 	"github.com/GT-610/tairitsu/internal/app/services"
 	"github.com/GT-610/tairitsu/internal/zerotier"
+	"github.com/gin-gonic/gin"
 )
 
 // SetupRoutes configures application routes
@@ -19,6 +19,7 @@ func SetupRoutesWithReload(router *gin.Engine, ztClient *zerotier.Client, jwtSec
 	// Apply middleware
 	router.Use(middleware.Logger())
 	router.Use(middleware.CORS())
+	router.Use(middleware.RateLimit())
 	router.Use(middleware.ErrorHandler())
 
 	// Create service instances

@@ -1,6 +1,5 @@
-import React, { useState, useEffect } from 'react'
-import { Box, Typography, Button, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, CircularProgress, Alert, Modal, TextField, IconButton }
-from '@mui/material'
+import { useState, useEffect } from 'react'
+import { Box, Typography, Button, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, CircularProgress, Alert, Modal, TextField, IconButton, Switch, FormControlLabel, Divider } from '@mui/material'
 import { Link, useNavigate } from 'react-router-dom'
 import { Add, Edit, Delete, Close } from '@mui/icons-material'
 import { networkAPI } from '../services/api.js'
@@ -13,7 +12,15 @@ function Networks() {
   const [editingNetwork, setEditingNetwork] = useState(null)
   const [formData, setFormData] = useState({
     name: '',
-    description: ''
+    description: '',
+    config: {
+      private: true,
+      allowPassivePortForwarding: true,
+      ipAssignmentPools: [{ ipRangeStart: '192.168.192.1', ipRangeEnd: '192.168.192.254' }],
+      routes: [{ target: '192.168.192.0/24' }],
+      v4AssignMode: { zt: true },
+      v6AssignMode: { zt: false }
+    }
   })
   const navigate = useNavigate()
 
@@ -39,12 +46,28 @@ function Networks() {
     if (network) {
       setFormData({
         name: network.name || '',
-        description: network.description || ''
+        description: network.description || '',
+        config: {
+          private: network.config?.private ?? true,
+          allowPassivePortForwarding: network.config?.allowPassivePortForwarding ?? true,
+          ipAssignmentPools: network.config?.ipAssignmentPools ?? [{ ipRangeStart: '192.168.192.1', ipRangeEnd: '192.168.192.254' }],
+          routes: network.config?.routes ?? [{ target: '192.168.192.0/24' }],
+          v4AssignMode: network.config?.v4AssignMode ?? { zt: true },
+          v6AssignMode: network.config?.v6AssignMode ?? { zt: false }
+        }
       })
     } else {
       setFormData({
         name: '',
-        description: ''
+        description: '',
+        config: {
+          private: true,
+          allowPassivePortForwarding: true,
+          ipAssignmentPools: [{ ipRangeStart: '192.168.192.1', ipRangeEnd: '192.168.192.254' }],
+          routes: [{ target: '192.168.192.0/24' }],
+          v4AssignMode: { zt: true },
+          v6AssignMode: { zt: false }
+        }
       })
     }
     setOpenModal(true)
@@ -53,14 +76,37 @@ function Networks() {
   const handleCloseModal = () => {
     setOpenModal(false)
     setEditingNetwork(null)
-    setFormData({ name: '', description: '' })
+    setFormData({
+      name: '',
+      description: '',
+      config: {
+        private: true,
+        allowPassivePortForwarding: true,
+        ipAssignmentPools: [{ ipRangeStart: '192.168.192.1', ipRangeEnd: '192.168.192.254' }],
+        routes: [{ target: '192.168.192.0/24' }],
+        v4AssignMode: { zt: true },
+        v6AssignMode: { zt: false }
+      }
+    })
   }
 
   const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value
-    })
+    const { name, value, type, checked } = e.target
+    if (name.startsWith('config.')) {
+      const configField = name.split('.')[1]
+      setFormData({
+        ...formData,
+        config: {
+          ...formData.config,
+          [configField]: type === 'checkbox' ? checked : value
+        }
+      })
+    } else {
+      setFormData({
+        ...formData,
+        [name]: value
+      })
+    }
   }
 
   const handleSubmit = async (e) => {
@@ -188,11 +234,13 @@ function Networks() {
           top: '50%',
           left: '50%',
           transform: 'translate(-50%, -50%)',
-          width: { xs: '90%', sm: 500 },
+          width: { xs: '90%', sm: 600 },
           bgcolor: '#1e1e1e',
           borderRadius: 2,
           boxShadow: 24,
-          p: 4
+          p: 4,
+          maxHeight: '80vh',
+          overflow: 'auto'
         }}
         >
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
@@ -223,6 +271,76 @@ function Networks() {
               value={formData.description}
               onChange={handleChange}
             />
+            
+            <Divider sx={{ my: 3 }} />
+            <Typography variant="h6" gutterBottom>
+              网络配置
+            </Typography>
+            
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={formData.config.private}
+                  onChange={(e) => setFormData({
+                    ...formData,
+                    config: {
+                      ...formData.config,
+                      private: e.target.checked
+                    }
+                  })}
+                />
+              }
+              label="私有网络（需要授权）"
+            />
+            
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={formData.config.allowPassivePortForwarding}
+                  onChange={(e) => setFormData({
+                    ...formData,
+                    config: {
+                      ...formData.config,
+                      allowPassivePortForwarding: e.target.checked
+                    }
+                  })}
+                />
+              }
+              label="允许被动端口转发"
+            />
+            
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={formData.config.v4AssignMode.zt}
+                  onChange={(e) => setFormData({
+                    ...formData,
+                    config: {
+                      ...formData.config,
+                      v4AssignMode: { zt: e.target.checked }
+                    }
+                  })}
+                />
+              }
+              label="启用IPv4自动分配"
+            />
+            
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={formData.config.v6AssignMode.zt}
+                  onChange={(e) => setFormData({
+                    ...formData,
+                    config: {
+                      ...formData.config,
+                      v6AssignMode: { zt: e.target.checked }
+                    }
+                  })}
+                />
+              }
+              label="启用IPv6自动分配"
+            />
+            
             <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end', mt: 3 }}>
               <Button onClick={handleCloseModal}>
                 取消

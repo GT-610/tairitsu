@@ -52,11 +52,11 @@ type SecurityConfig struct {
 
 // Config 应用程序配置结构体
 type Config struct {
-	Initialized bool           `json:"initialized"`          // 初始化状态标识
-	Database    DatabaseConfig `json:"database"`             // 数据库配置
-	ZeroTier    ZeroTierConfig `json:"zerotier"`             // ZeroTier配置
-	Server      ServerConfig   `json:"server"`               // 服务器配置
-	Security    SecurityConfig `json:"security"`             // 安全配置
+	Initialized bool           `json:"initialized"` // 初始化状态标识
+	Database    DatabaseConfig `json:"database"`    // 数据库配置
+	ZeroTier    ZeroTierConfig `json:"zerotier"`    // ZeroTier配置
+	Server      ServerConfig   `json:"server"`      // 服务器配置
+	Security    SecurityConfig `json:"security"`    // 安全配置
 }
 
 // AppConfig 全局配置实例
@@ -138,8 +138,8 @@ func createDefaultConfig() *Config {
 			Host: "0.0.0.0",
 		},
 		Security: SecurityConfig{
-			JWTSecret:     "default_jwt_secret_key_change_in_production",
-			SessionSecret: "default_session_secret_change_in_production",
+			JWTSecret:     "", // 初始为空，强制用户在首次设置时生成
+			SessionSecret: "", // 初始为空，强制用户在首次设置时生成
 		},
 	}
 }
@@ -165,7 +165,7 @@ func loadEnvConfig(cfg *Config) {
 	if session := viper.GetString("SESSION_SECRET"); session != "" {
 		cfg.Security.SessionSecret = session
 	}
-	
+
 	// 读取ZT_TOKEN_PATH并尝试从文件中读取令牌
 	if tokenPath := viper.GetString("ZT_TOKEN_PATH"); tokenPath != "" {
 		cfg.ZeroTier.TokenPath = tokenPath
@@ -224,13 +224,13 @@ func SetZTConfig(url, tokenPath string) error {
 
 	AppConfig.ZeroTier.URL = url
 	AppConfig.ZeroTier.TokenPath = tokenPath
-	
+
 	// 尝试从新的tokenPath读取令牌
 	err := LoadTokenFromPath(tokenPath)
 	if err != nil {
 		return fmt.Errorf("读取令牌文件失败: %w", err)
 	}
-	
+
 	return SaveConfig(AppConfig)
 }
 

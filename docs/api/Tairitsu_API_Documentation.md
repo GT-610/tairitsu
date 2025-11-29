@@ -24,6 +24,9 @@ This document provides detailed information about the Tairitsu API, which is a w
 - All API responses are in JSON format
 - Authentication is required for most endpoints except system initialization endpoints
 - Error responses follow a consistent format
+- API rate limiting is applied to all endpoints to prevent abuse
+  - Default limit: 100 requests per IP address, with 10 requests refilled per second
+  - When the limit is exceeded, a 429 Too Many Requests response is returned
 
 ## Authentication
 
@@ -636,4 +639,5 @@ Most API endpoints require authentication using JWT (JSON Web Tokens). To authen
 | 401 | Unauthorized | Authentication required or failed |
 | 403 | Forbidden | Insufficient permissions |
 | 404 | Not Found | Resource not found |
+| 429 | Too Many Requests | API rate limit exceeded |
 | 500 | Internal Server Error | Server-side error |
