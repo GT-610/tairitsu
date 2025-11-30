@@ -26,7 +26,15 @@ func NewMemberHandler(networkService *services.NetworkService) *MemberHandler {
 func (h *MemberHandler) GetMembers(c *gin.Context) {
 	networkID := c.Param("networkId")
 
-	members, err := h.networkService.GetNetworkMembers(networkID)
+	// Get user ID from context
+	userID, exists := c.Get("user_id")
+	if !exists {
+		logger.Error("获取用户ID失败")
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "未授权访问"})
+		return
+	}
+
+	members, err := h.networkService.GetNetworkMembers(networkID, userID.(string))
 	if err != nil {
 		logger.Error("获取网络成员列表失败", zap.String("network_id", networkID), zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -41,7 +49,15 @@ func (h *MemberHandler) GetMember(c *gin.Context) {
 	networkID := c.Param("networkId")
 	memberID := c.Param("memberId")
 
-	member, err := h.networkService.GetNetworkMember(networkID, memberID)
+	// Get user ID from context
+	userID, exists := c.Get("user_id")
+	if !exists {
+		logger.Error("获取用户ID失败")
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "未授权访问"})
+		return
+	}
+
+	member, err := h.networkService.GetNetworkMember(networkID, memberID, userID.(string))
 	if err != nil {
 		logger.Error("获取网络成员失败", zap.String("network_id", networkID), zap.String("member_id", memberID), zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取成员失败: " + err.Error()})
@@ -69,7 +85,15 @@ func (h *MemberHandler) UpdateMember(c *gin.Context) {
 		return
 	}
 
-	member, err := h.networkService.UpdateNetworkMember(networkID, memberID, &req)
+	// Get user ID from context
+	userID, exists := c.Get("user_id")
+	if !exists {
+		logger.Error("获取用户ID失败")
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "未授权访问"})
+		return
+	}
+
+	member, err := h.networkService.UpdateNetworkMember(networkID, memberID, &req, userID.(string))
 	if err != nil {
 		logger.Error("更新网络成员失败", zap.String("network_id", networkID), zap.String("member_id", memberID), zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新成员失败: " + err.Error()})
@@ -84,7 +108,15 @@ func (h *MemberHandler) DeleteMember(c *gin.Context) {
 	networkID := c.Param("networkId")
 	memberID := c.Param("memberId")
 
-	err := h.networkService.RemoveNetworkMember(networkID, memberID)
+	// Get user ID from context
+	userID, exists := c.Get("user_id")
+	if !exists {
+		logger.Error("获取用户ID失败")
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "未授权访问"})
+		return
+	}
+
+	err := h.networkService.RemoveNetworkMember(networkID, memberID, userID.(string))
 	if err != nil {
 		logger.Error("删除网络成员失败", zap.String("network_id", networkID), zap.String("member_id", memberID), zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "删除成员失败: " + err.Error()})

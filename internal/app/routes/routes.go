@@ -23,7 +23,7 @@ func SetupRoutesWithReload(router *gin.Engine, ztClient *zerotier.Client, jwtSec
 	router.Use(middleware.ErrorHandler())
 
 	// Create service instances
-	networkService := services.NewNetworkService(ztClient)
+	networkService := services.NewNetworkService(ztClient, db)
 
 	// Create user service instance, may use nil database
 	var userService *services.UserService

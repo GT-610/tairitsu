@@ -18,6 +18,13 @@ type DBInterface interface {
 	UpdateUser(user *models.User) error
 	DeleteUser(id string) error
 	
+	// 网络相关操作
+	CreateNetwork(network *models.Network) error
+	GetNetworkByID(id string) (*models.Network, error)
+	GetNetworksByOwnerID(ownerID string) ([]*models.Network, error)
+	UpdateNetwork(network *models.Network) error
+	DeleteNetwork(id string) error
+	
 	// 检查是否已存在管理员用户
 	HasAdminUser() (bool, error)
 	

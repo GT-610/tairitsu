@@ -38,11 +38,19 @@ func (h *NetworkHandler) GetStatus(c *gin.Context) {
 	c.JSON(http.StatusOK, status)
 }
 
-// GetNetworks 获取所有网络
+// GetNetworks 获取当前用户的所有网络
 func (h *NetworkHandler) GetNetworks(c *gin.Context) {
-	logger.Info("开始获取所有网络列表")
+	logger.Info("开始获取当前用户的所有网络列表")
 	
-	networks, err := h.networkService.GetAllNetworks()
+	// Get user ID from context
+	userID, exists := c.Get("user_id")
+	if !exists {
+		logger.Error("获取用户ID失败")
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "未授权访问"})
+		return
+	}
+	
+	networks, err := h.networkService.GetAllNetworks(userID.(string))
 	if err != nil {
 		logger.Error("获取网络列表失败", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -59,7 +67,15 @@ func (h *NetworkHandler) GetNetwork(c *gin.Context) {
 	id := c.Param("id")
 	logger.Info("开始获取特定网络", zap.String("network_id", id))
 	
-	network, err := h.networkService.GetNetworkByID(id)
+	// Get user ID from context
+	userID, exists := c.Get("user_id")
+	if !exists {
+		logger.Error("获取用户ID失败")
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "未授权访问"})
+		return
+	}
+	
+	network, err := h.networkService.GetNetworkByID(id, userID.(string))
 	if err != nil {
 		logger.Error("获取网络失败", zap.String("network_id", id), zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -67,8 +83,8 @@ func (h *NetworkHandler) GetNetwork(c *gin.Context) {
 	}
 	
 	if network == nil {
-		logger.Warn("网络不存在", zap.String("network_id", id))
-		c.JSON(http.StatusNotFound, gin.H{"error": "网络不存在"})
+		logger.Warn("网络不存在或无权限访问", zap.String("network_id", id))
+		c.JSON(http.StatusNotFound, gin.H{"error": "网络不存在或无权限访问"})
 		return
 	}
 	
@@ -88,7 +104,15 @@ func (h *NetworkHandler) CreateNetwork(c *gin.Context) {
 	
 	logger.Info("开始创建新网络", zap.String("network_name", req.Name))
 
-	network, err := h.networkService.CreateNetwork(&req)
+	// Get user ID from context
+	userID, exists := c.Get("user_id")
+	if !exists {
+		logger.Error("获取用户ID失败")
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "未授权访问"})
+		return
+	}
+
+	network, err := h.networkService.CreateNetwork(&req, userID.(string))
 	if err != nil {
 		logger.Error("创建网络失败", zap.String("network_name", req.Name), zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -113,7 +137,15 @@ func (h *NetworkHandler) UpdateNetwork(c *gin.Context) {
 	
 	logger.Info("开始更新网络", zap.String("network_id", id))
 
-	network, err := h.networkService.UpdateNetwork(id, &req)
+	// Get user ID from context
+	userID, exists := c.Get("user_id")
+	if !exists {
+		logger.Error("获取用户ID失败")
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "未授权访问"})
+		return
+	}
+
+	network, err := h.networkService.UpdateNetwork(id, &req, userID.(string))
 	if err != nil {
 		logger.Error("更新网络失败", zap.String("network_id", id), zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -130,7 +162,15 @@ func (h *NetworkHandler) DeleteNetwork(c *gin.Context) {
 	id := c.Param("id")
 	logger.Info("开始删除网络", zap.String("network_id", id))
 	
-	err := h.networkService.DeleteNetwork(id)
+	// Get user ID from context
+	userID, exists := c.Get("user_id")
+	if !exists {
+		logger.Error("获取用户ID失败")
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "未授权访问"})
+		return
+	}
+	
+	err := h.networkService.DeleteNetwork(id, userID.(string))
 	if err != nil {
 		logger.Error("删除网络失败", zap.String("network_id", id), zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})

@@ -15,8 +15,8 @@ type GormDB struct {
 // Init 初始化数据库
 func (g *GormDB) Init() error {
 	// 自动迁移用户模型
-	if err := g.db.AutoMigrate(&models.User{}); err != nil {
-		return fmt.Errorf("自动迁移用户模型失败: %w", err)
+	if err := g.db.AutoMigrate(&models.User{}, &models.Network{}); err != nil {
+		return fmt.Errorf("自动迁移模型失败: %w", err)
 	}
 	return nil
 }
@@ -96,6 +96,47 @@ func (g *GormDB) HasAdminUser() (bool, error) {
 		return false, result.Error
 	}
 	return count > 0, nil
+}
+
+// CreateNetwork 创建网络
+func (g *GormDB) CreateNetwork(network *models.Network) error {
+	result := g.db.Create(network)
+	return result.Error
+}
+
+// GetNetworkByID 根据ID获取网络
+func (g *GormDB) GetNetworkByID(id string) (*models.Network, error) {
+	var network models.Network
+	result := g.db.First(&network, "id = ?", id)
+	if result.Error != nil {
+		if result.Error == gorm.ErrRecordNotFound {
+			return nil, nil
+		}
+		return nil, result.Error
+	}
+	return &network, nil
+}
+
+// GetNetworksByOwnerID 根据所有者ID获取网络列表
+func (g *GormDB) GetNetworksByOwnerID(ownerID string) ([]*models.Network, error) {
+	var networks []*models.Network
+	result := g.db.Where("owner_id = ?", ownerID).Find(&networks)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	return networks, nil
+}
+
+// UpdateNetwork 更新网络
+func (g *GormDB) UpdateNetwork(network *models.Network) error {
+	result := g.db.Save(network)
+	return result.Error
+}
+
+// DeleteNetwork 删除网络
+func (g *GormDB) DeleteNetwork(id string) error {
+	result := g.db.Delete(&models.Network{}, "id = ?", id)
+	return result.Error
 }
 
 // Close 关闭数据库连接
