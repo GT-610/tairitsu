@@ -207,23 +207,30 @@ func (c *Client) GetStatus() (*Status, error) {
 
 // GetNetworks 获取所有网络列表
 func (c *Client) GetNetworks() ([]Network, error) {
+	// 第一步：获取网络ID数组
 	respBody, err := c.doRequest("GET", "/controller/network", nil)
 	if err != nil {
 		return nil, err
 	}
 
-	// 先解析为map[string]Network，因为ZeroTier API返回的是对象格式
-	networkMap := make(map[string]Network)
-	if err := json.Unmarshal(respBody, &networkMap); err != nil {
-		return nil, fmt.Errorf("解析网络列表失败: %w", err)
+	// 解析网络ID数组
+	var networkIDs []string
+	if err := json.Unmarshal(respBody, &networkIDs); err != nil {
+		return nil, fmt.Errorf("解析网络ID列表失败: %w", err)
 	}
 
-	// 转换为[]Network数组
-	var networks []Network
-	for id, network := range networkMap {
-		// 确保网络对象的ID字段正确设置
-		network.ID = id
-		networks = append(networks, network)
+	// 第二步：遍历网络ID，获取每个网络的详细信息
+	// 关键修复：使用make([]Network, 0)初始化空切片，而不是var networks []Network
+	networks := make([]Network, 0)
+	for _, id := range networkIDs {
+		// 调用GetNetwork获取单个网络的详细信息
+		network, err := c.GetNetwork(id)
+		if err != nil {
+			return nil, fmt.Errorf("获取网络 %s 详情失败: %w", id, err)
+		}
+		if network != nil {
+			networks = append(networks, *network)
+		}
 	}
 
 	return networks, nil
