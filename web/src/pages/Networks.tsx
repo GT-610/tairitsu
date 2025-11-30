@@ -190,7 +190,7 @@ function Networks() {
                     </TableCell>
                     <TableCell>{network.name}</TableCell>
                     <TableCell>{network.description || '-'}</TableCell>
-                    <TableCell>{network.members.length || 0}</TableCell>
+                    <TableCell>{(network.members?.length || 0)}</TableCell>
                     <TableCell>
                       <Box sx={{ display: 'flex', gap: 1 }}>
                         <Button 

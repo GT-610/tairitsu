@@ -156,7 +156,7 @@ function NetworkDetail() {
                     成员数
                   </Typography>
                   <Typography variant="body1">
-                    {network.members.length || 0}
+                    {(network.members?.length || 0)}
                   </Typography>
                 </Box>
                 <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1 }}>
@@ -164,7 +164,7 @@ function NetworkDetail() {
                     已授权
                   </Typography>
                   <Typography variant="body1">
-                    {network.members.filter(member => member.authorized).length || 0}
+                    {(network.members?.filter(member => member.authorized).length || 0)}
                   </Typography>
                 </Box>
                 <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1 }}>
@@ -172,7 +172,7 @@ function NetworkDetail() {
                     在线成员
                   </Typography>
                   <Typography variant="body1">
-                    {network.members.filter(member => member.activeBridge).length || 0}
+                    {(network.members?.filter(member => member.activeBridge).length || 0)}
                   </Typography>
                 </Box>
               </Box>

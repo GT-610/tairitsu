@@ -230,7 +230,7 @@ function Dashboard() {
                         {network.name || '未命名网络'}
                       </TableCell>
                       <TableCell>{network.id || '未知ID'}</TableCell>
-                      <TableCell>{network.members.length || 0}</TableCell>
+                      <TableCell>{(network.members?.length || 0)}</TableCell>
                       <TableCell>详情</TableCell>
                     </TableRow>
                   )) : (
