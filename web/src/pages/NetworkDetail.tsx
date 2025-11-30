@@ -1,39 +1,42 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react';
 import { Box, Typography, Card, CardContent, CircularProgress, Alert, Button, Divider, Grid, Chip }
-from '@mui/material'
-import { useParams, Link, useNavigate } from 'react-router-dom'
-import { networkAPI } from '../services/api.js'
+from '@mui/material';
+import { useParams, Link, useNavigate } from 'react-router-dom';
+import { networkAPI, Network } from '../services/api';
 
 function NetworkDetail() {
-  const { id } = useParams()
-  const [network, setNetwork] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-  const navigate = useNavigate()
+  const { id } = useParams<{ id: string }>();
+  const [network, setNetwork] = useState<Network | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string>('');
+  const navigate = useNavigate();
 
   useEffect(() => {
-    fetchNetworkDetail()
-  }, [id])
+    fetchNetworkDetail();
+  }, [id]);
 
   const fetchNetworkDetail = async () => {
-    setLoading(true)
+    setLoading(true);
     try {
-      const response = await networkAPI.getNetwork(id)
-      setNetwork(response.data)
-    } catch (err) {
-      setError('获取网络详情失败')
-      console.error('Fetch network detail error:', err)
+      if (!id) {
+        throw new Error('网络ID不能为空');
+      }
+      const response = await networkAPI.getNetwork(id);
+      setNetwork(response.data);
+    } catch (err: any) {
+      setError('获取网络详情失败');
+      console.error('Fetch network detail error:', err);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   if (loading) {
     return (
       <Box sx={{ p: 3, display: 'flex', justifyContent: 'center', mt: 10 }}>
         <CircularProgress />
       </Box>
-    )
+    );
   }
 
   if (error || !network) {
@@ -50,7 +53,7 @@ function NetworkDetail() {
           返回网络列表
         </Button>
       </Box>
-    )
+    );
   }
 
   return (
@@ -105,15 +108,7 @@ function NetworkDetail() {
                     允许默认路由
                   </Typography>
                   <Typography variant="body1">
-                    {network.config?.allowDefault || false ? '是' : '否'}
-                  </Typography>
-                </Box>
-                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 1 }}>
-                  <Typography variant="body2" color="text.secondary">
-                    允许DNS
-                  </Typography>
-                  <Typography variant="body1">
-                    {network.config?.allowDNS || false ? '是' : '否'}
+                    {network.config?.allowPassiveBridging || false ? '是' : '否'}
                   </Typography>
                 </Box>
                 <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 1 }}>
@@ -127,10 +122,20 @@ function NetworkDetail() {
                 {network.config?.v4AssignMode?.zt && (
                     <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 1 }}>
                       <Typography variant="body2" color="text.secondary">
-                        IPv4 CIDR
+                        IPv4 分配模式
                       </Typography>
                       <Typography variant="body1">
-                        {network.config?.v4AssignMode?.zt?.cidr || '未设置'}
+                        {network.config?.v4AssignMode?.zt ? 'ZeroTier 分配' : '未设置'}
+                      </Typography>
+                    </Box>
+                )}
+                {network.config?.v6AssignMode?.zt && (
+                    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 1 }}>
+                      <Typography variant="body2" color="text.secondary">
+                        IPv6 分配模式
+                      </Typography>
+                      <Typography variant="body1">
+                        {network.config?.v6AssignMode?.zt ? 'ZeroTier 分配' : '未设置'}
                       </Typography>
                     </Box>
                 )}
@@ -151,7 +156,7 @@ function NetworkDetail() {
                     成员数
                   </Typography>
                   <Typography variant="body1">
-                    {network.memberCount || 0}
+                    {network.members.length || 0}
                   </Typography>
                 </Box>
                 <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1 }}>
@@ -159,7 +164,7 @@ function NetworkDetail() {
                     已授权
                   </Typography>
                   <Typography variant="body1">
-                    {network.authorizedMemberCount || 0}
+                    {network.members.filter(member => member.authorized).length || 0}
                   </Typography>
                 </Box>
                 <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1 }}>
@@ -167,7 +172,7 @@ function NetworkDetail() {
                     在线成员
                   </Typography>
                   <Typography variant="body1">
-                    {network.onlineMemberCount || 0}
+                    {network.members.filter(member => member.activeBridge).length || 0}
                   </Typography>
                 </Box>
               </Box>
@@ -201,7 +206,7 @@ function NetworkDetail() {
         </Grid>
       </Grid>
     </Box>
-  )
+  );
 }
 
-export default NetworkDetail
+export default NetworkDetail;

@@ -13,46 +13,52 @@ import {
   Grid} from '@mui/material';
 import { LockOutlined } from '@mui/icons-material';
 import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '../services/auth.jsx';
-import { authAPI } from '../services/api.js';
+import { useAuth } from '../services/auth';
+import { authAPI } from '../services/api';
 
 /**
  * Login Component
  * Renders login form with username, password fields and login functionality
  */
 function Login() {
+  // Form data type definition
+  interface FormData {
+    username: string;
+    password: string;
+  }
+
   // Form state for username and password
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<FormData>({
     username: '',
     password: ''
   });
   // Validation errors state
-  const [errors, setErrors] = useState({});
+  const [errors, setErrors] = useState<Partial<FormData>>({});
   // Loading state for submit button
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState<boolean>(false);
   // Global login error message state
-  const [loginError, setLoginError] = useState('');
+  const [loginError, setLoginError] = useState<string>('');
   // Remember me checkbox state
-  const [rememberMe, setRememberMe] = useState(false);
+  const [rememberMe, setRememberMe] = useState<boolean>(false);
   
   // Navigation hook for redirect after login
   const navigate = useNavigate();
   // Auth service hook for login functionality
-  const { login } = useAuth() || {};
+  const { login } = useAuth();
 
   // Handle input change
-  const handleChange = (e) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
     // Clear error for the corresponding field
-    if (errors[name]) {
+    if (errors[name as keyof FormData]) {
       setErrors(prev => ({ ...prev, [name]: '' }));
     }
   };
 
   // Form validation
-  const validateForm = () => {
-    const newErrors = {};
+  const validateForm = (): boolean => {
+    const newErrors: Partial<FormData> = {};
     
     if (!formData.username.trim()) {
       newErrors.username = '用户名不能为空';
@@ -67,7 +73,7 @@ function Login() {
   };
 
   // Handle login submission
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     
     if (!validateForm()) {
@@ -96,14 +102,12 @@ function Login() {
         sessionStorage.setItem('token', token);
       }
       
-      // Call login function if it exists
-      if (typeof login === 'function') {
-        login(user, token);
-      }
+      // Call login function from auth context
+      login(user, token);
       
       // Login successful, redirect to dashboard
       navigate('/dashboard');
-    } catch (error) {
+    } catch (error: any) {
       console.error('登录错误:', error);
       if (error.response && error.response.data && error.response.data.error) {
         setLoginError(error.response.data.error);
@@ -200,7 +204,7 @@ function Login() {
               control={
                 <Checkbox
                   checked={rememberMe}
-                  onChange={(e) => setRememberMe(e.target.checked)}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setRememberMe(e.target.checked)}
                   color="primary"
                   disabled={loading}
                 />

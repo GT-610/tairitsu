@@ -1,45 +1,68 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react';
 import { Box, Typography, Grid, Paper, Card, CardContent, CircularProgress, Alert, 
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Divider,
-  Chip, LinearProgress, Button } from '@mui/material'
-import { statusAPI, networkAPI } from '../services/api.js'
+  Chip, LinearProgress, Button } from '@mui/material';
+import { statusAPI, networkAPI, Network } from '../services/api';
+
+// 设备类型定义
+interface Device {
+  id: string;
+  address: string;
+  name: string;
+  connected: boolean;
+  lastSeen: string;
+}
+
+// 系统状态类型定义
+interface SystemStatus {
+  online: boolean;
+  zerotier?: {
+    peerCount: number;
+    controllerUrl: string;
+  };
+  system?: {
+    cpuUsage: string;
+    memoryUsage: string;
+  };
+  version: string;
+}
 
 function Dashboard() {
-  const [status, setStatus] = useState(null)
-  const [networks, setNetworks] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
+  const [status, setStatus] = useState<SystemStatus | null>(null);
+  const [networks, setNetworks] = useState<Network[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string>('');
   // 模拟用户权限状态，实际应该从认证系统获取
-  const [isAdmin, setIsAdmin] = useState(false)
+  const [isAdmin, setIsAdmin] = useState<boolean>(false);
   
   // 模拟最近连接的设备数据
-  const [recentDevices, setRecentDevices] = useState([
+  const [recentDevices, setRecentDevices] = useState<Device[]>([
     { id: '1', address: 'zt-5678', name: 'Device-1', connected: true, lastSeen: '2分钟前' },
     { id: '2', address: 'zt-1234', name: 'Device-2', connected: true, lastSeen: '5分钟前' },
     { id: '3', address: 'zt-9876', name: 'Device-3', connected: false, lastSeen: '30分钟前' },
-  ])
+  ]);
 
   useEffect(() => {
     const fetchData = async () => {
-      setLoading(true)
+      setLoading(true);
       try {
         // 获取系统状态
-        const statusResponse = await statusAPI.getStatus()
-        setStatus(statusResponse.data)
+        const statusResponse = await statusAPI.getStatus();
+        setStatus(statusResponse.data);
         
         // 获取网络列表
-        const networksResponse = await networkAPI.getAllNetworks()
-        setNetworks(networksResponse.data)
+        const networksResponse = await networkAPI.getAllNetworks();
+        setNetworks(networksResponse.data);
       } catch (err) {
-        setError('获取数据失败，请稍后重试')
-        console.error('Dashboard fetch error:', err)
+        setError('获取数据失败，请稍后重试');
+        console.error('Dashboard fetch error:', err);
       } finally {
-        setLoading(false)
+        setLoading(false);
       }
-    }
+    };
 
-    fetchData()
-  }, [])
+    fetchData();
+  }, []);
 
   return (
     <Box>
@@ -207,7 +230,7 @@ function Dashboard() {
                         {network.name || '未命名网络'}
                       </TableCell>
                       <TableCell>{network.id || '未知ID'}</TableCell>
-                      <TableCell>{network.peerCount || 0}</TableCell>
+                      <TableCell>{network.members.length || 0}</TableCell>
                       <TableCell>详情</TableCell>
                     </TableRow>
                   )) : (
@@ -244,7 +267,7 @@ function Dashboard() {
                       </Typography>
                       <LinearProgress 
                         variant="determinate" 
-                        value={parseInt(status?.system?.cpuUsage || 0)} 
+                        value={parseInt(status?.system?.cpuUsage || '0')} 
                         sx={{ flexGrow: 1 }}
                       />
                     </Box>
@@ -259,7 +282,7 @@ function Dashboard() {
                       </Typography>
                       <LinearProgress 
                         variant="determinate" 
-                        value={parseInt(status?.system?.memoryUsage || 0)} 
+                        value={parseInt(status?.system?.memoryUsage || '0')} 
                         sx={{ flexGrow: 1 }}
                       />
                     </Box>
@@ -352,7 +375,7 @@ function Dashboard() {
         </>
       )}
     </Box>
-  )
+  );
 }
 
-export default Dashboard
+export default Dashboard;

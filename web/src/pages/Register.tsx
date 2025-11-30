@@ -1,57 +1,65 @@
-import { useState } from 'react'
+import { useState } from 'react';
 import { Box, TextField, Button, Typography, Container, Paper, Alert, CircularProgress }
-from '@mui/material'
-import { Link, useNavigate } from 'react-router-dom'
-import { authAPI } from '../services/api.js'
+from '@mui/material';
+import { Link, useNavigate } from 'react-router-dom';
+import { authAPI } from '../services/api';
+
+// 表单数据类型定义
+interface FormData {
+  username: string;
+  email: string;
+  password: string;
+  confirmPassword: string;
+}
 
 function Register() {
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<FormData>({
     username: '',
     email: '',
     password: '',
     confirmPassword: ''
-  })
-  const [error, setError] = useState('')
-  const [success, setSuccess] = useState('')
-  const [loading, setLoading] = useState(false)
-  const navigate = useNavigate()
+  });
+  const [error, setError] = useState<string>('');
+  const [success, setSuccess] = useState<string>('');
+  const [loading, setLoading] = useState<boolean>(false);
+  const navigate = useNavigate();
 
-  const handleChange = (e) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({
       ...formData,
       [e.target.name]: e.target.value
-    })
-  }
+    });
+  };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault()
-    setError('')
-    setSuccess('')
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
 
     // 验证密码
     if (formData.password !== formData.confirmPassword) {
-      setError('两次输入的密码不一致')
-      return
+      setError('两次输入的密码不一致');
+      return;
     }
 
-    setLoading(true)
+    setLoading(true);
     try {
       await authAPI.register({
         username: formData.username,
         email: formData.email,
         password: formData.password
-      })
-      setSuccess('注册成功，请登录')
+      });
+      setSuccess('注册成功，请登录');
       // 3秒后跳转到登录页
       setTimeout(() => {
-        navigate('/login')
-      }, 3000)
-    } catch (err) {
-      setError(err.response?.data?.message || '注册失败，请稍后重试')
+        navigate('/login');
+      }, 3000);
+    } catch (err: any) {
+      setError(err.response?.data?.message || '注册失败，请稍后重试');
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   return (
     <Container component="main" maxWidth="xs" sx={{ mt: 8 }}>
@@ -147,7 +155,7 @@ function Register() {
         </Box>
       </Paper>
     </Container>
-  )
+  );
 }
 
-export default Register
+export default Register;

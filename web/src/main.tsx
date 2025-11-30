@@ -1,11 +1,11 @@
-import React from 'react'
-import ReactDOM from 'react-dom/client'
-import App from './App.jsx'
-import './index.css'
-import { BrowserRouter } from 'react-router-dom'
-import { ThemeProvider, createTheme } from '@mui/material/styles'
-import CssBaseline from '@mui/material/CssBaseline'
-import { AuthProvider } from './services/auth.jsx'
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import App from './App';
+import './index.css';
+import { BrowserRouter } from 'react-router-dom';
+import { ThemeProvider, createTheme } from '@mui/material/styles';
+import CssBaseline from '@mui/material/CssBaseline';
+import { AuthProvider } from './services/auth';
 
 // 创建暗色主题
 const theme = createTheme({
@@ -22,9 +22,9 @@ const theme = createTheme({
       paper: '#1e1e1e',
     },
   },
-})
+});
 
-ReactDOM.createRoot(document.getElementById('root')).render(
+ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <BrowserRouter>
       <ThemeProvider theme={theme}>
@@ -35,4 +35,4 @@ ReactDOM.createRoot(document.getElementById('root')).render(
       </ThemeProvider>
     </BrowserRouter>
   </React.StrictMode>,
-)
+);

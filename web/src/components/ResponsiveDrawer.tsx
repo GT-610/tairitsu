@@ -26,10 +26,18 @@ import DialogContentText from '@mui/material/DialogContentText';
 import DialogTitle from '@mui/material/DialogTitle';
 import Button from '@mui/material/Button';
 import { Link, useLocation } from 'react-router-dom';
+import { User } from '../services/api';
 
 const drawerWidth = 240;
 
-const menuItems = [
+// Menu item type definition
+interface MenuItemType {
+  text: string;
+  path: string;
+  icon: React.ReactNode;
+}
+
+const menuItems: MenuItemType[] = [
   {
     text: '总览',
     path: '/dashboard',
@@ -47,11 +55,20 @@ const menuItems = [
   }
 ];
 
-export default function ResponsiveDrawer({ window, children, title = 'Tairitsu', user, onLogout }) {
-  const [mobileOpen, setMobileOpen] = React.useState(false);
-  const [isClosing, setIsClosing] = React.useState(false);
-  const [anchorEl, setAnchorEl] = React.useState(null);
-  const [openConfirmDialog, setOpenConfirmDialog] = React.useState(false);
+// ResponsiveDrawer component props type
+interface ResponsiveDrawerProps {
+  window?: () => Window;
+  children: React.ReactNode;
+  title?: string;
+  user: User | null;
+  onLogout: () => void;
+}
+
+export default function ResponsiveDrawer({ window, children, title = 'Tairitsu', user, onLogout }: ResponsiveDrawerProps) {
+  const [mobileOpen, setMobileOpen] = React.useState<boolean>(false);
+  const [isClosing, setIsClosing] = React.useState<boolean>(false);
+  const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
+  const [openConfirmDialog, setOpenConfirmDialog] = React.useState<boolean>(false);
   const location = useLocation();
 
   const handleDrawerClose = () => {
@@ -69,7 +86,7 @@ export default function ResponsiveDrawer({ window, children, title = 'Tairitsu',
     }
   };
 
-  const handleMenu = (event) => {
+  const handleMenu = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorEl(event.currentTarget);
   };
 
@@ -84,9 +101,7 @@ export default function ResponsiveDrawer({ window, children, title = 'Tairitsu',
 
   const handleConfirmLogout = () => {
     setOpenConfirmDialog(false);
-    if (typeof onLogout === 'function') {
-      onLogout();
-    }
+    onLogout();
   };
 
   const handleCancelLogout = () => {

@@ -1,14 +1,29 @@
-import { createContext, useContext, useState, useEffect } from 'react';
-import api from './api.js';
+import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import api, { User } from './api';
 
-// 创建Auth上下文
-const AuthContext = createContext(null);
+// 定义Auth上下文类型
+export interface AuthContextType {
+  user: User | null;
+  token: string | null;
+  isLoading: boolean;
+  login: (userData: User, authToken: string) => { success: boolean; user: User; token: string };
+  logout: () => void;
+  isAuthenticated: () => boolean;
+}
+
+// 创建Auth上下文，使用AuthContextType类型
+const AuthContext = createContext<AuthContextType | null>(null);
+
+// Auth Provider组件的props类型
+interface AuthProviderProps {
+  children: ReactNode;
+}
 
 // Auth Provider组件
-export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
-  const [token, setToken] = useState(null);
-  const [isLoading, setIsLoading] = useState(false);
+export const AuthProvider = ({ children }: AuthProviderProps) => {
+  const [user, setUser] = useState<User | null>(null);
+  const [token, setToken] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
 
   // 在应用启动时从存储中恢复认证状态
   useEffect(() => {
@@ -17,7 +32,7 @@ export const AuthProvider = ({ children }) => {
     
     if (storedUser && storedToken) {
       try {
-        const userData = JSON.parse(storedUser);
+        const userData = JSON.parse(storedUser) as User;
         setUser(userData);
         setToken(storedToken);
         // 更新API实例的默认请求头
@@ -34,7 +49,7 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   // 登录函数
-  const login = (userData, authToken) => {
+  const login = (userData: User, authToken: string) => {
     setUser(userData);
     setToken(authToken);
     // 更新API实例的默认请求头
@@ -53,12 +68,12 @@ export const AuthProvider = ({ children }) => {
   };
 
   // 检查是否已认证
-  const isAuthenticated = () => {
+  const isAuthenticated = (): boolean => {
     return !!user && !!token;
   };
 
   // 上下文值
-  const value = {
+  const value: AuthContextType = {
     user,
     token,
     isLoading,
@@ -75,10 +90,10 @@ export const AuthProvider = ({ children }) => {
 };
 
 // 自定义钩子，用于在组件中访问Auth上下文
-export const useAuth = () => {
+export const useAuth = (): AuthContextType => {
   const context = useContext(AuthContext);
   if (!context) {
-    console.warn('useAuth must be used within an AuthProvider');
+    throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
 };

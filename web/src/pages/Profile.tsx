@@ -1,7 +1,13 @@
 import { Box, Typography, Card, CardContent, Avatar, Grid, Divider }
-from '@mui/material'
+from '@mui/material';
+import { User } from '../services/api';
 
-function Profile({ user }) {
+// Profile组件的props类型
+interface ProfileProps {
+  user: User | null;
+}
+
+function Profile({ user }: ProfileProps) {
   if (!user) {
     return (
       <Box sx={{ p: 3 }}>
@@ -9,7 +15,7 @@ function Profile({ user }) {
           用户信息不可用
         </Typography>
       </Box>
-    )
+    );
   }
 
   return (
@@ -87,7 +93,7 @@ function Profile({ user }) {
         </Grid>
       </Grid>
     </Box>
-  )
+  );
 }
 
-export default Profile
+export default Profile;

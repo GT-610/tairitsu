@@ -24,42 +24,76 @@ import {
 } from '@mui/material';
 import { Add, Edit, Delete, Search, Refresh } from '@mui/icons-material';
 import { useParams } from 'react-router-dom';
-import { memberAPI } from '../services/api';
+import { memberAPI, Member as ApiMember } from '../services/api';
+
+// 格式化后的成员类型定义
+interface Member {
+  id: string;
+  username: string;
+  email: string;
+  role: 'admin' | 'manager' | 'member';
+  isActive: boolean;
+  joinedAt: string;
+}
+
+// 表单数据类型定义
+interface FormData {
+  username: string;
+  email: string;
+  role: 'admin' | 'manager' | 'member';
+  isActive: boolean;
+}
+
+// Snackbar状态类型定义
+interface SnackbarState {
+  open: boolean;
+  message: string;
+  severity: 'success' | 'error' | 'info' | 'warning';
+}
+
+// 确认对话框状态类型定义
+interface ConfirmDialogState {
+  open: boolean;
+  memberId: string | null;
+}
 
 function Members() {
-  const { networkId } = useParams();
-  const [members, setMembers] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [openDialog, setOpenDialog] = useState(false);
-  const [currentMember, setCurrentMember] = useState(null);
-  const [isEditing, setIsEditing] = useState(false);
-  const [formData, setFormData] = useState({
+  const { networkId } = useParams<{ networkId: string }>();
+  const [members, setMembers] = useState<Member[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [searchTerm, setSearchTerm] = useState<string>('');
+  const [openDialog, setOpenDialog] = useState<boolean>(false);
+  const [currentMember, setCurrentMember] = useState<Member | null>(null);
+  const [isEditing, setIsEditing] = useState<boolean>(false);
+  const [formData, setFormData] = useState<FormData>({
     username: '',
     email: '',
     role: 'member',
     isActive: true
   });
-  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
-  const [confirmDialog, setConfirmDialog] = useState({ open: false, memberId: null });
+  const [snackbar, setSnackbar] = useState<SnackbarState>({ open: false, message: '', severity: 'success' });
+  const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState>({ open: false, memberId: null });
 
   // 获取成员数据
   useEffect(() => {
     const fetchMembers = async () => {
       try {
         setLoading(true);
+        if (!networkId) {
+          throw new Error('网络ID不能为空');
+        }
         const response = await memberAPI.getMembers(networkId);
         // 格式化从API获取的数据以匹配前端组件的期望格式
-        const formattedMembers = response.data.map(member => ({
-          id: member.id || member.address,
-          username: member.name || member.address,
-          email: `${member.address}@zt.local`, // ZeroTier成员通常没有真实邮箱
-          role: member.role || 'member',
-          isActive: member.config?.authorized || false,
-          joinedAt: member.joinedAt ? new Date(member.joinedAt).toLocaleDateString() : '未知'
+        const formattedMembers: Member[] = response.data.map((member: ApiMember) => ({
+          id: member.id || member.nodeId,
+          username: member.name || member.nodeId,
+          email: `${member.nodeId}@zt.local`, // ZeroTier成员通常没有真实邮箱
+          role: (member.role as 'admin' | 'manager' | 'member') || 'member',
+          isActive: member.authorized || false,
+          joinedAt: member.createdAt ? new Date(member.createdAt).toLocaleDateString() : '未知'
         }));
         setMembers(formattedMembers);
-      } catch (error) {
+      } catch (error: any) {
         console.error('获取成员列表失败:', error);
         setSnackbar({ 
           open: true, 
@@ -96,7 +130,7 @@ function Members() {
   };
 
   // 处理编辑成员
-  const handleEditMember = (member) => {
+  const handleEditMember = (member: Member) => {
     setCurrentMember(member);
     setIsEditing(true);
     setFormData({
@@ -109,13 +143,16 @@ function Members() {
   };
 
   // 处理删除确认
-  const handleDeleteConfirm = (memberId) => {
+  const handleDeleteConfirm = (memberId: string) => {
     setConfirmDialog({ open: true, memberId });
   };
 
   // 处理删除成员
   const handleDeleteMember = async () => {
     try {
+      if (!networkId || !confirmDialog.memberId) {
+        throw new Error('网络ID或成员ID不能为空');
+      }
       await memberAPI.deleteMember(networkId, confirmDialog.memberId);
       
       setMembers(prevMembers => 
@@ -127,7 +164,7 @@ function Members() {
         message: '成员删除成功', 
         severity: 'success' 
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('删除成员失败:', error);
       setSnackbar({ 
         open: true, 
@@ -142,7 +179,10 @@ function Members() {
   // 处理表单提交
   const handleSubmit = async () => {
     try {
-      if (isEditing) {
+      if (!networkId) {
+        throw new Error('网络ID不能为空');
+      }
+      if (isEditing && currentMember) {
         // 更新现有成员
         const updatedData = {
           authorized: formData.isActive,
@@ -152,10 +192,10 @@ function Members() {
         const response = await memberAPI.updateMember(networkId, currentMember.id, updatedData);
         
         // 更新本地状态
-        const updatedMember = {
+        const updatedMember: Member = {
           ...currentMember,
           ...formData,
-          ...response.data
+          id: response.data.id || currentMember.id
         };
         
         setMembers(prevMembers => 
@@ -182,7 +222,7 @@ function Members() {
       }
       
       setOpenDialog(false);
-    } catch (error) {
+    } catch (error: any) {
       console.error('成员操作失败:', error);
       setSnackbar({ 
         open: true, 
@@ -193,20 +233,23 @@ function Members() {
   };
 
   // 处理状态切换
-  const handleStatusToggle = async (memberId, newStatus) => {
+  const handleStatusToggle = async (memberId: string, newStatus: boolean) => {
     try {
+      if (!networkId) {
+        throw new Error('网络ID不能为空');
+      }
       // 调用API更新成员状态
       const updatedData = {
         authorized: newStatus
       };
       
-      const response = await memberAPI.updateMember(networkId, memberId, updatedData);
+      await memberAPI.updateMember(networkId, memberId, updatedData);
       
       // 更新本地状态
       setMembers(prevMembers => 
         prevMembers.map(member => 
           member.id === memberId 
-            ? { ...member, isActive: newStatus, ...response.data }
+            ? { ...member, isActive: newStatus }
             : member
         )
       );
@@ -216,7 +259,7 @@ function Members() {
         message: `成员状态已${newStatus ? '启用' : '禁用'}`, 
         severity: 'success' 
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('状态更新失败:', error);
       setSnackbar({ 
         open: true, 
@@ -229,16 +272,19 @@ function Members() {
   // 刷新成员列表
   const handleRefresh = async () => {
     try {
+      if (!networkId) {
+        throw new Error('网络ID不能为空');
+      }
       setLoading(true);
       const response = await memberAPI.getMembers(networkId);
       // 格式化从API获取的数据以匹配前端组件的期望格式
-      const formattedMembers = response.data.map(member => ({
-        id: member.id || member.address,
-        username: member.name || member.address,
-        email: `${member.address}@zt.local`, // ZeroTier成员通常没有真实邮箱
-        role: member.role || 'member',
-        isActive: member.config?.authorized || false,
-        joinedAt: member.joinedAt ? new Date(member.joinedAt).toLocaleDateString() : '未知'
+      const formattedMembers: Member[] = response.data.map((member: ApiMember) => ({
+        id: member.id || member.nodeId,
+        username: member.name || member.nodeId,
+        email: `${member.nodeId}@zt.local`, // ZeroTier成员通常没有真实邮箱
+        role: (member.role as 'admin' | 'manager' | 'member') || 'member',
+        isActive: member.authorized || false,
+        joinedAt: member.createdAt ? new Date(member.createdAt).toLocaleDateString() : '未知'
       }));
       setMembers(formattedMembers);
       setSnackbar({ 
@@ -246,7 +292,7 @@ function Members() {
         message: '成员列表已刷新', 
         severity: 'success' 
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('刷新成员列表失败:', error);
       setSnackbar({ 
         open: true, 
@@ -290,7 +336,7 @@ function Members() {
             variant="outlined"
             fullWidth
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchTerm(e.target.value)}
             InputProps={{
               startAdornment: <span style={{ width: 24 }} />,
             }}
@@ -345,7 +391,7 @@ function Members() {
                         control={
                           <Switch
                             checked={member.isActive}
-                            onChange={(e) => handleStatusToggle(member.id, e.target.checked)}
+                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleStatusToggle(member.id, e.target.checked)}
                           />
                         }
                         label={member.isActive ? '已启用' : '已禁用'}
@@ -393,7 +439,7 @@ function Members() {
               fullWidth
               required
               value={formData.username}
-              onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, username: e.target.value })}
             />
             
             <TextField
@@ -402,7 +448,7 @@ function Members() {
               fullWidth
               required
               value={formData.email}
-              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, email: e.target.value })}
             />
             
             <TextField
@@ -410,7 +456,7 @@ function Members() {
               select
               fullWidth
               value={formData.role}
-              onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, role: e.target.value as 'admin' | 'manager' | 'member' })}
               SelectProps={{
                 native: true,
               }}
@@ -424,7 +470,7 @@ function Members() {
               control={
                 <Switch
                   checked={formData.isActive}
-                  onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, isActive: e.target.checked })}
                 />
               }
               label="启用成员"

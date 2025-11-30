@@ -1,139 +1,150 @@
-import { useState, useEffect } from 'react'
-import { Box, Typography, Button, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, CircularProgress, Alert, Modal, TextField, IconButton, Switch, FormControlLabel, Divider } from '@mui/material'
-import { Link, useNavigate } from 'react-router-dom'
-import { Add, Edit, Delete, Close } from '@mui/icons-material'
-import { networkAPI } from '../services/api.js'
+import { useState, useEffect } from 'react';
+import { Box, Typography, Button, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, CircularProgress, Alert, Modal, TextField, IconButton, Switch, FormControlLabel, Divider } from '@mui/material';
+import { Link, useNavigate } from 'react-router-dom';
+import { Add, Edit, Delete, Close } from '@mui/icons-material';
+import { networkAPI, Network, NetworkConfig } from '../services/api';
+
+// 表单数据类型定义
+interface FormData {
+  name: string;
+  description: string;
+  config: NetworkConfig;
+}
 
 function Networks() {
-  const [networks, setNetworks] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-  const [openModal, setOpenModal] = useState(false)
-  const [editingNetwork, setEditingNetwork] = useState(null)
-  const [formData, setFormData] = useState({
+  const [networks, setNetworks] = useState<Network[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string>('');
+  const [openModal, setOpenModal] = useState<boolean>(false);
+  const [editingNetwork, setEditingNetwork] = useState<Network | null>(null);
+  const [formData, setFormData] = useState<FormData>({
     name: '',
     description: '',
     config: {
       private: true,
-      allowPassivePortForwarding: true,
+      allowPassiveBridging: true,
       ipAssignmentPools: [{ ipRangeStart: '192.168.192.1', ipRangeEnd: '192.168.192.254' }],
       routes: [{ target: '192.168.192.0/24' }],
       v4AssignMode: { zt: true },
-      v6AssignMode: { zt: false }
+      v6AssignMode: { zt: false },
+      multicastLimit: 32
     }
-  })
-  const navigate = useNavigate()
+  });
+  const navigate = useNavigate();
 
   const fetchNetworks = async () => {
-    setLoading(true)
+    setLoading(true);
     try {
-      const response = await networkAPI.getAllNetworks()
-      setNetworks(response.data)
-    } catch (err) {
-      setError('获取网络列表失败')
-      console.error('Fetch networks error:', err)
+      const response = await networkAPI.getAllNetworks();
+      setNetworks(response.data);
+    } catch (err: any) {
+      setError('获取网络列表失败');
+      console.error('Fetch networks error:', err);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   useEffect(() => {
-    fetchNetworks()
-  }, [])
+    fetchNetworks();
+  }, []);
 
-  const handleOpenModal = (network = null) => {
-    setEditingNetwork(network)
+  const handleOpenModal = (network: Network | null = null) => {
+    setEditingNetwork(network);
     if (network) {
       setFormData({
         name: network.name || '',
         description: network.description || '',
         config: {
           private: network.config?.private ?? true,
-          allowPassivePortForwarding: network.config?.allowPassivePortForwarding ?? true,
+          allowPassiveBridging: network.config?.allowPassiveBridging ?? true,
           ipAssignmentPools: network.config?.ipAssignmentPools ?? [{ ipRangeStart: '192.168.192.1', ipRangeEnd: '192.168.192.254' }],
           routes: network.config?.routes ?? [{ target: '192.168.192.0/24' }],
           v4AssignMode: network.config?.v4AssignMode ?? { zt: true },
-          v6AssignMode: network.config?.v6AssignMode ?? { zt: false }
+          v6AssignMode: network.config?.v6AssignMode ?? { zt: false },
+          multicastLimit: network.config?.multicastLimit ?? 32
         }
-      })
+      });
     } else {
       setFormData({
         name: '',
         description: '',
         config: {
           private: true,
-          allowPassivePortForwarding: true,
+          allowPassiveBridging: true,
           ipAssignmentPools: [{ ipRangeStart: '192.168.192.1', ipRangeEnd: '192.168.192.254' }],
           routes: [{ target: '192.168.192.0/24' }],
           v4AssignMode: { zt: true },
-          v6AssignMode: { zt: false }
+          v6AssignMode: { zt: false },
+          multicastLimit: 32
         }
-      })
+      });
     }
-    setOpenModal(true)
-  }
+    setOpenModal(true);
+  };
 
   const handleCloseModal = () => {
-    setOpenModal(false)
-    setEditingNetwork(null)
+    setOpenModal(false);
+    setEditingNetwork(null);
     setFormData({
       name: '',
       description: '',
       config: {
         private: true,
-        allowPassivePortForwarding: true,
+        allowPassiveBridging: true,
         ipAssignmentPools: [{ ipRangeStart: '192.168.192.1', ipRangeEnd: '192.168.192.254' }],
         routes: [{ target: '192.168.192.0/24' }],
         v4AssignMode: { zt: true },
-        v6AssignMode: { zt: false }
+        v6AssignMode: { zt: false },
+        multicastLimit: 32
       }
-    })
-  }
+    });
+  };
 
-  const handleChange = (e) => {
-    const { name, value, type, checked } = e.target
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value, type, checked } = e.target;
     if (name.startsWith('config.')) {
-      const configField = name.split('.')[1]
+      const configField = name.split('.')[1];
       setFormData({
         ...formData,
         config: {
           ...formData.config,
           [configField]: type === 'checkbox' ? checked : value
         }
-      })
+      });
     } else {
       setFormData({
         ...formData,
         [name]: value
-      })
+      });
     }
-  }
+  };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault()
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
     try {
       if (editingNetwork) {
-        await networkAPI.updateNetwork(editingNetwork.id, formData)
+        await networkAPI.updateNetwork(editingNetwork.id, formData);
       } else {
-        await networkAPI.createNetwork(formData)
+        await networkAPI.createNetwork(formData);
       }
-      handleCloseModal()
-      fetchNetworks()
-    } catch (err) {
-      setError(editingNetwork ? '更新网络失败' : '创建网络失败')
+      handleCloseModal();
+      fetchNetworks();
+    } catch (err: any) {
+      setError(editingNetwork ? '更新网络失败' : '创建网络失败');
     }
-  }
+  };
 
-  const handleDelete = async (networkId) => {
+  const handleDelete = async (networkId: string) => {
     if (window.confirm('确定要删除这个网络吗？')) {
       try {
-        await networkAPI.deleteNetwork(networkId)
-        fetchNetworks()
-      } catch (err) {
-        setError('删除网络失败')
+        await networkAPI.deleteNetwork(networkId);
+        fetchNetworks();
+      } catch (err: any) {
+        setError('删除网络失败');
       }
     }
-  }
+  };
 
   return (
     <Box sx={{ p: 3 }}>
@@ -179,7 +190,7 @@ function Networks() {
                     </TableCell>
                     <TableCell>{network.name}</TableCell>
                     <TableCell>{network.description || '-'}</TableCell>
-                    <TableCell>{network.memberCount || 0}</TableCell>
+                    <TableCell>{network.members.length || 0}</TableCell>
                     <TableCell>
                       <Box sx={{ display: 'flex', gap: 1 }}>
                         <Button 
@@ -281,7 +292,7 @@ function Networks() {
               control={
                 <Switch
                   checked={formData.config.private}
-                  onChange={(e) => setFormData({
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({
                     ...formData,
                     config: {
                       ...formData.config,
@@ -296,24 +307,24 @@ function Networks() {
             <FormControlLabel
               control={
                 <Switch
-                  checked={formData.config.allowPassivePortForwarding}
-                  onChange={(e) => setFormData({
+                  checked={formData.config.allowPassiveBridging}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({
                     ...formData,
                     config: {
                       ...formData.config,
-                      allowPassivePortForwarding: e.target.checked
+                      allowPassiveBridging: e.target.checked
                     }
                   })}
                 />
               }
-              label="允许被动端口转发"
+              label="允许被动桥接"
             />
             
             <FormControlLabel
               control={
                 <Switch
                   checked={formData.config.v4AssignMode.zt}
-                  onChange={(e) => setFormData({
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({
                     ...formData,
                     config: {
                       ...formData.config,
@@ -329,7 +340,7 @@ function Networks() {
               control={
                 <Switch
                   checked={formData.config.v6AssignMode.zt}
-                  onChange={(e) => setFormData({
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({
                     ...formData,
                     config: {
                       ...formData.config,
@@ -353,7 +364,7 @@ function Networks() {
         </Box>
       </Modal>
     </Box>
-  )
+  );
 }
 
-export default Networks
+export default Networks;

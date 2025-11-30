@@ -15,25 +15,55 @@ import {
 } from '@mui/material';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import { useNavigate } from 'react-router-dom';
-import { authAPI, systemAPI } from '../services/api.js';
+import { authAPI, systemAPI } from '../services/api';
+
+// 管理员账户数据类型
+interface AdminData {
+  username: string;
+  password: string;
+  email: string;
+}
+
+// 数据库配置类型
+interface DbConfig {
+  type: 'sqlite' | 'mysql' | 'postgres';
+  path: string;
+  host: string;
+  port: number;
+  user: string;
+  pass: string;
+  name: string;
+}
+
+// ZeroTier配置类型
+interface ZtConfig {
+  controllerUrl: string;
+  tokenPath: string;
+}
+
+// ZeroTier状态类型
+interface ZtStatus {
+  online: boolean;
+  version: string;
+}
 
 // Main component for the setup wizard
 const SetupWizard = () => {
   const navigate = useNavigate();
-  const [activeStep, setActiveStep] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
+  const [activeStep, setActiveStep] = useState<number>(0);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string>('');
+  const [success, setSuccess] = useState<string>('');
   
   // Admin account data
-  const [adminData, setAdminData] = useState({
+  const [adminData, setAdminData] = useState<AdminData>({
     username: '',
     password: '',
     email: ''
   });
   
   // Database configuration
-  const [dbConfig, setDbConfig] = useState({
+  const [dbConfig, setDbConfig] = useState<DbConfig>({
     type: 'sqlite',
     path: '',
     host: '',
@@ -44,16 +74,16 @@ const SetupWizard = () => {
   });
   
   // ZeroTier configuration
-  const [ztConfig, setZtConfig] = useState({
+  const [ztConfig, setZtConfig] = useState<ZtConfig>({
     controllerUrl: 'http://localhost:9993',
     tokenPath: '/var/lib/zerotier-one/authtoken.secret'
   });
   
-  const [ztStatus, setZtStatus] = useState(null);
-  const [ztConnected, setZtConnected] = useState(false);
+  const [ztStatus, setZtStatus] = useState<ZtStatus | null>(null);
+  const [ztConnected, setZtConnected] = useState<boolean>(false);
 
   // Setup wizard step titles
-  const steps = [
+  const steps: string[] = [
     '欢迎使用 Tairitsu',
     '配置 ZeroTier 控制器',
     '配置数据库',
@@ -76,7 +106,7 @@ const SetupWizard = () => {
   }, []);
   
   // Validate ZeroTier controller connection and save configuration
-  const testAndInitZtConnection = async () => {
+  const testAndInitZtConnection = async (): Promise<boolean> => {
     setLoading(true);
     setError('');
     setSuccess('');
@@ -88,7 +118,7 @@ const SetupWizard = () => {
       setZtConnected(true);
       setSuccess('ZeroTier 连接成功！已自动前往下一步。');
       return true;
-    } catch (err) {
+    } catch (err: any) {
       setError('ZeroTier 连接失败: ' + (err.response?.data?.error || err.message));
       setZtConnected(false);
       return false;
@@ -200,14 +230,14 @@ const SetupWizard = () => {
           setTimeout(() => {
             window.location.reload();
           }, 2000);
-        } catch (err) {
+        } catch (err: any) {
           setError('完成设置失败: ' + (err.response?.data?.error || err.message));
         }
       } else {
         // Default case: proceed to next step
         setActiveStep((prevActiveStep) => prevActiveStep + 1);
       }
-    } catch (err) {
+    } catch (err: any) {
         setError('操作失败: ' + (err.response?.data?.error || err.message));
       } finally {
         setLoading(false);
@@ -220,7 +250,7 @@ const SetupWizard = () => {
   };
 
   // Handle changes to admin account data
-  const handleAdminDataChange = (e) => {
+  const handleAdminDataChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setAdminData({
       ...adminData,
       [e.target.name]: e.target.value
@@ -228,12 +258,12 @@ const SetupWizard = () => {
   };
 
   // Handle changes to database configuration
-  const handleDbConfigChange = (e) => {
+  const handleDbConfigChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     // Special handling for database type changes
     if (e.target.name === 'type') {
-      const newType = e.target.value;
+      const newType = e.target.value as 'sqlite' | 'mysql' | 'postgres';
       // Default configuration for SQLite
-      const sqliteConfig = {
+      const sqliteConfig: DbConfig = {
         type: 'sqlite',
         path: '',
         host: '',
@@ -267,7 +297,7 @@ const SetupWizard = () => {
   };
 
   // Handle changes to ZeroTier configuration
-  const handleZtConfigChange = (e) => {
+  const handleZtConfigChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setZtConfig({
       ...ztConfig,
       [e.target.name]: e.target.value
@@ -291,7 +321,7 @@ const SetupWizard = () => {
   );
 
   // Render content for each step
-  const renderStepContent = (step) => {
+  const renderStepContent = (step: number) => {
     switch (step) {
       case 0:
         return (
@@ -324,7 +354,7 @@ const SetupWizard = () => {
             <Typography variant="body1" paragraph>
               请输入您的 ZeroTier 控制器信息，以便 Tairitsu 能够连接和管理您的网络。
             </Typography>
-            <form onSubmit={handleSubmit}>
+            <form onSubmit={(e) => e.preventDefault()}>
               <TextField
                 margin="normal"
                 required
@@ -363,7 +393,7 @@ const SetupWizard = () => {
             <Typography variant="body1" paragraph>
               请选择并配置您要使用的数据库。Tairitsu 支持 SQLite、MySQL 和 PostgreSQL。
             </Typography>
-            <form onSubmit={handleSubmit}>
+            <form onSubmit={(e) => e.preventDefault()}>
               <TextField
                 margin="normal"
                 required
@@ -463,7 +493,7 @@ const SetupWizard = () => {
             <Typography variant="body1" paragraph>
               请创建一个管理员账户，用于登录和管理 Tairitsu 平台。
             </Typography>
-            <form onSubmit={handleSubmit}>
+            <form onSubmit={(e) => e.preventDefault()}>
               <TextField
                 margin="normal"
                 required

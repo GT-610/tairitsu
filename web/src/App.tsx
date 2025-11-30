@@ -10,20 +10,20 @@ import Members from './pages/Members';
 import Profile from './pages/Profile';
 import Settings from './pages/Settings';
 import Layout from './components/Layout';
-import api from './services/api.js';
-import { useAuth } from './services/auth.jsx';
+import api from './services/api';
+import { useAuth } from './services/auth';
 import './App.css';
 
 function AppContent() {
   const navigate = useNavigate();
-  const { user, isAuthenticated } = useAuth() || {};
-  const [isFirstRun, setIsFirstRun] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const { user, isAuthenticated } = useAuth();
+  const [isFirstRun, setIsFirstRun] = useState<boolean | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
   const location = useLocation();
 
   // Listen for API errors and handle logout on 401 unauthorized responses
   useEffect(() => {
-    const handleApiError = (error) => {
+    const handleApiError = (error: any) => {
       // Check if the error is a 401 unauthorized error
       if (error.response && error.response.status === 401) {
         // Clear authentication information
@@ -106,7 +106,7 @@ function AppContent() {
       }}>
         加载中...
       </div>
-    )
+    );
   }
 
   return (
@@ -146,7 +146,7 @@ function AppContent() {
         )}
       </Routes>
     </div>
-  )
+  );
 }
 
 export default AppContent;
