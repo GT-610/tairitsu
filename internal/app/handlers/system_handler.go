@@ -140,9 +140,9 @@ func (h *SystemHandler) ConfigureDatabase(c *gin.Context) {
 	// For SQLite, ensure path is properly saved to config
 	// NewDatabase function might set default path if Path is empty
 	if dbCfg.Type == database.SQLite {
-		// From factory.go we know if Path is empty, default value "tairitsu.db" will be used
+		// From factory.go we know if Path is empty, default value "data/tairitsu.db" will be used
 		if dbConfig.Path == "" {
-			dbCfg.Path = "tairitsu.db"
+			dbCfg.Path = "data/tairitsu.db"
 		}
 		logger.Info("SQLite数据库路径已设置", zap.String("path", dbCfg.Path))
 	}

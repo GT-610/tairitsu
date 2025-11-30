@@ -66,7 +66,7 @@ var AppConfig *Config
 var tempSettings = make(map[string]string)
 var tempSettingsMutex sync.RWMutex
 
-const configFilePath = "./configs/config.json"
+const configFilePath = "./data/config.json"
 
 // LoadConfig 加载配置（从config.json）
 func LoadConfig() (*Config, error) {
