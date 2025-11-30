@@ -14,7 +14,7 @@ import (
 	"go.uber.org/zap"
 )
 
-// DatabaseType 数据库类型
+// DatabaseType Database type
 type DatabaseType string
 
 const (
@@ -23,55 +23,55 @@ const (
 	MySQL      DatabaseType = "mysql"
 )
 
-// Config 数据库配置
+// Config Database configuration
 type Config struct {
 	Type DatabaseType
-	Path string // SQLite数据库路径
-	Host string // PostgreSQL/MySQL主机
-	Port int    // PostgreSQL/MySQL端口
-	User string // PostgreSQL/MySQL用户
-	Pass string // PostgreSQL/MySQL密码
-	Name string // PostgreSQL/MySQL数据库名
+	Path string // SQLite database path
+	Host string // PostgreSQL / MySQL host
+	Port int    // PostgreSQL / MySQL port
+	User string // PostgreSQL / MySQL user
+	Pass string // PostgreSQL / MySQL password
+	Name string // PostgreSQL / MySQL database name
 }
 
-// NewDatabase 根据配置创建数据库实例
+// NewDatabase Create database instance based on configuration
 func NewDatabase(config Config) (DBInterface, error) {
 	switch config.Type {
 	case SQLite:
-		// 如果没有指定路径，使用默认路径
+		// If no path specified, use default path
 		if config.Path == "" {
 			config.Path = "data/tairitsu.db"
 		}
 
 		db, err := gorm.Open(sqlite.Open(config.Path), &gorm.Config{})
 		if err != nil {
-			return nil, fmt.Errorf("无法连接到SQLite数据库: %w", err)
+			return nil, fmt.Errorf("failed to connect to SQLite database: %w", err)
 		}
 
 		sqlDB, err := db.DB()
 		if err != nil {
-			return nil, fmt.Errorf("无法获取SQLite数据库实例: %w", err)
+			return nil, fmt.Errorf("failed to get SQLite database instance: %w", err)
 		}
 
-		// 设置连接池
+		// Set connection pool
 		sqlDB.SetMaxIdleConns(10)
 		sqlDB.SetMaxOpenConns(100)
 
 		return &GormDB{db: db}, nil
 
 	case MySQL:
-		// 构建DSN
+		// Build DSN
 		dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?charset=utf8mb4&parseTime=True&loc=Local",
 			config.User, config.Pass, config.Host, config.Port, config.Name)
 
 		db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
 		if err != nil {
-			return nil, fmt.Errorf("无法连接到MySQL数据库: %w", err)
+			return nil, fmt.Errorf("failed to connect to MySQL database: %w", err)
 		}
 
 		sqlDB, err := db.DB()
 		if err != nil {
-			return nil, fmt.Errorf("无法获取MySQL数据库实例: %w", err)
+			return nil, fmt.Errorf("failed to get MySQL database instance: %w", err)
 		}
 
 		// 设置连接池
@@ -87,12 +87,12 @@ func NewDatabase(config Config) (DBInterface, error) {
 
 		db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 		if err != nil {
-			return nil, fmt.Errorf("无法连接到PostgreSQL数据库: %w", err)
+			return nil, fmt.Errorf("failed to connect to PostgreSQL database: %w", err)
 		}
 
 		sqlDB, err := db.DB()
 		if err != nil {
-			return nil, fmt.Errorf("无法获取PostgreSQL数据库实例: %w", err)
+			return nil, fmt.Errorf("failed to get PostgreSQL database instance: %w", err)
 		}
 
 		// 设置连接池
@@ -102,27 +102,27 @@ func NewDatabase(config Config) (DBInterface, error) {
 		return &GormDB{db: db}, nil
 
 	default:
-		// 如果没有指定数据库类型，返回错误
+		// If no database type specified, return error
 		if config.Type == "" {
-			return nil, fmt.Errorf("必须指定数据库类型")
+			return nil, fmt.Errorf("database type must be specified")
 		}
-		return nil, fmt.Errorf("不支持的数据库类型: %s", config.Type)
+		return nil, fmt.Errorf("unsupported database type: %s", config.Type)
 	}
 }
 
-// LoadConfig 从统一配置管理模块加载数据库配置
+// LoadConfig Load database configuration from unified configuration management module
 func LoadConfig() Config {
-	// 从统一配置管理模块获取配置
+	// Get configuration from unified configuration management module
 	cfg := config.AppConfig
 	if cfg == nil {
-		// 如果配置未初始化，返回空配置
+		// If configuration not initialized, return empty configuration
 		return Config{}
 	}
 
-	// 获取解密后的密码
+	// Get decrypted password
 	password, _ := config.GetDatabasePassword() // 忽略错误，使用空密码
 
-	// 从配置中提取数据库相关信息
+	// Extract database-related information from configuration
 	return Config{
 		Type: DatabaseType(cfg.Database.Type),
 		Path: cfg.Database.Path,
@@ -134,71 +134,71 @@ func LoadConfig() Config {
 	}
 }
 
-// ResetDatabase 重置数据库的通用处理函数
-// 注意：此操作将清空数据库中的所有数据，请谨慎使用
+// ResetDatabase Universal database reset function
+// Note: This operation will clear all data in the database, use with caution
 func ResetDatabase(config Config) error {
-	logger.Info("开始重置数据库", zap.String("type", string(config.Type)))
+	logger.Info("Starting database reset", zap.String("type", string(config.Type)))
 
 	switch config.Type {
 	case SQLite:
-		// 如果没有指定路径，使用默认路径
+		// If no path specified, use default path
 		if config.Path == "" {
 			config.Path = "data/tairitsu.db"
 		}
 
-		logger.Info("重置SQLite数据库", zap.String("path", config.Path))
+		logger.Info("Resetting SQLite database", zap.String("path", config.Path))
 
-		// 关闭现有的数据库连接
+		// Close existing database connection
 		existingDB, err := NewDatabase(config)
 		if err == nil {
-			logger.Info("关闭现有数据库连接")
+			logger.Info("Closing existing database connection")
 			existingDB.Close()
 		} else {
-			logger.Warn("无法创建数据库连接以关闭", zap.Error(err))
+			logger.Warn("Failed to create database connection to close", zap.Error(err))
 		}
 
-		// 删除SQLite数据库文件以实现重置
+		// Delete SQLite database file to reset
 		err = os.Remove(config.Path)
 		if err != nil && !os.IsNotExist(err) {
-			logger.Error("删除SQLite数据库文件失败", zap.Error(err))
-			return fmt.Errorf("重置SQLite数据库失败: %w", err)
+			logger.Error("Failed to delete SQLite database file", zap.Error(err))
+			return fmt.Errorf("failed to reset SQLite database: %w", err)
 		}
 
-		// 如果文件不存在，记录信息但不报错
+		// If file doesn't exist, log info but don't error
 		if os.IsNotExist(err) {
-			logger.Info("SQLite数据库文件不存在，将创建新文件")
+			logger.Info("SQLite database file doesn't exist, will create new file")
 		}
 
-		logger.Info("SQLite数据库重置成功")
+		logger.Info("SQLite database reset completed successfully")
 		return nil
 
 	case MySQL:
-		// TODO: 实现MySQL数据库重置功能
-		// 注意：MySQL重置需要考虑数据备份、表结构重建等复杂操作
-		logger.Warn("MySQL数据库重置功能尚未实现")
+		// TODO: Implement MySQL database reset functionality
+		// Note: MySQL reset requires consideration of data backup, table structure rebuilding, etc.
+		logger.Warn("MySQL database reset functionality not yet implemented")
 		return nil
 
 	case PostgreSQL:
-		// TODO: 实现PostgreSQL数据库重置功能
-		// 注意：PostgreSQL重置需要考虑数据备份、表结构重建等复杂操作
-		logger.Warn("PostgreSQL数据库重置功能尚未实现")
+		// TODO: Implement PostgreSQL database reset functionality
+		// Note: PostgreSQL reset requires consideration of data backup, table structure rebuilding, etc.
+		logger.Warn("PostgreSQL database reset functionality not yet implemented")
 		return nil
 
 	default:
-		logger.Error("不支持的数据库类型", zap.String("type", string(config.Type)))
-		return fmt.Errorf("不支持的数据库类型: %s", config.Type)
+		logger.Error("Unsupported database type", zap.String("type", string(config.Type)))
+		return fmt.Errorf("unsupported database type: %s", config.Type)
 	}
 }
 
-// SaveConfig 保存数据库配置到统一配置管理模块
+// SaveConfig Save database configuration to unified configuration management module
 func SaveConfig(dbConfig Config) error {
-	// 获取配置实例
+	// Get configuration instance
 	cfg := config.AppConfig
 	if cfg == nil {
-		return fmt.Errorf("配置未初始化")
+		return fmt.Errorf("configuration not initialized")
 	}
 
-	// 更新数据库配置
+	// Update database configuration
 	cfg.Database.Type = config.DatabaseType(dbConfig.Type)
 	cfg.Database.Path = dbConfig.Path
 	cfg.Database.Host = dbConfig.Host
@@ -206,11 +206,11 @@ func SaveConfig(dbConfig Config) error {
 	cfg.Database.User = dbConfig.User
 	cfg.Database.Name = dbConfig.Name
 
-	// 使用加密方式保存密码
+	// Save password using encryption
 	if err := config.SetDatabasePassword(dbConfig.Pass); err != nil {
-		return fmt.Errorf("保存数据库密码失败: %w", err)
+		return fmt.Errorf("failed to save database password: %w", err)
 	}
 
-	// 保存配置到文件
+	// Save configuration to file
 	return config.SaveConfig(cfg)
 }

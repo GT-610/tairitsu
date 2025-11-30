@@ -11,25 +11,25 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
-// SQLiteDB SQLite数据库实现
+// SQLiteDB SQLite database implementation
 type SQLiteDB struct {
 	db   *sql.DB
 	path string
 	mu   sync.RWMutex
 }
 
-// NewSQLiteDB 创建新的SQLite数据库实例
+// NewSQLiteDB Create a new SQLite database instance
 func NewSQLiteDB(dbPath string) (*SQLiteDB, error) {
-	// 确保数据库目录存在
+	// Ensure database directory exists
 	dir := filepath.Dir(dbPath)
 	if err := os.MkdirAll(dir, 0755); err != nil {
-		return nil, fmt.Errorf("创建数据库目录失败: %w", err)
+		return nil, fmt.Errorf("failed to create database directory: %w", err)
 	}
 
-	// 连接数据库
+	// Connect to database
 	db, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
-		return nil, fmt.Errorf("连接SQLite数据库失败: %w", err)
+		return nil, fmt.Errorf("failed to connect to SQLite database: %w", err)
 	}
 
 	return &SQLiteDB{
@@ -38,9 +38,9 @@ func NewSQLiteDB(dbPath string) (*SQLiteDB, error) {
 	}, nil
 }
 
-// Init 初始化数据库表结构
+// Init Initialize database table structure
 func (s *SQLiteDB) Init() error {
-	// 创建用户表
+	// Create user table
 	query := `
 	CREATE TABLE IF NOT EXISTS users (
 		id TEXT PRIMARY KEY,
@@ -54,13 +54,13 @@ func (s *SQLiteDB) Init() error {
 
 	_, err := s.db.Exec(query)
 	if err != nil {
-		return fmt.Errorf("创建用户表失败: %w", err)
+		return fmt.Errorf("failed to create user table: %w", err)
 	}
 
 	return nil
 }
 
-// CreateUser 创建用户
+// CreateUser Create user
 func (s *SQLiteDB) CreateUser(user *models.User) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -71,13 +71,13 @@ func (s *SQLiteDB) CreateUser(user *models.User) error {
 
 	_, err := s.db.Exec(query, user.ID, user.Username, user.Password, user.Email, user.Role, user.CreatedAt, user.UpdatedAt)
 	if err != nil {
-		return fmt.Errorf("创建用户失败: %w", err)
+		return fmt.Errorf("failed to create user: %w", err)
 	}
 
 	return nil
 }
 
-// GetUserByID 根据ID获取用户
+// GetUserByID Get user by ID
 func (s *SQLiteDB) GetUserByID(id string) (*models.User, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -91,13 +91,13 @@ func (s *SQLiteDB) GetUserByID(id string) (*models.User, error) {
 		if err == sql.ErrNoRows {
 			return nil, nil
 		}
-		return nil, fmt.Errorf("查询用户失败: %w", err)
+		return nil, fmt.Errorf("failed to query user: %w", err)
 	}
 
 	return &user, nil
 }
 
-// GetUserByUsername 根据用户名获取用户
+// GetUserByUsername Get user by username
 func (s *SQLiteDB) GetUserByUsername(username string) (*models.User, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -111,13 +111,13 @@ func (s *SQLiteDB) GetUserByUsername(username string) (*models.User, error) {
 		if err == sql.ErrNoRows {
 			return nil, nil
 		}
-		return nil, fmt.Errorf("查询用户失败: %w", err)
+		return nil, fmt.Errorf("failed to query user: %w", err)
 	}
 
 	return &user, nil
 }
 
-// GetUserByEmail 根据邮箱获取用户
+// GetUserByEmail Get user by email
 func (s *SQLiteDB) GetUserByEmail(email string) (*models.User, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -131,13 +131,13 @@ func (s *SQLiteDB) GetUserByEmail(email string) (*models.User, error) {
 		if err == sql.ErrNoRows {
 			return nil, nil
 		}
-		return nil, fmt.Errorf("查询用户失败: %w", err)
+		return nil, fmt.Errorf("failed to query user: %w", err)
 	}
 
 	return &user, nil
 }
 
-// GetAllUsers 获取所有用户
+// GetAllUsers Get all users
 func (s *SQLiteDB) GetAllUsers() ([]*models.User, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -145,7 +145,7 @@ func (s *SQLiteDB) GetAllUsers() ([]*models.User, error) {
 	query := `SELECT id, username, password, email, role, created_at, updated_at FROM users`
 	rows, err := s.db.Query(query)
 	if err != nil {
-		return nil, fmt.Errorf("查询所有用户失败: %w", err)
+		return nil, fmt.Errorf("failed to query all users: %w", err)
 	}
 	defer rows.Close()
 
@@ -154,7 +154,7 @@ func (s *SQLiteDB) GetAllUsers() ([]*models.User, error) {
 		var user models.User
 		err := rows.Scan(&user.ID, &user.Username, &user.Password, &user.Email, &user.Role, &user.CreatedAt, &user.UpdatedAt)
 		if err != nil {
-			return nil, fmt.Errorf("扫描用户数据失败: %w", err)
+			return nil, fmt.Errorf("failed to scan user data: %w", err)
 		}
 		users = append(users, &user)
 	}
@@ -162,7 +162,7 @@ func (s *SQLiteDB) GetAllUsers() ([]*models.User, error) {
 	return users, nil
 }
 
-// UpdateUser 更新用户
+// UpdateUser Update user
 func (s *SQLiteDB) UpdateUser(user *models.User) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -174,13 +174,13 @@ func (s *SQLiteDB) UpdateUser(user *models.User) error {
 
 	_, err := s.db.Exec(query, user.Username, user.Password, user.Email, user.Role, user.UpdatedAt, user.ID)
 	if err != nil {
-		return fmt.Errorf("更新用户失败: %w", err)
+		return fmt.Errorf("failed to update user: %w", err)
 	}
 
 	return nil
 }
 
-// DeleteUser 删除用户
+// DeleteUser Delete user
 func (s *SQLiteDB) DeleteUser(id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -188,13 +188,13 @@ func (s *SQLiteDB) DeleteUser(id string) error {
 	query := `DELETE FROM users WHERE id = ?`
 	_, err := s.db.Exec(query, id)
 	if err != nil {
-		return fmt.Errorf("删除用户失败: %w", err)
+		return fmt.Errorf("failed to delete user: %w", err)
 	}
 
 	return nil
 }
 
-// HasAdminUser 检查是否已存在管理员用户
+// HasAdminUser Check if admin user already exists
 func (s *SQLiteDB) HasAdminUser() (bool, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -205,13 +205,13 @@ func (s *SQLiteDB) HasAdminUser() (bool, error) {
 	var count int
 	err := row.Scan(&count)
 	if err != nil {
-		return false, fmt.Errorf("检查管理员用户失败: %w", err)
+		return false, fmt.Errorf("failed to check admin user: %w", err)
 	}
 
 	return count > 0, nil
 }
 
-// Close 关闭数据库连接
+// Close Close database connection
 func (s *SQLiteDB) Close() error {
 	return s.db.Close()
 }

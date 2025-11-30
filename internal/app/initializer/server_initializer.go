@@ -4,16 +4,16 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/gin-gonic/gin"
 	"github.com/GT-610/tairitsu/internal/app/config"
 	"github.com/GT-610/tairitsu/internal/app/database"
 	"github.com/GT-610/tairitsu/internal/app/logger"
 	"github.com/GT-610/tairitsu/internal/app/routes"
 	"github.com/GT-610/tairitsu/internal/zerotier"
+	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
 
-// ServerInitializer 服务器初始化器
+// ServerInitializer Server initializer
 type ServerInitializer struct {
 	router      *gin.Engine
 	jwtSecret   string
@@ -23,82 +23,82 @@ type ServerInitializer struct {
 	routerMutex sync.RWMutex
 }
 
-// NewServerInitializer 创建新的服务器初始化器
+// NewServerInitializer Create a new server initializer
 func NewServerInitializer() *ServerInitializer {
 	return &ServerInitializer{}
 }
 
-// Initialize 初始化HTTP服务器
+// Initialize Initialize HTTP server
 func (si *ServerInitializer) Initialize(db database.DBInterface, ztClient *zerotier.Client, jwtSecret string) (*gin.Engine, error) {
 	si.db = db
 	si.ztClient = ztClient
 	si.jwtSecret = jwtSecret
 
-	// 创建路由器实例
+	// Create router instance
 	router := gin.New()
 	si.router = router
 
-	// 设置路由重新加载函数
+	// Set route reload function
 	si.reloadFunc = si.ReloadRoutes
 
-	// 注册路由
+	// Register routes
 	if err := si.setupRoutes(); err != nil {
-		return nil, fmt.Errorf("设置路由失败: %w", err)
+		return nil, fmt.Errorf("failed to setup routes: %w", err)
 	}
 
-	logger.Info("HTTP服务器初始化完成")
+	logger.Info("HTTP server initialization completed")
 	return router, nil
 }
 
-// setupRoutes 设置应用路由
+// setupRoutes Setup application routes
 func (si *ServerInitializer) setupRoutes() error {
-	// 使用路由重新加载函数注册路由
+	// Register routes using route reload function
 	routes.SetupRoutesWithReload(si.router, si.ztClient, si.jwtSecret, si.db, si.reloadFunc)
 	return nil
 }
 
-// ReloadRoutes 重新加载所有API路由
+// ReloadRoutes Reload all API routes
 func (si *ServerInitializer) ReloadRoutes() {
-	logger.Info("开始重新加载路由")
+	logger.Info("Starting route reload")
 
 	si.routerMutex.Lock()
 	defer si.routerMutex.Unlock()
 
-	// 清除现有路由，创建新的路由器实例
+	// Clear existing routes, create new router instance
 	si.router = gin.New()
 
-	// 重新注册路由
+	// Re-register routes
 	if err := si.setupRoutes(); err != nil {
-		logger.Error("重新注册路由失败", zap.Error(err))
+		logger.Error("Failed to re-register routes", zap.Error(err))
 		return
 	}
 
-	logger.Info("路由重新加载完成")
+	logger.Info("Route reload completed")
 }
 
-// GetRouter 获取路由器实例
+// GetRouter Get router instance
 func (si *ServerInitializer) GetRouter() *gin.Engine {
 	si.routerMutex.RLock()
 	defer si.routerMutex.RUnlock()
 	return si.router
 }
 
-// StartServer 启动HTTP服务器
+// StartServer Start HTTP server
 func (si *ServerInitializer) StartServer() error {
 	if si.router == nil {
-		return fmt.Errorf("路由器未初始化")
+		return fmt.Errorf("router not initialized")
 	}
 
 	cfg := config.AppConfig
 	if cfg == nil {
-		return fmt.Errorf("配置未加载")
+		return fmt.Errorf("configuration not loaded")
 	}
 
 	serverAddr := fmt.Sprintf(":%d", cfg.Server.Port)
-	logger.Info("启动HTTP服务器", zap.String("address", serverAddr))
+	logger.Info("Starting HTTP server", zap.String("address", serverAddr))
 
 	if err := si.router.Run(serverAddr); err != nil {
-		return fmt.Errorf("启动服务器失败: %w", err)
+		return fmt.Errorf("failed to start server: %w", err)
 	}
 
 	return nil

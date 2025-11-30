@@ -3,29 +3,29 @@ package middleware
 import (
 	"net/http"
 
-	"github.com/gin-gonic/gin"
 	"github.com/GT-610/tairitsu/internal/app/logger"
+	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
 
-// ErrorResponse 错误响应结构
+// ErrorResponse Error response structure
 type ErrorResponse struct {
 	Error   string `json:"error"`
 	Message string `json:"message,omitempty"`
 	Code    int    `json:"code,omitempty"`
 }
 
-// ErrorHandler 全局错误处理中间件
+// ErrorHandler Global error handling middleware
 func ErrorHandler() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Next()
 
-		// 处理错误
+		// Handle errors
 		if len(c.Errors) > 0 {
 			err := c.Errors.Last()
-			logger.Error("API错误", zap.Error(err.Err))
+			logger.Error("API Error", zap.Error(err.Err))
 
-			// 响应错误
+			// Respond with error
 			c.JSON(http.StatusInternalServerError, ErrorResponse{
 				Error:   "Internal Server Error",
 				Message: err.Error(),
@@ -35,7 +35,7 @@ func ErrorHandler() gin.HandlerFunc {
 	}
 }
 
-// CORS 跨域中间件
+// CORS Cross-origin resource sharing middleware
 func CORS() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Header("Access-Control-Allow-Origin", "*")

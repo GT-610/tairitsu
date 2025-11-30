@@ -12,7 +12,7 @@ import (
 	"go.uber.org/zap"
 )
 
-// AppContext 应用上下文，包含所有全局依赖
+// AppContext Application context containing all global dependencies
 type AppContext struct {
 	Config    *config.Config
 	Database  database.DBInterface
@@ -21,60 +21,60 @@ type AppContext struct {
 	JWTSecret string
 }
 
-// AppInitializer 应用初始化器
+// AppInitializer Application initializer
 type AppInitializer struct {
 	context *AppContext
 }
 
-// NewAppInitializer 创建新的应用初始化器
+// NewAppInitializer Create a new application initializer
 func NewAppInitializer() *AppInitializer {
 	return &AppInitializer{
 		context: &AppContext{},
 	}
 }
 
-// Initialize 执行完整的应用初始化流程
+// Initialize Execute complete application initialization process
 func (ai *AppInitializer) Initialize() (*AppContext, error) {
-	// 1. 初始化日志系统（首先初始化，其他步骤可能需要使用日志）
+	// 1. Initialize logging system (initialize first, other steps may need logging)
 	if err := ai.initializeLogger(); err != nil {
 		return nil, fmt.Errorf("初始化日志系统失败: %w", err)
 	}
 
-	logger.Info("开始应用初始化流程")
+	logger.Info("Starting application initialization process")
 
-	// 2. 加载配置
+	// 2. Load configuration
 	if err := ai.loadConfiguration(); err != nil {
 		return nil, fmt.Errorf("加载配置失败: %w", err)
 	}
 
-	// 3. 初始化数据库
+	// 3. Initialize database
 	if err := ai.initializeDatabase(); err != nil {
-		logger.Warn("数据库初始化失败，将继续运行", zap.Error(err))
-		// 不返回错误，允许用户通过设置向导配置数据库
+		logger.Warn("Database initialization failed, continuing to run", zap.Error(err))
+		// Don't return error, allow user to configure database through setup wizard
 	}
 
-	// 4. 初始化ZeroTier客户端
+	// 4. Initialize ZeroTier client
 	if err := ai.initializeZeroTierClient(); err != nil {
-		logger.Warn("ZeroTier客户端初始化失败，将继续运行", zap.Error(err))
-		// 不返回错误，允许用户通过设置向导配置ZeroTier
+		logger.Warn("ZeroTier client initialization failed, continuing to run", zap.Error(err))
+		// Don't return error, allow user to configure ZeroTier through setup wizard
 	}
 
-	// 5. 初始化HTTP服务器
+	// 5. Initialize HTTP server
 	if err := ai.initializeHTTPServer(); err != nil {
 		return nil, fmt.Errorf("初始化HTTP服务器失败: %w", err)
 	}
 
-	logger.Info("应用初始化完成")
+	logger.Info("Application initialization completed")
 	return ai.context, nil
 }
 
-// initializeLogger 初始化日志系统
+// initializeLogger Initialize logging system
 func (ai *AppInitializer) initializeLogger() error {
 	logger.InitLogger("info")
 	return nil
 }
 
-// loadConfiguration 加载应用配置
+// loadConfiguration Load application configuration
 func (ai *AppInitializer) loadConfiguration() error {
 	cfg, err := config.LoadConfig()
 	if err != nil {
@@ -84,7 +84,7 @@ func (ai *AppInitializer) loadConfiguration() error {
 	ai.context.Config = cfg
 	ai.context.JWTSecret = cfg.Security.JWTSecret
 
-	// 设置Gin模式
+	// Set Gin mode
 	if os.Getenv("NODE_ENV") == "production" {
 		gin.SetMode(gin.ReleaseMode)
 	}
@@ -92,24 +92,24 @@ func (ai *AppInitializer) loadConfiguration() error {
 	return nil
 }
 
-// initializeDatabase 初始化数据库
+// initializeDatabase Initialize database
 func (ai *AppInitializer) initializeDatabase() error {
-	// 加载数据库配置
+	// Load database configuration
 	dbConfig := database.LoadConfig()
 
-	// 如果未配置数据库类型，跳过初始化
+	// If database type is not configured, skip initialization
 	if dbConfig.Type == "" {
-		logger.Info("未配置数据库类型，跳过数据库初始化")
+		logger.Info("Database type not configured, skipping database initialization")
 		return nil
 	}
 
-	// 创建数据库实例
+	// Create database instance
 	db, err := database.NewDatabase(dbConfig)
 	if err != nil {
 		return fmt.Errorf("创建数据库实例失败: %w", err)
 	}
 
-	// 初始化数据库架构
+	// Initialize database schema
 	if err := db.Init(); err != nil {
 		db.Close()
 		return fmt.Errorf("初始化数据库失败: %w", err)
@@ -119,21 +119,21 @@ func (ai *AppInitializer) initializeDatabase() error {
 	return nil
 }
 
-// initializeZeroTierClient 初始化ZeroTier客户端
+// initializeZeroTierClient Initialize ZeroTier client
 func (ai *AppInitializer) initializeZeroTierClient() error {
-	// 只有在系统已初始化的情况下才自动初始化ZeroTier客户端
+	// Only automatically initialize ZeroTier client if system is already initialized
 	if !ai.context.Config.Initialized {
-		logger.Info("系统未初始化，跳过ZeroTier客户端自动初始化")
+		logger.Info("System not initialized, skipping ZeroTier client automatic initialization")
 		return nil
 	}
 
-	// 动态创建ZeroTier客户端
+	// Dynamically create ZeroTier client
 	ztClient, err := zerotier.NewClient()
 	if err != nil {
 		return fmt.Errorf("创建ZeroTier客户端失败: %w", err)
 	}
 
-	// 验证客户端是否正常工作
+	// Verify client is working properly
 	_, err = ztClient.GetStatus()
 	if err != nil {
 		return fmt.Errorf("ZeroTier客户端验证失败: %w", err)
@@ -143,16 +143,16 @@ func (ai *AppInitializer) initializeZeroTierClient() error {
 	return nil
 }
 
-// initializeHTTPServer 初始化HTTP服务器
+// initializeHTTPServer Initialize HTTP server
 func (ai *AppInitializer) initializeHTTPServer() error {
-	// 创建路由器实例
+	// Create router instance
 	router := gin.New()
 	ai.context.Router = router
 
 	return nil
 }
 
-// GetContext 获取应用上下文
+// GetContext Get application context
 func (ai *AppInitializer) GetContext() *AppContext {
 	return ai.context
 }

@@ -4,12 +4,12 @@ import (
 	"github.com/GT-610/tairitsu/internal/app/models"
 )
 
-// DBInterface 定义数据库接口，支持多种数据库后端
+// DBInterface Define database interface, supporting multiple database backends
 type DBInterface interface {
-	// 初始化数据库
+	// Initialize database
 	Init() error
 	
-	// 用户相关操作
+	// User-related operations
 	CreateUser(user *models.User) error
 	GetUserByID(id string) (*models.User, error)
 	GetUserByUsername(username string) (*models.User, error)
@@ -18,16 +18,16 @@ type DBInterface interface {
 	UpdateUser(user *models.User) error
 	DeleteUser(id string) error
 	
-	// 网络相关操作
+	// Network-related operations
 	CreateNetwork(network *models.Network) error
 	GetNetworkByID(id string) (*models.Network, error)
 	GetNetworksByOwnerID(ownerID string) ([]*models.Network, error)
 	UpdateNetwork(network *models.Network) error
 	DeleteNetwork(id string) error
 	
-	// 检查是否已存在管理员用户
+	// Check if admin user already exists
 	HasAdminUser() (bool, error)
 	
-	// 关闭数据库连接
+	// Close database connection
 	Close() error
 }

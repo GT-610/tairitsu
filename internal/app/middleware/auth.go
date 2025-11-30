@@ -8,46 +8,46 @@ import (
 	"github.com/GT-610/tairitsu/internal/app/services"
 )
 
-// AuthMiddleware 认证中间件
+// AuthMiddleware Authentication middleware
 func AuthMiddleware(jwtService *services.JWTService) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// 从请求头获取令牌
+		// Get token from request header
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
 			c.JSON(http.StatusUnauthorized, ErrorResponse{
 				Error:   "Unauthorized",
-				Message: "缺少认证令牌",
+				Message: "Missing authentication token",
 				Code:    http.StatusUnauthorized,
 			})
 			c.Abort()
 			return
 		}
 
-		// 检查Bearer前缀
+		// Check Bearer prefix
 		parts := strings.SplitN(authHeader, " ", 2)
 		if !(len(parts) == 2 && parts[0] == "Bearer") {
 			c.JSON(http.StatusUnauthorized, ErrorResponse{
 				Error:   "Unauthorized",
-				Message: "认证格式无效",
+				Message: "Invalid authentication format",
 				Code:    http.StatusUnauthorized,
 			})
 			c.Abort()
 			return
 		}
 
-		// 验证令牌
+		// Validate token
 		claims, err := jwtService.ValidateToken(parts[1])
 		if err != nil {
 			c.JSON(http.StatusUnauthorized, ErrorResponse{
 				Error:   "Unauthorized",
-				Message: "无效的认证令牌",
+				Message: "Invalid authentication token",
 				Code:    http.StatusUnauthorized,
 			})
 			c.Abort()
 			return
 		}
 
-		// 将用户信息存储到上下文
+		// Store user information in context
 		c.Set("user_id", claims.UserID)
 		c.Set("username", claims.Username)
 		c.Set("role", claims.Role)
@@ -56,14 +56,14 @@ func AuthMiddleware(jwtService *services.JWTService) gin.HandlerFunc {
 	}
 }
 
-// AdminRequired 管理员权限中间件
+// AdminRequired Admin permission middleware
 func AdminRequired() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		role, exists := c.Get("role")
 		if !exists {
 			c.JSON(http.StatusForbidden, ErrorResponse{
 				Error:   "Forbidden",
-				Message: "需要认证",
+				Message: "Authentication required",
 				Code:    http.StatusForbidden,
 			})
 			c.Abort()
@@ -73,7 +73,7 @@ func AdminRequired() gin.HandlerFunc {
 		if role != "admin" {
 			c.JSON(http.StatusForbidden, ErrorResponse{
 				Error:   "Forbidden",
-				Message: "需要管理员权限",
+				Message: "Admin permission required",
 				Code:    http.StatusForbidden,
 			})
 			c.Abort()

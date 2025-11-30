@@ -14,17 +14,15 @@ import (
 var GlobalZTClient *zerotier.Client
 
 // NetworkService handles network-related operations with ZeroTier
-// This service provides methods to manage ZeroTier networks
-
 type NetworkService struct {
 	ztClient *zerotier.Client     // ZeroTier client for API interactions
-	db       database.DBInterface // Database interface for network ownership management
+	db       database.DBInterface // Database for network ownership management
 }
 
 // NewNetworkService creates a new network service instance
-// If global ZT client is available and no specific client is provided,
-// it will use the global client to ensure continuity after route reloading
+// If global ZT client is available, it will be used to ensure continuity after route reloading
 func NewNetworkService(ztClient *zerotier.Client, db database.DBInterface) *NetworkService {
+	// Use global ZeroTier client if available and no specific client is provided
 	if GlobalZTClient != nil && ztClient == nil {
 		ztClient = GlobalZTClient
 	}
@@ -38,13 +36,13 @@ func NewNetworkService(ztClient *zerotier.Client, db database.DBInterface) *Netw
 func (s *NetworkService) GetStatus() (*zerotier.Status, error) {
 	// Check if ZeroTier client is initialized
 	if s.ztClient == nil {
-		logger.Warn("服务层：ZeroTier客户端未初始化")
-		return nil, fmt.Errorf("ZeroTier客户端未初始化")
+		logger.Warn("NetworkService: ZeroTier client not initialized")
+		return nil, fmt.Errorf("ZeroTier client not initialized")
 	}
 
 	status, err := s.ztClient.GetStatus()
 	if err != nil {
-		logger.Error("服务层：获取ZeroTier网络状态失败", zap.Error(err))
+		logger.Error("NetworkService: Failed to get ZeroTier status", zap.Error(err))
 		return nil, err
 	}
 
@@ -55,24 +53,24 @@ func (s *NetworkService) GetStatus() (*zerotier.Status, error) {
 func (s *NetworkService) GetAllNetworks(ownerID string) ([]zerotier.Network, error) {
 	// Check if ZeroTier client is initialized
 	if s.ztClient == nil {
-		logger.Warn("服务层：ZeroTier客户端未初始化")
-		return nil, fmt.Errorf("ZeroTier客户端未初始化")
+		logger.Warn("NetworkService: ZeroTier client not initialized")
+		return nil, fmt.Errorf("ZeroTier client not initialized")
 	}
 
 	// Check if database is initialized
 	if s.db == nil {
-		logger.Warn("服务层：数据库未初始化")
-		return nil, fmt.Errorf("数据库未初始化")
+		logger.Warn("NetworkService: Database not initialized")
+		return nil, fmt.Errorf("Database not initialized")
 	}
 
 	// Get network IDs owned by the user from database
 	ownedNetworks, err := s.db.GetNetworksByOwnerID(ownerID)
 	if err != nil {
-		logger.Error("服务层：获取用户网络列表失败", zap.String("owner_id", ownerID), zap.Error(err))
+		logger.Error("NetworkService: Failed to get user networks", zap.String("owner_id", ownerID), zap.Error(err))
 		return nil, err
 	}
 
-	// If no networks owned, return empty slice
+	// Return empty slice if no networks owned
 	if len(ownedNetworks) == 0 {
 		return []zerotier.Network{}, nil
 	}
@@ -80,7 +78,7 @@ func (s *NetworkService) GetAllNetworks(ownerID string) ([]zerotier.Network, err
 	// Get all networks from ZeroTier
 	allNetworks, err := s.ztClient.GetNetworks()
 	if err != nil {
-		logger.Error("服务层：获取网络列表失败", zap.Error(err))
+		logger.Error("NetworkService: Failed to get networks", zap.Error(err))
 		return nil, err
 	}
 
@@ -104,43 +102,43 @@ func (s *NetworkService) GetAllNetworks(ownerID string) ([]zerotier.Network, err
 func (s *NetworkService) GetNetworkByID(id string, userID string) (*zerotier.Network, error) {
 	// Check if ZeroTier client is initialized
 	if s.ztClient == nil {
-		logger.Warn("服务层：ZeroTier客户端未初始化")
-		return nil, fmt.Errorf("ZeroTier客户端未初始化")
+		logger.Warn("NetworkService: ZeroTier client not initialized")
+		return nil, fmt.Errorf("ZeroTier client not initialized")
 	}
 
 	// Check if database is initialized
 	if s.db == nil {
-		logger.Warn("服务层：数据库未初始化")
-		return nil, fmt.Errorf("数据库未初始化")
+		logger.Warn("NetworkService: Database not initialized")
+		return nil, fmt.Errorf("Database not initialized")
 	}
 
 	// Check if network is owned by the user
 	ownedNetwork, err := s.db.GetNetworkByID(id)
 	if err != nil {
-		logger.Error("服务层：获取网络所有权失败", zap.String("network_id", id), zap.Error(err))
+		logger.Error("NetworkService: Failed to get network ownership", zap.String("network_id", id), zap.Error(err))
 		return nil, err
 	}
 
 	if ownedNetwork == nil {
-		logger.Warn("服务层：网络不存在或无权限访问", zap.String("network_id", id))
+		logger.Warn("NetworkService: Network not found or no access", zap.String("network_id", id))
 		return nil, nil
 	}
 
 	// Check if user is the owner
 	if ownedNetwork.OwnerID != userID {
-		logger.Warn("服务层：无权限访问网络", zap.String("network_id", id), zap.String("user_id", userID))
+		logger.Warn("NetworkService: No permission to access network", zap.String("network_id", id), zap.String("user_id", userID))
 		return nil, nil
 	}
 
 	// Get network details from ZeroTier
 	network, err := s.ztClient.GetNetwork(id)
 	if err != nil {
-		logger.Error("服务层：根据ID获取网络失败", zap.String("network_id", id), zap.Error(err))
+		logger.Error("NetworkService: Failed to get network by ID", zap.String("network_id", id), zap.Error(err))
 		return nil, err
 	}
 
 	if network == nil {
-		logger.Warn("服务层：网络不存在", zap.String("network_id", id))
+		logger.Warn("NetworkService: Network not found", zap.String("network_id", id))
 		return nil, nil
 	}
 
@@ -151,14 +149,14 @@ func (s *NetworkService) GetNetworkByID(id string, userID string) (*zerotier.Net
 func (s *NetworkService) CreateNetwork(network *zerotier.Network, ownerID string) (*zerotier.Network, error) {
 	// Check if ZeroTier client is initialized
 	if s.ztClient == nil {
-		logger.Warn("服务层：ZeroTier客户端未初始化")
-		return nil, fmt.Errorf("ZeroTier客户端未初始化")
+		logger.Warn("NetworkService: ZeroTier client not initialized")
+		return nil, fmt.Errorf("ZeroTier client not initialized")
 	}
 
 	// Check if database is initialized
 	if s.db == nil {
-		logger.Warn("服务层：数据库未初始化")
-		return nil, fmt.Errorf("数据库未初始化")
+		logger.Warn("NetworkService: Database not initialized")
+		return nil, fmt.Errorf("Database not initialized")
 	}
 
 	// Force network to be private
@@ -167,7 +165,7 @@ func (s *NetworkService) CreateNetwork(network *zerotier.Network, ownerID string
 	// Create network in ZeroTier
 	createdNetwork, err := s.ztClient.CreateNetwork(network)
 	if err != nil {
-		logger.Error("服务层：创建网络失败", zap.String("network_name", network.Name), zap.Error(err))
+		logger.Error("NetworkService: Failed to create network", zap.String("network_name", network.Name), zap.Error(err))
 		return nil, err
 	}
 
@@ -180,10 +178,10 @@ func (s *NetworkService) CreateNetwork(network *zerotier.Network, ownerID string
 	}
 
 	if err := s.db.CreateNetwork(dbNetwork); err != nil {
-		logger.Error("服务层：保存网络所有权失败", zap.String("network_id", createdNetwork.ID), zap.Error(err))
+		logger.Error("NetworkService: Failed to save network ownership", zap.String("network_id", createdNetwork.ID), zap.Error(err))
 		// Try to delete network from ZeroTier if database save fails
 		if delErr := s.ztClient.DeleteNetwork(createdNetwork.ID); err != nil {
-			logger.Error("服务层：回滚删除网络失败", zap.String("network_id", createdNetwork.ID), zap.Error(delErr))
+			logger.Error("NetworkService: Failed to rollback network creation", zap.String("network_id", createdNetwork.ID), zap.Error(delErr))
 		}
 		return nil, err
 	}
@@ -191,36 +189,36 @@ func (s *NetworkService) CreateNetwork(network *zerotier.Network, ownerID string
 	return createdNetwork, nil
 }
 
-// UpdateNetwork 更新网络 with ownership check and private network enforcement
+// UpdateNetwork updates a network with ownership check and private network enforcement
 func (s *NetworkService) UpdateNetwork(id string, network *zerotier.Network, userID string) (*zerotier.Network, error) {
-	// 检查ZeroTier客户端是否已初始化
+	// Check if ZeroTier client is initialized
 	if s.ztClient == nil {
-		logger.Warn("服务层：ZeroTier客户端未初始化")
-		return nil, fmt.Errorf("ZeroTier客户端未初始化")
+		logger.Warn("NetworkService: ZeroTier client not initialized")
+		return nil, fmt.Errorf("ZeroTier client not initialized")
 	}
 
 	// Check if database is initialized
 	if s.db == nil {
-		logger.Warn("服务层：数据库未初始化")
-		return nil, fmt.Errorf("数据库未初始化")
+		logger.Warn("NetworkService: Database not initialized")
+		return nil, fmt.Errorf("Database not initialized")
 	}
 
 	// Check if network is owned by the user
 	ownedNetwork, err := s.db.GetNetworkByID(id)
 	if err != nil {
-		logger.Error("服务层：获取网络所有权失败", zap.String("network_id", id), zap.Error(err))
+		logger.Error("NetworkService: Failed to get network ownership", zap.String("network_id", id), zap.Error(err))
 		return nil, err
 	}
 
 	if ownedNetwork == nil {
-		logger.Warn("服务层：网络不存在或无权限访问", zap.String("network_id", id))
-		return nil, fmt.Errorf("网络不存在或无权限访问")
+		logger.Warn("NetworkService: Network not found or no access", zap.String("network_id", id))
+		return nil, fmt.Errorf("Network not found or no access")
 	}
 
 	// Check if user is the owner
 	if ownedNetwork.OwnerID != userID {
-		logger.Warn("服务层：无权限更新网络", zap.String("network_id", id), zap.String("user_id", userID))
-		return nil, fmt.Errorf("无权限更新网络")
+		logger.Warn("NetworkService: No permission to update network", zap.String("network_id", id), zap.String("user_id", userID))
+		return nil, fmt.Errorf("No permission to update network")
 	}
 
 	// Force network to remain private
@@ -229,7 +227,7 @@ func (s *NetworkService) UpdateNetwork(id string, network *zerotier.Network, use
 	// Update network in ZeroTier
 	updatedNetwork, err := s.ztClient.UpdateNetwork(id, network)
 	if err != nil {
-		logger.Error("服务层：更新网络失败", zap.String("network_id", id), zap.Error(err))
+		logger.Error("NetworkService: Failed to update network", zap.String("network_id", id), zap.Error(err))
 		return nil, err
 	}
 
@@ -237,238 +235,238 @@ func (s *NetworkService) UpdateNetwork(id string, network *zerotier.Network, use
 	ownedNetwork.Name = updatedNetwork.Name
 	ownedNetwork.Description = updatedNetwork.Description
 	if err := s.db.UpdateNetwork(ownedNetwork); err != nil {
-		logger.Error("服务层：更新数据库中网络信息失败", zap.String("network_id", id), zap.Error(err))
+		logger.Error("NetworkService: Failed to update network in database", zap.String("network_id", id), zap.Error(err))
 		// Continue anyway, as ZeroTier update was successful
 	}
 
 	return updatedNetwork, nil
 }
 
-// DeleteNetwork 删除网络 with ownership check
+// DeleteNetwork deletes a network with ownership check
 func (s *NetworkService) DeleteNetwork(networkID string, userID string) error {
-	// 检查ZeroTier客户端是否已初始化
+	// Check if ZeroTier client is initialized
 	if s.ztClient == nil {
-		logger.Warn("服务层：ZeroTier客户端未初始化")
-		return fmt.Errorf("ZeroTier客户端未初始化")
+		logger.Warn("NetworkService: ZeroTier client not initialized")
+		return fmt.Errorf("ZeroTier client not initialized")
 	}
 
 	// Check if database is initialized
 	if s.db == nil {
-		logger.Warn("服务层：数据库未初始化")
-		return fmt.Errorf("数据库未初始化")
+		logger.Warn("NetworkService: Database not initialized")
+		return fmt.Errorf("Database not initialized")
 	}
 
 	// Check if network is owned by the user
 	ownedNetwork, err := s.db.GetNetworkByID(networkID)
 	if err != nil {
-		logger.Error("服务层：获取网络所有权失败", zap.String("network_id", networkID), zap.Error(err))
+		logger.Error("NetworkService: Failed to get network ownership", zap.String("network_id", networkID), zap.Error(err))
 		return err
 	}
 
 	if ownedNetwork == nil {
-		logger.Warn("服务层：网络不存在或无权限访问", zap.String("network_id", networkID))
-		return fmt.Errorf("网络不存在或无权限访问")
+		logger.Warn("NetworkService: Network not found or no access", zap.String("network_id", networkID))
+		return fmt.Errorf("Network not found or no access")
 	}
 
 	// Check if user is the owner
 	if ownedNetwork.OwnerID != userID {
-		logger.Warn("服务层：无权限删除网络", zap.String("network_id", networkID), zap.String("user_id", userID))
-		return fmt.Errorf("无权限删除网络")
+		logger.Warn("NetworkService: No permission to delete network", zap.String("network_id", networkID), zap.String("user_id", userID))
+		return fmt.Errorf("No permission to delete network")
 	}
 
 	// Delete network from ZeroTier
 	err = s.ztClient.DeleteNetwork(networkID)
 	if err != nil {
-		logger.Error("服务层：删除网络失败", zap.String("network_id", networkID), zap.Error(err))
+		logger.Error("NetworkService: Failed to delete network", zap.String("network_id", networkID), zap.Error(err))
 		return err
 	}
 
 	// Delete network from database
 	if err := s.db.DeleteNetwork(networkID); err != nil {
-		logger.Error("服务层：从数据库删除网络失败", zap.String("network_id", networkID), zap.Error(err))
+		logger.Error("NetworkService: Failed to delete network from database", zap.String("network_id", networkID), zap.Error(err))
 		// Continue anyway, as ZeroTier deletion was successful
 	}
 
 	return nil
 }
 
-// GetNetworkMembers 获取网络中的所有成员 with ownership check
+// GetNetworkMembers retrieves all members of a network with ownership check
 func (s *NetworkService) GetNetworkMembers(networkID string, userID string) ([]zerotier.Member, error) {
-	// 检查ZeroTier客户端是否已初始化
+	// Check if ZeroTier client is initialized
 	if s.ztClient == nil {
-		logger.Warn("服务层：ZeroTier客户端未初始化")
-		return nil, fmt.Errorf("ZeroTier客户端未初始化")
+		logger.Warn("NetworkService: ZeroTier client not initialized")
+		return nil, fmt.Errorf("ZeroTier client not initialized")
 	}
 
 	// Check if database is initialized
 	if s.db == nil {
-		logger.Warn("服务层：数据库未初始化")
-		return nil, fmt.Errorf("数据库未初始化")
+		logger.Warn("NetworkService: Database not initialized")
+		return nil, fmt.Errorf("Database not initialized")
 	}
 
 	// Check if network is owned by the user
 	ownedNetwork, err := s.db.GetNetworkByID(networkID)
 	if err != nil {
-		logger.Error("服务层：获取网络所有权失败", zap.String("network_id", networkID), zap.Error(err))
+		logger.Error("NetworkService: Failed to get network ownership", zap.String("network_id", networkID), zap.Error(err))
 		return nil, err
 	}
 
 	if ownedNetwork == nil {
-		logger.Warn("服务层：网络不存在或无权限访问", zap.String("network_id", networkID))
-		return nil, fmt.Errorf("网络不存在或无权限访问")
+		logger.Warn("NetworkService: Network not found or no access", zap.String("network_id", networkID))
+		return nil, fmt.Errorf("Network not found or no access")
 	}
 
 	// Check if user is the owner
 	if ownedNetwork.OwnerID != userID {
-		logger.Warn("服务层：无权限访问网络成员", zap.String("network_id", networkID), zap.String("user_id", userID))
-		return nil, fmt.Errorf("无权限访问网络成员")
+		logger.Warn("NetworkService: No permission to access network members", zap.String("network_id", networkID), zap.String("user_id", userID))
+		return nil, fmt.Errorf("No permission to access network members")
 	}
 
 	members, err := s.ztClient.GetMembers(networkID)
 	if err != nil {
-		logger.Error("服务层：获取网络成员列表失败", zap.String("network_id", networkID), zap.Error(err))
+		logger.Error("NetworkService: Failed to get network members", zap.String("network_id", networkID), zap.Error(err))
 		return nil, err
 	}
 
 	return members, nil
 }
 
-// GetNetworkMember 获取网络中的特定成员 with ownership check
+// GetNetworkMember retrieves a specific member of a network with ownership check
 func (s *NetworkService) GetNetworkMember(networkID, memberID string, userID string) (*zerotier.Member, error) {
-	// 检查ZeroTier客户端是否已初始化
+	// Check if ZeroTier client is initialized
 	if s.ztClient == nil {
-		logger.Warn("服务层：ZeroTier客户端未初始化")
-		return nil, fmt.Errorf("ZeroTier客户端未初始化")
+		logger.Warn("NetworkService: ZeroTier client not initialized")
+		return nil, fmt.Errorf("ZeroTier client not initialized")
 	}
 
 	// Check if database is initialized
 	if s.db == nil {
-		logger.Warn("服务层：数据库未初始化")
-		return nil, fmt.Errorf("数据库未初始化")
+		logger.Warn("NetworkService: Database not initialized")
+		return nil, fmt.Errorf("Database not initialized")
 	}
 
 	// Check if network is owned by the user
 	ownedNetwork, err := s.db.GetNetworkByID(networkID)
 	if err != nil {
-		logger.Error("服务层：获取网络所有权失败", zap.String("network_id", networkID), zap.Error(err))
+		logger.Error("NetworkService: Failed to get network ownership", zap.String("network_id", networkID), zap.Error(err))
 		return nil, err
 	}
 
 	if ownedNetwork == nil {
-		logger.Warn("服务层：网络不存在或无权限访问", zap.String("network_id", networkID))
-		return nil, fmt.Errorf("网络不存在或无权限访问")
+		logger.Warn("NetworkService: Network not found or no access", zap.String("network_id", networkID))
+		return nil, fmt.Errorf("Network not found or no access")
 	}
 
 	// Check if user is the owner
 	if ownedNetwork.OwnerID != userID {
-		logger.Warn("服务层：无权限访问网络成员", zap.String("network_id", networkID), zap.String("user_id", userID))
-		return nil, fmt.Errorf("无权限访问网络成员")
+		logger.Warn("NetworkService: No permission to access network member", zap.String("network_id", networkID), zap.String("user_id", userID))
+		return nil, fmt.Errorf("No permission to access network member")
 	}
 
 	member, err := s.ztClient.GetMember(networkID, memberID)
 	if err != nil {
-		logger.Error("服务层：获取网络成员失败", zap.String("network_id", networkID), zap.String("member_id", memberID), zap.Error(err))
+		logger.Error("NetworkService: Failed to get network member", zap.String("network_id", networkID), zap.String("member_id", memberID), zap.Error(err))
 		return nil, err
 	}
 
 	if member == nil {
-		logger.Warn("服务层：网络成员不存在", zap.String("network_id", networkID), zap.String("member_id", memberID))
+		logger.Warn("NetworkService: Network member not found", zap.String("network_id", networkID), zap.String("member_id", memberID))
 		return nil, nil
 	}
 
 	return member, nil
 }
 
-// UpdateNetworkMember 更新网络成员 with ownership check
+// UpdateNetworkMember updates a network member with ownership check
 func (s *NetworkService) UpdateNetworkMember(networkID, memberID string, member *zerotier.Member, userID string) (*zerotier.Member, error) {
-	// 检查ZeroTier客户端是否已初始化
+	// Check if ZeroTier client is initialized
 	if s.ztClient == nil {
-		logger.Warn("服务层：ZeroTier客户端未初始化")
-		return nil, fmt.Errorf("ZeroTier客户端未初始化")
+		logger.Warn("NetworkService: ZeroTier client not initialized")
+		return nil, fmt.Errorf("ZeroTier client not initialized")
 	}
 
 	// Check if database is initialized
 	if s.db == nil {
-		logger.Warn("服务层：数据库未初始化")
-		return nil, fmt.Errorf("数据库未初始化")
+		logger.Warn("NetworkService: Database not initialized")
+		return nil, fmt.Errorf("Database not initialized")
 	}
 
 	// Check if network is owned by the user
 	ownedNetwork, err := s.db.GetNetworkByID(networkID)
 	if err != nil {
-		logger.Error("服务层：获取网络所有权失败", zap.String("network_id", networkID), zap.Error(err))
+		logger.Error("NetworkService: Failed to get network ownership", zap.String("network_id", networkID), zap.Error(err))
 		return nil, err
 	}
 
 	if ownedNetwork == nil {
-		logger.Warn("服务层：网络不存在或无权限访问", zap.String("network_id", networkID))
-		return nil, fmt.Errorf("网络不存在或无权限访问")
+		logger.Warn("NetworkService: Network not found or no access", zap.String("network_id", networkID))
+		return nil, fmt.Errorf("Network not found or no access")
 	}
 
 	// Check if user is the owner
 	if ownedNetwork.OwnerID != userID {
-		logger.Warn("服务层：无权限更新网络成员", zap.String("network_id", networkID), zap.String("user_id", userID))
-		return nil, fmt.Errorf("无权限更新网络成员")
+		logger.Warn("NetworkService: No permission to update network member", zap.String("network_id", networkID), zap.String("user_id", userID))
+		return nil, fmt.Errorf("No permission to update network member")
 	}
 
 	updatedMember, err := s.ztClient.UpdateMember(networkID, memberID, member)
 	if err != nil {
-		logger.Error("服务层：更新网络成员失败", zap.String("network_id", networkID), zap.String("member_id", memberID), zap.Error(err))
+		logger.Error("NetworkService: Failed to update network member", zap.String("network_id", networkID), zap.String("member_id", memberID), zap.Error(err))
 		return nil, err
 	}
 
 	return updatedMember, nil
 }
 
-// RemoveNetworkMember 从网络中移除成员 with ownership check
+// RemoveNetworkMember removes a member from a network with ownership check
 func (s *NetworkService) RemoveNetworkMember(networkID, memberID string, userID string) error {
-	// 检查ZeroTier客户端是否已初始化
+	// Check if ZeroTier client is initialized
 	if s.ztClient == nil {
-		logger.Warn("服务层：ZeroTier客户端未初始化")
-		return fmt.Errorf("ZeroTier客户端未初始化")
+		logger.Warn("NetworkService: ZeroTier client not initialized")
+		return fmt.Errorf("ZeroTier client not initialized")
 	}
 
 	// Check if database is initialized
 	if s.db == nil {
-		logger.Warn("服务层：数据库未初始化")
-		return fmt.Errorf("数据库未初始化")
+		logger.Warn("NetworkService: Database not initialized")
+		return fmt.Errorf("Database not initialized")
 	}
 
 	// Check if network is owned by the user
 	ownedNetwork, err := s.db.GetNetworkByID(networkID)
 	if err != nil {
-		logger.Error("服务层：获取网络所有权失败", zap.String("network_id", networkID), zap.Error(err))
+		logger.Error("NetworkService: Failed to get network ownership", zap.String("network_id", networkID), zap.Error(err))
 		return err
 	}
 
 	if ownedNetwork == nil {
-		logger.Warn("服务层：网络不存在或无权限访问", zap.String("network_id", networkID))
-		return fmt.Errorf("网络不存在或无权限访问")
+		logger.Warn("NetworkService: Network not found or no access", zap.String("network_id", networkID))
+		return fmt.Errorf("Network not found or no access")
 	}
 
 	// Check if user is the owner
 	if ownedNetwork.OwnerID != userID {
-		logger.Warn("服务层：无权限移除网络成员", zap.String("network_id", networkID), zap.String("user_id", userID))
-		return fmt.Errorf("无权限移除网络成员")
+		logger.Warn("NetworkService: No permission to remove network member", zap.String("network_id", networkID), zap.String("user_id", userID))
+		return fmt.Errorf("No permission to remove network member")
 	}
 
 	err = s.ztClient.DeleteMember(networkID, memberID)
 	if err != nil {
-		logger.Error("服务层：从网络中移除成员失败", zap.String("network_id", networkID), zap.String("member_id", memberID), zap.Error(err))
+		logger.Error("NetworkService: Failed to remove network member", zap.String("network_id", networkID), zap.String("member_id", memberID), zap.Error(err))
 		return err
 	}
 
 	return nil
 }
 
-// SetZTClient 设置ZeroTier客户端
+// SetZTClient sets the ZeroTier client and updates the global instance
 func (s *NetworkService) SetZTClient(client *zerotier.Client) {
 	if client != nil {
-		// 同时更新全局客户端实例，确保路由重新加载后仍然保持
+		// Update global client instance to ensure continuity after route reloading
 		GlobalZTClient = client
 	} else {
-		logger.Warn("服务层：尝试设置空的ZeroTier客户端")
-		// 也清空全局实例
+		logger.Warn("NetworkService: Attempting to set nil ZeroTier client")
+		// Clear global instance as well
 		GlobalZTClient = nil
 	}
 	s.ztClient = client

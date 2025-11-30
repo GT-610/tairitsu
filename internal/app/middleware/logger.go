@@ -8,30 +8,30 @@ import (
 	"go.uber.org/zap"
 )
 
-// Logger 自定义日志中间件
+// Logger Custom logging middleware
 func Logger() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// 开始时间
+		// Start time
 		startTime := time.Now()
 
-		// 处理请求
+		// Process request
 		c.Next()
 
-		// 结束时间
+		// End time
 		endTime := time.Now()
-		// 执行时间
+		// Execution time
 		latency := endTime.Sub(startTime)
 
-		// 请求方法
+		// Request method
 		method := c.Request.Method
-		// 请求路由
+		// Request route
 		path := c.Request.URL.Path
-		// 状态码
+		// Status code
 		statusCode := c.Writer.Status()
-		// 客户端IP
+		// Client IP
 		clientIP := c.ClientIP()
 
-		// 日志格式
+		// Log format
 		logger.Info("GIN Request",
 			zap.String("method", method),
 			zap.Int("status", statusCode),

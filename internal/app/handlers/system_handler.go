@@ -75,7 +75,7 @@ func (h *SystemHandler) GetSystemStatus(c *gin.Context) {
 	// Check ZeroTier connection status
 	ztStatus, err := h.networkService.GetStatus()
 	if err != nil {
-		logger.Debug("[系统状态] ZeroTier状态检查失败", zap.Error(err))
+		logger.Debug("[System Status] Failed to get ZeroTier status", zap.Error(err))
 		// Return system status even if ZeroTier connection fails
 		ztStatus = &zerotier.Status{
 			Version: "unknown",
@@ -84,7 +84,7 @@ func (h *SystemHandler) GetSystemStatus(c *gin.Context) {
 		}
 	}
 
-	// 当已初始化时，返回完整的状态信息
+	// When initialized, return complete status information
 	response := map[string]interface{}{
 		"initialized": true,
 		"hasDatabase": hasDatabase,
@@ -99,12 +99,12 @@ func (h *SystemHandler) GetSystemStatus(c *gin.Context) {
 func (h *SystemHandler) ConfigureDatabase(c *gin.Context) {
 	var dbConfig models.DatabaseConfig
 	if err := c.ShouldBindJSON(&dbConfig); err != nil {
-		logger.Error("数据库配置参数绑定失败", zap.Error(err))
+		logger.Error("Failed to bind database configuration parameters", zap.Error(err))
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	logger.Info("开始配置数据库", zap.String("type", dbConfig.Type))
+	logger.Info("Starting database configuration", zap.String("type", dbConfig.Type))
 
 	// Validate database configuration
 	dbCfg := database.Config{
@@ -120,21 +120,21 @@ func (h *SystemHandler) ConfigureDatabase(c *gin.Context) {
 	// Try connecting to database
 	db, err := database.NewDatabase(dbCfg)
 	if err != nil {
-		logger.Error("数据库连接失败", zap.Error(err))
-		c.JSON(http.StatusBadRequest, gin.H{"error": "数据库连接失败: " + err.Error()})
+		logger.Error("Failed to connect to database", zap.Error(err))
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to connect to database: " + err.Error()})
 		return
 	}
 
 	// Initialize database schema
 	if err := db.Init(); err != nil {
-		logger.Error("数据库初始化失败", zap.Error(err))
-		c.JSON(http.StatusBadRequest, gin.H{"error": "数据库初始化失败: " + err.Error()})
+		logger.Error("Failed to initialize database", zap.Error(err))
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to initialize database: " + err.Error()})
 		return
 	}
 
 	// Close database connection
 	if err := db.Close(); err != nil {
-		logger.Warn("关闭数据库连接时出现警告", zap.Error(err))
+		logger.Warn("Warning when closing database connection", zap.Error(err))
 	}
 
 	// For SQLite, ensure path is properly saved to config
@@ -144,19 +144,19 @@ func (h *SystemHandler) ConfigureDatabase(c *gin.Context) {
 		if dbConfig.Path == "" {
 			dbCfg.Path = "data/tairitsu.db"
 		}
-		logger.Info("SQLite数据库路径已设置", zap.String("path", dbCfg.Path))
+		logger.Info("SQLite database path has been set", zap.String("path", dbCfg.Path))
 	}
 
 	// Save database configuration to unified config management module
 	if err := database.SaveConfig(dbCfg); err != nil {
-		logger.Error("保存数据库配置失败", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "保存数据库配置失败: " + err.Error()})
+		logger.Error("Failed to save database configuration", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save database configuration: " + err.Error()})
 		return
 	}
 
-	logger.Info("数据库配置成功", zap.String("type", dbConfig.Type))
+	logger.Info("Database configuration successful", zap.String("type", dbConfig.Type))
 	c.JSON(http.StatusOK, gin.H{
-		"message": "数据库配置成功",
+		"message": "Database configuration successful",
 		"config":  dbConfig,
 	})
 }
@@ -166,20 +166,20 @@ func (h *SystemHandler) TestZeroTierConnection(c *gin.Context) {
 	// Dynamically create ZeroTier client
 	ztClient, err := zerotier.NewClient()
 	if err != nil {
-		logger.Error("[ZeroTier] 连接测试失败: 创建客户端失败", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建ZeroTier客户端失败: " + err.Error()})
+		logger.Error("[ZeroTier] Connection test failed: failed to create client", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create ZeroTier client: " + err.Error()})
 		return
 	}
 
-	// 获取ZeroTier控制器状态
+	// Get ZeroTier controller status
 	ztStatus, err := ztClient.GetStatus()
 	if err != nil {
-		logger.Error("[ZeroTier] 连接测试失败: 获取状态失败", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "无法连接到ZeroTier控制器: " + err.Error()})
+		logger.Error("[ZeroTier] Connection test failed: failed to get status", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to connect to ZeroTier controller: " + err.Error()})
 		return
 	}
 
-	logger.Info("[ZeroTier] 连接测试成功")
+	logger.Info("[ZeroTier] Connection test successful")
 	c.JSON(http.StatusOK, ztStatus)
 }
 
@@ -189,23 +189,23 @@ func (h *SystemHandler) InitZeroTierClient(c *gin.Context) {
 	// Dynamically create ZeroTier client
 	ztClient, err := zerotier.NewClient()
 	if err != nil {
-		logger.Error("创建ZeroTier客户端失败", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建ZeroTier客户端失败: " + err.Error()})
+		logger.Error("Failed to create ZeroTier client", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create ZeroTier client: " + err.Error()})
 		return
 	}
 
 	// Set client in network service
 	h.networkService.SetZTClient(ztClient)
 
-	// 验证客户端是否正常工作
+	// Verify client is working properly
 	status, err := h.networkService.GetStatus()
 	if err != nil {
-		logger.Error("ZeroTier客户端验证失败", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "ZeroTier客户端初始化后验证失败: " + err.Error()})
+		logger.Error("ZeroTier client verification failed", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "ZeroTier client verification failed after initialization: " + err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "ZeroTier客户端初始化成功", "status": status})
+	c.JSON(http.StatusOK, gin.H{"message": "ZeroTier client initialization successful", "status": status})
 }
 
 // SaveZeroTierConfig saves ZeroTier configuration and initializes connection
@@ -216,42 +216,42 @@ func (h *SystemHandler) SaveZeroTierConfig(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		logger.Error("ZeroTier配置参数绑定失败", zap.Error(err))
+		logger.Error("Failed to bind ZeroTier configuration parameters", zap.Error(err))
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	logger.Info("保存ZeroTier配置", zap.String("controllerUrl", req.ControllerURL), zap.String("tokenPath", req.TokenPath))
+	logger.Info("Saving ZeroTier configuration", zap.String("controllerUrl", req.ControllerURL), zap.String("tokenPath", req.TokenPath))
 
 	// Call config module to save ZeroTier configuration
 	if err := config.SetZTConfig(req.ControllerURL, req.TokenPath); err != nil {
-		logger.Error("保存ZeroTier配置失败", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "保存ZeroTier配置失败: " + err.Error()})
+		logger.Error("Failed to save ZeroTier configuration", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save ZeroTier configuration: " + err.Error()})
 		return
 	}
 
 	// Try creating and validating ZeroTier client with new config
 	ztClient, err := zerotier.NewClient()
 	if err != nil {
-		logger.Error("创建ZeroTier客户端失败", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建ZeroTier客户端失败: " + err.Error()})
+		logger.Error("Failed to create ZeroTier client", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create ZeroTier client: " + err.Error()})
 		return
 	}
 
 	// Validate client works and get status information
 	status, err := ztClient.GetStatus()
 	if err != nil {
-		logger.Error("ZeroTier客户端验证失败", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "ZeroTier客户端验证失败: " + err.Error()})
+		logger.Error("ZeroTier client verification failed", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "ZeroTier client verification failed: " + err.Error()})
 		return
 	}
 
 	// Set client in network service
 	h.networkService.SetZTClient(ztClient)
 
-	logger.Info("ZeroTier配置保存并验证成功")
+	logger.Info("ZeroTier configuration saved and verified successfully")
 	c.JSON(http.StatusOK, gin.H{
-		"message": "ZeroTier配置保存成功",
+		"message": "ZeroTier configuration saved successfully",
 		"config":  req,
 		"status":  status,
 	})
@@ -260,7 +260,7 @@ func (h *SystemHandler) SaveZeroTierConfig(c *gin.Context) {
 // InitializeAdminCreation prepares the system for admin account creation
 // This function is called when user enters the admin creation step to ensure correct database state
 func (h *SystemHandler) InitializeAdminCreation(c *gin.Context) {
-	logger.Info("初始化管理员账户创建步骤")
+	logger.Info("Initializing admin account creation step")
 
 	// Check if reset operation has already been performed
 	resetDoneKey := "admin_creation_reset_done"
@@ -268,9 +268,9 @@ func (h *SystemHandler) InitializeAdminCreation(c *gin.Context) {
 
 	// Skip reset if already performed
 	if resetDone == "true" {
-		logger.Info("数据库重置已在之前执行，跳过重置操作")
+		logger.Info("Database reset was performed earlier, skipping reset operation")
 		c.JSON(http.StatusOK, gin.H{
-			"message":   "管理员账户创建步骤已初始化",
+			"message":   "Admin account creation step has been initialized",
 			"resetDone": true,
 		})
 		return
@@ -278,30 +278,30 @@ func (h *SystemHandler) InitializeAdminCreation(c *gin.Context) {
 
 	// Get current database configuration
 	dbConfig := database.LoadConfig()
-	logger.Info("获取数据库配置", zap.String("type", string(dbConfig.Type)))
+	logger.Info("Getting database configuration", zap.String("type", string(dbConfig.Type)))
 
 	// Only perform reset for SQLite databases
 	if dbConfig.Type == database.SQLite {
-		logger.Info("准备重置SQLite数据库")
+		logger.Info("Preparing to reset SQLite database")
 
 		// Execute database reset
 		if err := database.ResetDatabase(dbConfig); err != nil {
-			logger.Error("数据库重置失败", zap.Error(err))
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "初始化管理员账户创建步骤失败: " + err.Error()})
+			logger.Error("Failed to reset database", zap.Error(err))
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to initialize admin account creation step: " + err.Error()})
 			return
 		}
 
-		logger.Info("SQLite数据库重置成功")
+		logger.Info("SQLite database reset successful")
 	} else {
-		logger.Info("当前数据库类型不是SQLite，跳过数据库重置", zap.String("type", string(dbConfig.Type)))
+		logger.Info("Current database type is not SQLite, skipping database reset", zap.String("type", string(dbConfig.Type)))
 	}
 
 	// Set flag indicating reset operation is complete
 	config.SetTempSetting(resetDoneKey, "true")
-	logger.Info("设置重置操作完成标志")
+	logger.Info("Setting reset operation completion flag")
 
 	c.JSON(http.StatusOK, gin.H{
-		"message":      "管理员账户创建步骤初始化成功",
+		"message":      "Admin account creation step initialized successfully",
 		"resetDone":    true,
 		"databaseType": string(dbConfig.Type),
 	})
@@ -314,23 +314,23 @@ func (h *SystemHandler) SetInitialized(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		logger.Error("设置初始化状态参数绑定失败", zap.Error(err))
+		logger.Error("Failed to bind initialization status parameters", zap.Error(err))
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	logger.Info("设置系统初始化状态", zap.Bool("initialized", req.Initialized))
+	logger.Info("Setting system initialization status", zap.Bool("initialized", req.Initialized))
 
 	// Generate JWT and session secrets if not already set
 	if req.Initialized {
-		logger.Info("开始生成安全密钥")
+		logger.Info("Starting to generate security keys")
 
 		// Generate random JWT secret if not already set
 		if config.AppConfig.Security.JWTSecret == "" {
 			// Generate 32-byte random secret
 			jwtSecret := generateRandomSecret(32)
 			config.AppConfig.Security.JWTSecret = jwtSecret
-			logger.Info("生成新的JWT密钥")
+			logger.Info("Generated new JWT secret")
 		}
 
 		// Generate random session secret if not already set
@@ -338,25 +338,25 @@ func (h *SystemHandler) SetInitialized(c *gin.Context) {
 			// Generate 32-byte random secret
 			sessionSecret := generateRandomSecret(32)
 			config.AppConfig.Security.SessionSecret = sessionSecret
-			logger.Info("生成新的会话密钥")
+			logger.Info("Generated new session secret")
 		}
 
 		// Save updated configuration with new secrets
 		if err := config.SaveConfig(config.AppConfig); err != nil {
-			logger.Error("保存密钥配置失败", zap.Error(err))
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "生成安全密钥失败: " + err.Error()})
+			logger.Error("Failed to save secret configuration", zap.Error(err))
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate security keys: " + err.Error()})
 			return
 		}
 	}
 
 	// Call config module to set initialization status
 	if err := config.SetInitialized(req.Initialized); err != nil {
-		logger.Error("设置初始化状态失败", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "设置初始化状态失败: " + err.Error()})
+		logger.Error("Failed to set initialization status", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to set initialization status: " + err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "初始化状态更新成功"})
+	c.JSON(http.StatusOK, gin.H{"message": "Initialization status updated successfully"})
 }
 
 // generateRandomSecret generates a random secret string of specified length
@@ -366,7 +366,7 @@ func generateRandomSecret(length int) string {
 	bytes := make([]byte, length)
 	if _, err := rand.Read(bytes); err != nil {
 		// Fallback to a less secure method if crypto/rand fails
-		logger.Warn("使用crypto/rand生成随机密钥失败，将使用math/rand作为备选方案", zap.Error(err))
+		logger.Warn("Failed to generate random secret using crypto/rand, will use math/rand as fallback", zap.Error(err))
 
 		// Use math/rand as fallback
 		r := mathrand.New(mathrand.NewSource(time.Now().UnixNano()))
@@ -385,9 +385,9 @@ func (h *SystemHandler) ReloadRoutes(c *gin.Context) {
 	// Call internal reload function
 	if h.reloadRoutesFunc != nil {
 		h.reloadRoutesFunc()
-		c.JSON(http.StatusOK, gin.H{"message": "路由重新加载成功"})
+		c.JSON(http.StatusOK, gin.H{"message": "Routes reloaded successfully"})
 	} else {
-		logger.Warn("重新加载路由函数未定义")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "重新加载路由功能不可用"})
+		logger.Warn("Route reload function not defined")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Route reload functionality unavailable"})
 	}
 }

@@ -4,7 +4,7 @@ import (
 	"time"
 )
 
-// Network 网络模型
+// Network represents a ZeroTier network with ownership information
 type Network struct {
 	ID          string    `json:"id" gorm:"primaryKey"`
 	Name        string    `json:"name"`
@@ -14,7 +14,7 @@ type Network struct {
 	UpdatedAt   time.Time `json:"updated_at"`
 }
 
-// TableName 指定表名
+// TableName specifies the table name for the Network model
 func (Network) TableName() string {
 	return "networks"
 }
