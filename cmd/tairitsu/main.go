@@ -3,11 +3,11 @@ package main
 import (
 	"fmt"
 
-	"github.com/gin-gonic/gin"
 	"github.com/GT-610/tairitsu/internal/app/database"
 	"github.com/GT-610/tairitsu/internal/app/initializer"
 	"github.com/GT-610/tairitsu/internal/app/logger"
 	"github.com/GT-610/tairitsu/internal/zerotier"
+	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
 

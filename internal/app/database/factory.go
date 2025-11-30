@@ -40,7 +40,7 @@ func NewDatabase(config Config) (DBInterface, error) {
 	case SQLite:
 		// 如果没有指定路径，使用默认路径
 		if config.Path == "" {
-			config.Path = "tairitsu.db"
+			config.Path = "data/tairitsu.db"
 		}
 
 		db, err := gorm.Open(sqlite.Open(config.Path), &gorm.Config{})
@@ -143,7 +143,7 @@ func ResetDatabase(config Config) error {
 	case SQLite:
 		// 如果没有指定路径，使用默认路径
 		if config.Path == "" {
-			config.Path = "tairitsu.db"
+			config.Path = "data/tairitsu.db"
 		}
 
 		logger.Info("重置SQLite数据库", zap.String("path", config.Path))

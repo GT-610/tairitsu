@@ -4,27 +4,16 @@ Thumbs.db
 
 # IDE和编辑器文件
 .trae/
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
-*.swp
-*.swo
 
 # Go语言相关
-# 编译后的二进制文件
-/tairitsu
-/tairitsu.exe
-/cmd/tairitsu/tairitsu
-/cmd/tairitsu/tairitsu.exe
 
 # 依赖缓存
 /vendor/
 /.gopath
 /go
 
-# Go编译产物
+# 编译产物
+build/
 *.exe
 *.exe~
 *.dll
@@ -38,7 +27,6 @@ Thumbs.db
 .cache/
 
 # 日志文件
-*.log
 logs/
 
 # 前端相关
@@ -48,7 +36,6 @@ web/node_modules/
 # 构建输出
 web/dist/
 web/build/
-out/
 
 # 环境配置文件
 .env
@@ -83,15 +70,10 @@ web/.vite/
 .pnp.*
 
 # 后端配置文件
-configs/local.yaml
-configs/development.yaml
-configs/production.yaml
+configs/
 
-# 数据库文件
-*.db
-*.sqlite
-*.sqlite3
-config.json
+# 数据库
+data/
 
 # 备份文件
 *.backup

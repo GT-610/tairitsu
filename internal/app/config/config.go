@@ -66,7 +66,7 @@ var AppConfig *Config
 var tempSettings = make(map[string]string)
 var tempSettingsMutex sync.RWMutex
 
-const configFilePath = "./config.json"
+const configFilePath = "./configs/config.json"
 
 // LoadConfig 加载配置（从config.json）
 func LoadConfig() (*Config, error) {
@@ -126,9 +126,9 @@ func createDefaultConfig() *Config {
 	return &Config{
 		Initialized: false,
 		Database: DatabaseConfig{
-			Type: SQLite,
-			Path: "tairitsu.db",
-		},
+		Type: SQLite,
+		Path: "data/tairitsu.db",
+	},
 		ZeroTier: ZeroTierConfig{
 			URL:       "http://localhost:9993",
 			TokenPath: "/var/lib/zerotier-one/authtoken.secret",
