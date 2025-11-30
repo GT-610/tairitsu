@@ -70,7 +70,7 @@ func (h *NetworkHandler) GetNetwork(c *gin.Context) {
 	// Get user ID from context
 	userID, exists := c.Get("user_id")
 	if !exists {
-		logger.Error("获取用户ID失败")
+		logger.Error("Failed to get user ID")
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized access"})
 		return
 	}
@@ -107,7 +107,7 @@ func (h *NetworkHandler) CreateNetwork(c *gin.Context) {
 	// Get user ID from context
 	userID, exists := c.Get("user_id")
 	if !exists {
-		logger.Error("获取用户ID失败")
+		logger.Error("Failed to get user ID")
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized access"})
 		return
 	}
@@ -140,7 +140,7 @@ func (h *NetworkHandler) UpdateNetwork(c *gin.Context) {
 	// Get user ID from context
 	userID, exists := c.Get("user_id")
 	if !exists {
-		logger.Error("获取用户ID失败")
+		logger.Error("Failed to get user ID")
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized access"})
 		return
 	}
@@ -165,7 +165,7 @@ func (h *NetworkHandler) DeleteNetwork(c *gin.Context) {
 	// Get user ID from context
 	userID, exists := c.Get("user_id")
 	if !exists {
-		logger.Error("获取用户ID失败")
+		logger.Error("Failed to get user ID")
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized access"})
 		return
 	}

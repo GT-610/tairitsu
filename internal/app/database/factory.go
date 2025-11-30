@@ -74,14 +74,14 @@ func NewDatabase(config Config) (DBInterface, error) {
 			return nil, fmt.Errorf("failed to get MySQL database instance: %w", err)
 		}
 
-		// 设置连接池
+		// Set connection pool
 		sqlDB.SetMaxIdleConns(10)
 		sqlDB.SetMaxOpenConns(100)
 
 		return &GormDB{db: db}, nil
 
 	case PostgreSQL:
-		// 构建DSN
+		// Build DSN
 		dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%d sslmode=disable TimeZone=Asia/Shanghai",
 			config.Host, config.User, config.Pass, config.Name, config.Port)
 
@@ -95,7 +95,7 @@ func NewDatabase(config Config) (DBInterface, error) {
 			return nil, fmt.Errorf("failed to get PostgreSQL database instance: %w", err)
 		}
 
-		// 设置连接池
+		// Set connection pool
 		sqlDB.SetMaxIdleConns(10)
 		sqlDB.SetMaxOpenConns(100)
 
@@ -120,7 +120,7 @@ func LoadConfig() Config {
 	}
 
 	// Get decrypted password
-	password, _ := config.GetDatabasePassword() // 忽略错误，使用空密码
+	password, _ := config.GetDatabasePassword() // Ignore error, use empty password
 
 	// Extract database-related information from configuration
 	return Config{

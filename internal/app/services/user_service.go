@@ -41,7 +41,7 @@ func NewUserService() *UserService {
 		Type: database.SQLite,
 	})
 	if err != nil {
-		panic("无法创建默认数据库: " + err.Error())
+		panic("Failed to create default database: " + err.Error())
 	}
 
 	return &UserService{
@@ -53,38 +53,38 @@ func NewUserService() *UserService {
 func (s *UserService) Register(req *models.RegisterRequest, role ...string) (*models.User, error) {
 	// Check if database is initialized
 	if s.db == nil {
-		logger.Error("服务层：注册失败，数据库未初始化")
-		return nil, errors.New("系统尚未配置数据库，请先完成初始设置")
+		logger.Error("Service layer: Registration failed, database not initialized")
+		return nil, errors.New("System database not configured yet, please complete initial setup first")
 	}
 
-	logger.Info("服务层：开始用户注册", zap.String("username", req.Username), zap.String("email", req.Email))
+	logger.Info("Service layer: Starting user registration", zap.String("username", req.Username), zap.String("email", req.Email))
 
 	// Check if username already exists
 	existingUser, err := s.db.GetUserByUsername(req.Username)
 	if err != nil {
-		logger.Error("服务层：注册失败，检查用户名时出错", zap.String("username", req.Username), zap.Error(err))
+		logger.Error("Service layer: Registration failed, error checking username", zap.String("username", req.Username), zap.Error(err))
 		return nil, err
 	}
 	if existingUser != nil {
-		logger.Error("服务层：注册失败，用户名已存在", zap.String("username", req.Username))
-		return nil, errors.New("用户名已存在")
+		logger.Error("Service layer: Registration failed, username already exists", zap.String("username", req.Username))
+		return nil, errors.New("Username already exists")
 	}
 
 	// Check if email already exists
 	existingUser, err = s.db.GetUserByEmail(req.Email)
 	if err != nil {
-		logger.Error("服务层：注册失败，检查邮箱时出错", zap.String("email", req.Email), zap.Error(err))
+		logger.Error("Service layer: Registration failed, error checking email", zap.String("email", req.Email), zap.Error(err))
 		return nil, err
 	}
 	if existingUser != nil {
-		logger.Error("服务层：注册失败，邮箱已被使用", zap.String("email", req.Email))
-		return nil, errors.New("邮箱已被使用")
+		logger.Error("Service layer: Registration failed, email already in use", zap.String("email", req.Email))
+		return nil, errors.New("Email already in use")
 	}
 
 	// Hash password using bcrypt
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 	if err != nil {
-		logger.Error("服务层：注册失败，密码加密错误", zap.String("username", req.Username), zap.Error(err))
+		logger.Error("Service layer: Registration failed, password encryption error", zap.String("username", req.Username), zap.Error(err))
 		return nil, err
 	}
 
@@ -107,11 +107,11 @@ func (s *UserService) Register(req *models.RegisterRequest, role ...string) (*mo
 
 	// Save user to database
 	if err := s.db.CreateUser(user); err != nil {
-		logger.Error("服务层：注册失败，保存用户时出错", zap.String("username", req.Username), zap.Error(err))
+		logger.Error("Service layer: Registration failed, error saving user", zap.String("username", req.Username), zap.Error(err))
 		return nil, err
 	}
 
-	logger.Info("服务层：用户注册成功", zap.String("user_id", user.ID), zap.String("username", user.Username), zap.String("role", userRole))
+	logger.Info("Service layer: User registered successfully", zap.String("user_id", user.ID), zap.String("username", user.Username), zap.String("role", userRole))
 
 	return user, nil
 }
@@ -120,30 +120,30 @@ func (s *UserService) Register(req *models.RegisterRequest, role ...string) (*mo
 func (s *UserService) Login(req *models.LoginRequest) (*models.User, error) {
 	// Check if database is initialized
 	if s.db == nil {
-		logger.Error("服务层：登录失败，数据库未初始化")
-		return nil, errors.New("系统尚未配置数据库，请先完成初始设置")
+		logger.Error("Service layer: Login failed, database not initialized")
+		return nil, errors.New("System database not configured yet, please complete initial setup first")
 	}
 
-	logger.Info("服务层：开始用户登录", zap.String("username", req.Username))
+	logger.Info("Service layer: Starting user login", zap.String("username", req.Username))
 
 	// Find user by username
 	user, err := s.db.GetUserByUsername(req.Username)
 	if err != nil {
-		logger.Error("服务层：登录失败，查询用户时出错", zap.String("username", req.Username), zap.Error(err))
-		return nil, errors.New("用户名或密码错误")
+		logger.Error("Service layer: Login failed, error querying user", zap.String("username", req.Username), zap.Error(err))
+		return nil, errors.New("Invalid username or password")
 	}
 	if user == nil {
-		logger.Error("服务层：登录失败，用户不存在", zap.String("username", req.Username))
-		return nil, errors.New("用户名或密码错误")
+		logger.Error("Service layer: Login failed, user does not exist", zap.String("username", req.Username))
+		return nil, errors.New("Invalid username or password")
 	}
 
 	// Verify password hash
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password)); err != nil {
-		logger.Error("服务层：登录失败，密码错误", zap.String("user_id", user.ID))
-		return nil, errors.New("用户名或密码错误")
+		logger.Error("Service layer: Login failed, incorrect password", zap.String("user_id", user.ID))
+		return nil, errors.New("Invalid username or password")
 	}
 
-	logger.Info("服务层：用户登录成功", zap.String("user_id", user.ID), zap.String("username", user.Username))
+	logger.Info("Service layer: User logged in successfully", zap.String("user_id", user.ID), zap.String("username", user.Username))
 
 	return user, nil
 }
@@ -152,39 +152,39 @@ func (s *UserService) Login(req *models.LoginRequest) (*models.User, error) {
 func (s *UserService) GetUserByID(id string) (*models.User, error) {
 	// Check if database is initialized
 	if s.db == nil {
-		logger.Error("服务层：获取用户失败，数据库未初始化")
-		return nil, errors.New("系统尚未配置数据库，请先完成初始设置")
+		logger.Error("Service layer: Failed to get user, database not initialized")
+		return nil, errors.New("System database not configured yet, please complete initial setup first")
 	}
 
-	logger.Info("服务层：开始根据ID获取用户", zap.String("user_id", id))
+	logger.Info("Service layer: Starting to get user by ID", zap.String("user_id", id))
 
 	user, err := s.db.GetUserByID(id)
 	if err != nil {
-		logger.Error("服务层：根据ID获取用户失败", zap.String("user_id", id), zap.Error(err))
+		logger.Error("Service layer: Failed to get user by ID", zap.String("user_id", id), zap.Error(err))
 		return nil, err
 	}
 
 	if user == nil {
-		logger.Error("服务层：用户不存在", zap.String("user_id", id))
-		return nil, errors.New("用户不存在")
+		logger.Error("Service layer: User does not exist", zap.String("user_id", id))
+		return nil, errors.New("User does not exist")
 	}
 
-	logger.Info("服务层：成功根据ID获取用户", zap.String("user_id", id), zap.String("username", user.Username))
+	logger.Info("Service layer: Successfully got user by ID", zap.String("user_id", id), zap.String("username", user.Username))
 
 	return user, nil
 } // GetAllUsers retrieves all users from the database
 func (s *UserService) GetAllUsers() []*models.User {
 	// Check if database is initialized
 	if s.db == nil {
-		logger.Warn("服务层：数据库未初始化，返回空用户列表")
+		logger.Warn("Service layer: Database not initialized, returning empty user list")
 		return []*models.User{}
 	}
 
-	logger.Info("服务层：获取所有用户")
+	logger.Info("Service layer: Getting all users")
 
 	users, err := s.db.GetAllUsers()
 	if err != nil {
-		logger.Error("服务层：获取所有用户失败", zap.Error(err))
+		logger.Error("Service layer: Failed to get all users", zap.Error(err))
 		return []*models.User{}
 	}
 
@@ -195,19 +195,19 @@ func (s *UserService) GetAllUsers() []*models.User {
 func (s *UserService) HasAdminUser() (bool, error) {
 	// Check if database is initialized
 	if s.db == nil {
-		logger.Warn("服务层：数据库未初始化，无法检查管理员用户")
-		return false, errors.New("数据库未初始化")
+		logger.Warn("Service layer: Database not initialized, cannot check admin user")
+		return false, errors.New("Database not initialized")
 	}
 
-	logger.Info("服务层：检查是否已存在管理员用户")
+	logger.Info("Service layer: Checking if admin user already exists")
 
 	// Check database for admin user existence
 	hasAdmin, err := s.db.HasAdminUser()
 	if err != nil {
-		logger.Error("服务层：检查管理员用户失败", zap.Error(err))
+		logger.Error("Service layer: Failed to check admin user", zap.Error(err))
 		return false, err
 	}
 
-	logger.Info("服务层：检查管理员用户完成", zap.Bool("hasAdmin", hasAdmin))
+	logger.Info("Service layer: Admin user check completed", zap.Bool("hasAdmin", hasAdmin))
 	return hasAdmin, nil
 }

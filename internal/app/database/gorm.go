@@ -16,7 +16,7 @@ type GormDB struct {
 func (g *GormDB) Init() error {
 	// Auto migrate user models
 	if err := g.db.AutoMigrate(&models.User{}, &models.Network{}); err != nil {
-		return fmt.Errorf("自动迁移模型失败: %w", err)
+		return fmt.Errorf("failed to auto migrate models: %w", err)
 	}
 	return nil
 }

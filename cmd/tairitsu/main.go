@@ -25,14 +25,14 @@ var GlobalServerInitializer *initializer.ServerInitializer
 
 // ReloadRoutes reloads all API routes with current configuration
 func ReloadRoutes() {
-	logger.Info("开始重新加载路由")
+	logger.Info("Starting to reload routes")
 	if GlobalServerInitializer != nil {
 		GlobalServerInitializer.ReloadRoutes()
 		// Update global router reference after reloading
 		GlobalRouter = GlobalServerInitializer.GetRouter()
-		logger.Info("路由重新加载完成")
+		logger.Info("Route reload completed")
 	} else {
-		logger.Error("服务器初始化器未初始化，无法重新加载路由")
+		logger.Error("Server initializer not initialized, cannot reload routes")
 	}
 	// This method is kept for backward compatibility with global variables
 }
@@ -47,7 +47,7 @@ func main() {
 	// Execute complete application initialization process
 	appContext, err := appInitializer.Initialize()
 	if err != nil {
-		logger.Fatal("应用初始化失败", zap.Error(err))
+		logger.Fatal("Application initialization failed", zap.Error(err))
 	}
 
 	// Set global variables for backward compatibility
@@ -58,11 +58,11 @@ func main() {
 	// Initialize and start HTTP server
 	GlobalServerInitializer = initializer.NewServerInitializer()
 	if _, err := GlobalServerInitializer.Initialize(appContext.Database, appContext.ZTClient, appContext.JWTSecret); err != nil {
-		logger.Fatal("服务器初始化失败", zap.Error(err))
+		logger.Fatal("Server initialization failed", zap.Error(err))
 	}
 
 	// Start the HTTP server
 	if err := GlobalServerInitializer.StartServer(); err != nil {
-		logger.Fatal("启动服务器失败", zap.Error(err))
+		logger.Fatal("Failed to start server", zap.Error(err))
 	}
 }

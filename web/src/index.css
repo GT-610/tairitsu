@@ -33,7 +33,7 @@ button {
   cursor: pointer;
 }
 
-/* 自定义滚动条 */
+/* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -52,7 +52,7 @@ button {
   background: #5a5a5a;
 }
 
-/* 动画 */
+/* Animations */
 .fade-in {
   animation: fadeIn 0.3s ease-in;
 }

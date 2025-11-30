@@ -40,7 +40,7 @@ function AppContent() {
       }
     };
 
-    // 添加响应拦截器
+    // Add response interceptor
     const interceptor = api.interceptors.response.use(
       response => response,
       error => {
@@ -49,13 +49,13 @@ function AppContent() {
       }
     );
 
-    // 清理函数
+    // Cleanup function
     return () => {
       api.interceptors.response.eject(interceptor);
     };
   }, [navigate, location.pathname]);
 
-  // 检查系统是否已初始化（仅在应用启动时执行一次）
+  // Check if system is initialized (executed only once on app startup)
   useEffect(() => {
     const checkFirstRun = async () => {
       try {
@@ -65,17 +65,17 @@ function AppContent() {
           }
         });
         
-        // 确保response.data存在且包含initialized字段
+        // Ensure response.data exists and contains initialized field
         const isBackendInitialized = response.data && response.data.initialized;
         
-        // 完全依赖后端API状态，不使用本地存储
+        // Fully rely on backend API status, not using local storage
         setIsFirstRun(!isBackendInitialized);
         
-        // 记录API响应，帮助调试
+        // Log API response for debugging
         console.log('系统状态检查:', { 
           initialized: isBackendInitialized, 
           isFirstRun: !isBackendInitialized,
-          // 如果后端返回了更多信息，也记录下来以便调试
+          // If backend returns more information, also log it for debugging
           additionalInfo: {
             hasDatabase: response.data?.hasDatabase,
             hasAdmin: response.data?.hasAdmin,
@@ -83,9 +83,9 @@ function AppContent() {
           }
         });
       } catch (error) {
-        console.error('获取后端初始化状态失败:', error);
-        // 当后端不可用时，默认显示为首次运行，要求用户连接到后端
-        // 不再使用本地存储作为回退机制，完全依赖后端API
+        console.error('Failed to get backend initialization status:', error);
+        // When backend is unavailable, default to first run status, requiring user to connect to backend
+        // No longer use local storage as fallback mechanism, fully rely on backend API
         setIsFirstRun(true);
       } finally {
         setLoading(false);
@@ -112,11 +112,11 @@ function AppContent() {
   return (
     <div className="app">
       <Routes>
-        {/* 首次运行时显示设置向导 */}
+        {/* Show setup wizard on first run */}
         {isFirstRun ? (
           <>
             <Route path="/setup" element={<SetupWizard />}></Route>
-            {/* 使用replace而不是push，防止用户通过浏览器返回按钮回到设置向导 */}
+            {/* Use replace instead of push to prevent users from returning to setup wizard via browser back button */}
             <Route path="*" element={<Navigate to="/setup" replace />}></Route>
           </>
         ) : (
@@ -137,7 +137,7 @@ function AppContent() {
               </>
             ) : (
               <>
-                {/* 添加根路径直接重定向到登录页面 */}
+                {/* Add root path direct redirect to login page */}
                 <Route path="/" element={<Navigate to="/login" replace />}></Route>
                 <Route path="/*" element={<Navigate to="/login" replace />}></Route>
               </>

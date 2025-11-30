@@ -7,7 +7,7 @@ import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { AuthProvider } from './services/auth';
 
-// 创建暗色主题
+// Create dark theme
 const theme = createTheme({
   palette: {
     mode: 'dark',

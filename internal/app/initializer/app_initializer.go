@@ -37,14 +37,14 @@ func NewAppInitializer() *AppInitializer {
 func (ai *AppInitializer) Initialize() (*AppContext, error) {
 	// 1. Initialize logging system (initialize first, other steps may need logging)
 	if err := ai.initializeLogger(); err != nil {
-		return nil, fmt.Errorf("初始化日志系统失败: %w", err)
+		return nil, fmt.Errorf("failed to initialize logging system: %w", err)
 	}
 
 	logger.Info("Starting application initialization process")
 
 	// 2. Load configuration
 	if err := ai.loadConfiguration(); err != nil {
-		return nil, fmt.Errorf("加载配置失败: %w", err)
+		return nil, fmt.Errorf("failed to load configuration: %w", err)
 	}
 
 	// 3. Initialize database
@@ -61,7 +61,7 @@ func (ai *AppInitializer) Initialize() (*AppContext, error) {
 
 	// 5. Initialize HTTP server
 	if err := ai.initializeHTTPServer(); err != nil {
-		return nil, fmt.Errorf("初始化HTTP服务器失败: %w", err)
+		return nil, fmt.Errorf("failed to initialize HTTP server: %w", err)
 	}
 
 	logger.Info("Application initialization completed")
@@ -78,7 +78,7 @@ func (ai *AppInitializer) initializeLogger() error {
 func (ai *AppInitializer) loadConfiguration() error {
 	cfg, err := config.LoadConfig()
 	if err != nil {
-		return fmt.Errorf("加载配置失败: %w", err)
+		return fmt.Errorf("failed to load configuration: %w", err)
 	}
 
 	ai.context.Config = cfg
@@ -106,13 +106,13 @@ func (ai *AppInitializer) initializeDatabase() error {
 	// Create database instance
 	db, err := database.NewDatabase(dbConfig)
 	if err != nil {
-		return fmt.Errorf("创建数据库实例失败: %w", err)
+		return fmt.Errorf("failed to create database instance: %w", err)
 	}
 
 	// Initialize database schema
 	if err := db.Init(); err != nil {
 		db.Close()
-		return fmt.Errorf("初始化数据库失败: %w", err)
+		return fmt.Errorf("failed to initialize database: %w", err)
 	}
 
 	ai.context.Database = db
@@ -130,13 +130,13 @@ func (ai *AppInitializer) initializeZeroTierClient() error {
 	// Dynamically create ZeroTier client
 	ztClient, err := zerotier.NewClient()
 	if err != nil {
-		return fmt.Errorf("创建ZeroTier客户端失败: %w", err)
+		return fmt.Errorf("failed to create ZeroTier client: %w", err)
 	}
 
 	// Verify client is working properly
 	_, err = ztClient.GetStatus()
 	if err != nil {
-		return fmt.Errorf("ZeroTier客户端验证失败: %w", err)
+		return fmt.Errorf("ZeroTier client verification failed: %w", err)
 	}
 
 	ai.context.ZTClient = ztClient

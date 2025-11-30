@@ -4,7 +4,7 @@
   flex-direction: column;
 }
 
-/* 通用样式 */
+/* Common styles */
 .page-container {
   padding: 20px;
   max-width: 1200px;
@@ -30,7 +30,7 @@
   font-weight: 500;
 }
 
-/* 响应式设计 */
+/* Responsive design */
 @media (max-width: 768px) {
   .page-container {
     padding: 15px;

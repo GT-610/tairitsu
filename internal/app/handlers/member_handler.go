@@ -52,7 +52,7 @@ func (h *MemberHandler) GetMember(c *gin.Context) {
 	// Get user ID from context
 	userID, exists := c.Get("user_id")
 	if !exists {
-		logger.Error("获取用户ID失败")
+		logger.Error("Failed to get user ID")
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized access"})
 		return
 	}
@@ -88,7 +88,7 @@ func (h *MemberHandler) UpdateMember(c *gin.Context) {
 	// Get user ID from context
 	userID, exists := c.Get("user_id")
 	if !exists {
-		logger.Error("获取用户ID失败")
+		logger.Error("Failed to get user ID")
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized access"})
 		return
 	}
@@ -111,7 +111,7 @@ func (h *MemberHandler) DeleteMember(c *gin.Context) {
 	// Get user ID from context
 	userID, exists := c.Get("user_id")
 	if !exists {
-		logger.Error("获取用户ID失败")
+		logger.Error("Failed to get user ID")
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized access"})
 		return
 	}
