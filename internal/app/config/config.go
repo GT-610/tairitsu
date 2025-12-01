@@ -11,18 +11,18 @@ import (
 	"github.com/spf13/viper"
 )
 
-// DatabaseConfig 数据库配置
+// DatabaseConfig Database configuration
 type DatabaseConfig struct {
 	Type DatabaseType `json:"type"`
 	Path string       `json:"path"`
 	Host string       `json:"host"`
 	Port int          `json:"port"`
 	User string       `json:"user"`
-	Pass string       `json:"pass"` // 加密后的密码
+	Pass string       `json:"pass"` // Encrypted password
 	Name string       `json:"name"`
 }
 
-// DatabaseType 数据库类型
+// DatabaseType Database type
 type DatabaseType string
 
 const (
@@ -31,104 +31,104 @@ const (
 	MySQL      DatabaseType = "mysql"
 )
 
-// ZeroTierConfig ZeroTier配置
+// ZeroTierConfig ZeroTier configuration
 type ZeroTierConfig struct {
 	URL       string `json:"url"`
-	Token     string `json:"token"`     // 加密后的令牌
-	TokenPath string `json:"tokenPath"` // 令牌文件路径
+	Token     string `json:"token"`     // Encrypted token
+	TokenPath string `json:"tokenPath"` // Token file path
 }
 
-// ServerConfig 服务器配置
+// ServerConfig Server configuration
 type ServerConfig struct {
 	Port int    `json:"port"`
 	Host string `json:"host"`
 }
 
-// SecurityConfig 安全配置
+// SecurityConfig Security configuration
 type SecurityConfig struct {
 	JWTSecret     string `json:"jwt_secret"`
 	SessionSecret string `json:"session_secret"`
 }
 
-// Config 应用程序配置结构体
+// Config Application configuration structure
 type Config struct {
-	Initialized bool           `json:"initialized"` // 初始化状态标识
-	Database    DatabaseConfig `json:"database"`    // 数据库配置
-	ZeroTier    ZeroTierConfig `json:"zerotier"`    // ZeroTier配置
-	Server      ServerConfig   `json:"server"`      // 服务器配置
-	Security    SecurityConfig `json:"security"`    // 安全配置
+	Initialized bool           `json:"initialized"` // Initialization status flag
+	Database    DatabaseConfig `json:"database"`    // Database configuration
+	ZeroTier    ZeroTierConfig `json:"zerotier"`    // ZeroTier configuration
+	Server      ServerConfig   `json:"server"`      // Server configuration
+	Security    SecurityConfig `json:"security"`    // Security configuration
 }
 
-// AppConfig 全局配置实例
+// AppConfig Global configuration instance
 var AppConfig *Config
 
-// tempSettings 内存中的临时设置，用于存储不需要持久化的配置
+// tempSettings In-memory temporary settings for non-persistent configuration
 var tempSettings = make(map[string]string)
 var tempSettingsMutex sync.RWMutex
 
 const configFilePath = "./data/config.json"
 
-// LoadConfig 加载配置（从config.json）
+// LoadConfig Load configuration (from config.json)
 func LoadConfig() (*Config, error) {
-	// 首先尝试从config.json加载
+	// First try to load from config.json
 	cfg, err := loadConfigFromJSON()
 	if err == nil {
 		AppConfig = cfg
 		return cfg, nil
 	}
 
-	// 如果config.json不存在或读取失败，创建默认配置
+	// If config.json doesn't exist or reading fails, create default configuration
 	cfg = createDefaultConfig()
 
-	// 尝试从.env文件或环境变量加载部分配置
+	// Try to load partial configuration from .env file or environment variables
 	loadEnvConfig(cfg)
 
 	AppConfig = cfg
 	return cfg, nil
 }
 
-// loadConfigFromJSON 从JSON文件加载配置
+// loadConfigFromJSON Load configuration from JSON file
 func loadConfigFromJSON() (*Config, error) {
-	// 检查配置文件是否存在
+	// Check if configuration file exists
 	if _, err := os.Stat(configFilePath); os.IsNotExist(err) {
-		return nil, fmt.Errorf("配置文件不存在")
+		return nil, fmt.Errorf("configuration file not found")
 	}
 
-	// 读取配置文件
+	// Read configuration file
 	data, err := os.ReadFile(configFilePath)
 	if err != nil {
-		return nil, fmt.Errorf("读取配置文件失败: %w", err)
+		return nil, fmt.Errorf("failed to read configuration file: %w", err)
 	}
 
-	// 解析JSON
+	// Parse JSON
 	cfg := &Config{}
 	if err := json.Unmarshal(data, cfg); err != nil {
-		return nil, fmt.Errorf("解析配置文件失败: %w", err)
+		return nil, fmt.Errorf("failed to parse configuration file: %w", err)
 	}
 
 	return cfg, nil
 }
 
-// SaveConfig 保存配置到JSON文件
+// SaveConfig Save configuration to JSON file
 func SaveConfig(cfg *Config) error {
-	// 序列化配置
+	// Serialize configuration
 	data, err := json.MarshalIndent(cfg, "", "  ")
 	if err != nil {
-		return fmt.Errorf("序列化配置失败: %w", err)
+		return fmt.Errorf("failed to serialize configuration: %w", err)
 	}
 
-	// 写入文件，设置适当的权限（仅所有者可读写）
+	// Write to file with appropriate permissions (owner read/write only)
 	return os.WriteFile(configFilePath, data, 0600)
 }
 
-// createDefaultConfig 创建默认配置
+// createDefaultConfig Create default configuration
 func createDefaultConfig() *Config {
 	return &Config{
 		Initialized: false,
 		Database: DatabaseConfig{
-		Type: SQLite,
-		Path: "data/tairitsu.db",
-	},
+			Type: SQLite,
+			Path: "data/tairitsu.db",
+		},
 		ZeroTier: ZeroTierConfig{
 			URL:       "http://localhost:9993",
 			TokenPath: "/var/lib/zerotier-one/authtoken.secret",
@@ -138,27 +138,29 @@ func createDefaultConfig() *Config {
 			Host: "0.0.0.0",
 		},
 		Security: SecurityConfig{
-			JWTSecret:     "", // 初始为空，强制用户在首次设置时生成
-			SessionSecret: "", // 初始为空，强制用户在首次设置时生成
+			JWTSecret:     "", // Empty initially, force user to generate during first setup
+			SessionSecret: "", // Empty initially, force user to generate during first setup
 		},
 	}
 }
 
-// loadEnvConfig 从环境变量加载部分配置（仅读取.env中存在的配置）
+// loadEnvConfig Load partial configuration from environment variables (only read existing configurations in .env)
 func loadEnvConfig(cfg *Config) {
 	viper.SetConfigName(".env")
 	viper.SetConfigType("env")
 	viper.AddConfigPath("./")
 	viper.AutomaticEnv()
 
-	// 尝试读取.env文件
-	_ = viper.ReadInConfig() // 忽略错误，仅尝试读取
+	// Try to read .env file
+	_ = viper.ReadInConfig() // Ignore error, just try to read
 
-	// 从环境变量更新配置，只读取.env中存在的配置项
+	// Update configuration from environment variables, only read existing configurations in .env
 	if url := viper.GetString("ZT_CONTROLLER_URL"); url != "" {
 		cfg.ZeroTier.URL = url
 	}
-	cfg.Server.Port = viper.GetInt("SERVER_PORT")
+	if port := viper.GetInt("SERVER_PORT"); port != 0 {
+		cfg.Server.Port = port
+	}
 	if jwt := viper.GetString("JWT_SECRET"); jwt != "" {
 		cfg.Security.JWTSecret = jwt
 	}
@@ -166,105 +168,105 @@ func loadEnvConfig(cfg *Config) {
 		cfg.Security.SessionSecret = session
 	}
 
-	// 读取ZT_TOKEN_PATH并尝试从文件中读取令牌
+	// Read ZT_TOKEN_PATH and try to read token from file
 	if tokenPath := viper.GetString("ZT_TOKEN_PATH"); tokenPath != "" {
 		cfg.ZeroTier.TokenPath = tokenPath
-		// 尝试读取令牌文件
+		// Try to read token file
 		_ = LoadTokenFromPath(tokenPath)
 	}
 }
 
-// GetZTToken 获取ZeroTier令牌（自动解密）
+// GetZTToken Get ZeroTier token (auto-decrypted)
 func GetZTToken() (string, error) {
 	if AppConfig == nil {
-		return "", fmt.Errorf("配置未加载")
+		return "", fmt.Errorf("configuration not loaded")
 	}
 
-	// 解密令牌
+	// Decrypt token
 	if AppConfig.ZeroTier.Token != "" {
 		decryptedToken, err := decryptSensitiveData(AppConfig.ZeroTier.Token)
 		if err != nil {
-			// 如果解密失败，可能是未加密的数据，尝试直接返回
-			// 这是为了兼容可能的未加密数据
+			// If decryption fails, it might be unencrypted data, try to return directly
+			// This is for compatibility with possible unencrypted data
 			return AppConfig.ZeroTier.Token, nil
 		}
 		return decryptedToken, nil
 	}
 
-	// 如果配置中没有，尝试从环境变量获取
+	// If not in configuration, try to get from environment variables
 	token := viper.GetString("ZT_TOKEN")
 	if token != "" {
 		return token, nil
 	}
 
-	return "", fmt.Errorf("ZeroTier令牌未配置")
+	return "", fmt.Errorf("ZeroTier token not configured")
 }
 
-// SetZTToken 设置ZeroTier令牌（自动加密）
+// SetZTToken Set ZeroTier token (auto-encrypted)
 func SetZTToken(token string) error {
 	if AppConfig == nil {
-		return fmt.Errorf("配置未加载")
+		return fmt.Errorf("configuration not loaded")
 	}
 
-	// 加密令牌
+	// Encrypt token
 	encryptedToken, err := encryptSensitiveData(token)
 	if err != nil {
-		return fmt.Errorf("加密令牌失败: %w", err)
+		return fmt.Errorf("failed to encrypt token: %w", err)
 	}
 
 	AppConfig.ZeroTier.Token = encryptedToken
 	return nil
 }
 
-// SetZTConfig 设置ZeroTier配置
+// SetZTConfig Set ZeroTier configuration
 func SetZTConfig(url, tokenPath string) error {
 	if AppConfig == nil {
-		return fmt.Errorf("配置未加载")
+		return fmt.Errorf("configuration not loaded")
 	}
 
 	AppConfig.ZeroTier.URL = url
 	AppConfig.ZeroTier.TokenPath = tokenPath
 
-	// 尝试从新的tokenPath读取令牌
+	// Try to read token from new tokenPath
 	err := LoadTokenFromPath(tokenPath)
 	if err != nil {
-		return fmt.Errorf("读取令牌文件失败: %w", err)
+		return fmt.Errorf("failed to read token file: %w", err)
 	}
 
 	return SaveConfig(AppConfig)
 }
 
-// LoadTokenFromPath 从指定路径加载ZeroTier令牌
+// LoadTokenFromPath Load ZeroTier token from specified path
 func LoadTokenFromPath(path string) error {
 	if AppConfig == nil {
-		return fmt.Errorf("配置未加载")
+		return fmt.Errorf("configuration not loaded")
 	}
 
-	// 尝试读取令牌文件
+	// Try to read token file
 	tokenBytes, err := os.ReadFile(path)
 	if err != nil {
-		return fmt.Errorf("读取令牌文件失败: %w", err)
+		return fmt.Errorf("failed to read token file: %w", err)
 	}
 
-	// 成功读取文件，去除换行符并设置令牌
+	// Successfully read file, remove newline and set token
 	token := strings.TrimSpace(string(tokenBytes))
 	if token == "" {
-		return fmt.Errorf("令牌文件为空")
+		return fmt.Errorf("token file is empty")
 	}
 
 	return SetZTToken(token)
 }
 
-// GetDatabasePassword 获取数据库密码（自动解密）
+// GetDatabasePassword Get database password (auto-decrypted)
 func GetDatabasePassword() (string, error) {
 	if AppConfig == nil {
-		return "", fmt.Errorf("配置未加载")
+		return "", fmt.Errorf("configuration not loaded")
 	}
 
 	if AppConfig.Database.Pass != "" {
 		decryptedPass, err := decryptSensitiveData(AppConfig.Database.Pass)
 		if err != nil {
-			// 如果解密失败，可能是未加密的数据，尝试直接返回
+			// If decryption fails, it might be unencrypted data, try to return directly
 			return AppConfig.Database.Pass, nil
 		}
 		return decryptedPass, nil
@@ -273,75 +275,75 @@ func GetDatabasePassword() (string, error) {
 	return "", nil
 }
 
-// SetDatabasePassword 设置数据库密码（自动加密）
+// SetDatabasePassword Set database password (auto-encrypted)
 func SetDatabasePassword(password string) error {
 	if AppConfig == nil {
-		return fmt.Errorf("配置未加载")
+		return fmt.Errorf("configuration not loaded")
 	}
 
-	// 加密密码
+	// Encrypt password
 	encryptedPass, err := encryptSensitiveData(password)
 	if err != nil {
-		return fmt.Errorf("加密密码失败: %w", err)
+		return fmt.Errorf("failed to encrypt password: %w", err)
 	}
 
 	AppConfig.Database.Pass = encryptedPass
 	return nil
 }
 
-// encryptSensitiveData 加密敏感数据
+// encryptSensitiveData Encrypt sensitive data
 func encryptSensitiveData(data string) (string, error) {
 	if AppConfig == nil {
-		return "", fmt.Errorf("配置未加载")
+		return "", fmt.Errorf("configuration not loaded")
 	}
 
-	// 使用JWT密钥作为加密密钥（简化方案）
-	// 在生产环境中，建议使用单独的加密密钥
+	// Use JWT secret as encryption key (simplified solution)
+	// In production, it's recommended to use a separate encryption key
 	key := AppConfig.Security.JWTSecret
 
-	// 导入crypto包
+	// Encrypt data
 	encrypted, err := crypto.Encrypt(data, key)
 	if err != nil {
 		return "", err
 	}
 
-	// 添加加密标识前缀
+	// Add encryption identifier prefix
 	return "encrypted:" + encrypted, nil
 }
 
-// decryptSensitiveData 解密敏感数据
+// decryptSensitiveData Decrypt sensitive data
 func decryptSensitiveData(data string) (string, error) {
 	if AppConfig == nil {
-		return "", fmt.Errorf("配置未加载")
+		return "", fmt.Errorf("configuration not loaded")
 	}
 
-	// 检查是否带有加密标识前缀
+	// Check if it has encryption identifier prefix
 	if !strings.HasPrefix(data, "encrypted:") {
-		// 如果没有加密标识，直接返回原始数据
+		// If no encryption identifier, return original data directly
 		return data, nil
 	}
 
-	// 移除加密标识前缀
+	// Remove encryption identifier prefix
 	encryptedData := strings.TrimPrefix(data, "encrypted:")
 
-	// 使用JWT密钥作为解密密钥
+	// Use JWT secret as decryption key
 	key := AppConfig.Security.JWTSecret
 
-	// 导入crypto包
+	// Decrypt data
 	return crypto.Decrypt(encryptedData, key)
 }
 
-// SetInitialized 设置初始化状态
+// SetInitialized Set initialization status
 func SetInitialized(initialized bool) error {
 	if AppConfig == nil {
-		return fmt.Errorf("配置未加载")
+		return fmt.Errorf("configuration not loaded")
 	}
 
 	AppConfig.Initialized = initialized
 	return SaveConfig(AppConfig)
 }
 
-// IsInitialized 检查是否已初始化
+// IsInitialized Check if initialized
 func IsInitialized() bool {
 	if AppConfig == nil {
 		return false
@@ -349,16 +351,16 @@ func IsInitialized() bool {
 	return AppConfig.Initialized
 }
 
-// GetTempSetting 获取临时设置
-// 临时设置存储在内存中，不会持久化到配置文件
+// GetTempSetting Get temporary setting
+// Temporary settings are stored in memory and not persisted to configuration file
 func GetTempSetting(key string) string {
 	tempSettingsMutex.RLock()
 	defer tempSettingsMutex.RUnlock()
 	return tempSettings[key]
 }
 
-// SetTempSetting 设置临时设置
-// 临时设置存储在内存中，不会持久化到配置文件
+// SetTempSetting Set temporary setting
+// Temporary settings are stored in memory and not persisted to configuration file
 func SetTempSetting(key, value string) {
 	tempSettingsMutex.Lock()
 	defer tempSettingsMutex.Unlock()
