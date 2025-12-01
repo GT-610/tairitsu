@@ -46,15 +46,15 @@ type ServerConfig struct {
 
 // SecurityConfig Security configuration
 type SecurityConfig struct {
-	JWTSecret     string `json:"jwt_secret"`
-	SessionSecret string `json:"session_secret"`
+	JWTSecret     string `json:"jwtSecret"`
+	SessionSecret string `json:"sessionSecret"`
 }
 
 // Config Application configuration structure
 type Config struct {
 	Initialized bool           `json:"initialized"` // Initialization status flag
 	Database    DatabaseConfig `json:"database"`    // Database configuration
-	ZeroTier    ZeroTierConfig `json:"zerotier"`    // ZeroTier configuration
+	ZeroTier    ZeroTierConfig `json:"zeroTier"`    // ZeroTier configuration
 	Server      ServerConfig   `json:"server"`      // Server configuration
 	Security    SecurityConfig `json:"security"`    // Security configuration
 }

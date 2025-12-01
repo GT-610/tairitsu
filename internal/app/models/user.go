@@ -7,10 +7,10 @@ import (
 // User represents a system user with authentication information
 type User struct {
 	ID        string    `json:"id"`
-	Username  string    `json:"username" binding:"required"`
+	Username  string    `json:"username" binding:"required" gorm:"index"`
 	Password  string    `json:"-" binding:"required"` // Password is not returned to clients
-	Email     string    `json:"email" binding:"required,email"`
-	Role      string    `json:"role"` // admin, user
+	Email     string    `json:"email" binding:"required,email" gorm:"index"`
+	Role      string    `json:"role" gorm:"index"` // admin, user
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }

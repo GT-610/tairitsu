@@ -6,6 +6,7 @@ export interface User {
   id: string;
   username: string;
   email: string;
+  role: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -151,6 +152,24 @@ export const statusAPI = {
   getStatus: () => api.get<SystemStatus>('/status')
 }
 
+// Database configuration types
+export interface DatabaseConfig {
+  type: 'sqlite' | 'mysql' | 'postgresql';
+  host?: string;
+  port?: number;
+  user?: string;
+  pass?: string;
+  name?: string;
+  path?: string;
+}
+
+// ZeroTier configuration types
+export interface ZeroTierConfig {
+  url: string;
+  tokenPath?: string;
+  token?: string;
+}
+
 // System related APIs
 export const systemAPI = {
   // Get system status
@@ -158,7 +177,7 @@ export const systemAPI = {
   // Get system setup status (used to check if it's first run)
   getSetupStatus: () => api.get<SetupStatus>('/system/status'),
   // Configure database
-  configureDatabase: (config: any) => api.post('/system/database', config),
+  configureDatabase: (config: DatabaseConfig) => api.post('/system/database', config),
   // Reload routes
   reloadRoutes: () => api.post('/system/reload'),
   // Initialize ZeroTier client
@@ -166,11 +185,11 @@ export const systemAPI = {
   // Test ZeroTier connection
   testZtConnection: () => api.post('/system/zerotier/test'),
   // Save ZeroTier configuration
-  saveZtConfig: (config: any) => api.post('/system/zerotier/config', config),
+  saveZtConfig: (config: ZeroTierConfig) => api.post('/system/zerotier/config', config),
   // Update system settings
-  updateSettings: (settings: any) => api.put('/settings', settings),
+  updateSettings: (settings: Record<string, any>) => api.put('/settings', settings),
   // Get system information
-  getSystemInfo: () => api.get('/system/info'),
+  getSystemInfo: () => api.get<Record<string, any>>('/system/info'),
   // Set system initialization status
   setInitialized: (initialized: boolean) => api.post('/system/initialized', { initialized }),
   // Initialize admin account creation step

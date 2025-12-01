@@ -49,15 +49,92 @@ func NewUserService() *UserService {
 	}
 }
 
+// checkDatabase checks if the database is initialized
+func (s *UserService) checkDatabase() error {
+	if s.db == nil {
+		logger.Error("Service layer: Database not initialized")
+		return errors.New("System database not configured yet, please complete initial setup first")
+	}
+	return nil
+}
+
+// validatePasswordComplexity checks if the password meets complexity requirements
+func validatePasswordComplexity(password string) error {
+	if len(password) < 8 {
+		return errors.New("Password must be at least 8 characters long")
+	}
+
+	// Check for at least one uppercase letter
+	hasUpper := false
+	for _, c := range password {
+		if c >= 'A' && c <= 'Z' {
+			hasUpper = true
+			break
+		}
+	}
+	if !hasUpper {
+		return errors.New("Password must contain at least one uppercase letter")
+	}
+
+	// Check for at least one lowercase letter
+	hasLower := false
+	for _, c := range password {
+		if c >= 'a' && c <= 'z' {
+			hasLower = true
+			break
+		}
+	}
+	if !hasLower {
+		return errors.New("Password must contain at least one lowercase letter")
+	}
+
+	// Check for at least one digit
+	hasDigit := false
+	for _, c := range password {
+		if c >= '0' && c <= '9' {
+			hasDigit = true
+			break
+		}
+	}
+	if !hasDigit {
+		return errors.New("Password must contain at least one digit")
+	}
+
+	// Check for at least one special character
+	hasSpecial := false
+	specialChars := "!@#$%^&*()_+-=[]{}|;:,.<>?"
+	for _, c := range password {
+		for _, sc := range specialChars {
+			if c == sc {
+				hasSpecial = true
+				break
+			}
+		}
+		if hasSpecial {
+			break
+		}
+	}
+	if !hasSpecial {
+		return errors.New("Password must contain at least one special character")
+	}
+
+	return nil
+}
+
 // Register handles user registration with optional role specification
 func (s *UserService) Register(req *models.RegisterRequest, role ...string) (*models.User, error) {
 	// Check if database is initialized
-	if s.db == nil {
-		logger.Error("Service layer: Registration failed, database not initialized")
-		return nil, errors.New("System database not configured yet, please complete initial setup first")
+	if err := s.checkDatabase(); err != nil {
+		return nil, err
 	}
 
-	logger.Info("Service layer: Starting user registration", zap.String("username", req.Username), zap.String("email", req.Email))
+	logger.Debug("Service layer: Starting user registration", zap.String("username", req.Username), zap.String("email", req.Email))
+
+	// Validate password complexity
+	if err := validatePasswordComplexity(req.Password); err != nil {
+		logger.Error("Service layer: Registration failed, password complexity validation failed", zap.String("username", req.Username), zap.Error(err))
+		return nil, err
+	}
 
 	// Check if username already exists
 	existingUser, err := s.db.GetUserByUsername(req.Username)
@@ -111,7 +188,7 @@ func (s *UserService) Register(req *models.RegisterRequest, role ...string) (*mo
 		return nil, err
 	}
 
-	logger.Info("Service layer: User registered successfully", zap.String("user_id", user.ID), zap.String("username", user.Username), zap.String("role", userRole))
+	logger.Debug("Service layer: User registered successfully", zap.String("user_id", user.ID), zap.String("username", user.Username), zap.String("role", userRole))
 
 	return user, nil
 }
@@ -119,12 +196,11 @@ func (s *UserService) Register(req *models.RegisterRequest, role ...string) (*mo
 // Login authenticates a user and returns the user object
 func (s *UserService) Login(req *models.LoginRequest) (*models.User, error) {
 	// Check if database is initialized
-	if s.db == nil {
-		logger.Error("Service layer: Login failed, database not initialized")
-		return nil, errors.New("System database not configured yet, please complete initial setup first")
+	if err := s.checkDatabase(); err != nil {
+		return nil, err
 	}
 
-	logger.Info("Service layer: Starting user login", zap.String("username", req.Username))
+	logger.Debug("Service layer: Starting user login", zap.String("username", req.Username))
 
 	// Find user by username
 	user, err := s.db.GetUserByUsername(req.Username)
@@ -143,7 +219,7 @@ func (s *UserService) Login(req *models.LoginRequest) (*models.User, error) {
 		return nil, errors.New("Invalid username or password")
 	}
 
-	logger.Info("Service layer: User logged in successfully", zap.String("user_id", user.ID), zap.String("username", user.Username))
+	logger.Debug("Service layer: User logged in successfully", zap.String("user_id", user.ID), zap.String("username", user.Username))
 
 	return user, nil
 }
@@ -151,12 +227,11 @@ func (s *UserService) Login(req *models.LoginRequest) (*models.User, error) {
 // GetUserByID retrieves a user by their unique ID
 func (s *UserService) GetUserByID(id string) (*models.User, error) {
 	// Check if database is initialized
-	if s.db == nil {
-		logger.Error("Service layer: Failed to get user, database not initialized")
-		return nil, errors.New("System database not configured yet, please complete initial setup first")
+	if err := s.checkDatabase(); err != nil {
+		return nil, err
 	}
 
-	logger.Info("Service layer: Starting to get user by ID", zap.String("user_id", id))
+	logger.Debug("Service layer: Starting to get user by ID", zap.String("user_id", id))
 
 	user, err := s.db.GetUserByID(id)
 	if err != nil {
@@ -169,7 +244,7 @@ func (s *UserService) GetUserByID(id string) (*models.User, error) {
 		return nil, errors.New("User does not exist")
 	}
 
-	logger.Info("Service layer: Successfully got user by ID", zap.String("user_id", id), zap.String("username", user.Username))
+	logger.Debug("Service layer: Successfully got user by ID", zap.String("user_id", id), zap.String("username", user.Username))
 
 	return user, nil
 } // GetAllUsers retrieves all users from the database
@@ -180,7 +255,7 @@ func (s *UserService) GetAllUsers() []*models.User {
 		return []*models.User{}
 	}
 
-	logger.Info("Service layer: Getting all users")
+	logger.Debug("Service layer: Getting all users")
 
 	users, err := s.db.GetAllUsers()
 	if err != nil {
@@ -199,7 +274,7 @@ func (s *UserService) HasAdminUser() (bool, error) {
 		return false, errors.New("Database not initialized")
 	}
 
-	logger.Info("Service layer: Checking if admin user already exists")
+	logger.Debug("Service layer: Checking if admin user already exists")
 
 	// Check database for admin user existence
 	hasAdmin, err := s.db.HasAdminUser()
@@ -208,6 +283,6 @@ func (s *UserService) HasAdminUser() (bool, error) {
 		return false, err
 	}
 
-	logger.Info("Service layer: Admin user check completed", zap.Bool("hasAdmin", hasAdmin))
+	logger.Debug("Service layer: Admin user check completed", zap.Bool("hasAdmin", hasAdmin))
 	return hasAdmin, nil
 }
