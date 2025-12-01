@@ -15,7 +15,7 @@ import (
 // AppContext Application context containing all global dependencies
 type AppContext struct {
 	Config    *config.Config
-	Database  database.DBInterface
+	Database  database.Database
 	ZTClient  *zerotier.Client
 	Router    *gin.Engine
 	JWTSecret string

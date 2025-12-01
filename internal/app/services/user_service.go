@@ -15,12 +15,12 @@ import (
 
 // UserService handles user-related operations and business logic
 type UserService struct {
-	db    database.DBInterface // Database interface for user data operations
-	mutex sync.RWMutex         // Read-write mutex to protect concurrent access
+	db    database.Database // Database interface for user data operations
+	mutex sync.RWMutex      // Read-write mutex to protect concurrent access
 }
 
 // NewUserServiceWithDB creates a new UserService instance with database connection
-func NewUserServiceWithDB(db database.DBInterface) *UserService {
+func NewUserServiceWithDB(db database.Database) *UserService {
 	return &UserService{
 		db: db,
 	}
@@ -81,8 +81,8 @@ func (s *UserService) Register(req *models.RegisterRequest, role ...string) (*mo
 		return nil, errors.New("Email already in use")
 	}
 
-	// Hash password using bcrypt
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+	// Hash password using bcrypt with higher cost factor for better security
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), 12)
 	if err != nil {
 		logger.Error("Service layer: Registration failed, password encryption error", zap.String("username", req.Username), zap.Error(err))
 		return nil, err

@@ -10,7 +10,7 @@ import (
 
 // DatabaseInitializer Database initializer
 type DatabaseInitializer struct {
-	db database.DBInterface
+	db database.Database
 }
 
 // NewDatabaseInitializer Create a new database initializer
@@ -19,7 +19,7 @@ func NewDatabaseInitializer() *DatabaseInitializer {
 }
 
 // Initialize Initialize database
-func (di *DatabaseInitializer) Initialize() (database.DBInterface, error) {
+func (di *DatabaseInitializer) Initialize() (database.Database, error) {
 	// Load database configuration
 	dbConfig := database.LoadConfig()
 
@@ -49,7 +49,7 @@ func (di *DatabaseInitializer) Initialize() (database.DBInterface, error) {
 }
 
 // GetDatabase Get initialized database instance
-func (di *DatabaseInitializer) GetDatabase() database.DBInterface {
+func (di *DatabaseInitializer) GetDatabase() database.Database {
 	return di.db
 }
 

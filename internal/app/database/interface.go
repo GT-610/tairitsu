@@ -4,8 +4,8 @@ import (
 	"github.com/GT-610/tairitsu/internal/app/models"
 )
 
-// DBInterface Define database interface, supporting multiple database backends
-type DBInterface interface {
+// Database Define database interface, supporting multiple database backends
+type Database interface {
 	// Initialize database
 	Init() error
 	

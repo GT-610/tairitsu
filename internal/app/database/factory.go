@@ -35,7 +35,7 @@ type Config struct {
 }
 
 // NewDatabase Create database instance based on configuration
-func NewDatabase(config Config) (DBInterface, error) {
+func NewDatabase(config Config) (Database, error) {
 	switch config.Type {
 	case SQLite:
 		// If no path specified, use default path

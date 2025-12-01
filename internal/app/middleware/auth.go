@@ -17,7 +17,8 @@ func AuthMiddleware(jwtService *services.JWTService) gin.HandlerFunc {
 			c.JSON(http.StatusUnauthorized, ErrorResponse{
 				Error:   "Unauthorized",
 				Message: "Missing authentication token",
-				Code:    http.StatusUnauthorized,
+				Code:    "UNAUTHORIZED",
+				Status:  http.StatusUnauthorized,
 			})
 			c.Abort()
 			return
@@ -29,7 +30,8 @@ func AuthMiddleware(jwtService *services.JWTService) gin.HandlerFunc {
 			c.JSON(http.StatusUnauthorized, ErrorResponse{
 				Error:   "Unauthorized",
 				Message: "Invalid authentication format",
-				Code:    http.StatusUnauthorized,
+				Code:    "UNAUTHORIZED",
+				Status:  http.StatusUnauthorized,
 			})
 			c.Abort()
 			return
@@ -41,7 +43,8 @@ func AuthMiddleware(jwtService *services.JWTService) gin.HandlerFunc {
 			c.JSON(http.StatusUnauthorized, ErrorResponse{
 				Error:   "Unauthorized",
 				Message: "Invalid authentication token",
-				Code:    http.StatusUnauthorized,
+				Code:    "UNAUTHORIZED",
+				Status:  http.StatusUnauthorized,
 			})
 			c.Abort()
 			return
@@ -64,7 +67,8 @@ func AdminRequired() gin.HandlerFunc {
 			c.JSON(http.StatusForbidden, ErrorResponse{
 				Error:   "Forbidden",
 				Message: "Authentication required",
-				Code:    http.StatusForbidden,
+				Code:    "FORBIDDEN",
+				Status:  http.StatusForbidden,
 			})
 			c.Abort()
 			return
@@ -74,7 +78,8 @@ func AdminRequired() gin.HandlerFunc {
 			c.JSON(http.StatusForbidden, ErrorResponse{
 				Error:   "Forbidden",
 				Message: "Admin permission required",
-				Code:    http.StatusForbidden,
+				Code:    "FORBIDDEN",
+				Status:  http.StatusForbidden,
 			})
 			c.Abort()
 			return

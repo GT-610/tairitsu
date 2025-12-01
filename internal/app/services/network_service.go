@@ -10,22 +10,14 @@ import (
 	"go.uber.org/zap"
 )
 
-// GlobalZTClient is the global ZeroTier client instance, maintained after initialization
-var GlobalZTClient *zerotier.Client
-
 // NetworkService handles network-related operations with ZeroTier
 type NetworkService struct {
 	ztClient *zerotier.Client     // ZeroTier client for API interactions
-	db       database.DBInterface // Database for network ownership management
+	db       database.Database    // Database for network ownership management
 }
 
 // NewNetworkService creates a new network service instance
-// If global ZT client is available, it will be used to ensure continuity after route reloading
-func NewNetworkService(ztClient *zerotier.Client, db database.DBInterface) *NetworkService {
-	// Use global ZeroTier client if available and no specific client is provided
-	if GlobalZTClient != nil && ztClient == nil {
-		ztClient = GlobalZTClient
-	}
+func NewNetworkService(ztClient *zerotier.Client, db database.Database) *NetworkService {
 	return &NetworkService{
 		ztClient: ztClient,
 		db:       db,
@@ -459,15 +451,10 @@ func (s *NetworkService) RemoveNetworkMember(networkID, memberID string, userID 
 	return nil
 }
 
-// SetZTClient sets the ZeroTier client and updates the global instance
+// SetZTClient sets the ZeroTier client
 func (s *NetworkService) SetZTClient(client *zerotier.Client) {
-	if client != nil {
-		// Update global client instance to ensure continuity after route reloading
-		GlobalZTClient = client
-	} else {
+	if client == nil {
 		logger.Warn("NetworkService: Attempting to set nil ZeroTier client")
-		// Clear global instance as well
-		GlobalZTClient = nil
 	}
 	s.ztClient = client
 }

@@ -10,30 +10,25 @@ import (
 )
 
 // SetupRoutes configures application routes
-func SetupRoutes(router *gin.Engine, ztClient *zerotier.Client, jwtSecret string, db database.DBInterface) {
+func SetupRoutes(router *gin.Engine, ztClient *zerotier.Client, jwtSecret string, db database.Database) {
 	SetupRoutesWithReload(router, ztClient, jwtSecret, db, nil)
 }
 
 // SetupRoutesWithReload configures routes with reload capability
-func SetupRoutesWithReload(router *gin.Engine, ztClient *zerotier.Client, jwtSecret string, db database.DBInterface, reloadRoutesFunc func()) {
+func SetupRoutesWithReload(router *gin.Engine, ztClient *zerotier.Client, jwtSecret string, db database.Database, reloadRoutesFunc func()) {
 	// Apply middleware
 	router.Use(middleware.Logger())
 	router.Use(middleware.CORS())
 	router.Use(middleware.RateLimit())
 	router.Use(middleware.ErrorHandler())
 
-	// Create service instances
-	networkService := services.NewNetworkService(ztClient, db)
+	// Create service factory
+	serviceFactory := services.NewServiceFactory(db, ztClient, jwtSecret)
 
-	// Create user service instance, may use nil database
-	var userService *services.UserService
-	if db != nil {
-		userService = services.NewUserServiceWithDB(db) // Use provided database instance
-	} else {
-		userService = services.NewUserServiceWithoutDB() // Create service instance without database
-	}
-
-	jwtService := services.NewJWTService(jwtSecret)
+	// Create service instances using factory
+	networkService := serviceFactory.CreateNetworkService()
+	userService := serviceFactory.CreateUserService()
+	jwtService := serviceFactory.CreateJWTService()
 
 	// Create handler instances
 	networkHandler := handlers.NewNetworkHandler(networkService)

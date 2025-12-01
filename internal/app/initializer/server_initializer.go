@@ -17,8 +17,9 @@ import (
 type ServerInitializer struct {
 	router      *gin.Engine
 	jwtSecret   string
-	db          database.DBInterface
+	db          database.Database
 	ztClient    *zerotier.Client
+	config      *config.Config
 	reloadFunc  func()
 	routerMutex sync.RWMutex
 }
@@ -29,10 +30,11 @@ func NewServerInitializer() *ServerInitializer {
 }
 
 // Initialize Initialize HTTP server
-func (si *ServerInitializer) Initialize(db database.DBInterface, ztClient *zerotier.Client, jwtSecret string) (*gin.Engine, error) {
+func (si *ServerInitializer) Initialize(db database.Database, ztClient *zerotier.Client, jwtSecret string) (*gin.Engine, error) {
 	si.db = db
 	si.ztClient = ztClient
 	si.jwtSecret = jwtSecret
+	si.config = config.AppConfig
 
 	// Create router instance
 	router := gin.New()
@@ -89,12 +91,11 @@ func (si *ServerInitializer) StartServer() error {
 		return fmt.Errorf("router not initialized")
 	}
 
-	cfg := config.AppConfig
-	if cfg == nil {
+	if si.config == nil {
 		return fmt.Errorf("configuration not loaded")
 	}
 
-	serverAddr := fmt.Sprintf(":%d", cfg.Server.Port)
+	serverAddr := fmt.Sprintf(":%d", si.config.Server.Port)
 	logger.Info("Starting HTTP server", zap.String("address", serverAddr))
 
 	if err := si.router.Run(serverAddr); err != nil {

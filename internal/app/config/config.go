@@ -182,7 +182,7 @@ func GetZTToken() (string, error) {
 
 	// Decrypt token
 	if AppConfig.ZeroTier.Token != "" {
-		decryptedToken, err := decryptSensitiveData(AppConfig.ZeroTier.Token)
+		decryptedToken, err := decryptSensitiveData(AppConfig.ZeroTier.Token, AppConfig.Security.JWTSecret)
 		if err != nil {
 			// If decryption fails, it might be unencrypted data, try to return directly
 			// This is for compatibility with possible unencrypted data
@@ -207,7 +207,7 @@ func SetZTToken(token string) error {
 	}
 
 	// Encrypt token
-	encryptedToken, err := encryptSensitiveData(token)
+	encryptedToken, err := encryptSensitiveData(token, AppConfig.Security.JWTSecret)
 	if err != nil {
 		return fmt.Errorf("failed to encrypt token: %w", err)
 	}
@@ -262,7 +262,7 @@ func GetDatabasePassword() (string, error) {
 	}
 
 	if AppConfig.Database.Pass != "" {
-		decryptedPass, err := decryptSensitiveData(AppConfig.Database.Pass)
+		decryptedPass, err := decryptSensitiveData(AppConfig.Database.Pass, AppConfig.Security.JWTSecret)
 		if err != nil {
 			// If decryption fails, it might be unencrypted data, try to return directly
 			return AppConfig.Database.Pass, nil
@@ -280,7 +280,7 @@ func SetDatabasePassword(password string) error {
 	}
 
 	// Encrypt password
-	encryptedPass, err := encryptSensitiveData(password)
+	encryptedPass, err := encryptSensitiveData(password, AppConfig.Security.JWTSecret)
 	if err != nil {
 		return fmt.Errorf("failed to encrypt password: %w", err)
 	}
@@ -290,15 +290,7 @@ func SetDatabasePassword(password string) error {
 }
 
 // encryptSensitiveData Encrypt sensitive data
-func encryptSensitiveData(data string) (string, error) {
-	if AppConfig == nil {
-		return "", fmt.Errorf("configuration not loaded")
-	}
-
-	// Use JWT secret as encryption key (simplified solution)
-	// In production, it's recommended to use a separate encryption key
-	key := AppConfig.Security.JWTSecret
-
+func encryptSensitiveData(data string, key string) (string, error) {
 	// Encrypt data
 	encrypted, err := crypto.Encrypt(data, key)
 	if err != nil {
@@ -310,11 +302,7 @@ func encryptSensitiveData(data string) (string, error) {
 }
 
 // decryptSensitiveData Decrypt sensitive data
-func decryptSensitiveData(data string) (string, error) {
-	if AppConfig == nil {
-		return "", fmt.Errorf("configuration not loaded")
-	}
-
+func decryptSensitiveData(data string, key string) (string, error) {
 	// Check if it has encryption identifier prefix
 	if !strings.HasPrefix(data, "encrypted:") {
 		// If no encryption identifier, return original data directly
@@ -323,9 +311,6 @@ func decryptSensitiveData(data string) (string, error) {
 
 	// Remove encryption identifier prefix
 	encryptedData := strings.TrimPrefix(data, "encrypted:")
-
-	// Use JWT secret as decryption key
-	key := AppConfig.Security.JWTSecret
 
 	// Decrypt data
 	return crypto.Decrypt(encryptedData, key)
