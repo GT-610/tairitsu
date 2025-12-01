@@ -4,7 +4,7 @@ import { useAuth } from '../services/auth';
 import ResponsiveDrawer from './ResponsiveDrawer';
 import { User } from '../services/api';
 
-// Layout组件的props类型
+// Layout component props type
 interface LayoutProps {
   user: User | null;
 }
@@ -13,7 +13,7 @@ function Layout({ user }: LayoutProps) {
   const { logout } = useAuth();
 
   const handleLogout = () => {
-    // 调用auth context中的logout函数
+    // Call logout function from auth context
     logout();
   };
 

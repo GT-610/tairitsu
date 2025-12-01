@@ -108,7 +108,7 @@ function Login() {
       // Login successful, redirect to dashboard
       navigate('/dashboard');
     } catch (error: any) {
-      console.error('登录错误:', error);
+      console.error('Login error:', error);
       if (error.response && error.response.data && error.response.data.error) {
         setLoginError(error.response.data.error);
       } else if (error.response && error.response.status === 401) {

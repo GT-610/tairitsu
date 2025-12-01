@@ -4,7 +4,7 @@ from '@mui/material';
 import { Link, useNavigate } from 'react-router-dom';
 import { authAPI } from '../services/api';
 
-// 表单数据类型定义
+// Form data type definition
 interface FormData {
   username: string;
   email: string;
@@ -36,7 +36,7 @@ function Register() {
     setError('');
     setSuccess('');
 
-    // 验证密码
+    // Validate password
     if (formData.password !== formData.confirmPassword) {
       setError('两次输入的密码不一致');
       return;
@@ -50,7 +50,7 @@ function Register() {
         password: formData.password
       });
       setSuccess('注册成功，请登录');
-      // 3秒后跳转到登录页
+      // Redirect to login page after 3 seconds
       setTimeout(() => {
         navigate('/login');
       }, 3000);

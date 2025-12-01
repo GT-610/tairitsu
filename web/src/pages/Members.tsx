@@ -1,32 +1,32 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Box, 
-  Typography, 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableContainer, 
-  TableHead, 
-  TableRow, 
-  Paper, 
-  Button, 
-  Dialog, 
-  DialogActions, 
-  DialogContent, 
-  DialogContentText, 
-  DialogTitle, 
-  TextField, 
-  FormControlLabel, 
-  Switch, 
-  Snackbar, 
-  Alert, 
+import {
+  Box,
+  Typography,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Paper,
+  Button,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
+  TextField,
+  FormControlLabel,
+  Switch,
+  Snackbar,
+  Alert,
   CircularProgress
 } from '@mui/material';
 import { Add, Edit, Delete, Search, Refresh } from '@mui/icons-material';
 import { useParams } from 'react-router-dom';
 import { memberAPI, Member as ApiMember } from '../services/api';
 
-// 格式化后的成员类型定义
+// Formatted member type definition
 interface Member {
   id: string;
   username: string;
@@ -36,7 +36,7 @@ interface Member {
   joinedAt: string;
 }
 
-// 表单数据类型定义
+// Form data type definition
 interface FormData {
   username: string;
   email: string;
@@ -44,14 +44,14 @@ interface FormData {
   isActive: boolean;
 }
 
-// Snackbar状态类型定义
+// Snackbar state type definition
 interface SnackbarState {
   open: boolean;
   message: string;
   severity: 'success' | 'error' | 'info' | 'warning';
 }
 
-// 确认对话框状态类型定义
+// Confirmation dialog state type definition
 interface ConfirmDialogState {
   open: boolean;
   memberId: string | null;
@@ -74,30 +74,30 @@ function Members() {
   const [snackbar, setSnackbar] = useState<SnackbarState>({ open: false, message: '', severity: 'success' });
   const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState>({ open: false, memberId: null });
 
-  // 获取成员数据
+  // Get member data
   useEffect(() => {
     const fetchMembers = async () => {
       try {
         setLoading(true);
         if (!networkId) {
-          throw new Error('网络ID不能为空');
+          throw new Error('Network ID cannot be empty');
         }
         const response = await memberAPI.getMembers(networkId);
-        // 格式化从API获取的数据以匹配前端组件的期望格式
+        // Format data from API to match frontend component expectations
         const formattedMembers: Member[] = response.data.map((member: ApiMember) => ({
           id: member.id || member.nodeId,
           username: member.name || member.nodeId,
-          email: `${member.nodeId}@zt.local`, // ZeroTier成员通常没有真实邮箱
+          email: `${member.nodeId}@zt.local`, // ZeroTier members typically don't have real emails
           role: (member.role as 'admin' | 'manager' | 'member') || 'member',
           isActive: member.authorized || false,
-          joinedAt: member.createdAt ? new Date(member.createdAt).toLocaleDateString() : '未知'
+          joinedAt: member.createdAt ? new Date(member.createdAt).toLocaleDateString() : 'Unknown'
         }));
         setMembers(formattedMembers);
       } catch (error: any) {
-        console.error('获取成员列表失败:', error);
+        console.error('Failed to fetch members:', error);
         setSnackbar({ 
           open: true, 
-          message: '获取成员列表失败: ' + (error.response?.data?.message || error.message), 
+          message: 'Failed to fetch members: ' + (error.response?.data?.message || error.message), 
           severity: 'error' 
         });
       } finally {
@@ -110,13 +110,13 @@ function Members() {
     }
   }, [networkId]);
 
-  // 处理搜索
+  // Handle search
   const filteredMembers = members.filter(member => 
     member.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
     member.email.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // 处理添加成员
+  // Handle add member
   const handleAddMember = () => {
     setCurrentMember(null);
     setIsEditing(false);
@@ -129,7 +129,7 @@ function Members() {
     setOpenDialog(true);
   };
 
-  // 处理编辑成员
+  // Handle edit member
   const handleEditMember = (member: Member) => {
     setCurrentMember(member);
     setIsEditing(true);
@@ -142,16 +142,16 @@ function Members() {
     setOpenDialog(true);
   };
 
-  // 处理删除确认
+  // Handle delete confirmation
   const handleDeleteConfirm = (memberId: string) => {
     setConfirmDialog({ open: true, memberId });
   };
 
-  // 处理删除成员
+  // Handle delete member
   const handleDeleteMember = async () => {
     try {
       if (!networkId || !confirmDialog.memberId) {
-        throw new Error('网络ID或成员ID不能为空');
+        throw new Error('Network ID or member ID cannot be empty');
       }
       await memberAPI.deleteMember(networkId, confirmDialog.memberId);
       
@@ -161,14 +161,14 @@ function Members() {
       
       setSnackbar({ 
         open: true, 
-        message: '成员删除成功', 
+        message: 'Member deleted successfully', 
         severity: 'success' 
       });
     } catch (error: any) {
-      console.error('删除成员失败:', error);
+      console.error('Failed to delete member:', error);
       setSnackbar({ 
         open: true, 
-        message: '成员删除失败: ' + (error.response?.data?.message || error.message), 
+        message: 'Failed to delete member: ' + (error.response?.data?.message || error.message), 
         severity: 'error' 
       });
     } finally {
@@ -176,14 +176,14 @@ function Members() {
     }
   };
 
-  // 处理表单提交
+  // Handle form submission
   const handleSubmit = async () => {
     try {
       if (!networkId) {
-        throw new Error('网络ID不能为空');
+        throw new Error('Network ID cannot be empty');
       }
       if (isEditing && currentMember) {
-        // 更新现有成员
+        // Update existing member
         const updatedData = {
           authorized: formData.isActive,
           name: formData.username
@@ -191,7 +191,7 @@ function Members() {
         
         const response = await memberAPI.updateMember(networkId, currentMember.id, updatedData);
         
-        // 更新本地状态
+        // Update local state
         const updatedMember: Member = {
           ...currentMember,
           ...formData,
@@ -208,44 +208,44 @@ function Members() {
         
         setSnackbar({ 
           open: true, 
-          message: '成员信息更新成功', 
+          message: 'Member information updated successfully', 
           severity: 'success' 
         });
       } else {
-        // 添加新成员（在ZeroTier中实际上是授权一个新成员）
-        // 这里我们简化处理，显示一个提示信息
+        // Add new member (in ZeroTier, this actually means authorizing a new member)
+        // We simplify the handling here and show a prompt message
         setSnackbar({ 
           open: true, 
-          message: '在ZeroTier网络中，成员需要先加入网络，然后才能被授权。', 
+          message: 'In ZeroTier networks, members need to join the network first before they can be authorized.', 
           severity: 'info' 
         });
       }
       
       setOpenDialog(false);
     } catch (error: any) {
-      console.error('成员操作失败:', error);
+      console.error('Member operation failed:', error);
       setSnackbar({ 
         open: true, 
-        message: (isEditing ? '成员信息更新失败: ' : '成员操作失败: ') + (error.response?.data?.message || error.message), 
+        message: (isEditing ? 'Failed to update member: ' : 'Member operation failed: ') + (error.response?.data?.message || error.message), 
         severity: 'error' 
       });
     }
   };
 
-  // 处理状态切换
+  // Handle status toggle
   const handleStatusToggle = async (memberId: string, newStatus: boolean) => {
     try {
       if (!networkId) {
-        throw new Error('网络ID不能为空');
+        throw new Error('Network ID cannot be empty');
       }
-      // 调用API更新成员状态
+      // Call API to update member status
       const updatedData = {
         authorized: newStatus
       };
       
       await memberAPI.updateMember(networkId, memberId, updatedData);
       
-      // 更新本地状态
+      // Update local state
       setMembers(prevMembers => 
         prevMembers.map(member => 
           member.id === memberId 
@@ -256,47 +256,47 @@ function Members() {
       
       setSnackbar({ 
         open: true, 
-        message: `成员状态已${newStatus ? '启用' : '禁用'}`, 
+        message: `Member status has been ${newStatus ? 'enabled' : 'disabled'}`, 
         severity: 'success' 
       });
     } catch (error: any) {
-      console.error('状态更新失败:', error);
+      console.error('Failed to update status:', error);
       setSnackbar({ 
         open: true, 
-        message: '状态更新失败: ' + (error.response?.data?.message || error.message), 
+        message: 'Failed to update status: ' + (error.response?.data?.message || error.message), 
         severity: 'error' 
       });
     }
   };
 
-  // 刷新成员列表
+  // Refresh member list
   const handleRefresh = async () => {
     try {
       if (!networkId) {
-        throw new Error('网络ID不能为空');
+        throw new Error('Network ID cannot be empty');
       }
       setLoading(true);
       const response = await memberAPI.getMembers(networkId);
-      // 格式化从API获取的数据以匹配前端组件的期望格式
+      // Format data from API to match frontend component expectations
       const formattedMembers: Member[] = response.data.map((member: ApiMember) => ({
         id: member.id || member.nodeId,
         username: member.name || member.nodeId,
-        email: `${member.nodeId}@zt.local`, // ZeroTier成员通常没有真实邮箱
+        email: `${member.nodeId}@zt.local`, // ZeroTier members typically don't have real emails
         role: (member.role as 'admin' | 'manager' | 'member') || 'member',
         isActive: member.authorized || false,
-        joinedAt: member.createdAt ? new Date(member.createdAt).toLocaleDateString() : '未知'
+        joinedAt: member.createdAt ? new Date(member.createdAt).toLocaleDateString() : 'Unknown'
       }));
       setMembers(formattedMembers);
       setSnackbar({ 
         open: true, 
-        message: '成员列表已刷新', 
+        message: 'Member list refreshed', 
         severity: 'success' 
       });
     } catch (error: any) {
-      console.error('刷新成员列表失败:', error);
+      console.error('Failed to refresh member list:', error);
       setSnackbar({ 
         open: true, 
-        message: '刷新成员列表失败: ' + (error.response?.data?.message || error.message), 
+        message: 'Failed to refresh member list: ' + (error.response?.data?.message || error.message), 
         severity: 'error' 
       });
     } finally {
@@ -425,7 +425,7 @@ function Members() {
         </TableContainer>
       )}
 
-      {/* 添加/编辑成员对话框 */}
+      {/* Add/Edit member dialog */}
       <Dialog open={openDialog} onClose={() => setOpenDialog(false)} maxWidth="sm" fullWidth>
         <DialogTitle>{isEditing ? '编辑成员' : '添加成员'}</DialogTitle>
         <DialogContent>
@@ -485,7 +485,7 @@ function Members() {
         </DialogActions>
       </Dialog>
 
-      {/* 删除确认对话框 */}
+      {/* Delete confirmation dialog */}
       <Dialog
         open={confirmDialog.open}
         onClose={() => setConfirmDialog({ ...confirmDialog, open: false })}
@@ -506,7 +506,7 @@ function Members() {
         </DialogActions>
       </Dialog>
 
-      {/* 提示消息 */}
+      {/* Notification message */}
       <Snackbar 
         open={snackbar.open} 
         autoHideDuration={6000}

@@ -4,7 +4,7 @@ import { Box, Typography, Grid, Paper, Card, CardContent, CircularProgress, Aler
   Chip, LinearProgress, Button } from '@mui/material';
 import { statusAPI, networkAPI, Network } from '../services/api';
 
-// 设备类型定义
+// Device type definition
 interface Device {
   id: string;
   address: string;
@@ -13,7 +13,7 @@ interface Device {
   lastSeen: string;
 }
 
-// 系统状态类型定义
+// System status type definition
 interface SystemStatus {
   online: boolean;
   zerotier?: {
@@ -32,10 +32,10 @@ function Dashboard() {
   const [networks, setNetworks] = useState<Network[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string>('');
-  // 模拟用户权限状态，实际应该从认证系统获取
+  // Mock user permission status, should be obtained from authentication system in production
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
   
-  // 模拟最近连接的设备数据
+  // Mock recently connected devices data
   const [recentDevices, setRecentDevices] = useState<Device[]>([
     { id: '1', address: 'zt-5678', name: 'Device-1', connected: true, lastSeen: '2分钟前' },
     { id: '2', address: 'zt-1234', name: 'Device-2', connected: true, lastSeen: '5分钟前' },
@@ -46,15 +46,15 @@ function Dashboard() {
     const fetchData = async () => {
       setLoading(true);
       try {
-        // 获取系统状态
+        // Get system status
         const statusResponse = await statusAPI.getStatus();
         setStatus(statusResponse.data);
         
-        // 获取网络列表
+        // Get network list
         const networksResponse = await networkAPI.getAllNetworks();
         setNetworks(networksResponse.data);
       } catch (err) {
-        setError('获取数据失败，请稍后重试');
+        setError('Failed to fetch data, please try again later');
         console.error('Dashboard fetch error:', err);
       } finally {
         setLoading(false);
@@ -97,12 +97,12 @@ function Dashboard() {
         </Box>
       ) : (
         <>
-          {/* 公共信息区域 - 所有用户可见 */}
+          {/* Public information area - visible to all users */}
           <Typography variant="h5" component="h2" gutterBottom sx={{ mt: 2 }}>
             系统概览
           </Typography>
           
-          {/* 概览卡片作为一个整体 */}
+          {/* Overview cards as a whole */}
           <Paper elevation={3} sx={{ p: 3, mb: 4 }}>
             <Grid container spacing={3}>
               <Grid size={{ xs: 12, sm: 6, md: 3 }}>
@@ -165,7 +165,7 @@ function Dashboard() {
             </Grid>
           </Paper>
           
-          {/* 最近连接的设备 */}
+          {/* Recently connected devices */}
           <Paper elevation={3} sx={{ p: 3, mb: 4 }}>
             <Typography variant="h5" component="h2" gutterBottom>
               最近连接的设备
@@ -205,7 +205,7 @@ function Dashboard() {
             </TableContainer>
           </Paper>
           
-          {/* 网络概览 */}
+          {/* Network overview */}
           <Paper elevation={3} sx={{ p: 3, mb: 4 }}>
             <Typography variant="h5" component="h2" gutterBottom>
               网络概览
@@ -243,7 +243,7 @@ function Dashboard() {
             </TableContainer>
           </Paper>
           
-          {/* 管理员信息区域 - 仅管理员可见 */}
+          {/* Admin information area - visible to admins only */}
           {isAdmin && (
             <>
               <Divider sx={{ my: 4 }} />
@@ -251,7 +251,7 @@ function Dashboard() {
                 管理员区域
               </Typography>
               
-              {/* 系统健康监控 */}
+              {/* System health monitoring */}
               <Paper elevation={3} sx={{ p: 3, mb: 4 }}>
                 <Typography variant="h6" component="h3" gutterBottom>
                   系统健康监控
@@ -306,7 +306,7 @@ function Dashboard() {
                 </Box>
               </Paper>
               
-              {/* 控制器详情 */}
+              {/* Controller details */}
               <Paper elevation={3} sx={{ p: 3, mb: 4 }}>
                 <Typography variant="h6" component="h3" gutterBottom>
                   控制器详情
@@ -351,7 +351,7 @@ function Dashboard() {
                 </Box>
               </Paper>
               
-              {/* 高级网络统计 */}
+              {/* Advanced network statistics */}
               <Paper elevation={3} sx={{ p: 3, mb: 4 }}>
                 <Typography variant="h6" component="h3" gutterBottom>
                   高级网络统计
@@ -361,7 +361,7 @@ function Dashboard() {
                 </Alert>
               </Paper>
               
-              {/* 安全监控 */}
+              {/* Security monitoring */}
               <Paper elevation={3} sx={{ p: 3, mb: 4 }}>
                 <Typography variant="h6" component="h3" gutterBottom>
                   安全监控

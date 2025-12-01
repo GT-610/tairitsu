@@ -2,7 +2,7 @@ import { Box, Typography, Card, CardContent, Avatar, Grid, Divider }
 from '@mui/material';
 import { User } from '../services/api';
 
-// Profile组件的props类型
+// Profile component props type
 interface ProfileProps {
   user: User | null;
 }

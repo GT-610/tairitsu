@@ -4,7 +4,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Add, Edit, Delete, Close } from '@mui/icons-material';
 import { networkAPI, Network, NetworkConfig } from '../services/api';
 
-// 表单数据类型定义
+// Form data type definition
 interface FormData {
   name: string;
   description: string;
@@ -38,7 +38,7 @@ function Networks() {
       const response = await networkAPI.getAllNetworks();
       setNetworks(response.data);
     } catch (err: any) {
-      setError('获取网络列表失败');
+      setError('Failed to fetch network list');
       console.error('Fetch networks error:', err);
     } finally {
       setLoading(false);
@@ -131,17 +131,17 @@ function Networks() {
       handleCloseModal();
       fetchNetworks();
     } catch (err: any) {
-      setError(editingNetwork ? '更新网络失败' : '创建网络失败');
+      setError(editingNetwork ? 'Failed to update network' : 'Failed to create network');
     }
   };
 
   const handleDelete = async (networkId: string) => {
-    if (window.confirm('确定要删除这个网络吗？')) {
+    if (window.confirm('Are you sure you want to delete this network?')) {
       try {
         await networkAPI.deleteNetwork(networkId);
         fetchNetworks();
       } catch (err: any) {
-        setError('删除网络失败');
+        setError('Failed to delete network');
       }
     }
   };
@@ -234,7 +234,7 @@ function Networks() {
         </>
       )}
 
-      {/* 创建/编辑网络弹窗 */}
+      {/* Create/Edit network modal */}
       <Modal
         open={openModal}
         onClose={handleCloseModal}
