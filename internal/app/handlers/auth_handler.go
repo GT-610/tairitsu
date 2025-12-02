@@ -139,3 +139,36 @@ func (h *AuthHandler) GetProfile(c *gin.Context) {
 
 	c.JSON(http.StatusOK, user.ToResponse())
 }
+
+// ChangePassword handles user password change requests
+func (h *AuthHandler) ChangePassword(c *gin.Context) {
+	// Get user ID from context (set by auth middleware)
+	userID, exists := c.Get("user_id")
+	if !exists {
+		logger.Error("修改密码失败：未认证")
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "未认证"})
+		return
+	}
+
+	// Bind request body
+	var req models.ChangePasswordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		logger.Error("修改密码请求参数绑定失败", zap.Error(err))
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	logger.Info("开始处理修改密码请求", zap.String("user_id", userID.(string)))
+
+	// Call user service to change password
+	if err := h.userService.ChangePassword(userID.(string), req.OldPassword, req.NewPassword); err != nil {
+		logger.Error("修改密码失败", zap.String("user_id", userID.(string)), zap.Error(err))
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	logger.Info("密码修改成功", zap.String("user_id", userID.(string)))
+
+	// Return success response
+	c.JSON(http.StatusOK, gin.H{"message": "密码修改成功"})
+}

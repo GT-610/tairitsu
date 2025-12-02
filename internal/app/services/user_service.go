@@ -211,3 +211,51 @@ func (s *UserService) HasAdminUser() (bool, error) {
 	logger.Info("服务层：检查管理员用户完成", zap.Bool("hasAdmin", hasAdmin))
 	return hasAdmin, nil
 }
+
+// ChangePassword handles user password change requests
+func (s *UserService) ChangePassword(userID, oldPassword, newPassword string) error {
+	// Check if database is initialized
+	if s.db == nil {
+		logger.Error("服务层：修改密码失败，数据库未初始化")
+		return errors.New("系统尚未配置数据库，请先完成初始设置")
+	}
+
+	logger.Info("服务层：开始修改密码", zap.String("user_id", userID))
+
+	// Get user by ID
+	user, err := s.db.GetUserByID(userID)
+	if err != nil {
+		logger.Error("服务层：修改密码失败，获取用户时出错", zap.String("user_id", userID), zap.Error(err))
+		return err
+	}
+
+	if user == nil {
+		logger.Error("服务层：修改密码失败，用户不存在", zap.String("user_id", userID))
+		return errors.New("用户不存在")
+	}
+
+	// Verify old password
+	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(oldPassword)); err != nil {
+		logger.Error("服务层：修改密码失败，原密码错误", zap.String("user_id", userID))
+		return errors.New("原密码错误")
+	}
+
+	// Hash new password
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
+	if err != nil {
+		logger.Error("服务层：修改密码失败，密码加密错误", zap.String("user_id", userID), zap.Error(err))
+		return err
+	}
+
+	// Update user password
+	user.Password = string(hashedPassword)
+	user.UpdatedAt = time.Now()
+
+	if err := s.db.UpdateUser(user); err != nil {
+		logger.Error("服务层：修改密码失败，更新用户时出错", zap.String("user_id", userID), zap.Error(err))
+		return err
+	}
+
+	logger.Info("服务层：密码修改成功", zap.String("user_id", userID))
+	return nil
+}

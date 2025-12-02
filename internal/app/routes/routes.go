@@ -124,6 +124,7 @@ func SetupRoutesWithReload(router *gin.Engine, ztClient *zerotier.Client, jwtSec
 			if db != nil {
 				// User information
 				authenticated.GET("/profile", authHandler.GetProfile) // Get current user info
+				authenticated.POST("/auth/update-password", authHandler.ChangePassword) // Update user password
 
 				// ZeroTier status
 				authenticated.GET("/status", networkHandler.GetStatus)

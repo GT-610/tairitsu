@@ -130,7 +130,9 @@ export const authAPI = {
   // User login
   login: (data: { username: string; password: string }) => api.post<{ user: User; token: string }>('/auth/login', data),
   // Get user profile
-  getProfile: () => api.get<User>('/profile')
+  getProfile: () => api.get<User>('/profile'),
+  // Update user password
+  updatePassword: (data: { oldPassword: string; newPassword: string }) => api.post<void>('/auth/update-password', data)
 }
 
 // ZeroTier network related APIs

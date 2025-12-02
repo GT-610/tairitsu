@@ -28,6 +28,12 @@ type RegisterRequest struct {
 	Email    string `json:"email" binding:"required,email"`
 }
 
+// ChangePasswordRequest 修改密码请求
+type ChangePasswordRequest struct {
+	OldPassword string `json:"oldPassword" binding:"required"`
+	NewPassword string `json:"newPassword" binding:"required,min=6"`
+}
+
 // UserResponse 用户响应
 type UserResponse struct {
 	ID        string    `json:"id"`
