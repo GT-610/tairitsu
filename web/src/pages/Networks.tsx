@@ -288,21 +288,7 @@ function Networks() {
               网络配置
             </Typography>
             
-            <FormControlLabel
-              control={
-                <Switch
-                  checked={formData.config.private}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({
-                    ...formData,
-                    config: {
-                      ...formData.config,
-                      private: e.target.checked
-                    }
-                  })}
-                />
-              }
-              label="私有网络（需要授权）"
-            />
+
             
             <FormControlLabel
               control={

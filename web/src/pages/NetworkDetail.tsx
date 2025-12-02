@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Box, Typography, Card, CardContent, CircularProgress, Alert, Button, Divider, Grid, Chip }
+import { Box, Typography, Card, CardContent, CircularProgress, Alert, Button, Divider, Grid, Chip, IconButton }
 from '@mui/material';
+import { ArrowBack } from '@mui/icons-material';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { networkAPI, Network } from '../services/api';
 
@@ -59,13 +60,13 @@ function NetworkDetail() {
   return (
     <Box sx={{ p: 3 }}>
       <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', mb: 3 }}>
-        <Button 
-          variant="outlined" 
+        <IconButton 
           component={Link} 
           to="/networks"
+          size="large"
         >
-          ← 返回列表
-        </Button>
+          <ArrowBack />
+        </IconButton>
         <Typography variant="h4" component="h1">
           网络详情
         </Typography>
@@ -111,14 +112,7 @@ function NetworkDetail() {
                     {network.config?.allowPassiveBridging || false ? '是' : '否'}
                   </Typography>
                 </Box>
-                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 1 }}>
-                  <Typography variant="body2" color="text.secondary">
-                    私有网络
-                  </Typography>
-                  <Typography variant="body1">
-                    {network.config?.private || true ? '是' : '否'}
-                  </Typography>
-                </Box>
+
                 {network.config?.v4AssignMode?.zt && (
                     <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 1 }}>
                       <Typography variant="body2" color="text.secondary">
@@ -179,30 +173,7 @@ function NetworkDetail() {
             </CardContent>
           </Card>
 
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                访问控制
-              </Typography>
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 1 }}>
-                {network.config?.private ? (
-                    <>
-                    <Chip label="需要授权" color="primary" size="small" />
-                    <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
-                      新设备需要管理员批准才能加入网络
-                    </Typography>
-                  </>
-                ) : (
-                    <>
-                    <Chip label="开放加入" color="success" size="small" />
-                    <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
-                      任何设备都可以加入此网络
-                    </Typography>
-                  </>
-                )}
-              </Box>
-            </CardContent>
-          </Card>
+
         </Grid>
       </Grid>
     </Box>

@@ -20,10 +20,11 @@ import {
   Switch, 
   Snackbar, 
   Alert, 
-  CircularProgress
+  CircularProgress,
+  IconButton
 } from '@mui/material';
-import { Add, Edit, Delete, Search, Refresh } from '@mui/icons-material';
-import { useParams } from 'react-router-dom';
+import { Add, Edit, Delete, Search, Refresh, ArrowBack } from '@mui/icons-material';
+import { useParams, Link } from 'react-router-dom';
 import { memberAPI, Member as ApiMember } from '../services/api';
 
 // 格式化后的成员类型定义
@@ -306,9 +307,17 @@ function Members() {
 
   return (
     <Box sx={{ p: 3 }}>
-      <Typography variant="h4" component="h1" gutterBottom>
-        网络成员管理
-      </Typography>
+      <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', mb: 3 }}>
+        <IconButton 
+          onClick={() => window.history.back()}
+          size="large"
+        >
+          <ArrowBack />
+        </IconButton>
+        <Typography variant="h4" component="h1">
+          网络成员管理
+        </Typography>
+      </Box>
       
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
