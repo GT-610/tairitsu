@@ -1,80 +1,52 @@
 import React, { useState, useEffect } from 'react';
-import { Box, Typography, Card, CardContent, Switch, Button, TextField, FormControlLabel, Alert }
-from '@mui/material';
-import { systemAPI } from '../services/api';
-
-// 设置类型定义
-interface SettingsType {
-  autoApproveMembers: boolean;
-  maxNetworkSize: number;
-  keepaliveInterval: number;
-  logLevel: 'debug' | 'info' | 'warn' | 'error';
-}
+import {
+  Box,
+  Typography,
+  Card,
+  CardContent,
+  Button,
+  Alert,
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel
+} from '@mui/material';
+import { authAPI, User } from '../services/api';
 
 function Settings() {
-  const [settings, setSettings] = useState<SettingsType>({
-    autoApproveMembers: false,
-    maxNetworkSize: 50,
-    keepaliveInterval: 300,
-    logLevel: 'info'
-  });
+  const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
-  const [saving, setSaving] = useState<boolean>(false);
-  const [error, setError] = useState<string>('');
-  const [success, setSuccess] = useState<string>('');
+  const [infoMessage, setInfoMessage] = useState<string>('');
+  const [language, setLanguage] = useState<string>('zh-CN');
 
+  // 获取当前用户信息
   useEffect(() => {
-    fetchSettings();
+    const fetchUserInfo = async () => {
+      try {
+        const response = await authAPI.getProfile();
+        setUser(response.data);
+      } catch (err) {
+        console.error('获取用户信息失败:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchUserInfo();
   }, []);
 
-  const fetchSettings = async () => {
-    try {
-      // 注意：这里的API方法名可能需要根据实际情况调整
-      // const response = await systemAPI.getSettings();
-      // setSettings(response.data);
-      // 由于当前API可能没有getSettings方法，我们使用模拟数据
-      setSettings({
-        autoApproveMembers: false,
-        maxNetworkSize: 50,
-        keepaliveInterval: 300,
-        logLevel: 'info'
-      });
-    } catch (err: any) {
-      setError('获取系统设置失败');
-    } finally {
-      setLoading(false);
-    }
+  // 显示开发中提示
+  const showDevelopmentMessage = () => {
+    setInfoMessage('功能正在开发中');
+    setTimeout(() => {
+      setInfoMessage('');
+    }, 3000);
   };
 
-  const handleToggle = (name: keyof SettingsType) => (event: React.ChangeEvent<HTMLInputElement>) => {
-    setSettings({
-      ...settings,
-      [name]: event.target.checked
-    });
-  };
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value, type } = e.target;
-    setSettings({
-      ...settings,
-      [name]: type === 'number' ? parseInt(value) : value
-    });
-  };
-
-  const handleSave = async () => {
-    setSaving(true);
-    setError('');
-    setSuccess('');
-    
-    try {
-      await systemAPI.updateSettings(settings);
-      setSuccess('设置已成功保存');
-      setTimeout(() => setSuccess(''), 3000);
-    } catch (err: any) {
-      setError('保存设置失败');
-    } finally {
-      setSaving(false);
-    }
+  // 处理语言变化
+  const handleLanguageChange = (event: React.ChangeEvent<{ value: unknown }>) => {
+    setLanguage(event.target.value as string);
+    showDevelopmentMessage();
   };
 
   if (loading) {
@@ -88,109 +60,99 @@ function Settings() {
   return (
     <Box sx={{ p: 3 }}>
       <Typography variant="h4" component="h1" gutterBottom>
-        系统设置
+        设置
       </Typography>
-      
-      {error && (
-        <Alert severity="error" sx={{ mb: 3 }}>
-          {error}
+
+      {infoMessage && (
+        <Alert severity="info" sx={{ mb: 3 }}>
+          {infoMessage}
         </Alert>
       )}
-      
-      {success && (
-        <Alert severity="success" sx={{ mb: 3 }}>
-          {success}
-        </Alert>
+
+      {/* 个人设置 */}
+      <Card sx={{ mb: 3 }}>
+        <CardContent>
+          <Typography variant="h6" gutterBottom>
+            个人设置
+          </Typography>
+
+          <Box sx={{ mb: 3 }}>
+            <Typography variant="body1" sx={{ mb: 1 }}>
+              语言
+            </Typography>
+            <FormControl fullWidth>
+              <InputLabel id="language-select-label">选择语言</InputLabel>
+              <Select
+                labelId="language-select-label"
+                value={language}
+                label="选择语言"
+                onChange={handleLanguageChange}
+              >
+                <MenuItem value="zh-CN">简体中文</MenuItem>
+                <MenuItem value="en">English</MenuItem>
+              </Select>
+            </FormControl>
+          </Box>
+
+          <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
+            <Button
+              variant="contained"
+              onClick={showDevelopmentMessage}
+              fullWidth
+            >
+              修改密码
+            </Button>
+          </Box>
+
+          <Box>
+            <Button
+              variant="contained"
+              color="error"
+              onClick={showDevelopmentMessage}
+              fullWidth
+            >
+              注销账号
+            </Button>
+          </Box>
+        </CardContent>
+      </Card>
+
+      {/* 管理员设置 - 仅对管理员显示 */}
+      {user?.role === 'admin' && (
+        <Card sx={{ mb: 3 }}>
+          <CardContent>
+            <Typography variant="h6" gutterBottom>
+              管理员设置
+            </Typography>
+
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <Button
+                variant="contained"
+                onClick={showDevelopmentMessage}
+                fullWidth
+              >
+                导入已有 ZeroTier 网络
+              </Button>
+
+              <Button
+                variant="contained"
+                onClick={showDevelopmentMessage}
+                fullWidth
+              >
+                对用户赋予/撤销管理员权限
+              </Button>
+
+              <Button
+                variant="contained"
+                onClick={showDevelopmentMessage}
+                fullWidth
+              >
+                生成 planet 文件
+              </Button>
+            </Box>
+          </CardContent>
+        </Card>
       )}
-      
-      <Card sx={{ mb: 3 }}>
-        <CardContent>
-          <Typography variant="h6" gutterBottom>
-            成员管理设置
-          </Typography>
-          
-          <FormControlLabel
-            control={
-              <Switch
-                checked={settings.autoApproveMembers}
-                onChange={handleToggle('autoApproveMembers')}
-              />
-            }
-            label="自动批准新成员加入"
-          />
-          
-          <TextField
-            fullWidth
-            label="最大网络成员数"
-            name="maxNetworkSize"
-            type="number"
-            value={settings.maxNetworkSize}
-            onChange={handleChange}
-            margin="normal"
-            InputProps={{
-              inputProps: {
-                min: 1,
-                max: 1000
-              }
-            }}
-          />
-        </CardContent>
-      </Card>
-      <Card sx={{ mb: 3 }}>
-        <CardContent>
-          <Typography variant="h6" gutterBottom>
-            网络配置
-          </Typography>
-          
-          <TextField
-            fullWidth
-            label="保活间隔 (秒)"
-            name="keepaliveInterval"
-            type="number"
-            value={settings.keepaliveInterval}
-            onChange={handleChange}
-            margin="normal"
-            InputProps={{
-              inputProps: {
-                min: 10,
-                max: 3600
-              }
-            }}
-          />
-        </CardContent>
-      </Card>
-      <Card sx={{ mb: 3 }}>
-        <CardContent>
-          <Typography variant="h6" gutterBottom>
-            日志配置
-          </Typography>
-          <TextField
-            fullWidth
-            label="日志级别"
-            name="logLevel"
-            value={settings.logLevel}
-            onChange={handleChange}
-            margin="normal"
-            select
-            SelectProps={{
-              native: true
-            }}
-          >
-            <option value="debug">Debug</option>
-            <option value="info">Info</option>
-            <option value="warn">Warning</option>
-            <option value="error">Error</option>
-          </TextField>
-        </CardContent>
-      </Card>
-      
-      <Button
-        variant="contained"
-        onClick={handleSave}
-        disabled={saving}
-      >
-        {saving ? '保存中...' : '保存设置'}
-      </Button>
     </Box>
   );
 }
