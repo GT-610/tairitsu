@@ -9,6 +9,7 @@ import NetworkDetail from './pages/NetworkDetail';
 import Members from './pages/Members';
 import Profile from './pages/Profile';
 import Settings from './pages/Settings';
+import UserManagement from './pages/UserManagement';
 import Layout from './components/Layout';
 import api from './services/api';
 import { useAuth } from './services/auth';
@@ -133,6 +134,7 @@ function AppContent() {
                   <Route path="networks/:id/members" element={<Members />}></Route>
                   <Route path="profile" element={<Profile user={user} />}></Route>
                   <Route path="settings" element={<Settings />}></Route>
+                  <Route path="user-management" element={<UserManagement />}></Route>
                 </Route>
               </>
             ) : (

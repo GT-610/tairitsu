@@ -212,6 +212,26 @@ func (s *UserService) HasAdminUser() (bool, error) {
 	return hasAdmin, nil
 }
 
+// UpdateUser updates a user's information
+func (s *UserService) UpdateUser(user *models.User) error {
+	// Check if database is initialized
+	if s.db == nil {
+		logger.Error("服务层：更新用户失败，数据库未初始化")
+		return errors.New("系统尚未配置数据库，请先完成初始设置")
+	}
+
+	logger.Info("服务层：开始更新用户信息", zap.String("user_id", user.ID))
+
+	// Update user in database
+	if err := s.db.UpdateUser(user); err != nil {
+		logger.Error("服务层：更新用户失败，保存用户时出错", zap.String("user_id", user.ID), zap.Error(err))
+		return err
+	}
+
+	logger.Info("服务层：用户信息更新成功", zap.String("user_id", user.ID))
+	return nil
+}
+
 // ChangePassword handles user password change requests
 func (s *UserService) ChangePassword(userID, oldPassword, newPassword string) error {
 	// Check if database is initialized

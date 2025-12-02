@@ -135,6 +135,14 @@ export const authAPI = {
   updatePassword: (data: { oldPassword: string; newPassword: string }) => api.post<void>('/auth/update-password', data)
 }
 
+// User management APIs
+export const userAPI = {
+  // Get all users
+  getAllUsers: () => api.get<User[]>('/users'),
+  // Update user role
+  updateUserRole: (userId: string, role: 'admin' | 'user') => api.put<User>(`/users/${userId}/role`, { role })
+}
+
 // ZeroTier network related APIs
 export const networkAPI = {
   // Get all networks

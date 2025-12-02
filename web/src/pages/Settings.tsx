@@ -16,6 +16,7 @@ import {
   DialogActions,
   TextField
 } from '@mui/material';
+import { Link } from 'react-router-dom';
 import { authAPI, User } from '../services/api';
 
 function Settings() {
@@ -232,12 +233,13 @@ function Settings() {
               </Button>
 
               <Button
-                variant="contained"
-                onClick={showDevelopmentMessage}
-                fullWidth
-              >
-                对用户赋予/撤销管理员权限
-              </Button>
+        variant="contained"
+        component={Link}
+        to="/user-management"
+        fullWidth
+      >
+        用户管理
+      </Button>
 
               <Button
                 variant="contained"

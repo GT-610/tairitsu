@@ -63,6 +63,7 @@ func SetupRoutesWithReload(router *gin.Engine, ztClient *zerotier.Client, jwtSec
 	networkHandler := handlers.NewNetworkHandler(networkService)
 	memberHandler := handlers.NewMemberHandler(networkService)
 	authHandler := handlers.NewAuthHandler(userService, jwtService)
+	userHandler := handlers.NewUserHandler(userService)
 
 	// Use empty function if no reload function provided
 	if reloadRoutesFunc == nil {
@@ -154,6 +155,10 @@ func SetupRoutesWithReload(router *gin.Engine, ztClient *zerotier.Client, jwtSec
 		{
 			// System statistics
 			admin.GET("/system/stats", systemHandler.GetSystemStats) // Get system resource statistics
+			
+			// User management
+			admin.GET("/users", userHandler.GetAllUsers) // Get all users
+			admin.PUT("/users/:userId/role", userHandler.UpdateUserRole) // Update user role
 		}
 	}
 }
