@@ -30,8 +30,11 @@ type RegisterRequest struct {
 
 // ChangePasswordRequest 修改密码请求
 type ChangePasswordRequest struct {
-	OldPassword string `json:"oldPassword" binding:"required"`
-	NewPassword string `json:"newPassword" binding:"required,min=6"`
+	OldPassword      string `json:"oldPassword" binding:"required"`
+	NewPassword      string `json:"newPassword" binding:"required,min=6"`
+	CurrentPassword  string `json:"current_password" binding:"required"`
+	NewPasswordField string `json:"new_password" binding:"required,min=6"`
+	ConfirmPassword  string `json:"confirm_password" binding:"required"`
 }
 
 // UserResponse 用户响应

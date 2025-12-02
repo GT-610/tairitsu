@@ -235,7 +235,7 @@ function Settings() {
               <Button
         variant="contained"
         component={Link}
-        to="/user-management"
+        to="/settings/user-management"
         fullWidth
       >
         用户管理

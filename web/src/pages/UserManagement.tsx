@@ -12,11 +12,15 @@ import {
   Button,
   Alert,
   CircularProgress,
-  Snackbar
+  Snackbar,
+  IconButton
 } from '@mui/material';
+import { ArrowBack } from '@mui/icons-material';
+import { useNavigate } from 'react-router-dom';
 import { User, userAPI, authAPI } from '../services/api';
 
 function UserManagement() {
+  const navigate = useNavigate();
   const [users, setUsers] = useState<User[]>([]);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -31,14 +35,20 @@ function UserManagement() {
         
         // 获取当前用户信息
         const currentUserResponse = await authAPI.getProfile();
+        console.log('当前用户信息:', currentUserResponse.data);
         setCurrentUser(currentUserResponse.data);
         
         // 获取所有用户
         const usersResponse = await userAPI.getAllUsers();
+        console.log('所有用户信息:', usersResponse.data);
         setUsers(usersResponse.data);
-      } catch (error) {
+      } catch (error: any) {
         console.error('获取用户数据失败:', error);
-        setMessage({ text: '获取用户数据失败', severity: 'error' });
+        console.error('错误详情:', error.response?.data || error.message);
+        setMessage({ 
+          text: `获取用户数据失败: ${error.response?.data?.error || error.message}`, 
+          severity: 'error' 
+        });
       } finally {
         setLoading(false);
       }
@@ -89,9 +99,18 @@ function UserManagement() {
 
   return (
     <Box sx={{ p: 3 }}>
-      <Typography variant="h4" component="h1" gutterBottom>
-        用户管理
-      </Typography>
+      <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
+        <IconButton 
+          onClick={() => navigate('/settings')} 
+          sx={{ mr: 2 }}
+          aria-label="返回设置页面"
+        >
+          <ArrowBack />
+        </IconButton>
+        <Typography variant="h4" component="h1" gutterBottom>
+          用户管理
+        </Typography>
+      </Box>
 
       {message && (
         <Snackbar

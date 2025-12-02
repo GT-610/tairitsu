@@ -134,7 +134,7 @@ function AppContent() {
                   <Route path="networks/:id/members" element={<Members />}></Route>
                   <Route path="profile" element={<Profile user={user} />}></Route>
                   <Route path="settings" element={<Settings />}></Route>
-                  <Route path="user-management" element={<UserManagement />}></Route>
+                  <Route path="settings/user-management" element={<UserManagement />}></Route>
                 </Route>
               </>
             ) : (

@@ -132,7 +132,7 @@ export const authAPI = {
   // Get user profile
   getProfile: () => api.get<User>('/profile'),
   // Update user password
-  updatePassword: (data: { oldPassword: string; newPassword: string }) => api.post<void>('/auth/update-password', data)
+  updatePassword: (data: { current_password: string; new_password: string; confirm_password: string }) => api.put<void>('/profile/password', data)
 }
 
 // User management APIs

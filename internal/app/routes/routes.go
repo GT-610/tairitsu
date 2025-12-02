@@ -124,8 +124,9 @@ func SetupRoutesWithReload(router *gin.Engine, ztClient *zerotier.Client, jwtSec
 			// Only enable database-dependent features if database is configured
 			if db != nil {
 				// User information
-				authenticated.GET("/profile", authHandler.GetProfile) // Get current user info
-				authenticated.POST("/auth/update-password", authHandler.ChangePassword) // Update user password
+			authenticated.GET("/profile", authHandler.GetProfile) // Get current user info
+			authenticated.POST("/auth/update-password", authHandler.ChangePassword) // Update user password (deprecated)
+			authenticated.PUT("/profile/password", authHandler.ChangePassword) // Update user password
 
 				// ZeroTier status
 				authenticated.GET("/status", networkHandler.GetStatus)

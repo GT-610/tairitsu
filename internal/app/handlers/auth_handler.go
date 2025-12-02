@@ -160,8 +160,27 @@ func (h *AuthHandler) ChangePassword(c *gin.Context) {
 
 	logger.Info("开始处理修改密码请求", zap.String("user_id", userID.(string)))
 
+	// Determine which password fields to use (support both old and new formats)
+	oldPassword := req.OldPassword
+	newPassword := req.NewPassword
+
+	// If new format fields are present, use them
+	if req.CurrentPassword != "" {
+		oldPassword = req.CurrentPassword
+	}
+	if req.NewPasswordField != "" {
+		newPassword = req.NewPasswordField
+	}
+
+	// Validate new password and confirm password match if using new format
+	if req.ConfirmPassword != "" && req.NewPasswordField != "" && req.NewPasswordField != req.ConfirmPassword {
+		logger.Error("修改密码失败：新密码与确认密码不匹配", zap.String("user_id", userID.(string)))
+		c.JSON(http.StatusBadRequest, gin.H{"error": "新密码与确认密码不匹配"})
+		return
+	}
+
 	// Call user service to change password
-	if err := h.userService.ChangePassword(userID.(string), req.OldPassword, req.NewPassword); err != nil {
+	if err := h.userService.ChangePassword(userID.(string), oldPassword, newPassword); err != nil {
 		logger.Error("修改密码失败", zap.String("user_id", userID.(string)), zap.Error(err))
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return

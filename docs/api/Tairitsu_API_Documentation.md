@@ -10,6 +10,7 @@
    - [Network APIs](#network-apis)
    - [Member APIs](#member-apis)
    - [User Profile APIs](#user-profile-apis)
+   - [User Management APIs](#user-management-apis)
 5. [Data Models](#data-models)
 6. [Common Responses](#common-responses)
 7. [Error Codes](#error-codes)
@@ -564,6 +565,81 @@ Most API endpoints require authentication using JWT (JSON Web Tokens). To authen
     "email": "user@example.com",
     "role": "user",
     "created_at": "2023-01-01T00:00:00Z"
+  }
+  ```
+
+#### Change Password
+- **URL**: `/api/profile/password`
+- **Method**: `PUT`
+- **Description**: Updates the password for the currently authenticated user
+- **Authentication**: Required
+- **Request Body**:
+  ```json
+  {
+    "current_password": "oldpassword123",
+    "new_password": "newpassword123",
+    "confirm_password": "newpassword123"
+  }
+  ```
+- **Response**:
+  ```json
+  {
+    "message": "密码修改成功"
+  }
+  ```
+
+### User Management APIs
+
+#### Get All Users
+- **URL**: `/api/users`
+- **Method**: `GET`
+- **Description**: Retrieves a list of all users (admin only)
+- **Authentication**: Required (admin role)
+- **Parameters**: None
+- **Response**:
+  ```json
+  [
+    {
+      "id": "user-id-1",
+      "username": "admin",
+      "email": "admin@example.com",
+      "role": "admin",
+      "created_at": "2023-01-01T00:00:00Z"
+    },
+    {
+      "id": "user-id-2",
+      "username": "user1",
+      "email": "user1@example.com",
+      "role": "user",
+      "created_at": "2023-01-02T00:00:00Z"
+    }
+  ]
+  ```
+
+#### Update User Role
+- **URL**: `/api/users/:userId/role`
+- **Method**: `PUT`
+- **Description**: Updates the role of a specific user (admin only, cannot modify own role)
+- **Authentication**: Required (admin role)
+- **Parameters**:
+  - `userId` (path parameter): User ID
+- **Request Body**:
+  ```json
+  {
+    "role": "admin"
+  }
+  ```
+- **Response**:
+  ```json
+  {
+    "message": "用户角色更新成功",
+    "user": {
+      "id": "user-id",
+      "username": "username",
+      "email": "user@example.com",
+      "role": "admin",
+      "created_at": "2023-01-01T00:00:00Z"
+    }
   }
   ```
 
