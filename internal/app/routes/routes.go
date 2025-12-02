@@ -22,6 +22,30 @@ func SetupRoutesWithReload(router *gin.Engine, ztClient *zerotier.Client, jwtSec
 	router.Use(middleware.RateLimit())
 	router.Use(middleware.ErrorHandler())
 
+	// Root path handler for HTML browsers
+	router.GET("/", func(c *gin.Context) {
+		c.Header("Content-Type", "text/html; charset=utf-8")
+		c.String(200, `<html>
+<head>
+	<title>Tairitsu Backend</title>
+	<style>
+		body {
+			margin: 20px;
+			color: #333;
+		}
+		h1 {
+			color: #4a6fa5;
+		}
+	</style>
+</head>
+<body>
+	<h1>Tairitsu</h1>
+	<p>This is Tairitsu backend service.</p>
+	<p>If you can see this page, it means the backend is running.</p>
+</body>
+</html>`)
+	})
+
 	// Create service instances
 	networkService := services.NewNetworkService(ztClient, db)
 
