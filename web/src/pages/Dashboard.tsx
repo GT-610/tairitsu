@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Box, Typography, Grid, Paper, Card, CardContent, CircularProgress, Alert, 
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Divider,
   Chip, LinearProgress } from '@mui/material';
-import { statusAPI, networkAPI, Network } from '../services/api';
+import { statusAPI, networkAPI, systemAPI, Network } from '../services/api';
 import { useAuth } from '../services/auth';
 
 
@@ -21,17 +21,24 @@ interface SystemStatus {
   version: string;
 }
 
+// 系统统计信息类型扩展
+interface ExtendedSystemStats {
+  cpuUsage: number | null;
+  memoryUsage: number | null;
+  error: string | null;
+  osName?: string;
+  platform?: string;
+  platformVersion?: string;
+  kernelVersion?: string;
+}
+
 function Dashboard() {
   const [status, setStatus] = useState<SystemStatus | null>(null);
   const [networks, setNetworks] = useState<Network[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string>('');
   // 系统统计信息状态
-  const [systemStats, setSystemStats] = useState<{
-    cpuUsage: number | null;
-    memoryUsage: number | null;
-    error: string | null;
-  }>({
+  const [systemStats, setSystemStats] = useState<ExtendedSystemStats>({
     cpuUsage: null,
     memoryUsage: null,
     error: null
@@ -76,6 +83,10 @@ function Dashboard() {
         setSystemStats({
           cpuUsage: response.data.cpuUsage,
           memoryUsage: response.data.memoryUsage,
+          osName: response.data.osName,
+          platform: response.data.platform,
+          platformVersion: response.data.platformVersion,
+          kernelVersion: response.data.kernelVersion,
           error: null
         });
       } catch (err: any) {
@@ -277,10 +288,13 @@ function Dashboard() {
                   </Box>
                   <Box>
                     <Typography variant="body2" color="text.secondary">
-                      系统版本
+                      操作系统信息
                     </Typography>
                     <Typography variant="body1">
-                      {status?.version || 'Unknown'}
+                      {systemStats.osName || status?.version || 'Unknown'}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                      平台: {systemStats.platform} {systemStats.platformVersion} | 内核: {systemStats.kernelVersion}
                     </Typography>
                   </Box>
                   <Box>

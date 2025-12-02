@@ -6,15 +6,20 @@ import (
 
 	"github.com/GT-610/tairitsu/internal/app/logger"
 	"github.com/shirou/gopsutil/v3/cpu"
+	"github.com/shirou/gopsutil/v3/host"
 	"github.com/shirou/gopsutil/v3/mem"
 	"go.uber.org/zap"
 )
 
 // SystemStats represents system resource usage statistics
 type SystemStats struct {
-	CPUUsage    float64 `json:"cpuUsage"`    // CPU usage percentage
-	MemoryUsage float64 `json:"memoryUsage"` // Memory usage percentage
-	Timestamp   int64   `json:"timestamp"`   // Unix timestamp in milliseconds
+	CPUUsage        float64 `json:"cpuUsage"`        // CPU usage percentage
+	MemoryUsage     float64 `json:"memoryUsage"`     // Memory usage percentage
+	Timestamp       int64   `json:"timestamp"`       // Unix timestamp in milliseconds
+	OSName          string  `json:"osName"`          // Operating system name
+	Platform        string  `json:"platform"`        // Platform (linux, windows, darwin)
+	PlatformVersion string  `json:"platformVersion"` // Platform version
+	KernelVersion   string  `json:"kernelVersion"`   // Kernel version
 }
 
 // SystemService handles system-related operations and statistics
@@ -86,10 +91,21 @@ func (s *SystemService) collectSystemStats() (*SystemStats, error) {
 		return nil, err
 	}
 
+	// Get OS information
+	hostInfo, err := host.Info()
+	if err != nil {
+		logger.Error("Failed to get OS info", zap.Error(err))
+		return nil, err
+	}
+
 	return &SystemStats{
-		CPUUsage:    cpuUsage,
-		MemoryUsage: memoryUsage,
-		Timestamp:   time.Now().UnixMilli(),
+		CPUUsage:        cpuUsage,
+		MemoryUsage:     memoryUsage,
+		Timestamp:       time.Now().UnixMilli(),
+		OSName:          hostInfo.OS,
+		Platform:        hostInfo.Platform,
+		PlatformVersion: hostInfo.PlatformVersion,
+		KernelVersion:   hostInfo.KernelVersion,
 	}, nil
 }
 
