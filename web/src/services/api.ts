@@ -65,6 +65,7 @@ export interface Member {
 
 export interface SystemStatus {
   version: string;
+  address: string;
   uptime: number;
   zeroTierStatus: 'online' | 'offline' | 'error';
   databaseStatus: 'connected' | 'disconnected' | 'error';

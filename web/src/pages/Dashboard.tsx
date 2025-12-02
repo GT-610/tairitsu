@@ -135,9 +135,6 @@ function Dashboard() {
       ) : (
         <>
           {/* 公共信息区域 - 所有用户可见 */}
-          <Typography variant="h5" component="h2" gutterBottom sx={{ mt: 2 }}>
-            系统概览
-          </Typography>
           
           {/* 概览卡片作为一个整体 */}
           <Paper elevation={3} sx={{ p: 3, mb: 4 }}>
@@ -297,14 +294,7 @@ function Dashboard() {
                       平台: {systemStats.platform} {systemStats.platformVersion} | 内核: {systemStats.kernelVersion}
                     </Typography>
                   </Box>
-                  <Box>
-                    <Typography variant="body2" color="text.secondary">
-                      运行时间
-                    </Typography>
-                    <Typography variant="body1">
-                      12天4小时
-                    </Typography>
-                  </Box>
+
                 </Box>
                 {systemStats.error && (
                   <Alert severity="info" sx={{ mt: 3 }}>
@@ -321,18 +311,18 @@ function Dashboard() {
                 <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)' }, gap: 3 }}>
                   <Box>
                     <Typography variant="body2" color="text.secondary">
-                      控制器URL
+                      控制器地址
                     </Typography>
                     <Typography variant="body1">
-                      {status?.zerotier?.controllerUrl || 'Unknown'}
+                      {status?.address || 'Unknown'}
                     </Typography>
                   </Box>
                   <Box>
                     <Typography variant="body2" color="text.secondary">
-                      API端口
+                      版本
                     </Typography>
                     <Typography variant="body1">
-                      9993
+                      {status?.version || 'Unknown'}
                     </Typography>
                   </Box>
                   <Box>
@@ -341,16 +331,6 @@ function Dashboard() {
                     </Typography>
                     <Chip 
                       label="运行中" 
-                      color="success" 
-                      size="small"
-                    />
-                  </Box>
-                  <Box>
-                    <Typography variant="body2" color="text.secondary">
-                      安全状态
-                    </Typography>
-                    <Chip 
-                      label="正常" 
                       color="success" 
                       size="small"
                     />
