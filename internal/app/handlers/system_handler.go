@@ -21,6 +21,7 @@ import (
 type SystemHandler struct {
 	networkService   *services.NetworkService
 	userService      *services.UserService
+	systemService    *services.SystemService
 	reloadRoutesFunc func() // Function to reload application routes
 	// Database configuration is stored in config file
 }
@@ -30,6 +31,7 @@ func NewSystemHandler(networkService *services.NetworkService, userService *serv
 	return &SystemHandler{
 		networkService:   networkService,
 		userService:      userService,
+		systemService:    services.NewSystemService(),
 		reloadRoutesFunc: reloadRoutesFunc,
 	}
 }
@@ -390,4 +392,21 @@ func (h *SystemHandler) ReloadRoutes(c *gin.Context) {
 		logger.Warn("重新加载路由函数未定义")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "重新加载路由功能不可用"})
 	}
+}
+
+// GetSystemStats retrieves system resource usage statistics
+// This endpoint is only accessible to admin users
+func (h *SystemHandler) GetSystemStats(c *gin.Context) {
+	// Get system stats from service
+	stats, err := h.systemService.GetSystemStats()
+	if err != nil {
+		logger.Error("Failed to get system stats", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "无法获取系统资源统计信息",
+			"details": err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, stats)
 }

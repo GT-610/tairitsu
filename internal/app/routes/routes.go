@@ -121,5 +121,14 @@ func SetupRoutesWithReload(router *gin.Engine, ztClient *zerotier.Client, jwtSec
 				}
 			}
 		}
+
+		// Admin-only routes
+		admin := api.Group("/")
+		admin.Use(authMiddleware)
+		admin.Use(middleware.AdminRequired())
+		{
+			// System statistics
+			admin.GET("/system/stats", systemHandler.GetSystemStats) // Get system resource statistics
+		}
 	}
 }

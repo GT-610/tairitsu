@@ -1,17 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Box, Typography, Grid, Paper, Card, CardContent, CircularProgress, Alert, 
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Divider,
-  Chip, LinearProgress, Button } from '@mui/material';
+  Chip, LinearProgress } from '@mui/material';
 import { statusAPI, networkAPI, Network } from '../services/api';
+import { useAuth } from '../services/auth';
 
-// 设备类型定义
-interface Device {
-  id: string;
-  address: string;
-  name: string;
-  connected: boolean;
-  lastSeen: string;
-}
+
 
 // 系统状态类型定义
 interface SystemStatus {
@@ -32,15 +26,23 @@ function Dashboard() {
   const [networks, setNetworks] = useState<Network[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string>('');
-  // 模拟用户权限状态，实际应该从认证系统获取
-  const [isAdmin, setIsAdmin] = useState<boolean>(false);
+  // 系统统计信息状态
+  const [systemStats, setSystemStats] = useState<{
+    cpuUsage: number | null;
+    memoryUsage: number | null;
+    error: string | null;
+  }>({
+    cpuUsage: null,
+    memoryUsage: null,
+    error: null
+  });
+  // 从认证上下文获取用户信息
+  const { user } = useAuth();
   
-  // 模拟最近连接的设备数据
-  const [recentDevices, setRecentDevices] = useState<Device[]>([
-    { id: '1', address: 'zt-5678', name: 'Device-1', connected: true, lastSeen: '2分钟前' },
-    { id: '2', address: 'zt-1234', name: 'Device-2', connected: true, lastSeen: '5分钟前' },
-    { id: '3', address: 'zt-9876', name: 'Device-3', connected: false, lastSeen: '30分钟前' },
-  ]);
+  // 根据用户角色判断是否为管理员
+  const isAdmin = user?.role === 'admin';
+  
+
 
   useEffect(() => {
     const fetchData = async () => {
@@ -64,26 +66,50 @@ function Dashboard() {
     fetchData();
   }, []);
 
+  // 定期获取系统统计信息（仅管理员）
+  useEffect(() => {
+    if (!isAdmin) return;
+
+    const fetchSystemStats = async () => {
+      try {
+        const response = await systemAPI.getSystemStats();
+        setSystemStats({
+          cpuUsage: response.data.cpuUsage,
+          memoryUsage: response.data.memoryUsage,
+          error: null
+        });
+      } catch (err: any) {
+        console.error('Failed to fetch system stats:', err);
+        setSystemStats(prev => ({
+          ...prev,
+          error: '无法获取系统资源统计信息'
+        }));
+      }
+    };
+
+    // 立即获取一次
+    fetchSystemStats();
+
+    // 每5秒获取一次
+    const interval = setInterval(fetchSystemStats, 5000);
+
+    // 清除定时器
+    return () => clearInterval(interval);
+  }, [isAdmin]);
+
   return (
     <Box>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Typography variant="h4" component="h1">
-          仪表盘
-        </Typography>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-          <Chip 
-            label={status?.online ? '在线' : '离线'} 
-            color={status?.online ? 'success' : 'error'}
-          />
-          <Button 
-            variant="outlined" 
-            onClick={() => setIsAdmin(!isAdmin)}
-            size="small"
-          >
-            {isAdmin ? '切换为普通用户' : '切换为管理员'}
-          </Button>
+          <Typography variant="h4" component="h1">
+            仪表盘
+          </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <Chip 
+              label={status?.online ? '在线' : '离线'} 
+              color={status?.online ? 'success' : 'error'}
+            />
+          </Box>
         </Box>
-      </Box>
       
       {error && (
         <Alert severity="error" sx={{ mb: 3 }}>
@@ -165,45 +191,7 @@ function Dashboard() {
             </Grid>
           </Paper>
           
-          {/* 最近连接的设备 */}
-          <Paper elevation={3} sx={{ p: 3, mb: 4 }}>
-            <Typography variant="h5" component="h2" gutterBottom>
-              最近连接的设备
-            </Typography>
-            <TableContainer component={Paper}>
-              <Table sx={{ minWidth: 650 }} aria-label="recent devices table">
-                <TableHead>
-                  <TableRow>
-                    <TableCell>设备名称</TableCell>
-                    <TableCell>设备地址</TableCell>
-                    <TableCell>连接状态</TableCell>
-                    <TableCell>最后在线时间</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {recentDevices.map((device) => (
-                    <TableRow
-                      key={device.id}
-                      sx={{ '&:last-child td, &:last-child th': { border: 0 } }}
-                    >
-                      <TableCell component="th" scope="row">
-                        {device.name}
-                      </TableCell>
-                      <TableCell>{device.address}</TableCell>
-                      <TableCell>
-                        <Chip 
-                          label={device.connected ? '在线' : '离线'} 
-                          size="small"
-                          color={device.connected ? 'success' : 'default'}
-                        />
-                      </TableCell>
-                      <TableCell>{device.lastSeen}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </Paper>
+
           
           {/* 网络概览 */}
           <Paper elevation={3} sx={{ p: 3, mb: 4 }}>
@@ -263,11 +251,11 @@ function Dashboard() {
                     </Typography>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mt: 1 }}>
                       <Typography variant="body1">
-                        {status?.system?.cpuUsage || '0'}%
+                        {systemStats.error ? '无法获取' : `${systemStats.cpuUsage?.toFixed(1) || '0'}%`}
                       </Typography>
                       <LinearProgress 
                         variant="determinate" 
-                        value={parseInt(status?.system?.cpuUsage || '0')} 
+                        value={systemStats.cpuUsage || 0} 
                         sx={{ flexGrow: 1 }}
                       />
                     </Box>
@@ -278,11 +266,11 @@ function Dashboard() {
                     </Typography>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mt: 1 }}>
                       <Typography variant="body1">
-                        {status?.system?.memoryUsage || '0'}%
+                        {systemStats.error ? '无法获取' : `${systemStats.memoryUsage?.toFixed(1) || '0'}%`}
                       </Typography>
                       <LinearProgress 
                         variant="determinate" 
-                        value={parseInt(status?.system?.memoryUsage || '0')} 
+                        value={systemStats.memoryUsage || 0} 
                         sx={{ flexGrow: 1 }}
                       />
                     </Box>
@@ -304,6 +292,11 @@ function Dashboard() {
                     </Typography>
                   </Box>
                 </Box>
+                {systemStats.error && (
+                  <Alert severity="info" sx={{ mt: 3 }}>
+                    {systemStats.error}
+                  </Alert>
+                )}
               </Paper>
               
               {/* 控制器详情 */}

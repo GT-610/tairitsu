@@ -6,6 +6,7 @@ export interface User {
   id: string;
   username: string;
   email: string;
+  role: 'admin' | 'user';
   createdAt: string;
   updatedAt: string;
 }
@@ -67,6 +68,13 @@ export interface SystemStatus {
   uptime: number;
   zeroTierStatus: 'online' | 'offline' | 'error';
   databaseStatus: 'connected' | 'disconnected' | 'error';
+}
+
+// System statistics interface
+export interface SystemStats {
+  cpuUsage: number;
+  memoryUsage: number;
+  timestamp: number;
 }
 
 export interface SetupStatus {
@@ -174,7 +182,9 @@ export const systemAPI = {
   // Set system initialization status
   setInitialized: (initialized: boolean) => api.post('/system/initialized', { initialized }),
   // Initialize admin account creation step
-  initializeAdminCreation: () => api.post('/system/admin/init')
+  initializeAdminCreation: () => api.post('/system/admin/init'),
+  // Get system statistics (CPU, memory usage)
+  getSystemStats: () => api.get<SystemStats>('/system/stats')
 }
 
 export default api
