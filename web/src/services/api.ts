@@ -76,6 +76,10 @@ export interface SystemStats {
   cpuUsage: number;
   memoryUsage: number;
   timestamp: number;
+  osName: string;
+  platform: string;
+  platformVersion: string;
+  kernelVersion: string;
 }
 
 export interface SetupStatus {
@@ -178,8 +182,6 @@ export const systemAPI = {
   saveZtConfig: (config: any) => api.post('/system/zerotier/config', config),
   // Update system settings
   updateSettings: (settings: any) => api.put('/settings', settings),
-  // Get system information
-  getSystemInfo: () => api.get('/system/info'),
   // Set system initialization status
   setInitialized: (initialized: boolean) => api.post('/system/initialized', { initialized }),
   // Initialize admin account creation step

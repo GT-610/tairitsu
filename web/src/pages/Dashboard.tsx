@@ -1,25 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Box, Typography, Grid, Paper, Card, CardContent, CircularProgress, Alert, 
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Divider,
   Chip, LinearProgress } from '@mui/material';
-import { statusAPI, networkAPI, systemAPI, Network } from '../services/api';
+import { statusAPI, networkAPI, systemAPI, Network, SystemStatus } from '../services/api';
 import { useAuth } from '../services/auth';
 
 
-
-// 系统状态类型定义
-interface SystemStatus {
-  online: boolean;
-  zerotier?: {
-    peerCount: number;
-    controllerUrl: string;
-  };
-  system?: {
-    cpuUsage: string;
-    memoryUsage: string;
-  };
-  version: string;
-}
 
 // 系统统计信息类型扩展
 interface ExtendedSystemStats {
@@ -73,13 +59,15 @@ function Dashboard() {
     fetchData();
   }, []);
 
-  // 定期获取系统统计信息（仅管理员）
+  // 定期获取系统统计信息和系统信息（仅管理员）
   useEffect(() => {
     if (!isAdmin) return;
 
+    // 获取系统统计信息（包含操作系统信息）
     const fetchSystemStats = async () => {
       try {
         const response = await systemAPI.getSystemStats();
+        console.log('System stats response:', response.data);
         setSystemStats({
           cpuUsage: response.data.cpuUsage,
           memoryUsage: response.data.memoryUsage,
@@ -91,6 +79,7 @@ function Dashboard() {
         });
       } catch (err: any) {
         console.error('Failed to fetch system stats:', err);
+        console.error('Error details:', err.response?.data || err.message);
         setSystemStats(prev => ({
           ...prev,
           error: '无法获取系统资源统计信息'
@@ -101,7 +90,7 @@ function Dashboard() {
     // 立即获取一次
     fetchSystemStats();
 
-    // 每5秒获取一次
+    // 每5秒获取一次系统统计信息
     const interval = setInterval(fetchSystemStats, 5000);
 
     // 清除定时器
@@ -110,16 +99,10 @@ function Dashboard() {
 
   return (
     <Box>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+      <Box sx={{ mb: 3 }}>
           <Typography variant="h4" component="h1">
             仪表盘
           </Typography>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            <Chip 
-              label={status?.online ? '在线' : '离线'} 
-              color={status?.online ? 'success' : 'error'}
-            />
-          </Box>
         </Box>
       
       {error && (
@@ -158,7 +141,8 @@ function Dashboard() {
                       总设备数
                     </Typography>
                     <Typography variant="h4">
-                      {status?.zerotier?.peerCount || 0}
+                      {/* 由于API没有提供设备数量，暂时显示0 */}
+                      0
                     </Typography>
                   </CardContent>
                 </Card>
@@ -288,10 +272,10 @@ function Dashboard() {
                       操作系统信息
                     </Typography>
                     <Typography variant="body1">
-                      {systemStats.osName || status?.version || 'Unknown'}
+                      {systemStats.osName || 'Unknown'}
                     </Typography>
                     <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                      平台: {systemStats.platform} {systemStats.platformVersion} | 内核: {systemStats.kernelVersion}
+                      平台: {systemStats.platform || ''} {systemStats.platformVersion || ''} | 内核: {systemStats.kernelVersion || ''}
                     </Typography>
                   </Box>
 
