@@ -2,13 +2,12 @@ package initializer
 
 import (
 	"fmt"
-	"os"
 
-	"github.com/gin-gonic/gin"
 	"github.com/GT-610/tairitsu/internal/app/config"
 	"github.com/GT-610/tairitsu/internal/app/database"
 	"github.com/GT-610/tairitsu/internal/app/logger"
 	"github.com/GT-610/tairitsu/internal/zerotier"
+	"github.com/gofiber/fiber/v3"
 	"go.uber.org/zap"
 )
 
@@ -17,7 +16,7 @@ type AppContext struct {
 	Config    *config.Config
 	Database  database.DBInterface
 	ZTClient  *zerotier.Client
-	Router    *gin.Engine
+	Router    *fiber.App
 	JWTSecret string
 }
 
@@ -84,11 +83,6 @@ func (ai *AppInitializer) loadConfiguration() error {
 	ai.context.Config = cfg
 	ai.context.JWTSecret = cfg.Security.JWTSecret
 
-	// 设置Gin模式
-	if os.Getenv("NODE_ENV") == "production" {
-		gin.SetMode(gin.ReleaseMode)
-	}
-
 	return nil
 }
 
@@ -145,8 +139,8 @@ func (ai *AppInitializer) initializeZeroTierClient() error {
 
 // initializeHTTPServer 初始化HTTP服务器
 func (ai *AppInitializer) initializeHTTPServer() error {
-	// 创建路由器实例
-	router := gin.New()
+	// 创建Fiber引擎实例
+	router := fiber.New()
 	ai.context.Router = router
 
 	return nil

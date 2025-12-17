@@ -3,8 +3,8 @@ package middleware
 import (
 	"net/http"
 
-	"github.com/gin-gonic/gin"
 	"github.com/GT-610/tairitsu/internal/app/logger"
+	"github.com/gofiber/fiber/v3"
 	"go.uber.org/zap"
 )
 
@@ -16,37 +16,34 @@ type ErrorResponse struct {
 }
 
 // ErrorHandler 全局错误处理中间件
-func ErrorHandler() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		c.Next()
-
-		// 处理错误
-		if len(c.Errors) > 0 {
-			err := c.Errors.Last()
-			logger.Error("API错误", zap.Error(err.Err))
+func ErrorHandler() fiber.Handler {
+	return func(c fiber.Ctx) error {
+		err := c.Next()
+		if err != nil {
+			logger.Error("API错误", zap.Error(err))
 
 			// 响应错误
-			c.JSON(http.StatusInternalServerError, ErrorResponse{
+			return c.Status(fiber.StatusInternalServerError).JSON(ErrorResponse{
 				Error:   "Internal Server Error",
 				Message: err.Error(),
-				Code:    http.StatusInternalServerError,
+				Code:    fiber.StatusInternalServerError,
 			})
 		}
+		return nil
 	}
 }
 
 // CORS 跨域中间件
-func CORS() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		c.Header("Access-Control-Allow-Origin", "*")
-		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		c.Header("Access-Control-Allow-Headers", "Origin, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
+func CORS() fiber.Handler {
+	return func(c fiber.Ctx) error {
+		c.Set("Access-Control-Allow-Origin", "*")
+		c.Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		c.Set("Access-Control-Allow-Headers", "Origin, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
 
-		if c.Request.Method == "OPTIONS" {
-			c.AbortWithStatus(http.StatusNoContent)
-			return
+		if c.Method() == "OPTIONS" {
+			return c.SendStatus(http.StatusNoContent)
 		}
 
-		c.Next()
+		return c.Next()
 	}
 }

@@ -4,18 +4,18 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/gin-gonic/gin"
 	"github.com/GT-610/tairitsu/internal/app/config"
 	"github.com/GT-610/tairitsu/internal/app/database"
 	"github.com/GT-610/tairitsu/internal/app/logger"
 	"github.com/GT-610/tairitsu/internal/app/routes"
 	"github.com/GT-610/tairitsu/internal/zerotier"
+	"github.com/gofiber/fiber/v3"
 	"go.uber.org/zap"
 )
 
 // ServerInitializer 服务器初始化器
 type ServerInitializer struct {
-	router      *gin.Engine
+	router      *fiber.App
 	jwtSecret   string
 	db          database.DBInterface
 	ztClient    *zerotier.Client
@@ -29,13 +29,13 @@ func NewServerInitializer() *ServerInitializer {
 }
 
 // Initialize 初始化HTTP服务器
-func (si *ServerInitializer) Initialize(db database.DBInterface, ztClient *zerotier.Client, jwtSecret string) (*gin.Engine, error) {
+func (si *ServerInitializer) Initialize(db database.DBInterface, ztClient *zerotier.Client, jwtSecret string) (*fiber.App, error) {
 	si.db = db
 	si.ztClient = ztClient
 	si.jwtSecret = jwtSecret
 
 	// 创建路由器实例
-	router := gin.New()
+	router := fiber.New()
 	si.router = router
 
 	// 设置路由重新加载函数
@@ -65,7 +65,7 @@ func (si *ServerInitializer) ReloadRoutes() {
 	defer si.routerMutex.Unlock()
 
 	// 清除现有路由，创建新的路由器实例
-	si.router = gin.New()
+	si.router = fiber.New()
 
 	// 重新注册路由
 	if err := si.setupRoutes(); err != nil {
@@ -77,7 +77,7 @@ func (si *ServerInitializer) ReloadRoutes() {
 }
 
 // GetRouter 获取路由器实例
-func (si *ServerInitializer) GetRouter() *gin.Engine {
+func (si *ServerInitializer) GetRouter() *fiber.App {
 	si.routerMutex.RLock()
 	defer si.routerMutex.RUnlock()
 	return si.router
@@ -97,7 +97,7 @@ func (si *ServerInitializer) StartServer() error {
 	serverAddr := fmt.Sprintf(":%d", cfg.Server.Port)
 	logger.Info("启动HTTP服务器", zap.String("address", serverAddr))
 
-	if err := si.router.Run(serverAddr); err != nil {
+	if err := si.router.Listen(serverAddr); err != nil {
 		return fmt.Errorf("启动服务器失败: %w", err)
 	}
 
