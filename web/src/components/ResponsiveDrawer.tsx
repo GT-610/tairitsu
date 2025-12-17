@@ -119,6 +119,7 @@ export default function ResponsiveDrawer({ window, children, title = 'Tairitsu',
               component={Link}
               to={item.path}
               selected={location.pathname.startsWith(item.path)}
+              onClick={handleDrawerClose}
             >
               <ListItemIcon>
                 {item.icon}

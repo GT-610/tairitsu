@@ -111,8 +111,9 @@ function Settings() {
     try {
       setChangingPassword(true);
       await authAPI.updatePassword({
-        oldPassword: passwordForm.oldPassword,
-        newPassword: passwordForm.newPassword
+        current_password: passwordForm.oldPassword,
+        new_password: passwordForm.newPassword,
+        confirm_password: passwordForm.confirmPassword
       });
       
       // 修改成功
@@ -143,7 +144,7 @@ function Settings() {
   };
 
   // 处理语言变化
-  const handleLanguageChange = (event: React.ChangeEvent<{ value: unknown }>) => {
+  const handleLanguageChange = (event: any, _child: React.ReactNode) => {
     setLanguage(event.target.value as string);
     showDevelopmentMessage();
   };
