@@ -4,7 +4,6 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	mathrand "math/rand"
-	"net/http"
 	"time"
 
 	"github.com/GT-610/tairitsu/internal/app/config"
@@ -13,7 +12,7 @@ import (
 	"github.com/GT-610/tairitsu/internal/app/models"
 	"github.com/GT-610/tairitsu/internal/app/services"
 	"github.com/GT-610/tairitsu/internal/zerotier"
-	"github.com/gin-gonic/gin"
+	"github.com/gofiber/fiber/v3"
 	"go.uber.org/zap"
 )
 
@@ -37,7 +36,7 @@ func NewSystemHandler(networkService *services.NetworkService, userService *serv
 }
 
 // GetSystemStatus retrieves the current system status
-func (h *SystemHandler) GetSystemStatus(c *gin.Context) {
+func (h *SystemHandler) GetSystemStatus(c fiber.Ctx) error {
 	// Get system initialization status from config module
 	sysConfig := config.AppConfig
 	initialized := false
@@ -48,10 +47,9 @@ func (h *SystemHandler) GetSystemStatus(c *gin.Context) {
 
 		// If not initialized, return uninitialized status directly
 		if !initialized {
-			c.JSON(http.StatusOK, map[string]interface{}{
+			return c.Status(fiber.StatusOK).JSON(map[string]interface{}{
 				"initialized": false,
 			})
-			return
 		}
 	}
 
@@ -94,16 +92,15 @@ func (h *SystemHandler) GetSystemStatus(c *gin.Context) {
 		"ztStatus":    ztStatus,
 	}
 
-	c.JSON(http.StatusOK, response)
+	return c.Status(fiber.StatusOK).JSON(response)
 }
 
 // ConfigureDatabase configures the database connection settings
-func (h *SystemHandler) ConfigureDatabase(c *gin.Context) {
+func (h *SystemHandler) ConfigureDatabase(c fiber.Ctx) error {
 	var dbConfig models.DatabaseConfig
-	if err := c.ShouldBindJSON(&dbConfig); err != nil {
+	if err := c.Bind().Body(&dbConfig); err != nil {
 		logger.Error("数据库配置参数绑定失败", zap.Error(err))
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
 
 	logger.Info("开始配置数据库", zap.String("type", dbConfig.Type))
@@ -123,15 +120,13 @@ func (h *SystemHandler) ConfigureDatabase(c *gin.Context) {
 	db, err := database.NewDatabase(dbCfg)
 	if err != nil {
 		logger.Error("数据库连接失败", zap.Error(err))
-		c.JSON(http.StatusBadRequest, gin.H{"error": "数据库连接失败: " + err.Error()})
-		return
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "数据库连接失败: " + err.Error()})
 	}
 
 	// Initialize database schema
 	if err := db.Init(); err != nil {
 		logger.Error("数据库初始化失败", zap.Error(err))
-		c.JSON(http.StatusBadRequest, gin.H{"error": "数据库初始化失败: " + err.Error()})
-		return
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "数据库初始化失败: " + err.Error()})
 	}
 
 	// Close database connection
@@ -152,48 +147,44 @@ func (h *SystemHandler) ConfigureDatabase(c *gin.Context) {
 	// Save database configuration to unified config management module
 	if err := database.SaveConfig(dbCfg); err != nil {
 		logger.Error("保存数据库配置失败", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "保存数据库配置失败: " + err.Error()})
-		return
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "保存数据库配置失败: " + err.Error()})
 	}
 
 	logger.Info("数据库配置成功", zap.String("type", dbConfig.Type))
-	c.JSON(http.StatusOK, gin.H{
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
 		"message": "数据库配置成功",
 		"config":  dbConfig,
 	})
 }
 
 // TestZeroTierConnection tests connectivity to the ZeroTier controller
-func (h *SystemHandler) TestZeroTierConnection(c *gin.Context) {
+func (h *SystemHandler) TestZeroTierConnection(c fiber.Ctx) error {
 	// Dynamically create ZeroTier client
 	ztClient, err := zerotier.NewClient()
 	if err != nil {
 		logger.Error("[ZeroTier] 连接测试失败: 创建客户端失败", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建ZeroTier客户端失败: " + err.Error()})
-		return
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "创建ZeroTier客户端失败: " + err.Error()})
 	}
 
 	// 获取ZeroTier控制器状态
 	ztStatus, err := ztClient.GetStatus()
 	if err != nil {
 		logger.Error("[ZeroTier] 连接测试失败: 获取状态失败", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "无法连接到ZeroTier控制器: " + err.Error()})
-		return
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "无法连接到ZeroTier控制器: " + err.Error()})
 	}
 
 	logger.Info("[ZeroTier] 连接测试成功")
-	c.JSON(http.StatusOK, ztStatus)
+	return c.Status(fiber.StatusOK).JSON(ztStatus)
 }
 
 // InitZeroTierClient initializes the ZeroTier client for the application
-func (h *SystemHandler) InitZeroTierClient(c *gin.Context) {
+func (h *SystemHandler) InitZeroTierClient(c fiber.Ctx) error {
 
 	// Dynamically create ZeroTier client
 	ztClient, err := zerotier.NewClient()
 	if err != nil {
 		logger.Error("创建ZeroTier客户端失败", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建ZeroTier客户端失败: " + err.Error()})
-		return
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "创建ZeroTier客户端失败: " + err.Error()})
 	}
 
 	// Set client in network service
@@ -203,24 +194,22 @@ func (h *SystemHandler) InitZeroTierClient(c *gin.Context) {
 	status, err := h.networkService.GetStatus()
 	if err != nil {
 		logger.Error("ZeroTier客户端验证失败", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "ZeroTier客户端初始化后验证失败: " + err.Error()})
-		return
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "ZeroTier客户端初始化后验证失败: " + err.Error()})
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "ZeroTier客户端初始化成功", "status": status})
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{"message": "ZeroTier客户端初始化成功", "status": status})
 }
 
 // SaveZeroTierConfig saves ZeroTier configuration and initializes connection
-func (h *SystemHandler) SaveZeroTierConfig(c *gin.Context) {
+func (h *SystemHandler) SaveZeroTierConfig(c fiber.Ctx) error {
 	var req struct {
-		ControllerURL string `json:"controllerUrl" binding:"required"`
-		TokenPath     string `json:"tokenPath" binding:"required"`
+		ControllerURL string `json:"controllerUrl"`
+		TokenPath     string `json:"tokenPath"`
 	}
 
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := c.Bind().Body(&req); err != nil {
 		logger.Error("ZeroTier配置参数绑定失败", zap.Error(err))
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
 
 	logger.Info("保存ZeroTier配置", zap.String("controllerUrl", req.ControllerURL), zap.String("tokenPath", req.TokenPath))
@@ -228,31 +217,28 @@ func (h *SystemHandler) SaveZeroTierConfig(c *gin.Context) {
 	// Call config module to save ZeroTier configuration
 	if err := config.SetZTConfig(req.ControllerURL, req.TokenPath); err != nil {
 		logger.Error("保存ZeroTier配置失败", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "保存ZeroTier配置失败: " + err.Error()})
-		return
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "保存ZeroTier配置失败: " + err.Error()})
 	}
 
 	// Try creating and validating ZeroTier client with new config
 	ztClient, err := zerotier.NewClient()
 	if err != nil {
 		logger.Error("创建ZeroTier客户端失败", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建ZeroTier客户端失败: " + err.Error()})
-		return
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "创建ZeroTier客户端失败: " + err.Error()})
 	}
 
 	// Validate client works and get status information
 	status, err := ztClient.GetStatus()
 	if err != nil {
 		logger.Error("ZeroTier客户端验证失败", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "ZeroTier客户端验证失败: " + err.Error()})
-		return
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "ZeroTier客户端验证失败: " + err.Error()})
 	}
 
 	// Set client in network service
 	h.networkService.SetZTClient(ztClient)
 
 	logger.Info("ZeroTier配置保存并验证成功")
-	c.JSON(http.StatusOK, gin.H{
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
 		"message": "ZeroTier配置保存成功",
 		"config":  req,
 		"status":  status,
@@ -261,7 +247,7 @@ func (h *SystemHandler) SaveZeroTierConfig(c *gin.Context) {
 
 // InitializeAdminCreation prepares the system for admin account creation
 // This function is called when user enters the admin creation step to ensure correct database state
-func (h *SystemHandler) InitializeAdminCreation(c *gin.Context) {
+func (h *SystemHandler) InitializeAdminCreation(c fiber.Ctx) error {
 	logger.Info("初始化管理员账户创建步骤")
 
 	// Check if reset operation has already been performed
@@ -271,11 +257,10 @@ func (h *SystemHandler) InitializeAdminCreation(c *gin.Context) {
 	// Skip reset if already performed
 	if resetDone == "true" {
 		logger.Info("数据库重置已在之前执行，跳过重置操作")
-		c.JSON(http.StatusOK, gin.H{
+		return c.Status(fiber.StatusOK).JSON(fiber.Map{
 			"message":   "管理员账户创建步骤已初始化",
 			"resetDone": true,
 		})
-		return
 	}
 
 	// Get current database configuration
@@ -289,8 +274,7 @@ func (h *SystemHandler) InitializeAdminCreation(c *gin.Context) {
 		// Execute database reset
 		if err := database.ResetDatabase(dbConfig); err != nil {
 			logger.Error("数据库重置失败", zap.Error(err))
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "初始化管理员账户创建步骤失败: " + err.Error()})
-			return
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "初始化管理员账户创建步骤失败: " + err.Error()})
 		}
 
 		logger.Info("SQLite数据库重置成功")
@@ -302,7 +286,7 @@ func (h *SystemHandler) InitializeAdminCreation(c *gin.Context) {
 	config.SetTempSetting(resetDoneKey, "true")
 	logger.Info("设置重置操作完成标志")
 
-	c.JSON(http.StatusOK, gin.H{
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
 		"message":      "管理员账户创建步骤初始化成功",
 		"resetDone":    true,
 		"databaseType": string(dbConfig.Type),
@@ -310,15 +294,14 @@ func (h *SystemHandler) InitializeAdminCreation(c *gin.Context) {
 }
 
 // SetInitialized updates the system initialization status
-func (h *SystemHandler) SetInitialized(c *gin.Context) {
+func (h *SystemHandler) SetInitialized(c fiber.Ctx) error {
 	var req struct {
-		Initialized bool `json:"initialized" binding:"required"`
+		Initialized bool `json:"initialized"`
 	}
 
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := c.Bind().Body(&req); err != nil {
 		logger.Error("设置初始化状态参数绑定失败", zap.Error(err))
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
 
 	logger.Info("设置系统初始化状态", zap.Bool("initialized", req.Initialized))
@@ -346,19 +329,17 @@ func (h *SystemHandler) SetInitialized(c *gin.Context) {
 		// Save updated configuration with new secrets
 		if err := config.SaveConfig(config.AppConfig); err != nil {
 			logger.Error("保存密钥配置失败", zap.Error(err))
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "生成安全密钥失败: " + err.Error()})
-			return
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "生成安全密钥失败: " + err.Error()})
 		}
 	}
 
 	// Call config module to set initialization status
 	if err := config.SetInitialized(req.Initialized); err != nil {
 		logger.Error("设置初始化状态失败", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "设置初始化状态失败: " + err.Error()})
-		return
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "设置初始化状态失败: " + err.Error()})
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "初始化状态更新成功"})
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{"message": "初始化状态更新成功"})
 }
 
 // generateRandomSecret generates a random secret string of specified length
@@ -382,31 +363,30 @@ func generateRandomSecret(length int) string {
 }
 
 // ReloadRoutes handles API request to reload application routes
-func (h *SystemHandler) ReloadRoutes(c *gin.Context) {
+func (h *SystemHandler) ReloadRoutes(c fiber.Ctx) error {
 
 	// Call internal reload function
 	if h.reloadRoutesFunc != nil {
 		h.reloadRoutesFunc()
-		c.JSON(http.StatusOK, gin.H{"message": "路由重新加载成功"})
-	} else {
-		logger.Warn("重新加载路由函数未定义")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "重新加载路由功能不可用"})
+		return c.Status(fiber.StatusOK).JSON(fiber.Map{"message": "路由重新加载成功"})
 	}
+
+	logger.Warn("重新加载路由函数未定义")
+	return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "重新加载路由功能不可用"})
 }
 
 // GetSystemStats retrieves system resource usage statistics
 // This endpoint is only accessible to admin users
-func (h *SystemHandler) GetSystemStats(c *gin.Context) {
+func (h *SystemHandler) GetSystemStats(c fiber.Ctx) error {
 	// Get system stats from service
 	stats, err := h.systemService.GetSystemStats()
 	if err != nil {
 		logger.Error("Failed to get system stats", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "无法获取系统资源统计信息",
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error":   "无法获取系统资源统计信息",
 			"details": err.Error(),
 		})
-		return
 	}
 
-	c.JSON(http.StatusOK, stats)
+	return c.Status(fiber.StatusOK).JSON(stats)
 }

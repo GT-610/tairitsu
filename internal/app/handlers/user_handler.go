@@ -1,12 +1,10 @@
 package handlers
 
 import (
-	"net/http"
-
 	"github.com/GT-610/tairitsu/internal/app/logger"
 	"github.com/GT-610/tairitsu/internal/app/models"
 	"github.com/GT-610/tairitsu/internal/app/services"
-	"github.com/gin-gonic/gin"
+	"github.com/gofiber/fiber/v3"
 	"go.uber.org/zap"
 )
 
@@ -23,7 +21,7 @@ func NewUserHandler(userService *services.UserService) *UserHandler {
 }
 
 // GetAllUsers retrieves all users
-func (h *UserHandler) GetAllUsers(c *gin.Context) {
+func (h *UserHandler) GetAllUsers(c fiber.Ctx) error {
 	logger.Info("开始获取所有用户")
 
 	// Get all users from service
@@ -36,32 +34,36 @@ func (h *UserHandler) GetAllUsers(c *gin.Context) {
 	}
 
 	logger.Info("成功获取所有用户", zap.Int("count", len(userResponses)))
-	c.JSON(http.StatusOK, userResponses)
+	return c.Status(fiber.StatusOK).JSON(userResponses)
 }
 
 // UpdateUserRole updates a user's role
 type UpdateRoleRequest struct {
-	Role string `json:"role" binding:"required,oneof=admin user"`
+	Role string `json:"role"`
 }
 
-func (h *UserHandler) UpdateUserRole(c *gin.Context) {
-	userId := c.Param("userId")
+func (h *UserHandler) UpdateUserRole(c fiber.Ctx) error {
+	userId := c.Params("userId")
 	logger.Info("开始更新用户角色", zap.String("user_id", userId))
 
 	// Bind and validate request body
 	var req UpdateRoleRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := c.Bind().Body(&req); err != nil {
 		logger.Error("更新用户角色失败，请求参数绑定失败", zap.String("user_id", userId), zap.Error(err))
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	// Validate role is either admin or user
+	if req.Role != "admin" && req.Role != "user" {
+		logger.Error("更新用户角色失败，角色值无效", zap.String("user_id", userId), zap.String("role", req.Role))
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "无效的角色值，必须是admin或user"})
 	}
 
 	// Get user by ID
 	user, err := h.userService.GetUserByID(userId)
 	if err != nil {
 		logger.Error("更新用户角色失败，获取用户时出错", zap.String("user_id", userId), zap.Error(err))
-		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
-		return
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": err.Error()})
 	}
 
 	// Update user role
@@ -70,10 +72,9 @@ func (h *UserHandler) UpdateUserRole(c *gin.Context) {
 	// Save updated user to database
 	if err := h.userService.UpdateUser(user); err != nil {
 		logger.Error("更新用户角色失败，保存用户时出错", zap.String("user_id", userId), zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新用户角色失败"})
-		return
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "更新用户角色失败"})
 	}
 
 	logger.Info("成功更新用户角色", zap.String("user_id", userId), zap.String("new_role", req.Role))
-	c.JSON(http.StatusOK, user.ToResponse())
+	return c.Status(fiber.StatusOK).JSON(user.ToResponse())
 }

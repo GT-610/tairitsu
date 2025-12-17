@@ -6,26 +6,27 @@ import (
 	"github.com/GT-610/tairitsu/internal/app/middleware"
 	"github.com/GT-610/tairitsu/internal/app/services"
 	"github.com/GT-610/tairitsu/internal/zerotier"
-	"github.com/gin-gonic/gin"
+	"github.com/gofiber/fiber/v3"
+	"github.com/gofiber/fiber/v3/middleware/cors"
 )
 
 // SetupRoutes configures application routes
-func SetupRoutes(router *gin.Engine, ztClient *zerotier.Client, jwtSecret string, db database.DBInterface) {
+func SetupRoutes(router *fiber.App, ztClient *zerotier.Client, jwtSecret string, db database.DBInterface) {
 	SetupRoutesWithReload(router, ztClient, jwtSecret, db, nil)
 }
 
 // SetupRoutesWithReload configures routes with reload capability
-func SetupRoutesWithReload(router *gin.Engine, ztClient *zerotier.Client, jwtSecret string, db database.DBInterface, reloadRoutesFunc func()) {
+func SetupRoutesWithReload(router *fiber.App, ztClient *zerotier.Client, jwtSecret string, db database.DBInterface, reloadRoutesFunc func()) {
 	// Apply middleware
 	router.Use(middleware.Logger())
-	router.Use(middleware.CORS())
+	router.Use(cors.New())
 	router.Use(middleware.RateLimit())
 	router.Use(middleware.ErrorHandler())
 
 	// Root path handler for HTML browsers
-	router.GET("/", func(c *gin.Context) {
-		c.Header("Content-Type", "text/html; charset=utf-8")
-		c.String(200, `<html>
+	router.Get("/", func(c fiber.Ctx) error {
+		c.Set("Content-Type", "text/html; charset=utf-8")
+		return c.SendString(`<html>
 <head>
 	<title>Tairitsu Backend</title>
 	<style>
@@ -79,41 +80,41 @@ func SetupRoutesWithReload(router *gin.Engine, ztClient *zerotier.Client, jwtSec
 	api := router.Group("/api")
 	{
 		// Health check
-		api.GET("/health", func(c *gin.Context) {
-			c.JSON(200, gin.H{"status": "ok"})
+		api.Get("/health", func(c fiber.Ctx) error {
+			return c.Status(fiber.StatusOK).JSON(fiber.Map{"status": "ok"})
 		})
 
 		// System status check (no authentication required)
-		api.GET("/system/status", systemHandler.GetSystemStatus)
+		api.Get("/system/status", systemHandler.GetSystemStatus)
 
 		// Database configuration (no authentication required, available during initial setup only)
-		api.POST("/system/database", systemHandler.ConfigureDatabase)
+		api.Post("/system/database", systemHandler.ConfigureDatabase)
 
 		// ZeroTier connection test (no authentication required, available during initial setup only)
-		api.GET("/system/zerotier/test", systemHandler.TestZeroTierConnection)
+		api.Get("/system/zerotier/test", systemHandler.TestZeroTierConnection)
 
 		// Save ZeroTier configuration (no authentication required, available during initial setup only)
-		api.POST("/system/zerotier/config", systemHandler.SaveZeroTierConfig)
+		api.Post("/system/zerotier/config", systemHandler.SaveZeroTierConfig)
 
 		// ZeroTier client initialization (no authentication required, available during initial setup only)
-		api.POST("/system/zerotier/init", systemHandler.InitZeroTierClient)
+		api.Post("/system/zerotier/init", systemHandler.InitZeroTierClient)
 
 		// Set system initialization status (no authentication required, available during initial setup only)
-		api.POST("/system/initialized", systemHandler.SetInitialized)
+		api.Post("/system/initialized", systemHandler.SetInitialized)
 
 		// Initialize admin account creation step (no authentication required, available during initial setup only)
-		api.POST("/system/admin/init", systemHandler.InitializeAdminCreation)
+		api.Post("/system/admin/init", systemHandler.InitializeAdminCreation)
 
 		// Reload routes (no authentication required, available during initial setup only)
-		api.POST("/system/reload", systemHandler.ReloadRoutes)
+		api.Post("/system/reload", systemHandler.ReloadRoutes)
 
 		// Authentication routes (no authentication required)
 		auth := api.Group("/auth")
 		{
 			// Only enable registration and login if database is configured
 			if db != nil {
-				auth.POST("/register", authHandler.Register) // User registration
-				auth.POST("/login", authHandler.Login)       // User login
+				auth.Post("/register", authHandler.Register) // User registration
+				auth.Post("/login", authHandler.Login)       // User login
 			}
 		}
 
@@ -124,27 +125,27 @@ func SetupRoutesWithReload(router *gin.Engine, ztClient *zerotier.Client, jwtSec
 			// Only enable database-dependent features if database is configured
 			if db != nil {
 				// User information
-			authenticated.GET("/profile", authHandler.GetProfile) // Get current user info
-			authenticated.POST("/auth/update-password", authHandler.ChangePassword) // Update user password (deprecated)
-			authenticated.PUT("/profile/password", authHandler.ChangePassword) // Update user password
+				authenticated.Get("/profile", authHandler.GetProfile)                   // Get current user info
+				authenticated.Post("/auth/update-password", authHandler.ChangePassword) // Update user password (deprecated)
+				authenticated.Put("/profile/password", authHandler.ChangePassword)      // Update user password
 
 				// ZeroTier status
-				authenticated.GET("/status", networkHandler.GetStatus)
+				authenticated.Get("/status", networkHandler.GetStatus)
 
 				// Network management
 				networks := authenticated.Group("/networks")
 				{
-					networks.GET("", networkHandler.GetNetworks)          // Get all networks
-					networks.POST("", networkHandler.CreateNetwork)       // Create network
-					networks.GET("/:id", networkHandler.GetNetwork)       // Get single network
-					networks.PUT("/:id", networkHandler.UpdateNetwork)    // Update network
-					networks.DELETE("/:id", networkHandler.DeleteNetwork) // Delete network
+					networks.Get("", networkHandler.GetNetworks)          // Get all networks
+					networks.Post("", networkHandler.CreateNetwork)       // Create network
+					networks.Get("/:id", networkHandler.GetNetwork)       // Get single network
+					networks.Put("/:id", networkHandler.UpdateNetwork)    // Update network
+					networks.Delete("/:id", networkHandler.DeleteNetwork) // Delete network
 
 					// Member management (nested within network routes)
-					networks.GET("/:id/members", memberHandler.GetMembers)                // Get member list
-					networks.GET("/:id/members/:memberId", memberHandler.GetMember)       // Get single member
-					networks.PUT("/:id/members/:memberId", memberHandler.UpdateMember)    // Update member
-					networks.DELETE("/:id/members/:memberId", memberHandler.DeleteMember) // Delete member
+					networks.Get("/:id/members", memberHandler.GetMembers)                // Get member list
+					networks.Get("/:id/members/:memberId", memberHandler.GetMember)       // Get single member
+					networks.Put("/:id/members/:memberId", memberHandler.UpdateMember)    // Update member
+					networks.Delete("/:id/members/:memberId", memberHandler.DeleteMember) // Delete member
 				}
 			}
 		}
@@ -155,11 +156,11 @@ func SetupRoutesWithReload(router *gin.Engine, ztClient *zerotier.Client, jwtSec
 		admin.Use(middleware.AdminRequired())
 		{
 			// System statistics
-			admin.GET("/system/stats", systemHandler.GetSystemStats) // Get system resource statistics
-			
+			admin.Get("/system/stats", systemHandler.GetSystemStats) // Get system resource statistics
+
 			// User management
-			admin.GET("/users", userHandler.GetAllUsers) // Get all users
-			admin.PUT("/users/:userId/role", userHandler.UpdateUserRole) // Update user role
+			admin.Get("/users", userHandler.GetAllUsers)                 // Get all users
+			admin.Put("/users/:userId/role", userHandler.UpdateUserRole) // Update user role
 		}
 	}
 }

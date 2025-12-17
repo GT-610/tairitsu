@@ -3,19 +3,19 @@ package middleware
 import (
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/GT-610/tairitsu/internal/app/logger"
+	"github.com/gofiber/fiber/v3"
 	"go.uber.org/zap"
 )
 
 // Logger 自定义日志中间件
-func Logger() gin.HandlerFunc {
-	return func(c *gin.Context) {
+func Logger() fiber.Handler {
+	return func(c fiber.Ctx) error {
 		// 开始时间
 		startTime := time.Now()
 
 		// 处理请求
-		c.Next()
+		err := c.Next()
 
 		// 结束时间
 		endTime := time.Now()
@@ -23,21 +23,23 @@ func Logger() gin.HandlerFunc {
 		latency := endTime.Sub(startTime)
 
 		// 请求方法
-		method := c.Request.Method
+		method := c.Method()
 		// 请求路由
-		path := c.Request.URL.Path
+		path := c.Path()
 		// 状态码
-		statusCode := c.Writer.Status()
+		statusCode := c.Response().StatusCode()
 		// 客户端IP
-		clientIP := c.ClientIP()
+		clientIP := c.IP()
 
 		// 日志格式
-		logger.Info("GIN Request",
+		logger.Info("FIBER Request",
 			zap.String("method", method),
 			zap.Int("status", statusCode),
 			zap.Duration("latency", latency),
 			zap.String("clientIP", clientIP),
 			zap.String("path", path),
 		)
+
+		return err
 	}
 }

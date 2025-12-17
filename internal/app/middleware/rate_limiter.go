@@ -1,11 +1,10 @@
 package middleware
 
 import (
-	"net/http"
 	"sync"
 	"time"
 
-	"github.com/gin-gonic/gin"
+	"github.com/gofiber/fiber/v3"
 	"github.com/GT-610/tairitsu/internal/app/logger"
 	"go.uber.org/zap"
 )
@@ -109,10 +108,10 @@ func (rl *RateLimiter) GetBucket(ip string) *TokenBucket {
 var DefaultRateLimiter = NewRateLimiter(100, 10) // 默认100个令牌，每秒补充10个
 
 // RateLimit API速率限制中间件
-func RateLimit() gin.HandlerFunc {
-	return func(c *gin.Context) {
+func RateLimit() fiber.Handler {
+	return func(c fiber.Ctx) error {
 		// 获取客户端IP
-		clientIP := c.ClientIP()
+		clientIP := c.IP()
 
 		// 获取或创建令牌桶
 		bucket := DefaultRateLimiter.GetBucket(clientIP)
@@ -125,17 +124,15 @@ func RateLimit() gin.HandlerFunc {
 					// 忽略日志初始化失败的情况
 				}
 			}()
-			logger.Warn("API速率限制触发", zap.String("client_ip", clientIP), zap.String("path", c.Request.URL.Path))
+			logger.Warn("API速率限制触发", zap.String("client_ip", clientIP), zap.String("path", c.Path()))
 
 			// 返回429 Too Many Requests
-			c.JSON(http.StatusTooManyRequests, gin.H{
+			return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
 				"error": "请求频率过高，请稍后再试",
 			})
-			c.Abort()
-			return
 		}
 
 		// 继续处理请求
-		c.Next()
+		return c.Next()
 	}
 }

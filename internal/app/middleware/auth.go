@@ -1,85 +1,74 @@
 package middleware
 
 import (
-	"net/http"
 	"strings"
 
-	"github.com/gin-gonic/gin"
 	"github.com/GT-610/tairitsu/internal/app/services"
+	"github.com/gofiber/fiber/v3"
 )
 
 // AuthMiddleware 认证中间件
-func AuthMiddleware(jwtService *services.JWTService) gin.HandlerFunc {
-	return func(c *gin.Context) {
+func AuthMiddleware(jwtService *services.JWTService) fiber.Handler {
+	return func(c fiber.Ctx) error {
 		// 从请求头获取令牌
-		authHeader := c.GetHeader("Authorization")
+		authHeader := c.Get("Authorization")
 		if authHeader == "" {
-			c.JSON(http.StatusUnauthorized, ErrorResponse{
+			return c.Status(fiber.StatusUnauthorized).JSON(ErrorResponse{
 				Error:   "Unauthorized",
 				Message: "缺少认证令牌",
-				Code:    http.StatusUnauthorized,
+				Code:    fiber.StatusUnauthorized,
 			})
-			c.Abort()
-			return
 		}
 
 		// 检查Bearer前缀
 		parts := strings.SplitN(authHeader, " ", 2)
 		if !(len(parts) == 2 && parts[0] == "Bearer") {
-			c.JSON(http.StatusUnauthorized, ErrorResponse{
+			return c.Status(fiber.StatusUnauthorized).JSON(ErrorResponse{
 				Error:   "Unauthorized",
 				Message: "认证格式无效",
-				Code:    http.StatusUnauthorized,
+				Code:    fiber.StatusUnauthorized,
 			})
-			c.Abort()
-			return
 		}
 
 		// 验证令牌
 		claims, err := jwtService.ValidateToken(parts[1])
 		if err != nil {
-			c.JSON(http.StatusUnauthorized, ErrorResponse{
+			return c.Status(fiber.StatusUnauthorized).JSON(ErrorResponse{
 				Error:   "Unauthorized",
 				Message: "无效的认证令牌",
-				Code:    http.StatusUnauthorized,
+				Code:    fiber.StatusUnauthorized,
 			})
-			c.Abort()
-			return
 		}
 
 		// 将用户信息存储到上下文
-		c.Set("user_id", claims.UserID)
-		c.Set("username", claims.Username)
-		c.Set("role", claims.Role)
+		c.Locals("user_id", claims.UserID)
+		c.Locals("username", claims.Username)
+		c.Locals("role", claims.Role)
 
-		c.Next()
+		return c.Next()
 	}
 }
 
 // AdminRequired 管理员权限中间件
-func AdminRequired() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		role, exists := c.Get("role")
+func AdminRequired() fiber.Handler {
+	return func(c fiber.Ctx) error {
+		role, exists := c.Locals("role").(string)
 		if !exists {
-			c.JSON(http.StatusForbidden, ErrorResponse{
+			return c.Status(fiber.StatusForbidden).JSON(ErrorResponse{
 				Error:   "Forbidden",
 				Message: "需要认证",
-				Code:    http.StatusForbidden,
+				Code:    fiber.StatusForbidden,
 			})
-			c.Abort()
-			return
 		}
 
 		if role != "admin" {
-			c.JSON(http.StatusForbidden, ErrorResponse{
+			return c.Status(fiber.StatusForbidden).JSON(ErrorResponse{
 				Error:   "Forbidden",
 				Message: "需要管理员权限",
-				Code:    http.StatusForbidden,
+				Code:    fiber.StatusForbidden,
 			})
-			c.Abort()
-			return
 		}
 
-		c.Next()
+		return c.Next()
 	}
 }

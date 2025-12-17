@@ -7,7 +7,7 @@ import (
 	"github.com/GT-610/tairitsu/internal/app/initializer"
 	"github.com/GT-610/tairitsu/internal/app/logger"
 	"github.com/GT-610/tairitsu/internal/zerotier"
-	"github.com/gin-gonic/gin"
+	"github.com/gofiber/fiber/v3"
 	"go.uber.org/zap"
 )
 
@@ -18,7 +18,7 @@ var GlobalDB database.DBInterface
 var GlobalZTClient *zerotier.Client
 
 // GlobalRouter is the global router instance for route reloading
-var GlobalRouter *gin.Engine
+var GlobalRouter *fiber.App
 
 // GlobalServerInitializer is the global server initializer instance
 var GlobalServerInitializer *initializer.ServerInitializer
