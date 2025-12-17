@@ -14,7 +14,8 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
-  TextField
+  TextField,
+  CircularProgress
 } from '@mui/material';
 import { Link } from 'react-router-dom';
 import { authAPI, User } from '../services/api';
@@ -147,19 +148,13 @@ function Settings() {
     showDevelopmentMessage();
   };
 
-  if (loading) {
-    return (
-      <Box sx={{ p: 3 }}>
-        <Typography variant="body1">加载中...</Typography>
-      </Box>
-    );
-  }
-
   return (
     <Box sx={{ p: 3 }}>
-      <Typography variant="h4" component="h1" gutterBottom>
-        设置
-      </Typography>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+        <Typography variant="h4" component="h1">
+          设置
+        </Typography>
+      </Box>
 
       {infoMessage && (
         <Alert severity="info" sx={{ mb: 3 }}>
@@ -167,90 +162,98 @@ function Settings() {
         </Alert>
       )}
 
-      {/* 个人设置 */}
-      <Card sx={{ mb: 3 }}>
-        <CardContent>
-          <Typography variant="h6" gutterBottom>
-            个人设置
-          </Typography>
+      {loading ? (
+        <Box sx={{ display: 'flex', justifyContent: 'center', mt: 10 }}>
+          <CircularProgress />
+        </Box>
+      ) : (
+        <>
+          {/* 个人设置 */}
+          <Card sx={{ mb: 3 }}>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                个人设置
+              </Typography>
 
-          <Box sx={{ mb: 3 }}>
-            <Typography variant="body1" sx={{ mb: 1 }}>
-              语言
-            </Typography>
-            <FormControl fullWidth>
-              <InputLabel id="language-select-label">选择语言</InputLabel>
-              <Select
-                labelId="language-select-label"
-                value={language}
-                label="选择语言"
-                onChange={handleLanguageChange}
-              >
-                <MenuItem value="zh-CN">简体中文</MenuItem>
-                <MenuItem value="en">English</MenuItem>
-              </Select>
-            </FormControl>
-          </Box>
+              <Box sx={{ mb: 3 }}>
+                <Typography variant="body1" sx={{ mb: 1 }}>
+                  语言
+                </Typography>
+                <FormControl fullWidth>
+                  <InputLabel id="language-select-label">选择语言</InputLabel>
+                  <Select
+                    labelId="language-select-label"
+                    value={language}
+                    label="选择语言"
+                    onChange={handleLanguageChange}
+                  >
+                    <MenuItem value="zh-CN">简体中文</MenuItem>
+                    <MenuItem value="en">English</MenuItem>
+                  </Select>
+                </FormControl>
+              </Box>
 
-          <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
-            <Button
-              variant="contained"
-              onClick={() => setOpenChangePasswordDialog(true)}
-              fullWidth
-            >
-              修改密码
-            </Button>
-          </Box>
+              <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
+                <Button
+                  variant="contained"
+                  onClick={() => setOpenChangePasswordDialog(true)}
+                  fullWidth
+                >
+                  修改密码
+                </Button>
+              </Box>
 
-          <Box>
-            <Button
-              variant="contained"
-              color="error"
-              onClick={showDevelopmentMessage}
-              fullWidth
-            >
-              注销账号
-            </Button>
-          </Box>
-        </CardContent>
-      </Card>
+              <Box>
+                <Button
+                  variant="contained"
+                  color="error"
+                  onClick={showDevelopmentMessage}
+                  fullWidth
+                >
+                  注销账号
+                </Button>
+              </Box>
+            </CardContent>
+          </Card>
 
-      {/* 管理员设置 - 仅对管理员显示 */}
-      {user?.role === 'admin' && (
-        <Card sx={{ mb: 3 }}>
-          <CardContent>
-            <Typography variant="h6" gutterBottom>
-              管理员设置
-            </Typography>
+          {/* 管理员设置 - 仅对管理员显示 */}
+          {user?.role === 'admin' && (
+            <Card sx={{ mb: 3 }}>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  管理员设置
+                </Typography>
 
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <Button
-                variant="contained"
-                onClick={showDevelopmentMessage}
-                fullWidth
-              >
-                导入已有 ZeroTier 网络
-              </Button>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  <Button
+                    variant="contained"
+                    onClick={showDevelopmentMessage}
+                    fullWidth
+                  >
+                    导入已有 ZeroTier 网络
+                  </Button>
 
-              <Button
-        variant="contained"
-        component={Link}
-        to="/settings/user-management"
-        fullWidth
-      >
-        用户管理
-      </Button>
+                  <Button
+                    variant="contained"
+                    component={Link}
+                    to="/settings/user-management"
+                    fullWidth
+                  >
+                    用户管理
+                  </Button>
 
-              <Button
-                variant="contained"
-                onClick={showDevelopmentMessage}
-                fullWidth
-              >
-                生成 planet 文件
-              </Button>
-            </Box>
-          </CardContent>
-        </Card>
+                  <Button
+                    variant="contained"
+                    onClick={showDevelopmentMessage}
+                    fullWidth
+                  >
+                    生成 planet 文件
+                  </Button>
+                </Box>
+              </CardContent>
+            </Card>
+          )}
+        </>
       )}
 
       {/* 修改密码对话框 */}
