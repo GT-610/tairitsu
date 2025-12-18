@@ -19,6 +19,7 @@ import SettingsIcon from '@mui/icons-material/Settings';
 import AccountCircle from '@mui/icons-material/AccountCircle';
 import MenuItem from '@mui/material/MenuItem';
 import Menu from '@mui/material/Menu';
+import MenuList from '@mui/material/MenuList';
 import Dialog from '@mui/material/Dialog';
 import DialogActions from '@mui/material/DialogActions';
 import DialogContent from '@mui/material/DialogContent';
@@ -27,6 +28,7 @@ import DialogTitle from '@mui/material/DialogTitle';
 import Button from '@mui/material/Button';
 import { Link, useLocation } from 'react-router-dom';
 import { User } from '../services/api';
+import LogoutIcon from '@mui/icons-material/Logout';
 
 const drawerWidth = 240;
 
@@ -200,21 +202,18 @@ export default function ResponsiveDrawer({ window, children, title = 'Tairitsu',
               <Menu
                 id="menu-appbar"
                 anchorEl={anchorEl}
-                anchorOrigin={{
-                  vertical: 'top',
-                  horizontal: 'right',
-                }}
                 keepMounted
-                transformOrigin={{
-                  vertical: 'top',
-                  horizontal: 'right',
-                }}
                 open={Boolean(anchorEl)}
                 onClose={handleClose}
               >
-                <MenuItem onClick={handleClose}>个人资料</MenuItem>
-                <MenuItem onClick={handleClose}>我的账户</MenuItem>
-                <MenuItem onClick={handleLogoutClick}>退出</MenuItem>
+                <MenuList>
+                  <MenuItem onClick={handleLogoutClick}>
+                    <ListItemIcon>
+                      <LogoutIcon fontSize="small" />
+                    </ListItemIcon>
+                    <ListItemText>退出登录</ListItemText>
+                  </MenuItem>
+                </MenuList>
               </Menu>
             </div>
           )}

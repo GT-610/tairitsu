@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Box, Typography, Card, CardContent, CircularProgress, Alert, Button, Grid, IconButton, Tabs, Tab, Paper }
+import { Box, Typography, Card, CardContent, CircularProgress, Alert, Button, Grid, IconButton, Tabs, Tab, Paper, TextField, Switch, FormControlLabel, FormControl, RadioGroup, Radio }
 from '@mui/material';
-import { ArrowBack, ContentCopy } from '@mui/icons-material';
+import { ArrowBack, ContentCopy, Add } from '@mui/icons-material';
 import { useParams, Link } from 'react-router-dom';
 import { networkAPI, Network } from '../services/api';
 
@@ -144,14 +144,251 @@ function NetworkDetail() {
 
           {/* 设置选项卡内容 */}
           {activeTab === 1 && (
-            <Paper elevation={3} sx={{ p: 3, mb: 4 }}>
-              <Typography variant="h5" sx={{ mb: 3 }}>
-                网络设置
-              </Typography>
-              <Alert severity="info" sx={{ mb: 3 }}>
-                网络设置页面开发中
-              </Alert>
-            </Paper>
+            <>
+              {/* 网络基本信息 */}
+              <Paper elevation={3} sx={{ p: 3, mb: 4 }}>
+                <Typography variant="h5" sx={{ mb: 2 }}>
+                  网络基本信息
+                </Typography>
+                <Grid container spacing={3}>
+                  <Grid size={{ xs: 12 }}>
+                    <TextField
+                      fullWidth
+                      label="网络名称"
+                      variant="outlined"
+                      value={network?.name || ''}
+                      sx={{ mb: 2 }}
+                    />
+                  </Grid>
+                  <Grid size={{ xs: 12 }}>
+                    <TextField
+                      fullWidth
+                      label="网络描述"
+                      variant="outlined"
+                      multiline
+                      rows={3}
+                      value={network?.description || ''}
+                      sx={{ mb: 2 }}
+                    />
+                  </Grid>
+                  <Grid size={{ xs: 12 }}>
+                    <Box sx={{ display: 'flex', gap: 2 }}>
+                      <Button variant="contained" color="primary">
+                        保存
+                      </Button>
+                      <Button variant="outlined">
+                        重置
+                      </Button>
+                    </Box>
+                  </Grid>
+                </Grid>
+              </Paper>
+              
+              {/* IPv4分配 */}
+              <Paper elevation={3} sx={{ p: 3, mb: 4 }}>
+                <Typography variant="h5" sx={{ mb: 2 }}>
+                  IPv4分配
+                </Typography>
+                <Box sx={{ mb: 3, p: 2, bgcolor: 'background.paper', borderRadius: 1, border: '1px solid', borderColor: 'divider' }}>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                    自动分配的IPv4地址段
+                  </Typography>
+                  <Typography variant="body1">
+                    192.168.192.0/24
+                  </Typography>
+                </Box>
+                
+                <Box sx={{ mb: 3 }}>
+                  <Typography variant="subtitle1" sx={{ mb: 2 }}>
+                    IPv4地址分配池
+                  </Typography>
+                  <Box sx={{ mb: 2 }}>
+                    <Grid container spacing={2} alignItems="center">
+                      <Grid size={{ xs: 5 }}>
+                        <TextField
+                          fullWidth
+                          label="起始IP"
+                          variant="outlined"
+                          size="small"
+                          value="192.168.192.2"
+                        />
+                      </Grid>
+                      <Grid size={{ xs: 5 }}>
+                        <TextField
+                          fullWidth
+                          label="结束IP"
+                          variant="outlined"
+                          size="small"
+                          value="192.168.192.254"
+                        />
+                      </Grid>
+                      <Grid size={{ xs: 2 }}>
+                        <Button variant="outlined" color="error" fullWidth size="small">
+                          删除
+                        </Button>
+                      </Grid>
+                    </Grid>
+                  </Box>
+                  <Box sx={{ display: 'flex', gap: 2 }}>
+                    <Button variant="outlined" startIcon={<Add />} size="small">
+                      添加地址池
+                    </Button>
+                    <Button variant="outlined" size="small">
+                      随机分配一个地址池
+                    </Button>
+                  </Box>
+                </Box>
+                
+                <Box sx={{ mb: 3 }}>
+                  <Typography variant="subtitle1" sx={{ mb: 2 }}>
+                    IPv4自动分配模式
+                  </Typography>
+                  <FormControlLabel
+                    control={<Switch checked={network?.config.v4AssignMode.zt || false} />}
+                    label="自动分配IPv4地址给新成员设备"
+                  />
+                  <Box sx={{ pl: 4, mt: -1 }}>
+                    <Typography variant="body2" color="text.secondary">
+                      每个成员设备将自动获取一个IPv4地址。您可以在上方定义地址池范围。
+                    </Typography>
+                  </Box>
+                </Box>
+                
+                <Box sx={{ mb: 3 }}>
+                  <Typography variant="subtitle1" sx={{ mb: 2 }}>
+                    活跃路由
+                  </Typography>
+                  <Box sx={{ mb: 2 }}>
+                    <Grid container spacing={2} alignItems="center">
+                      <Grid size={{ xs: 5 }}>
+                        <TextField
+                          fullWidth
+                          label="目标网络"
+                          variant="outlined"
+                          size="small"
+                          value="192.168.192.0/24"
+                        />
+                      </Grid>
+                      <Grid size={{ xs: 5 }}>
+                        <TextField
+                          fullWidth
+                          label="下一跳地址"
+                          variant="outlined"
+                          size="small"
+                          placeholder="可选"
+                        />
+                      </Grid>
+                      <Grid size={{ xs: 2 }}>
+                        <Button variant="outlined" color="error" fullWidth size="small">
+                          删除
+                        </Button>
+                      </Grid>
+                    </Grid>
+                  </Box>
+                  <Button variant="outlined" startIcon={<Add />} size="small">
+                    添加路由
+                  </Button>
+                </Box>
+              </Paper>
+              
+              {/* IPv6分配 */}
+              <Paper elevation={3} sx={{ p: 3, mb: 4 }}>
+                <Typography variant="h5" sx={{ mb: 2 }}>
+                  IPv6分配
+                </Typography>
+                
+                <Box sx={{ mb: 3 }}>
+                  <Typography variant="subtitle1" sx={{ mb: 2 }}>
+                    IPv6地址分配
+                  </Typography>
+                  <FormControl component="fieldset" sx={{ mb: 2 }}>
+                    <RadioGroup
+                      row
+                      value={network?.config.v6AssignMode.rfc4193 ? 'rfc4193' : network?.config.v6AssignMode.zt ? 'zt' : 'custom'}
+                    >
+                      <FormControlLabel value="none" control={<Radio />} label="不分配IPv6地址" />
+                      <FormControlLabel value="rfc4193" control={<Radio />} label="分配RFC4193唯一地址" />
+                      <FormControlLabel value="custom" control={<Radio />} label="从自定义IPv6范围分配" />
+                    </RadioGroup>
+                  </FormControl>
+                  
+                  <Box sx={{ pl: 4 }}>
+                    <Box sx={{ mb: 2 }}>
+                      <Grid container spacing={2} alignItems="center">
+                        <Grid size={{ xs: 5 }}>
+                          <TextField
+                            fullWidth
+                            label="起始IPv6"
+                            variant="outlined"
+                            size="small"
+                            placeholder="例如: fd00::1"
+                          />
+                        </Grid>
+                        <Grid size={{ xs: 5 }}>
+                          <TextField
+                            fullWidth
+                            label="结束IPv6"
+                            variant="outlined"
+                            size="small"
+                            placeholder="例如: fd00::ffff"
+                          />
+                        </Grid>
+                        <Grid size={{ xs: 2 }}>
+                          <Button variant="outlined" color="error" fullWidth size="small">
+                            删除
+                          </Button>
+                        </Grid>
+                      </Grid>
+                    </Box>
+                    <Button variant="outlined" startIcon={<Add />} size="small">
+                      添加IPv6地址池
+                    </Button>
+                  </Box>
+                </Box>
+              </Paper>
+              
+              {/* 多播设置 */}
+              <Paper elevation={3} sx={{ p: 3, mb: 4 }}>
+                <Typography variant="h5" sx={{ mb: 2 }}>
+                  多播设置
+                </Typography>
+                
+                <Grid container spacing={3}>
+                  <Grid size={{ xs: 12, md: 6 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                      <Typography variant="body1">
+                        多播接收者限制
+                      </Typography>
+                      <TextField
+                        type="number"
+                        size="small"
+                        value={network?.config.multicastLimit || 32}
+                        sx={{ width: 120 }}
+                      />
+                    </Box>
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 6 }}>
+                    <FormControlLabel
+                      control={<Switch checked={true} />}
+                      label="启用广播"
+                    />
+                  </Grid>
+                </Grid>
+              </Paper>
+              
+              {/* 删除网络 */}
+              <Paper elevation={3} sx={{ p: 3, mb: 4 }}>
+                <Typography variant="h5" sx={{ mb: 2, color: 'error.main' }}>
+                  删除网络
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                  此操作不可恢复。删除网络将断开所有连接的设备，并永久删除网络配置。
+                </Typography>
+                <Button variant="contained" color="error" size="large">
+                  删除网络
+                </Button>
+              </Paper>
+            </>
           )}
         </>
       )}
