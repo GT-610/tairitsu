@@ -96,25 +96,25 @@ func GetLogger() *zap.Logger {
 
 // Debug 记录Debug级别日志
 func Debug(msg string, fields ...zap.Field) {
-	logger.Debug(msg, fields...)
+	logger.WithOptions(zap.AddCallerSkip(1)).Debug(msg, fields...)
 }
 
 // Info 记录Info级别日志
 func Info(msg string, fields ...zap.Field) {
-	logger.Info(msg, fields...)
+	logger.WithOptions(zap.AddCallerSkip(1)).Info(msg, fields...)
 }
 
 // Warn 记录Warn级别日志
 func Warn(msg string, fields ...zap.Field) {
-	logger.Warn(msg, fields...)
+	logger.WithOptions(zap.AddCallerSkip(1)).Warn(msg, fields...)
 }
 
 // Error 记录Error级别日志
 func Error(msg string, fields ...zap.Field) {
-	logger.Error(msg, fields...)
+	logger.WithOptions(zap.AddCallerSkip(1)).Error(msg, fields...)
 }
 
 // Fatal 记录Fatal级别日志
 func Fatal(msg string, fields ...zap.Field) {
-	logger.Fatal(msg, fields...)
+	logger.WithOptions(zap.AddCallerSkip(1)).Fatal(msg, fields...)
 }
