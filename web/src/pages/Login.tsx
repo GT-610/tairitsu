@@ -105,8 +105,8 @@ function Login() {
       // Call login function from auth context
       login(user, token);
       
-      // Login successful, redirect to dashboard
-      navigate('/dashboard');
+      // Login successful, redirect to networks
+      navigate('/networks');
     } catch (error: any) {
       console.error('登录错误:', error);
       if (error.response && error.response.data && error.response.data.error) {

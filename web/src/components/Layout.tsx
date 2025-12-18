@@ -1,5 +1,4 @@
 import { Outlet } from 'react-router-dom';
-import { Box } from '@mui/material';
 import { useAuth } from '../services/auth';
 import ResponsiveDrawer from './ResponsiveDrawer';
 import { User } from '../services/api';

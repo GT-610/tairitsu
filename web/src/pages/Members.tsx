@@ -23,8 +23,8 @@ import {
   CircularProgress,
   IconButton
 } from '@mui/material';
-import { Add, Edit, Delete, Search, Refresh, ArrowBack } from '@mui/icons-material';
-import { useParams, Link } from 'react-router-dom';
+import { Edit, Delete, Search, Refresh, ArrowBack } from '@mui/icons-material';
+import { useParams } from 'react-router-dom';
 import { memberAPI, Member as ApiMember } from '../services/api';
 
 // 格式化后的成员类型定义（匹配ZeroTier设备属性）
@@ -65,7 +65,6 @@ function Members() {
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [openDialog, setOpenDialog] = useState<boolean>(false);
   const [currentMember, setCurrentMember] = useState<Member | null>(null);
-  const [isEditing, setIsEditing] = useState<boolean>(false);
   const [formData, setFormData] = useState<FormData>({
     name: '',
     authorized: true
@@ -122,7 +121,6 @@ function Members() {
   // 处理编辑成员
   const handleEditMember = (member: Member) => {
     setCurrentMember(member);
-    setIsEditing(true);
     setFormData({
       name: member.name,
       authorized: member.authorized

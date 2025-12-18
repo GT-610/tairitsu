@@ -343,7 +343,7 @@ function Networks() {
 
           {getFilteredNetworks().length === 0 && (
             <Typography variant="body1" sx={{ textAlign: 'center', mt: 5 }} color="text.secondary">
-              暂无网络，请点击"创建网络"按钮添加
+              暂无网络或未匹配到搜索结果
             </Typography>
           )}
         </>

@@ -37,12 +37,7 @@ interface MenuItemType {
   icon: React.ReactNode;
 }
 
-const menuItems: MenuItemType[] = [
-  {
-    text: '总览',
-    path: '/dashboard',
-    icon: <DashboardIcon />
-  },
+const mainMenuItems: MenuItemType[] = [
   {
     text: '网络',
     path: '/networks',
@@ -52,6 +47,14 @@ const menuItems: MenuItemType[] = [
     text: '设置',
     path: '/settings',
     icon: <SettingsIcon />
+  }
+];
+
+const adminMenuItems: MenuItemType[] = [
+  {
+    text: '管理员面板',
+    path: '/dashboard',
+    icon: <DashboardIcon />
   }
 ];
 
@@ -112,8 +115,9 @@ export default function ResponsiveDrawer({ window, children, title = 'Tairitsu',
     <div>
       <Toolbar />
       <Divider />
+      {/* 主菜单 */}
       <List>
-        {menuItems.map((item) => (
+        {mainMenuItems.map((item) => (
           <ListItem key={item.text} disablePadding>
             <ListItemButton
               component={Link}
@@ -129,6 +133,30 @@ export default function ResponsiveDrawer({ window, children, title = 'Tairitsu',
           </ListItem>
         ))}
       </List>
+      
+      {/* 管理员菜单，仅管理员可见 */}
+      {user && user.role === 'admin' && (
+        <>
+          <Divider />
+          <List>
+            {adminMenuItems.map((item) => (
+              <ListItem key={item.text} disablePadding>
+                <ListItemButton
+                  component={Link}
+                  to={item.path}
+                  selected={location.pathname.startsWith(item.path)}
+                  onClick={handleDrawerClose}
+                >
+                  <ListItemIcon>
+                    {item.icon}
+                  </ListItemIcon>
+                  <ListItemText primary={item.text} />
+                </ListItemButton>
+              </ListItem>
+            ))}
+          </List>
+        </>
+      )}
     </div>
   );
 

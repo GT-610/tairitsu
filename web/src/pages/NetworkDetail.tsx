@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Box, Typography, Card, CardContent, CircularProgress, Alert, Button, Divider, Grid, IconButton, Tabs, Tab, Paper }
+import { Box, Typography, Card, CardContent, CircularProgress, Alert, Button, Grid, IconButton, Tabs, Tab, Paper }
 from '@mui/material';
-import { ArrowBack, ContentCopy, MoreVert } from '@mui/icons-material';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { ArrowBack, ContentCopy } from '@mui/icons-material';
+import { useParams, Link } from 'react-router-dom';
 import { networkAPI, Network } from '../services/api';
 
 function NetworkDetail() {
@@ -11,7 +11,6 @@ function NetworkDetail() {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string>('');
   const [activeTab, setActiveTab] = useState<number>(0);
-  const navigate = useNavigate();
 
   useEffect(() => {
     fetchNetworkDetail();

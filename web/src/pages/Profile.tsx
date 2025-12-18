@@ -63,15 +63,6 @@ function Profile({ user }: ProfileProps) {
                 
                 <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 2fr' }, gap: 2 }}>
                   <Typography variant="body2" color="text.secondary">
-                    邮箱
-                  </Typography>
-                  <Typography variant="body1">
-                    {user.email || '未设置'}
-                  </Typography>
-                </Box>
-                
-                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 2fr' }, gap: 2 }}>
-                  <Typography variant="body2" color="text.secondary">
                     创建时间
                   </Typography>
                   <Typography variant="body1">
@@ -81,10 +72,10 @@ function Profile({ user }: ProfileProps) {
                 
                 <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 2fr' }, gap: 2 }}>
                   <Typography variant="body2" color="text.secondary">
-                    上次登录
+                    更新时间
                   </Typography>
                   <Typography variant="body1">
-                    {user.lastLogin ? new Date(user.lastLogin).toLocaleString() : '从未登录'}
+                    {user.updatedAt ? new Date(user.updatedAt).toLocaleString() : '未知'}
                   </Typography>
                 </Box>
               </Box>

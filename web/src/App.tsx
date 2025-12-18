@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import Login from './pages/Login';
 import Register from './pages/Register';
@@ -13,7 +13,7 @@ import UserManagement from './pages/UserManagement';
 import Layout from './components/Layout';
 import api from './services/api';
 import { useAuth } from './services/auth';
-import './App.css';
+// import './App.css';
 
 function AppContent() {
   const navigate = useNavigate();
@@ -128,13 +128,23 @@ function AppContent() {
             {isAuthenticated() ? (
               <>
                 <Route path="/" element={<Layout user={user} />}>
-                  <Route path="dashboard" element={<Dashboard />}></Route>
+                  {/* 公共路由 */}
                   <Route path="networks" element={<Networks />}></Route>
                   <Route path="networks/:id" element={<NetworkDetail />}></Route>
                   <Route path="networks/:id/members" element={<Members />}></Route>
                   <Route path="profile" element={<Profile user={user} />}></Route>
                   <Route path="settings" element={<Settings />}></Route>
-                  <Route path="settings/user-management" element={<UserManagement />}></Route>
+                  
+                  {/* 管理员路由 */}
+                  {user && user.role === 'admin' && (
+                    <>
+                      <Route path="dashboard" element={<Dashboard />}></Route>
+                      <Route path="dashboard/user-management" element={<UserManagement />}></Route>
+                    </>
+                  )}
+                  
+                  {/* 默认路由重定向 */}
+                  <Route path="" element={<Navigate to="/networks" replace />}></Route>
                 </Route>
               </>
             ) : (

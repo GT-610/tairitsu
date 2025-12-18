@@ -17,11 +17,9 @@ import {
   TextField,
   CircularProgress
 } from '@mui/material';
-import { Link } from 'react-router-dom';
-import { authAPI, User } from '../services/api';
+import { authAPI } from '../services/api';
 
 function Settings() {
-  const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [infoMessage, setInfoMessage] = useState<string>('');
   const [language, setLanguage] = useState<string>('zh-CN');
@@ -40,20 +38,10 @@ function Settings() {
   });
   const [changingPassword, setChangingPassword] = useState<boolean>(false);
 
-  // 获取当前用户信息
+  // 初始化加载状态
   useEffect(() => {
-    const fetchUserInfo = async () => {
-      try {
-        const response = await authAPI.getProfile();
-        setUser(response.data);
-      } catch (err) {
-        console.error('获取用户信息失败:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchUserInfo();
+    // 模拟加载完成，实际应用中可能需要加载设置信息
+    setLoading(false);
   }, []);
 
   // 显示开发中提示
@@ -217,43 +205,7 @@ function Settings() {
             </CardContent>
           </Card>
 
-          {/* 管理员设置 - 仅对管理员显示 */}
-          {user?.role === 'admin' && (
-            <Card sx={{ mb: 3 }}>
-              <CardContent>
-                <Typography variant="h6" gutterBottom>
-                  管理员设置
-                </Typography>
 
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  <Button
-                    variant="contained"
-                    onClick={showDevelopmentMessage}
-                    fullWidth
-                  >
-                    导入已有 ZeroTier 网络
-                  </Button>
-
-                  <Button
-                    variant="contained"
-                    component={Link}
-                    to="/settings/user-management"
-                    fullWidth
-                  >
-                    用户管理
-                  </Button>
-
-                  <Button
-                    variant="contained"
-                    onClick={showDevelopmentMessage}
-                    fullWidth
-                  >
-                    生成 planet 文件
-                  </Button>
-                </Box>
-              </CardContent>
-            </Card>
-          )}
         </>
       )}
 

@@ -14,7 +14,6 @@ import {
   IconButton
 } from '@mui/material';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
-import { useNavigate } from 'react-router-dom';
 import { authAPI, systemAPI } from '../services/api';
 
 // 管理员账户数据类型
@@ -40,15 +39,14 @@ interface ZtConfig {
   tokenPath: string;
 }
 
-// ZeroTier状态类型
-interface ZtStatus {
-  online: boolean;
-  version: string;
-}
+// ZeroTier状态类型 (暂时未使用)
+// interface ZtStatus {
+//   online: boolean;
+//   version: string;
+// }
 
 // Main component for the setup wizard
 const SetupWizard = () => {
-  const navigate = useNavigate();
   const [activeStep, setActiveStep] = useState<number>(0);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
@@ -76,9 +74,6 @@ const SetupWizard = () => {
     controllerUrl: 'http://localhost:9993',
     tokenPath: '/var/lib/zerotier-one/authtoken.secret'
   });
-  
-  const [ztStatus, setZtStatus] = useState<ZtStatus | null>(null);
-  const [ztConnected, setZtConnected] = useState<boolean>(false);
 
   // Setup wizard step titles
   const steps: string[] = [
@@ -110,15 +105,11 @@ const SetupWizard = () => {
     setSuccess('');
     try {
       // Save configuration and test connection simultaneously
-      const response = await systemAPI.saveZtConfig(ztConfig);
-      // Get ZeroTier status information from response
-      setZtStatus(response.data.status);
-      setZtConnected(true);
+      await systemAPI.saveZtConfig(ztConfig);
       setSuccess('ZeroTier 连接成功！已自动前往下一步。');
       return true;
     } catch (err: any) {
       setError('ZeroTier 连接失败: ' + (err.response?.data?.error || err.message));
-      setZtConnected(false);
       return false;
     } finally {
       setLoading(false);
