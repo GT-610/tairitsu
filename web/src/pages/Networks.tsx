@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Box, Typography, Button, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, CircularProgress, Alert, Modal, TextField, IconButton, Switch, FormControlLabel, Divider, Grid, Card, CardContent, Select, MenuItem, FormControl, InputLabel } from '@mui/material';
-import { Link, useNavigate } from 'react-router-dom';
+import { Box, Typography, Button, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, CircularProgress, Alert, Modal, TextField, IconButton, Grid, Card, CardContent, Select, MenuItem, FormControl, InputLabel } from '@mui/material';
+import { Link } from 'react-router-dom';
 import { Add, Edit, Delete, Close } from '@mui/icons-material';
 import { networkAPI, Network, NetworkConfig } from '../services/api';
 
@@ -25,15 +25,15 @@ function Networks() {
       allowPassiveBridging: true,
       ipAssignmentPools: [{ ipRangeStart: '192.168.192.1', ipRangeEnd: '192.168.192.254' }],
       routes: [{ target: '192.168.192.0/24' }],
-      v4AssignMode: { zt: true },
-      v6AssignMode: { zt: false },
+      v4AssignMode: { zt: true, rfc4193: false, user: false },
+      v6AssignMode: { zt: false, rfc4193: false, user: false },
       multicastLimit: 32
     }
   });
   // 搜索和筛选状态
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<string>('');
-  const navigate = useNavigate();
+
 
   const fetchNetworks = async () => {
     setLoading(true);
@@ -63,8 +63,8 @@ function Networks() {
           allowPassiveBridging: network.config?.allowPassiveBridging ?? true,
           ipAssignmentPools: network.config?.ipAssignmentPools ?? [{ ipRangeStart: '192.168.192.1', ipRangeEnd: '192.168.192.254' }],
           routes: network.config?.routes ?? [{ target: '192.168.192.0/24' }],
-          v4AssignMode: network.config?.v4AssignMode ?? { zt: true },
-          v6AssignMode: network.config?.v6AssignMode ?? { zt: false },
+          v4AssignMode: network.config?.v4AssignMode ?? { zt: true, rfc4193: false, user: false },
+          v6AssignMode: network.config?.v6AssignMode ?? { zt: false, rfc4193: false, user: false },
           multicastLimit: network.config?.multicastLimit ?? 32
         }
       });
@@ -77,8 +77,8 @@ function Networks() {
           allowPassiveBridging: true,
           ipAssignmentPools: [{ ipRangeStart: '192.168.192.1', ipRangeEnd: '192.168.192.254' }],
           routes: [{ target: '192.168.192.0/24' }],
-          v4AssignMode: { zt: true },
-          v6AssignMode: { zt: false },
+          v4AssignMode: { zt: true, rfc4193: false, user: false },
+          v6AssignMode: { zt: false, rfc4193: false, user: false },
           multicastLimit: 32
         }
       });
@@ -97,29 +97,53 @@ function Networks() {
         allowPassiveBridging: true,
         ipAssignmentPools: [{ ipRangeStart: '192.168.192.1', ipRangeEnd: '192.168.192.254' }],
         routes: [{ target: '192.168.192.0/24' }],
-        v4AssignMode: { zt: true },
-        v6AssignMode: { zt: false },
+        v4AssignMode: { zt: true, rfc4193: false, user: false },
+        v6AssignMode: { zt: false, rfc4193: false, user: false },
         multicastLimit: 32
       }
     });
   };
 
+  // 统一处理表单变化，支持嵌套对象
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value, type, checked } = e.target;
+    const target = e.target as HTMLInputElement;
+    const { name, value, type, checked } = target;
+    
+    if (!name) return;
+    
     if (name.startsWith('config.')) {
-      const configField = name.split('.')[1];
-      setFormData({
-        ...formData,
-        config: {
-          ...formData.config,
-          [configField]: type === 'checkbox' ? checked : value
-        }
-      });
+      const parts = name.split('.');
+      
+      if (parts.length === 2) {
+        // 处理二级嵌套，如 config.private
+        const [, child] = parts;
+        setFormData(prev => ({
+          ...prev,
+          config: {
+            ...prev.config,
+            [child]: type === 'checkbox' ? checked : value
+          }
+        }));
+      } else if (parts.length === 3) {
+        // 处理三级嵌套，如 config.v4AssignMode.zt
+        const [, child, grandchild] = parts;
+        setFormData(prev => ({
+          ...prev,
+          config: {
+            ...prev.config,
+            [child]: {
+              ...prev.config[child as keyof typeof prev.config] as any,
+              [grandchild]: type === 'checkbox' ? checked : value
+            }
+          }
+        }));
+      }
     } else {
-      setFormData({
-        ...formData,
+      // 处理一级字段，如 name, description
+      setFormData(prev => ({
+        ...prev,
         [name]: value
-      });
+      }));
     }
   };
 
@@ -127,9 +151,14 @@ function Networks() {
     e.preventDefault();
     try {
       if (editingNetwork) {
-        await networkAPI.updateNetwork(editingNetwork.id, formData);
+        // updateNetwork只需要NetworkConfig的部分属性，不需要name和description
+        await networkAPI.updateNetwork(editingNetwork.id, formData.config);
       } else {
-        await networkAPI.createNetwork(formData);
+        // createNetwork只需要name和description
+        await networkAPI.createNetwork({
+          name: formData.name,
+          description: formData.description
+        });
       }
       handleCloseModal();
       fetchNetworks();
@@ -147,6 +176,22 @@ function Networks() {
         setError('删除网络失败');
       }
     }
+  };
+
+  // 过滤网络列表的函数
+  const getFilteredNetworks = () => {
+    return networks.filter(network => {
+      // 搜索过滤
+      const matchesSearch = searchQuery === '' || 
+        (network.name && network.name.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (network.id && network.id.toLowerCase().includes(searchQuery.toLowerCase()));
+      
+      // 状态过滤（暂时不实现实际状态判断，因为后端还没提供）
+      // const matchesStatus = statusFilter === '' || network.status === statusFilter;
+      const matchesStatus = statusFilter === '';
+      
+      return matchesSearch && matchesStatus;
+    });
   };
 
   return (
@@ -199,7 +244,7 @@ function Networks() {
             <Card sx={{ height: '100%', backgroundColor: '#2c3e50', display: 'flex', flexDirection: 'column' }}>
               <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
                 <Typography variant="h6" color="text.secondary" gutterBottom>
-                  待验证设备数
+                  待认证设备数
                 </Typography>
                 <Typography variant="h4">
                   开发中
@@ -241,7 +286,7 @@ function Networks() {
             </FormControl>
           </Box>
 
-          <TableContainer component={Paper}>
+          <TableContainer component={Paper} sx={{ overflowX: 'auto' }}>
             <Table sx={{ minWidth: 650 }}>
               <TableHead>
                 <TableRow>
@@ -253,18 +298,7 @@ function Networks() {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {networks.filter(network => {
-                  // 搜索过滤
-                  const matchesSearch = searchQuery === '' || 
-                    (network.name && network.name.toLowerCase().includes(searchQuery.toLowerCase())) ||
-                    (network.id && network.id.toLowerCase().includes(searchQuery.toLowerCase()));
-                  
-                  // 状态过滤（暂时不实现实际状态判断，因为后端还没提供）
-                  // const matchesStatus = statusFilter === '' || network.status === statusFilter;
-                  const matchesStatus = statusFilter === '';
-                  
-                  return matchesSearch && matchesStatus;
-                }).map((network) => (
+                {getFilteredNetworks().map((network) => (
                   <TableRow key={network.id}>
                     <TableCell component="th" scope="row">
                       {network.name || '未命名网络'}
@@ -307,18 +341,7 @@ function Networks() {
             </Table>
           </TableContainer>
 
-          {networks.filter(network => {
-            // 搜索过滤
-            const matchesSearch = searchQuery === '' || 
-              (network.name && network.name.toLowerCase().includes(searchQuery.toLowerCase())) ||
-              (network.id && network.id.toLowerCase().includes(searchQuery.toLowerCase()));
-            
-            // 状态过滤（暂时不实现实际状态判断，因为后端还没提供）
-            // const matchesStatus = statusFilter === '' || network.status === statusFilter;
-            const matchesStatus = statusFilter === '';
-            
-            return matchesSearch && matchesStatus;
-          }).length === 0 && (
+          {getFilteredNetworks().length === 0 && (
             <Typography variant="body1" sx={{ textAlign: 'center', mt: 5 }} color="text.secondary">
               暂无网络，请点击"创建网络"按钮添加
             </Typography>
@@ -373,61 +396,6 @@ function Networks() {
               rows={3}
               value={formData.description}
               onChange={handleChange}
-            />
-            
-            <Divider sx={{ my: 3 }} />
-            <Typography variant="h6" gutterBottom>
-              网络配置
-            </Typography>
-            
-
-            
-            <FormControlLabel
-              control={
-                <Switch
-                  checked={formData.config.allowPassiveBridging}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({
-                    ...formData,
-                    config: {
-                      ...formData.config,
-                      allowPassiveBridging: e.target.checked
-                    }
-                  })}
-                />
-              }
-              label="允许被动桥接"
-            />
-            
-            <FormControlLabel
-              control={
-                <Switch
-                  checked={formData.config.v4AssignMode.zt}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({
-                    ...formData,
-                    config: {
-                      ...formData.config,
-                      v4AssignMode: { zt: e.target.checked }
-                    }
-                  })}
-                />
-              }
-              label="启用IPv4自动分配"
-            />
-            
-            <FormControlLabel
-              control={
-                <Switch
-                  checked={formData.config.v6AssignMode.zt}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({
-                    ...formData,
-                    config: {
-                      ...formData.config,
-                      v6AssignMode: { zt: e.target.checked }
-                    }
-                  })}
-                />
-              }
-              label="启用IPv6自动分配"
             />
             
             <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end', mt: 3 }}>

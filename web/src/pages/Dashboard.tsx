@@ -190,7 +190,7 @@ function Dashboard() {
             <Typography variant="h5" component="h2" gutterBottom>
               网络概览
             </Typography>
-            <TableContainer component={Paper}>
+            <TableContainer component={Paper} sx={{ overflowX: 'auto' }}>
               <Table sx={{ minWidth: 650 }} aria-label="networks overview table">
                 <TableHead>
                   <TableRow>
