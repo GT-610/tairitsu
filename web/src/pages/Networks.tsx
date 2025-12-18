@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Box, Typography, Button, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, CircularProgress, Alert, Modal, TextField, IconButton, Switch, FormControlLabel, Divider } from '@mui/material';
+import { Box, Typography, Button, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, CircularProgress, Alert, Modal, TextField, IconButton, Switch, FormControlLabel, Divider, Grid, Card, CardContent, Select, MenuItem, FormControl, InputLabel } from '@mui/material';
 import { Link, useNavigate } from 'react-router-dom';
 import { Add, Edit, Delete, Close } from '@mui/icons-material';
 import { networkAPI, Network, NetworkConfig } from '../services/api';
@@ -30,6 +30,9 @@ function Networks() {
       multicastLimit: 32
     }
   });
+  // 搜索和筛选状态
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [statusFilter, setStatusFilter] = useState<string>('');
   const navigate = useNavigate();
 
   const fetchNetworks = async () => {
@@ -165,32 +168,110 @@ function Networks() {
         </Alert>
       )}
 
+      {/* 统计卡片区域 */}
+      <Paper elevation={3} sx={{ p: 3, mb: 4 }}>
+        <Grid container spacing={3}>
+          <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+            <Card sx={{ height: '100%', backgroundColor: '#2c3e50', display: 'flex', flexDirection: 'column' }}>
+              <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                <Typography variant="h6" color="text.secondary" gutterBottom>
+                  总网络数
+                </Typography>
+                <Typography variant="h4">
+                  开发中
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+            <Card sx={{ height: '100%', backgroundColor: '#2c3e50', display: 'flex', flexDirection: 'column' }}>
+              <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                <Typography variant="h6" color="text.secondary" gutterBottom>
+                  已认证设备数
+                </Typography>
+                <Typography variant="h4">
+                  开发中
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+            <Card sx={{ height: '100%', backgroundColor: '#2c3e50', display: 'flex', flexDirection: 'column' }}>
+              <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                <Typography variant="h6" color="text.secondary" gutterBottom>
+                  待验证设备数
+                </Typography>
+                <Typography variant="h4">
+                  开发中
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+        </Grid>
+      </Paper>
+
       {loading ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', mt: 10 }}>
           <CircularProgress />
         </Box>
       ) : (
         <>
+          {/* 搜索和筛选区域 */}
+          <Box sx={{ display: 'flex', gap: 2, mb: 3, flexWrap: 'wrap', alignItems: 'center' }}>
+            <TextField
+              label="搜索"
+              variant="outlined"
+              size="small"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              sx={{ width: { xs: '100%', sm: '250px' } }}
+            />
+            <FormControl variant="outlined" size="small" sx={{ width: { xs: '100%', sm: '150px' } }}>
+              <InputLabel>状态</InputLabel>
+              <Select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                label="状态"
+              >
+                <MenuItem value="">全部</MenuItem>
+                <MenuItem value="online">在线</MenuItem>
+                <MenuItem value="offline">离线</MenuItem>
+                <MenuItem value="warning">警告</MenuItem>
+              </Select>
+            </FormControl>
+          </Box>
+
           <TableContainer component={Paper}>
             <Table sx={{ minWidth: 650 }}>
               <TableHead>
                 <TableRow>
-                  <TableCell>网络ID</TableCell>
                   <TableCell>名称</TableCell>
-                  <TableCell>描述</TableCell>
-                  <TableCell>成员数</TableCell>
+                  <TableCell>网络ID</TableCell>
+                  <TableCell>设备数</TableCell>
+                  <TableCell>状态</TableCell>
                   <TableCell>操作</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
-                {networks.map((network) => (
+                {networks.filter(network => {
+                  // 搜索过滤
+                  const matchesSearch = searchQuery === '' || 
+                    (network.name && network.name.toLowerCase().includes(searchQuery.toLowerCase())) ||
+                    (network.id && network.id.toLowerCase().includes(searchQuery.toLowerCase()));
+                  
+                  // 状态过滤（暂时不实现实际状态判断，因为后端还没提供）
+                  // const matchesStatus = statusFilter === '' || network.status === statusFilter;
+                  const matchesStatus = statusFilter === '';
+                  
+                  return matchesSearch && matchesStatus;
+                }).map((network) => (
                   <TableRow key={network.id}>
                     <TableCell component="th" scope="row">
-                      {network.id}
+                      {network.name || '未命名网络'}
                     </TableCell>
-                    <TableCell>{network.name}</TableCell>
-                    <TableCell>{network.description || '-'}</TableCell>
+                    <TableCell>{network.id}</TableCell>
                     <TableCell>{(network.members?.length || 0)}</TableCell>
+                    <TableCell>开发中</TableCell>
                     <TableCell>
                       <Box sx={{ display: 'flex', gap: 1 }}>
                         <Button 
@@ -226,7 +307,18 @@ function Networks() {
             </Table>
           </TableContainer>
 
-          {networks.length === 0 && (
+          {networks.filter(network => {
+            // 搜索过滤
+            const matchesSearch = searchQuery === '' || 
+              (network.name && network.name.toLowerCase().includes(searchQuery.toLowerCase())) ||
+              (network.id && network.id.toLowerCase().includes(searchQuery.toLowerCase()));
+            
+            // 状态过滤（暂时不实现实际状态判断，因为后端还没提供）
+            // const matchesStatus = statusFilter === '' || network.status === statusFilter;
+            const matchesStatus = statusFilter === '';
+            
+            return matchesSearch && matchesStatus;
+          }).length === 0 && (
             <Typography variant="body1" sx={{ textAlign: 'center', mt: 5 }} color="text.secondary">
               暂无网络，请点击"创建网络"按钮添加
             </Typography>
