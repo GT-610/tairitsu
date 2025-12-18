@@ -70,6 +70,14 @@ const configFilePath = "./data/config.json"
 
 // LoadConfig Load configuration (from config.json)
 func LoadConfig() (*Config, error) {
+	// Ensure data directory exists
+	dataDir := "./data"
+	if _, err := os.Stat(dataDir); os.IsNotExist(err) {
+		if err := os.MkdirAll(dataDir, 0755); err != nil {
+			return nil, fmt.Errorf("failed to create data directory: %w", err)
+		}
+	}
+
 	// First try to load from config.json
 	cfg, err := loadConfigFromJSON()
 	if err == nil {
@@ -82,6 +90,11 @@ func LoadConfig() (*Config, error) {
 
 	// Try to load partial configuration from .env file or environment variables
 	loadEnvConfig(cfg)
+
+	// Save default configuration to config.json
+	if err := SaveConfig(cfg); err != nil {
+		return nil, fmt.Errorf("failed to save default configuration: %w", err)
+	}
 
 	AppConfig = cfg
 	return cfg, nil
@@ -117,6 +130,14 @@ func SaveConfig(cfg *Config) error {
 		return fmt.Errorf("failed to serialize configuration: %w", err)
 	}
 
+	// Ensure data directory exists
+	dataDir := "./data"
+	if _, err := os.Stat(dataDir); os.IsNotExist(err) {
+		if err := os.MkdirAll(dataDir, 0755); err != nil {
+			return fmt.Errorf("failed to create data directory: %w", err)
+		}
+	}
+
 	// Write to file with appropriate permissions (owner read/write only)
 	return os.WriteFile(configFilePath, data, 0600)
 }
@@ -125,14 +146,8 @@ func SaveConfig(cfg *Config) error {
 func createDefaultConfig() *Config {
 	return &Config{
 		Initialized: false,
-		Database: DatabaseConfig{
-			Type: SQLite,
-			Path: "data/tairitsu.db",
-		},
-		ZeroTier: ZeroTierConfig{
-			URL:       "http://localhost:9993",
-			TokenPath: "/var/lib/zerotier-one/authtoken.secret",
-		},
+		Database:    DatabaseConfig{},
+		ZeroTier:    ZeroTierConfig{},
 		Server: ServerConfig{
 			Port: 8080,
 			Host: "0.0.0.0",

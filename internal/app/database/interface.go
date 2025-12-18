@@ -13,7 +13,6 @@ type DBInterface interface {
 	CreateUser(user *models.User) error
 	GetUserByID(id string) (*models.User, error)
 	GetUserByUsername(username string) (*models.User, error)
-	GetUserByEmail(email string) (*models.User, error)
 	GetAllUsers() ([]*models.User, error)
 	UpdateUser(user *models.User) error
 	DeleteUser(id string) error

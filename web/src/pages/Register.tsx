@@ -7,7 +7,6 @@ import { authAPI } from '../services/api';
 // 表单数据类型定义
 interface FormData {
   username: string;
-  email: string;
   password: string;
   confirmPassword: string;
 }
@@ -15,7 +14,6 @@ interface FormData {
 function Register() {
   const [formData, setFormData] = useState<FormData>({
     username: '',
-    email: '',
     password: '',
     confirmPassword: ''
   });
@@ -46,7 +44,6 @@ function Register() {
     try {
       await authAPI.register({
         username: formData.username,
-        email: formData.email,
         password: formData.password
       });
       setSuccess('注册成功，请登录');
@@ -91,19 +88,6 @@ function Register() {
             autoComplete="username"
             autoFocus
             value={formData.username}
-            onChange={handleChange}
-            disabled={loading}
-          />
-          <TextField
-            margin="normal"
-            required
-            fullWidth
-            id="email"
-            label="邮箱"
-            name="email"
-            type="email"
-            autoComplete="email"
-            value={formData.email}
             onChange={handleChange}
             disabled={loading}
           />

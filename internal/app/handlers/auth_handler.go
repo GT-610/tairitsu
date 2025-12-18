@@ -31,7 +31,7 @@ func (h *AuthHandler) Register(c fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	logger.Info("开始用户注册", zap.String("username", req.Username), zap.String("email", req.Email))
+	logger.Info("开始用户注册", zap.String("username", req.Username))
 
 	// Determine user role - first registered user becomes admin
 	role := "user"

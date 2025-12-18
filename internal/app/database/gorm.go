@@ -53,18 +53,7 @@ func (g *GormDB) GetUserByUsername(username string) (*models.User, error) {
 	return &user, nil
 }
 
-// GetUserByEmail 根据邮箱获取用户
-func (g *GormDB) GetUserByEmail(email string) (*models.User, error) {
-	var user models.User
-	result := g.db.First(&user, "email = ?", email)
-	if result.Error != nil {
-		if result.Error == gorm.ErrRecordNotFound {
-			return nil, nil
-		}
-		return nil, result.Error
-	}
-	return &user, nil
-}
+
 
 // GetAllUsers 获取所有用户
 func (g *GormDB) GetAllUsers() ([]*models.User, error) {

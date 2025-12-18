@@ -46,7 +46,6 @@ func (s *SQLiteDB) Init() error {
 		id TEXT PRIMARY KEY,
 		username TEXT UNIQUE NOT NULL,
 		password TEXT NOT NULL,
-		email TEXT UNIQUE NOT NULL,
 		role TEXT NOT NULL DEFAULT 'user',
 		created_at DATETIME NOT NULL,
 		updated_at DATETIME NOT NULL
@@ -66,10 +65,10 @@ func (s *SQLiteDB) CreateUser(user *models.User) error {
 	defer s.mu.Unlock()
 
 	query := `
-	INSERT INTO users (id, username, password, email, role, created_at, updated_at)
-	VALUES (?, ?, ?, ?, ?, ?, ?)`
+	INSERT INTO users (id, username, password, role, created_at, updated_at)
+	VALUES (?, ?, ?, ?, ?, ?)`
 
-	_, err := s.db.Exec(query, user.ID, user.Username, user.Password, user.Email, user.Role, user.CreatedAt, user.UpdatedAt)
+	_, err := s.db.Exec(query, user.ID, user.Username, user.Password, user.Role, user.CreatedAt, user.UpdatedAt)
 	if err != nil {
 		return fmt.Errorf("创建用户失败: %w", err)
 	}
@@ -82,11 +81,11 @@ func (s *SQLiteDB) GetUserByID(id string) (*models.User, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	query := `SELECT id, username, password, email, role, created_at, updated_at FROM users WHERE id = ?`
+	query := `SELECT id, username, password, role, created_at, updated_at FROM users WHERE id = ?`
 	row := s.db.QueryRow(query, id)
 
 	var user models.User
-	err := row.Scan(&user.ID, &user.Username, &user.Password, &user.Email, &user.Role, &user.CreatedAt, &user.UpdatedAt)
+	err := row.Scan(&user.ID, &user.Username, &user.Password, &user.Role, &user.CreatedAt, &user.UpdatedAt)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
@@ -102,31 +101,11 @@ func (s *SQLiteDB) GetUserByUsername(username string) (*models.User, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	query := `SELECT id, username, password, email, role, created_at, updated_at FROM users WHERE username = ?`
+	query := `SELECT id, username, password, role, created_at, updated_at FROM users WHERE username = ?`
 	row := s.db.QueryRow(query, username)
 
 	var user models.User
-	err := row.Scan(&user.ID, &user.Username, &user.Password, &user.Email, &user.Role, &user.CreatedAt, &user.UpdatedAt)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return nil, nil
-		}
-		return nil, fmt.Errorf("查询用户失败: %w", err)
-	}
-
-	return &user, nil
-}
-
-// GetUserByEmail 根据邮箱获取用户
-func (s *SQLiteDB) GetUserByEmail(email string) (*models.User, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	query := `SELECT id, username, password, email, role, created_at, updated_at FROM users WHERE email = ?`
-	row := s.db.QueryRow(query, email)
-
-	var user models.User
-	err := row.Scan(&user.ID, &user.Username, &user.Password, &user.Email, &user.Role, &user.CreatedAt, &user.UpdatedAt)
+	err := row.Scan(&user.ID, &user.Username, &user.Password, &user.Role, &user.CreatedAt, &user.UpdatedAt)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
@@ -142,7 +121,7 @@ func (s *SQLiteDB) GetAllUsers() ([]*models.User, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	query := `SELECT id, username, password, email, role, created_at, updated_at FROM users`
+	query := `SELECT id, username, password, role, created_at, updated_at FROM users`
 	rows, err := s.db.Query(query)
 	if err != nil {
 		return nil, fmt.Errorf("查询所有用户失败: %w", err)
@@ -152,7 +131,7 @@ func (s *SQLiteDB) GetAllUsers() ([]*models.User, error) {
 	var users []*models.User
 	for rows.Next() {
 		var user models.User
-		err := rows.Scan(&user.ID, &user.Username, &user.Password, &user.Email, &user.Role, &user.CreatedAt, &user.UpdatedAt)
+		err := rows.Scan(&user.ID, &user.Username, &user.Password, &user.Role, &user.CreatedAt, &user.UpdatedAt)
 		if err != nil {
 			return nil, fmt.Errorf("扫描用户数据失败: %w", err)
 		}
@@ -169,10 +148,10 @@ func (s *SQLiteDB) UpdateUser(user *models.User) error {
 
 	query := `
 	UPDATE users 
-	SET username = ?, password = ?, email = ?, role = ?, updated_at = ?
+	SET username = ?, password = ?, role = ?, updated_at = ?
 	WHERE id = ?`
 
-	_, err := s.db.Exec(query, user.Username, user.Password, user.Email, user.Role, user.UpdatedAt, user.ID)
+	_, err := s.db.Exec(query, user.Username, user.Password, user.Role, user.UpdatedAt, user.ID)
 	if err != nil {
 		return fmt.Errorf("更新用户失败: %w", err)
 	}

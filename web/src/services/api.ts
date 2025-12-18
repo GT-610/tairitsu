@@ -5,7 +5,6 @@ import axios from 'axios'
 export interface User {
   id: string;
   username: string;
-  email: string;
   role: 'admin' | 'user';
   createdAt: string;
   updatedAt: string;
@@ -126,7 +125,7 @@ api.interceptors.response.use(
 // Authentication related APIs
 export const authAPI = {
   // User registration
-  register: (data: { username: string; email: string; password: string }) => api.post<{ user: User; token: string }>('/auth/register', data),
+  register: (data: { username: string; password: string }) => api.post<{ user: User; token: string }>('/auth/register', data),
   // User login
   login: (data: { username: string; password: string }) => api.post<{ user: User; token: string }>('/auth/login', data),
   // Get user profile

@@ -21,7 +21,6 @@ import { authAPI, systemAPI } from '../services/api';
 interface AdminData {
   username: string;
   password: string;
-  email: string;
 }
 
 // 数据库配置类型
@@ -58,8 +57,7 @@ const SetupWizard = () => {
   // Admin account data
   const [adminData, setAdminData] = useState<AdminData>({
     username: '',
-    password: '',
-    email: ''
+    password: ''
   });
   
   // Database configuration
@@ -192,17 +190,6 @@ const SetupWizard = () => {
         }
         if (!adminData.password || adminData.password.length < 6) {
           setError('密码长度至少为6位');
-          return;
-        }
-        if (!adminData.email.trim()) {
-          setError('请输入邮箱地址');
-          return;
-        }
-        
-        // Simple email format validation
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(adminData.email)) {
-          setError('请输入有效的邮箱地址');
           return;
         }
         
@@ -519,18 +506,6 @@ const SetupWizard = () => {
                 onChange={handleAdminDataChange}
                 disabled={loading}
                 helperText="密码长度至少为6位"
-              />
-              <TextField
-                margin="normal"
-                required
-                fullWidth
-                id="email"
-                label="邮箱地址"
-                name="email"
-                autoComplete="email"
-                value={adminData.email}
-                onChange={handleAdminDataChange}
-                disabled={loading}
               />
               {renderMessages()}
             </form>

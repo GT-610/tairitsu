@@ -57,7 +57,7 @@ func (s *UserService) Register(req *models.RegisterRequest, role ...string) (*mo
 		return nil, errors.New("系统尚未配置数据库，请先完成初始设置")
 	}
 
-	logger.Info("服务层：开始用户注册", zap.String("username", req.Username), zap.String("email", req.Email))
+	logger.Info("服务层：开始用户注册", zap.String("username", req.Username))
 
 	// Check if username already exists
 	existingUser, err := s.db.GetUserByUsername(req.Username)
@@ -68,17 +68,6 @@ func (s *UserService) Register(req *models.RegisterRequest, role ...string) (*mo
 	if existingUser != nil {
 		logger.Error("服务层：注册失败，用户名已存在", zap.String("username", req.Username))
 		return nil, errors.New("用户名已存在")
-	}
-
-	// Check if email already exists
-	existingUser, err = s.db.GetUserByEmail(req.Email)
-	if err != nil {
-		logger.Error("服务层：注册失败，检查邮箱时出错", zap.String("email", req.Email), zap.Error(err))
-		return nil, err
-	}
-	if existingUser != nil {
-		logger.Error("服务层：注册失败，邮箱已被使用", zap.String("email", req.Email))
-		return nil, errors.New("邮箱已被使用")
 	}
 
 	// Hash password using bcrypt
@@ -99,7 +88,6 @@ func (s *UserService) Register(req *models.RegisterRequest, role ...string) (*mo
 		ID:        uuid.New().String(),
 		Username:  req.Username,
 		Password:  string(hashedPassword),
-		Email:     req.Email,
 		Role:      userRole, // Use specified role or default 'user'
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
