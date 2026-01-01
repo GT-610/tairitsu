@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Box, Typography, Button, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, CircularProgress, Alert, Modal, TextField, IconButton, Grid, Card, CardContent, Select, MenuItem, FormControl, InputLabel } from '@mui/material';
+import { Box, Typography, Button, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, CircularProgress, Alert, Modal, TextField, IconButton, Grid, Card, CardContent, Select, MenuItem, FormControl, InputLabel, Chip } from '@mui/material';
 import { Link } from 'react-router-dom';
 import { Add, Edit, Delete, Close } from '@mui/icons-material';
 import { networkAPI, Network, NetworkConfig } from '../services/api';
@@ -194,6 +194,39 @@ function Networks() {
     });
   };
 
+  // 计算统计数据
+  const totalNetworks = networks.length;
+  
+  const totalMembers = networks.reduce((sum, network) => sum + (network.members?.length || 0), 0);
+  
+  const authorizedMembers = networks.reduce((sum, network) => {
+    return sum + (network.members?.filter(member => member.authorized).length || 0);
+  }, 0);
+  
+  const unauthorizedMembers = totalMembers - authorizedMembers;
+
+  // 获取网络状态的显示信息
+  const getNetworkStatusInfo = (status: string) => {
+    switch (status) {
+      case 'OK':
+        return { label: '正常运行', color: 'success' as const };
+      case 'REQUESTING_CONFIGURATION':
+        return { label: '等待配置', color: 'warning' as const };
+      case 'ACCESS_DENIED':
+        return { label: '访问被拒绝', color: 'error' as const };
+      case 'NOT_FOUND':
+        return { label: '网络不存在', color: 'error' as const };
+      case 'PORT_ERROR':
+        return { label: '端口错误', color: 'error' as const };
+      case 'CLIENT_TOO_OLD':
+        return { label: '客户端版本过旧', color: 'warning' as const };
+      case 'AUTHENTICATION_REQUIRED':
+        return { label: '需要认证', color: 'warning' as const };
+      default:
+        return { label: status || '未知', color: 'default' as const };
+    }
+  };
+
   return (
     <Box sx={{ p: 3 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
@@ -223,7 +256,7 @@ function Networks() {
                   总网络数
                 </Typography>
                 <Typography variant="h4">
-                  开发中
+                  {totalNetworks}
                 </Typography>
               </CardContent>
             </Card>
@@ -235,7 +268,7 @@ function Networks() {
                   已认证设备数
                 </Typography>
                 <Typography variant="h4">
-                  开发中
+                  {authorizedMembers}
                 </Typography>
               </CardContent>
             </Card>
@@ -247,7 +280,7 @@ function Networks() {
                   待认证设备数
                 </Typography>
                 <Typography variant="h4">
-                  开发中
+                  {unauthorizedMembers}
                 </Typography>
               </CardContent>
             </Card>
@@ -305,7 +338,13 @@ function Networks() {
                     </TableCell>
                     <TableCell>{network.id}</TableCell>
                     <TableCell>{(network.members?.length || 0)}</TableCell>
-                    <TableCell>开发中</TableCell>
+                    <TableCell>
+                      <Chip 
+                        label={getNetworkStatusInfo(network.status).label}
+                        color={getNetworkStatusInfo(network.status).color}
+                        size="small"
+                      />
+                    </TableCell>
                     <TableCell>
                       <Box sx={{ display: 'flex', gap: 1 }}>
                         <Button 

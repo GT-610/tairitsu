@@ -16,6 +16,7 @@ export interface Network {
   description?: string;
   config: NetworkConfig;
   members: Member[];
+  status: string;
   createdAt: string;
   updatedAt: string;
 }

@@ -93,11 +93,23 @@ func (s *NetworkService) GetAllNetworks(ownerID string) ([]zerotier.Network, err
 
 	for _, net := range allNetworks {
 		if ownedNetworkIDs[net.ID] {
+			// 获取网络状态
+			net.Status = s.getNetworkStatus(net.ID)
 			filteredNetworks = append(filteredNetworks, net)
 		}
 	}
 
 	return filteredNetworks, nil
+}
+
+// getNetworkStatus 获取网络状态
+func (s *NetworkService) getNetworkStatus(networkID string) string {
+	status, err := s.ztClient.GetNetworkStatus(networkID)
+	if err != nil {
+		logger.Warn("获取网络状态失败", zap.String("network_id", networkID), zap.Error(err))
+		return "unknown"
+	}
+	return status
 }
 
 // GetNetworkByID retrieves a network by its ID with ownership check

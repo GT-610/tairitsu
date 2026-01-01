@@ -26,6 +26,7 @@ type Network struct {
 	Config      NetworkConfig `json:"config" binding:"required"`
 	Created     int64         `json:"creationTime"`
 	Modified    int64         `json:"lastModifiedTime"`
+	Status      string        `json:"status"`
 }
 
 // NetworkConfig 网络配置
@@ -234,6 +235,25 @@ func (c *Client) GetNetworks() ([]Network, error) {
 	}
 
 	return networks, nil
+}
+
+// GetNetworkStatus 获取网络状态
+func (c *Client) GetNetworkStatus(networkID string) (string, error) {
+	endpoint := fmt.Sprintf("/controller/network/%s/status", networkID)
+	respBody, err := c.doRequest("GET", endpoint, nil)
+	if err != nil {
+		return "", err
+	}
+
+	// 解析响应获取状态
+	var status struct {
+		Status string `json:"status"`
+	}
+	if err := json.Unmarshal(respBody, &status); err != nil {
+		return "", fmt.Errorf("解析网络状态失败: %w", err)
+	}
+
+	return status.Status, nil
 }
 
 // GetNetwork 获取单个网络详情
