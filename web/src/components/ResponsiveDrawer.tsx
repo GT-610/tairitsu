@@ -17,6 +17,7 @@ import DashboardIcon from '@mui/icons-material/Dashboard';
 import LanguageIcon from '@mui/icons-material/Language';
 import SettingsIcon from '@mui/icons-material/Settings';
 import AccountCircle from '@mui/icons-material/AccountCircle';
+import ImportExportIcon from '@mui/icons-material/ImportExport';
 import MenuItem from '@mui/material/MenuItem';
 import Menu from '@mui/material/Menu';
 import MenuList from '@mui/material/MenuList';
@@ -29,6 +30,7 @@ import Button from '@mui/material/Button';
 import { Link, useLocation } from 'react-router-dom';
 import { User } from '../services/api';
 import LogoutIcon from '@mui/icons-material/Logout';
+import { ImportNetworkModal } from './ImportNetworkModal';
 
 const drawerWidth = 240;
 
@@ -74,6 +76,7 @@ export default function ResponsiveDrawer({ window, children, title = 'Tairitsu',
   const [isClosing, setIsClosing] = React.useState<boolean>(false);
   const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
   const [openConfirmDialog, setOpenConfirmDialog] = React.useState<boolean>(false);
+  const [openImportModal, setOpenImportModal] = React.useState<boolean>(false);
   const location = useLocation();
 
   const handleDrawerClose = () => {
@@ -111,6 +114,20 @@ export default function ResponsiveDrawer({ window, children, title = 'Tairitsu',
 
   const handleCancelLogout = () => {
     setOpenConfirmDialog(false);
+  };
+
+  const handleOpenImportModal = () => {
+    setOpenImportModal(true);
+  };
+
+  const handleCloseImportModal = () => {
+    setOpenImportModal(false);
+  };
+
+  const handleImportComplete = () => {
+    if (window) {
+      window().location.reload();
+    }
   };
 
   const drawer = (
@@ -156,6 +173,14 @@ export default function ResponsiveDrawer({ window, children, title = 'Tairitsu',
                 </ListItemButton>
               </ListItem>
             ))}
+            <ListItem disablePadding>
+              <ListItemButton onClick={() => { handleDrawerClose(); handleOpenImportModal(); }}>
+                <ListItemIcon>
+                  <ImportExportIcon />
+                </ListItemIcon>
+                <ListItemText primary="导入网络" />
+              </ListItemButton>
+            </ListItem>
           </List>
         </>
       )}
@@ -284,6 +309,12 @@ export default function ResponsiveDrawer({ window, children, title = 'Tairitsu',
           </Button>
         </DialogActions>
       </Dialog>
+
+      <ImportNetworkModal
+        open={openImportModal}
+        onClose={handleCloseImportModal}
+        onImportComplete={handleImportComplete}
+      />
     </Box>
   );
 }

@@ -165,3 +165,66 @@ func (h *NetworkHandler) DeleteNetwork(c fiber.Ctx) error {
 
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{"message": "网络删除成功"})
 }
+
+// GetImportableNetworks 获取可导入的网络列表
+func (h *NetworkHandler) GetImportableNetworks(c fiber.Ctx) error {
+	logger.Info("开始获取可导入的网络列表")
+
+	// Get user ID from context
+	userID := c.Locals("user_id")
+	if userID == nil {
+		logger.Error("获取用户ID失败")
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "未授权访问"})
+	}
+
+	importableNetworks, err := h.networkService.GetImportableNetworks(userID.(string))
+	if err != nil {
+		logger.Error("获取可导入网络列表失败", zap.Error(err))
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	logger.Info("成功获取可导入网络列表", zap.Int("count", len(importableNetworks)))
+
+	return c.Status(fiber.StatusOK).JSON(importableNetworks)
+}
+
+// ImportNetworks 导入指定的网络
+func (h *NetworkHandler) ImportNetworks(c fiber.Ctx) error {
+	logger.Info("开始导入网络")
+
+	// Get user ID from context
+	userID := c.Locals("user_id")
+	if userID == nil {
+		logger.Error("获取用户ID失败")
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "未授权访问"})
+	}
+
+	// Parse request body
+	var request struct {
+		NetworkIDs []string `json:"network_ids"`
+	}
+
+	if err := c.Bind().Body(&request); err != nil {
+		logger.Error("解析导入请求失败", zap.Error(err))
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	if len(request.NetworkIDs) == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "网络ID列表为空"})
+	}
+
+	logger.Info("开始导入网络", zap.Strings("network_ids", request.NetworkIDs))
+
+	importedIDs, err := h.networkService.ImportNetworks(request.NetworkIDs, userID.(string))
+	if err != nil {
+		logger.Error("导入网络失败", zap.Error(err))
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	logger.Info("成功导入网络", zap.Int("imported_count", len(importedIDs)))
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"message":      "导入成功",
+		"imported_ids": importedIDs,
+	})
+}

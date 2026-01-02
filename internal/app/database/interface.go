@@ -21,6 +21,7 @@ type DBInterface interface {
 	CreateNetwork(network *models.Network) error
 	GetNetworkByID(id string) (*models.Network, error)
 	GetNetworksByOwnerID(ownerID string) ([]*models.Network, error)
+	GetAllNetworks() ([]*models.Network, error)
 	UpdateNetwork(network *models.Network) error
 	DeleteNetwork(id string) error
 	

@@ -41,7 +41,7 @@ func NewSQLiteDB(dbPath string) (*SQLiteDB, error) {
 // Init 初始化数据库表结构
 func (s *SQLiteDB) Init() error {
 	// 创建用户表
-	query := `
+	createUsersTable := `
 	CREATE TABLE IF NOT EXISTS users (
 		id TEXT PRIMARY KEY,
 		username TEXT UNIQUE NOT NULL,
@@ -51,9 +51,25 @@ func (s *SQLiteDB) Init() error {
 		updated_at DATETIME NOT NULL
 	);`
 
-	_, err := s.db.Exec(query)
+	_, err := s.db.Exec(createUsersTable)
 	if err != nil {
 		return fmt.Errorf("创建用户表失败: %w", err)
+	}
+
+	// 创建网络表
+	createNetworkTable := `
+	CREATE TABLE IF NOT EXISTS networks (
+		id TEXT PRIMARY KEY,
+		name TEXT NOT NULL,
+		description TEXT,
+		owner_id TEXT,
+		created_at DATETIME NOT NULL,
+		updated_at DATETIME NOT NULL
+	);`
+
+	_, err = s.db.Exec(createNetworkTable)
+	if err != nil {
+		return fmt.Errorf("创建网络表失败: %w", err)
 	}
 
 	return nil
@@ -188,6 +204,125 @@ func (s *SQLiteDB) HasAdminUser() (bool, error) {
 	}
 
 	return count > 0, nil
+}
+
+// CreateNetwork 创建网络
+func (s *SQLiteDB) CreateNetwork(network *models.Network) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	query := `
+	INSERT INTO networks (id, name, description, owner_id, created_at, updated_at)
+	VALUES (?, ?, ?, ?, ?, ?)`
+
+	_, err := s.db.Exec(query, network.ID, network.Name, network.Description, network.OwnerID, network.CreatedAt, network.UpdatedAt)
+	if err != nil {
+		return fmt.Errorf("创建网络失败: %w", err)
+	}
+
+	return nil
+}
+
+// GetNetworkByID 根据ID获取网络
+func (s *SQLiteDB) GetNetworkByID(id string) (*models.Network, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	query := `SELECT id, name, description, owner_id, created_at, updated_at FROM networks WHERE id = ?`
+	row := s.db.QueryRow(query, id)
+
+	var network models.Network
+	err := row.Scan(&network.ID, &network.Name, &network.Description, &network.OwnerID, &network.CreatedAt, &network.UpdatedAt)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("查询网络失败: %w", err)
+	}
+
+	return &network, nil
+}
+
+// GetNetworksByOwnerID 根据所有者ID获取网络列表
+func (s *SQLiteDB) GetNetworksByOwnerID(ownerID string) ([]*models.Network, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	query := `SELECT id, name, description, owner_id, created_at, updated_at FROM networks WHERE owner_id = ?`
+	rows, err := s.db.Query(query, ownerID)
+	if err != nil {
+		return nil, fmt.Errorf("查询网络列表失败: %w", err)
+	}
+	defer rows.Close()
+
+	var networks []*models.Network
+	for rows.Next() {
+		var network models.Network
+		err := rows.Scan(&network.ID, &network.Name, &network.Description, &network.OwnerID, &network.CreatedAt, &network.UpdatedAt)
+		if err != nil {
+			return nil, fmt.Errorf("扫描网络数据失败: %w", err)
+		}
+		networks = append(networks, &network)
+	}
+
+	return networks, nil
+}
+
+// GetAllNetworks 获取所有网络
+func (s *SQLiteDB) GetAllNetworks() ([]*models.Network, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	query := `SELECT id, name, description, owner_id, created_at, updated_at FROM networks`
+	rows, err := s.db.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("查询所有网络失败: %w", err)
+	}
+	defer rows.Close()
+
+	var networks []*models.Network
+	for rows.Next() {
+		var network models.Network
+		err := rows.Scan(&network.ID, &network.Name, &network.Description, &network.OwnerID, &network.CreatedAt, &network.UpdatedAt)
+		if err != nil {
+			return nil, fmt.Errorf("扫描网络数据失败: %w", err)
+		}
+		networks = append(networks, &network)
+	}
+
+	return networks, nil
+}
+
+// UpdateNetwork 更新网络
+func (s *SQLiteDB) UpdateNetwork(network *models.Network) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	query := `
+	UPDATE networks 
+	SET name = ?, description = ?, owner_id = ?, updated_at = ?
+	WHERE id = ?`
+
+	_, err := s.db.Exec(query, network.Name, network.Description, network.OwnerID, network.UpdatedAt, network.ID)
+	if err != nil {
+		return fmt.Errorf("更新网络失败: %w", err)
+	}
+
+	return nil
+}
+
+// DeleteNetwork 删除网络
+func (s *SQLiteDB) DeleteNetwork(id string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	query := `DELETE FROM networks WHERE id = ?`
+	_, err := s.db.Exec(query, id)
+	if err != nil {
+		return fmt.Errorf("删除网络失败: %w", err)
+	}
+
+	return nil
 }
 
 // Close 关闭数据库连接

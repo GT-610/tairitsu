@@ -2,6 +2,7 @@ package services
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/GT-610/tairitsu/internal/app/database"
 	"github.com/GT-610/tairitsu/internal/app/logger"
@@ -51,8 +52,56 @@ func (s *NetworkService) GetStatus() (*zerotier.Status, error) {
 	return status, nil
 }
 
-// GetAllNetworks retrieves all networks owned by a specific user
-func (s *NetworkService) GetAllNetworks(ownerID string) ([]zerotier.Network, error) {
+// NetworkSummary 网络摘要信息（从数据库获取）
+type NetworkSummary struct {
+	ID          string    `json:"id"`
+	Name        string    `json:"name"`
+	Description string    `json:"description"`
+	OwnerID     string    `json:"owner_id"`
+	MemberCount int       `json:"member_count"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+// GetAllNetworks retrieves all networks owned by a specific user from database
+func (s *NetworkService) GetAllNetworks(ownerID string) ([]NetworkSummary, error) {
+	// Check if database is initialized
+	if s.db == nil {
+		logger.Warn("服务层：数据库未初始化")
+		return nil, fmt.Errorf("数据库未初始化")
+	}
+
+	// Get network IDs owned by the user from database
+	ownedNetworks, err := s.db.GetNetworksByOwnerID(ownerID)
+	if err != nil {
+		logger.Error("服务层：获取用户网络列表失败", zap.String("owner_id", ownerID), zap.Error(err))
+		return nil, err
+	}
+
+	// If no networks owned, return empty slice
+	if len(ownedNetworks) == 0 {
+		return []NetworkSummary{}, nil
+	}
+
+	// Convert to NetworkSummary
+	var networkSummaries []NetworkSummary
+	for _, net := range ownedNetworks {
+		networkSummaries = append(networkSummaries, NetworkSummary{
+			ID:          net.ID,
+			Name:        net.Name,
+			Description: net.Description,
+			OwnerID:     net.OwnerID,
+			MemberCount: 0,
+			CreatedAt:   net.CreatedAt,
+			UpdatedAt:   net.UpdatedAt,
+		})
+	}
+
+	return networkSummaries, nil
+}
+
+// GetAllNetworksWithDetails retrieves all networks owned by a specific user with full details from ZeroTier API
+func (s *NetworkService) GetAllNetworksWithDetails(ownerID string) ([]zerotier.Network, error) {
 	// Check if ZeroTier client is initialized
 	if s.ztClient == nil {
 		logger.Warn("服务层：ZeroTier客户端未初始化")
@@ -93,23 +142,11 @@ func (s *NetworkService) GetAllNetworks(ownerID string) ([]zerotier.Network, err
 
 	for _, net := range allNetworks {
 		if ownedNetworkIDs[net.ID] {
-			// 获取网络状态
-			net.Status = s.getNetworkStatus(net.ID)
 			filteredNetworks = append(filteredNetworks, net)
 		}
 	}
 
 	return filteredNetworks, nil
-}
-
-// getNetworkStatus 获取网络状态
-func (s *NetworkService) getNetworkStatus(networkID string) string {
-	status, err := s.ztClient.GetNetworkStatus(networkID)
-	if err != nil {
-		logger.Warn("获取网络状态失败", zap.String("network_id", networkID), zap.Error(err))
-		return "unknown"
-	}
-	return status
 }
 
 // GetNetworkByID retrieves a network by its ID with ownership check
@@ -484,4 +521,169 @@ func (s *NetworkService) SetZTClient(client *zerotier.Client) {
 		GlobalZTClient = nil
 	}
 	s.ztClient = client
+}
+
+// ImportableNetworkSummary 可导入网络摘要（轻量级，只包含ID）
+type ImportableNetworkSummary struct {
+	NetworkID    string `json:"network_id"`
+	Reason       string `json:"reason"`
+	IsImportable bool   `json:"is_importable"`
+}
+
+// GetImportableNetworks 获取可导入的网络ID列表（轻量级）
+func (s *NetworkService) GetImportableNetworks(userID string) ([]ImportableNetworkSummary, error) {
+	// 检查数据库是否已初始化
+	if s.db == nil {
+		logger.Warn("服务层：数据库未初始化")
+		return nil, fmt.Errorf("数据库未初始化")
+	}
+
+	// 获取所有ZeroTier网络ID列表（轻量级，只调用一次API）
+	ztNetworkIDs, err := s.ztClient.GetNetworkIDs()
+	if err != nil {
+		logger.Error("服务层：获取ZeroTier网络ID列表失败", zap.Error(err))
+		return nil, err
+	}
+
+	// 获取数据库中所有网络
+	dbNetworks, err := s.db.GetAllNetworks()
+	if err != nil {
+		logger.Error("服务层：获取数据库网络列表失败", zap.Error(err))
+		return nil, err
+	}
+
+	// 创建网络ID到数据库记录的映射
+	dbNetworkMap := make(map[string]*models.Network)
+	for _, net := range dbNetworks {
+		dbNetworkMap[net.ID] = net
+	}
+
+	// 筛选可导入的网络
+	var importableNetworks []ImportableNetworkSummary
+	for _, networkID := range ztNetworkIDs {
+		dbNet, exists := dbNetworkMap[networkID]
+
+		importable := ImportableNetworkSummary{
+			NetworkID:    networkID,
+			Reason:       "",
+			IsImportable: false,
+		}
+
+		if !exists {
+			importable.Reason = "网络不在数据库中"
+			importable.IsImportable = true
+		} else if dbNet.OwnerID == "" {
+			importable.Reason = "网络无所有者"
+			importable.IsImportable = true
+		} else if dbNet.OwnerID != userID {
+			importable.Reason = "网络属于其他用户"
+			importable.IsImportable = false
+		} else {
+			importable.Reason = "您已是该网络的所有者"
+			importable.IsImportable = false
+		}
+
+		importableNetworks = append(importableNetworks, importable)
+	}
+
+	return importableNetworks, nil
+}
+
+// ImportNetworks 导入指定的网络
+func (s *NetworkService) ImportNetworks(networkIDs []string, userID string) ([]string, error) {
+	// 检查ZeroTier客户端是否已初始化
+	if s.ztClient == nil {
+		logger.Warn("服务层：ZeroTier客户端未初始化")
+		return nil, fmt.Errorf("ZeroTier客户端未初始化")
+	}
+
+	// 检查数据库是否已初始化
+	if s.db == nil {
+		logger.Warn("服务层：数据库未初始化")
+		return nil, fmt.Errorf("数据库未初始化")
+	}
+
+	// 获取数据库中所有网络
+	dbNetworks, err := s.db.GetAllNetworks()
+	if err != nil {
+		logger.Error("服务层：获取数据库网络列表失败", zap.Error(err))
+		return nil, err
+	}
+
+	// 创建网络ID到数据库记录的映射
+	dbNetworkMap := make(map[string]*models.Network)
+	for _, net := range dbNetworks {
+		dbNetworkMap[net.ID] = net
+	}
+
+	// 获取所有ZeroTier网络ID列表
+	ztNetworkIDs, err := s.ztClient.GetNetworkIDs()
+	if err != nil {
+		logger.Error("服务层：获取ZeroTier网络ID列表失败", zap.Error(err))
+		return nil, err
+	}
+
+	// 创建ZeroTier网络ID集合
+	ztNetworkSet := make(map[string]bool)
+	for _, id := range ztNetworkIDs {
+		ztNetworkSet[id] = true
+	}
+
+	var importedIDs []string
+	now := time.Now()
+
+	for _, networkID := range networkIDs {
+		if !ztNetworkSet[networkID] {
+			logger.Warn("服务层：网络不存在于ZeroTier控制器", zap.String("network_id", networkID))
+			continue
+		}
+
+		dbNet, dbExists := dbNetworkMap[networkID]
+
+		if !dbExists {
+			// 从ZeroTier获取完整网络信息
+			ztNet, err := s.ztClient.GetNetwork(networkID)
+			if err != nil {
+				logger.Error("服务层：获取网络详情失败", zap.String("network_id", networkID), zap.Error(err))
+				continue
+			}
+
+			// 创建新记录，包含完整信息
+			newNetwork := &models.Network{
+				ID:          networkID,
+				Name:        ztNet.Name,
+				Description: ztNet.Description,
+				OwnerID:     userID,
+				CreatedAt:   now,
+				UpdatedAt:   now,
+			}
+
+			if err := s.db.CreateNetwork(newNetwork); err != nil {
+				logger.Error("服务层：创建网络记录失败", zap.String("network_id", networkID), zap.Error(err))
+				continue
+			}
+
+			logger.Info("服务层：成功导入网络", zap.String("network_id", networkID), zap.String("network_name", ztNet.Name))
+			importedIDs = append(importedIDs, networkID)
+		} else if dbNet.OwnerID == "" {
+			// 网络在数据库中但没有所有者，更新所有者
+			dbNet.OwnerID = userID
+			dbNet.UpdatedAt = now
+
+			if err := s.db.UpdateNetwork(dbNet); err != nil {
+				logger.Error("服务层：更新网络所有者失败", zap.String("network_id", networkID), zap.Error(err))
+				continue
+			}
+
+			logger.Info("服务层：成功认领网络", zap.String("network_id", networkID))
+			importedIDs = append(importedIDs, networkID)
+		} else if dbNet.OwnerID != userID {
+			logger.Warn("服务层：网络属于其他用户，无法导入", zap.String("network_id", networkID), zap.String("owner_id", dbNet.OwnerID))
+			continue
+		} else {
+			logger.Info("服务层：网络已属于当前用户，跳过", zap.String("network_id", networkID))
+		}
+	}
+
+	return importedIDs, nil
 }

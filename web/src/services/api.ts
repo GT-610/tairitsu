@@ -21,6 +21,16 @@ export interface Network {
   updatedAt: string;
 }
 
+export interface NetworkSummary {
+  id: string;
+  name: string;
+  description?: string;
+  owner_id: string;
+  member_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface NetworkConfig {
   private: boolean;
   allowPassiveBridging: boolean;
@@ -61,6 +71,17 @@ export interface Member {
   lastSeen: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface ImportableNetworkSummary {
+  network_id: string;
+  reason: string;
+  is_importable: boolean;
+}
+
+export interface ImportNetworksResponse {
+  message: string;
+  imported_ids: string[];
 }
 
 export interface SystemStatus {
@@ -145,16 +166,20 @@ export const userAPI = {
 
 // ZeroTier network related APIs
 export const networkAPI = {
-  // Get all networks
-  getAllNetworks: () => api.get<Network[]>('/networks'),
-  // Get a single network
+  // Get all networks (from database, lightweight)
+  getAllNetworks: () => api.get<NetworkSummary[]>('/networks'),
+  // Get a single network (with full details from ZeroTier API)
   getNetwork: (networkId: string) => api.get<Network>(`/networks/${networkId}`),
   // Create a network
   createNetwork: (data: { name: string; description?: string }) => api.post<Network>('/networks', data),
   // Update a network
   updateNetwork: (networkId: string, data: Partial<NetworkConfig>) => api.put<Network>(`/networks/${networkId}`, data),
   // Delete a network
-  deleteNetwork: (networkId: string) => api.delete<void>(`/networks/${networkId}`)
+  deleteNetwork: (networkId: string) => api.delete<void>(`/networks/${networkId}`),
+  // Get importable networks (admin only)
+  getImportableNetworks: () => api.get<ImportableNetworkSummary[]>('/networks/importable'),
+  // Import specified networks (admin only)
+  importNetworks: (networkIds: string[]) => api.post<ImportNetworksResponse>('/networks/import', { network_ids: networkIds })
 }
 
 // Member related APIs

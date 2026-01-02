@@ -2,39 +2,19 @@ import { useState, useEffect } from 'react';
 import { Box, Typography, Button, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, CircularProgress, Alert, Modal, TextField, IconButton, Grid, Card, CardContent } from '@mui/material';
 import { Link } from 'react-router-dom';
 import { Add, Edit, Delete, Close } from '@mui/icons-material';
-import { networkAPI, Network, NetworkConfig } from '../services/api';
-
-// 表单数据类型定义
-interface FormData {
-  name: string;
-  description: string;
-  config: NetworkConfig;
-}
+import { networkAPI, NetworkSummary } from '../services/api';
 
 function Networks() {
-  const [networks, setNetworks] = useState<Network[]>([]);
+  const [networks, setNetworks] = useState<NetworkSummary[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string>('');
   const [openModal, setOpenModal] = useState<boolean>(false);
-  const [editingNetwork, setEditingNetwork] = useState<Network | null>(null);
-  const [formData, setFormData] = useState<FormData>({
+  const [editingNetwork, setEditingNetwork] = useState<NetworkSummary | null>(null);
+  const [formData, setFormData] = useState({
     name: '',
-    description: '',
-    config: {
-      private: true,
-      allowPassiveBridging: true,
-      enableBroadcast: true,
-      mtu: 2800,
-      multicastLimit: 32,
-      ipAssignmentPools: [{ ipRangeStart: '192.168.192.1', ipRangeEnd: '192.168.192.254' }],
-      routes: [{ target: '192.168.192.0/24' }],
-      v4AssignMode: { zt: true },
-      v6AssignMode: { zt: false, '6plane': false, rfc4193: false }
-    }
+    description: ''
   });
-  // 搜索和筛选状态
   const [searchQuery, setSearchQuery] = useState<string>('');
-
 
   const fetchNetworks = async () => {
     setLoading(true);
@@ -53,39 +33,17 @@ function Networks() {
     fetchNetworks();
   }, []);
 
-  const handleOpenModal = (network: Network | null = null) => {
+  const handleOpenModal = (network: NetworkSummary | null = null) => {
     setEditingNetwork(network);
     if (network) {
       setFormData({
         name: network.name || '',
-        description: network.description || '',
-        config: {
-          private: network.config?.private ?? true,
-          allowPassiveBridging: network.config?.allowPassiveBridging ?? true,
-          enableBroadcast: network.config?.enableBroadcast ?? true,
-          mtu: network.config?.mtu ?? 2800,
-          multicastLimit: network.config?.multicastLimit ?? 32,
-          ipAssignmentPools: network.config?.ipAssignmentPools ?? [{ ipRangeStart: '192.168.192.1', ipRangeEnd: '192.168.192.254' }],
-          routes: network.config?.routes ?? [{ target: '192.168.192.0/24' }],
-          v4AssignMode: network.config?.v4AssignMode ?? { zt: true },
-          v6AssignMode: network.config?.v6AssignMode ?? { zt: false, '6plane': false, rfc4193: false }
-        }
+        description: network.description || ''
       });
     } else {
       setFormData({
         name: '',
-        description: '',
-        config: {
-          private: true,
-          allowPassiveBridging: true,
-          enableBroadcast: true,
-          mtu: 2800,
-          multicastLimit: 32,
-          ipAssignmentPools: [{ ipRangeStart: '192.168.192.1', ipRangeEnd: '192.168.192.254' }],
-          routes: [{ target: '192.168.192.0/24' }],
-          v4AssignMode: { zt: true },
-          v6AssignMode: { zt: false, '6plane': false, rfc4193: false }
-        }
+        description: ''
       });
     }
     setOpenModal(true);
@@ -96,72 +54,26 @@ function Networks() {
     setEditingNetwork(null);
     setFormData({
       name: '',
-      description: '',
-      config: {
-        private: true,
-        allowPassiveBridging: true,
-        enableBroadcast: true,
-        mtu: 2800,
-        multicastLimit: 32,
-        ipAssignmentPools: [{ ipRangeStart: '192.168.192.1', ipRangeEnd: '192.168.192.254' }],
-        routes: [{ target: '192.168.192.0/24' }],
-        v4AssignMode: { zt: true },
-        v6AssignMode: { zt: false, '6plane': false, rfc4193: false }
-      }
+      description: ''
     });
   };
 
-  // 统一处理表单变化，支持嵌套对象
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const target = e.target as HTMLInputElement;
-    const { name, value, type, checked } = target;
-    
-    if (!name) return;
-    
-    if (name.startsWith('config.')) {
-      const parts = name.split('.');
-      
-      if (parts.length === 2) {
-        // 处理二级嵌套，如 config.private
-        const [, child] = parts;
-        setFormData(prev => ({
-          ...prev,
-          config: {
-            ...prev.config,
-            [child]: type === 'checkbox' ? checked : value
-          }
-        }));
-      } else if (parts.length === 3) {
-        // 处理三级嵌套，如 config.v4AssignMode.zt
-        const [, child, grandchild] = parts;
-        setFormData(prev => ({
-          ...prev,
-          config: {
-            ...prev.config,
-            [child]: {
-              ...prev.config[child as keyof typeof prev.config] as any,
-              [grandchild]: type === 'checkbox' ? checked : value
-            }
-          }
-        }));
-      }
-    } else {
-      // 处理一级字段，如 name, description
-      setFormData(prev => ({
-        ...prev,
-        [name]: value
-      }));
-    }
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
   };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     try {
       if (editingNetwork) {
-        // updateNetwork只需要NetworkConfig的部分属性，不需要name和description
-        await networkAPI.updateNetwork(editingNetwork.id, formData.config);
+        await networkAPI.updateNetwork(editingNetwork.id, {
+          private: true
+        } as any);
       } else {
-        // createNetwork只需要name和description
         await networkAPI.createNetwork({
           name: formData.name,
           description: formData.description
@@ -185,27 +97,17 @@ function Networks() {
     }
   };
 
-  // 过滤网络列表的函数
   const getFilteredNetworks = () => {
     return networks.filter(network => {
-      const matchesSearch = searchQuery === '' || 
+      const matchesSearch = searchQuery === '' ||
         (network.name && network.name.toLowerCase().includes(searchQuery.toLowerCase())) ||
         (network.id && network.id.toLowerCase().includes(searchQuery.toLowerCase()));
-      
+
       return matchesSearch;
     });
   };
 
-  // 计算统计数据
   const totalNetworks = networks.length;
-  
-  const totalMembers = networks.reduce((sum, network) => sum + (network.members?.length || 0), 0);
-  
-  const authorizedMembers = networks.reduce((sum, network) => {
-    return sum + (network.members?.filter(member => member.authorized).length || 0);
-  }, 0);
-  
-  const unauthorizedMembers = totalMembers - authorizedMembers;
 
   return (
     <Box sx={{ p: 3 }}>
@@ -226,7 +128,6 @@ function Networks() {
         </Alert>
       )}
 
-      {/* 统计卡片区域 */}
       <Paper elevation={3} sx={{ p: 3, mb: 4 }}>
         <Grid container spacing={3}>
           <Grid size={{ xs: 12, sm: 6, md: 4 }}>
@@ -248,7 +149,7 @@ function Networks() {
                   已认证设备数
                 </Typography>
                 <Typography variant="h4">
-                  {authorizedMembers}
+                  -
                 </Typography>
               </CardContent>
             </Card>
@@ -260,7 +161,7 @@ function Networks() {
                   待认证设备数
                 </Typography>
                 <Typography variant="h4">
-                  {unauthorizedMembers}
+                  -
                 </Typography>
               </CardContent>
             </Card>
@@ -274,7 +175,6 @@ function Networks() {
         </Box>
       ) : (
         <>
-          {/* 搜索和筛选区域 */}
           <Box sx={{ display: 'flex', gap: 2, mb: 3, flexWrap: 'wrap', alignItems: 'center' }}>
             <TextField
               label="搜索"
@@ -292,7 +192,6 @@ function Networks() {
                 <TableRow>
                   <TableCell>名称</TableCell>
                   <TableCell>网络ID</TableCell>
-                  <TableCell>设备数</TableCell>
                   <TableCell>操作</TableCell>
                 </TableRow>
               </TableHead>
@@ -303,27 +202,26 @@ function Networks() {
                       {network.name || '未命名网络'}
                     </TableCell>
                     <TableCell>{network.id}</TableCell>
-                    <TableCell>{(network.members?.length || 0)}</TableCell>
                     <TableCell>
                       <Box sx={{ display: 'flex', gap: 1 }}>
-                        <Button 
-                          component={Link} 
+                        <Button
+                          component={Link}
                           to={`/networks/${network.id}`}
-                          variant="outlined" 
+                          variant="outlined"
                           size="small"
                         >
                           详情
                         </Button>
-                        <Button 
-                          variant="outlined" 
+                        <Button
+                          variant="outlined"
                           size="small"
                           startIcon={<Edit />}
                           onClick={() => handleOpenModal(network)}
                         >
                           编辑
                         </Button>
-                        <Button 
-                          variant="outlined" 
+                        <Button
+                          variant="outlined"
                           size="small"
                           color="error"
                           startIcon={<Delete />}
@@ -347,7 +245,6 @@ function Networks() {
         </>
       )}
 
-      {/* 创建/编辑网络弹窗 */}
       <Modal
         open={openModal}
         onClose={handleCloseModal}
@@ -395,7 +292,7 @@ function Networks() {
               value={formData.description}
               onChange={handleChange}
             />
-            
+
             <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end', mt: 3 }}>
               <Button onClick={handleCloseModal}>
                 取消

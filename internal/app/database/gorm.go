@@ -116,6 +116,16 @@ func (g *GormDB) GetNetworksByOwnerID(ownerID string) ([]*models.Network, error)
 	return networks, nil
 }
 
+// GetAllNetworks 获取所有网络
+func (g *GormDB) GetAllNetworks() ([]*models.Network, error) {
+	var networks []*models.Network
+	result := g.db.Find(&networks)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	return networks, nil
+}
+
 // UpdateNetwork 更新网络
 func (g *GormDB) UpdateNetwork(network *models.Network) error {
 	result := g.db.Save(network)

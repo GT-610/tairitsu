@@ -218,23 +218,13 @@ func (c *Client) GetStatus() (*Status, error) {
 
 // GetNetworks 获取所有网络列表
 func (c *Client) GetNetworks() ([]Network, error) {
-	// 第一步：获取网络ID数组
-	respBody, err := c.doRequest("GET", "/controller/network", nil)
+	networkIDs, err := c.GetNetworkIDs()
 	if err != nil {
 		return nil, err
 	}
 
-	// 解析网络ID数组
-	var networkIDs []string
-	if err := json.Unmarshal(respBody, &networkIDs); err != nil {
-		return nil, fmt.Errorf("解析网络ID列表失败: %w", err)
-	}
-
-	// 第二步：遍历网络ID，获取每个网络的详细信息
-	// 关键修复：使用make([]Network, 0)初始化空切片，而不是var networks []Network
 	networks := make([]Network, 0)
 	for _, id := range networkIDs {
-		// 调用GetNetwork获取单个网络的详细信息
 		network, err := c.GetNetwork(id)
 		if err != nil {
 			return nil, fmt.Errorf("获取网络 %s 详情失败: %w", id, err)
@@ -245,6 +235,21 @@ func (c *Client) GetNetworks() ([]Network, error) {
 	}
 
 	return networks, nil
+}
+
+// GetNetworkIDs 只获取网络ID列表（轻量级）
+func (c *Client) GetNetworkIDs() ([]string, error) {
+	respBody, err := c.doRequest("GET", "/controller/network", nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var networkIDs []string
+	if err := json.Unmarshal(respBody, &networkIDs); err != nil {
+		return nil, fmt.Errorf("解析网络ID列表失败: %w", err)
+	}
+
+	return networkIDs, nil
 }
 
 // GetNetworkStatus 获取网络状态
