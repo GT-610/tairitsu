@@ -45,7 +45,7 @@ export function ImportNetworkModal({ open, onClose, onImportComplete }: ImportNe
     setLoading(true);
     setError('');
     try {
-      const response = await fetch('/api/networks/importable', {
+      const response = await fetch('/api/admin/networks/importable', {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token') || sessionStorage.getItem('token')}`
         }
@@ -87,7 +87,7 @@ export function ImportNetworkModal({ open, onClose, onImportComplete }: ImportNe
     setImporting(true);
     setError('');
     try {
-      const response = await fetch('/api/networks/import', {
+      const response = await fetch('/api/admin/networks/import', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

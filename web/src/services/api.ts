@@ -177,9 +177,9 @@ export const networkAPI = {
   // Delete a network
   deleteNetwork: (networkId: string) => api.delete<void>(`/networks/${networkId}`),
   // Get importable networks (admin only)
-  getImportableNetworks: () => api.get<ImportableNetworkSummary[]>('/networks/importable'),
+  getImportableNetworks: () => api.get<ImportableNetworkSummary[]>('/admin/networks/importable'),
   // Import specified networks (admin only)
-  importNetworks: (networkIds: string[]) => api.post<ImportNetworksResponse>('/networks/import', { network_ids: networkIds })
+  importNetworks: (networkIds: string[]) => api.post<ImportNetworksResponse>('/admin/networks/import', { network_ids: networkIds })
 }
 
 // Member related APIs

@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Box, Typography, Paper, CircularProgress, Alert, 
-  Chip, LinearProgress, Button } from '@mui/material';
+  Chip, LinearProgress} from '@mui/material';
 import { statusAPI, systemAPI, SystemStatus } from '../services/api';
-import { Link } from 'react-router-dom';
 import { useAuth } from '../services/auth';
 
 
@@ -35,17 +34,7 @@ function Dashboard() {
   const isAdmin = user?.role === 'admin';
   
   // 信息提示状态
-  const [infoMessage, setInfoMessage] = useState<string>('');
-  
-  // 显示开发中提示
-  const showDevelopmentMessage = () => {
-    setInfoMessage('功能正在开发中');
-    setTimeout(() => {
-      setInfoMessage('');
-    }, 3000);
-  };
-  
-
+  const [infoMessage] = useState<string>('');
 
   useEffect(() => {
     const fetchData = async () => {
@@ -220,37 +209,6 @@ function Dashboard() {
                   size="small"
                 />
               </Box>
-            </Box>
-          </Paper>
-          
-          {/* 管理员设置 */}
-          <Paper elevation={3} sx={{ p: 3, mb: 4 }}>
-            <Typography variant="h6" component="h3" gutterBottom>
-              管理员设置
-            </Typography>
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <Button
-                variant="contained"
-                onClick={showDevelopmentMessage}
-                fullWidth
-              >
-                导入已有 ZeroTier 网络
-              </Button>
-              <Button
-                variant="contained"
-                component={Link}
-                to="/dashboard/user-management"
-                fullWidth
-              >
-                用户管理
-              </Button>
-              <Button
-                variant="contained"
-                onClick={showDevelopmentMessage}
-                fullWidth
-              >
-                生成 planet 文件
-              </Button>
             </Box>
           </Paper>
         </>

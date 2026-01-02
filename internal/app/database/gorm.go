@@ -53,8 +53,6 @@ func (g *GormDB) GetUserByUsername(username string) (*models.User, error) {
 	return &user, nil
 }
 
-
-
 // GetAllUsers 获取所有用户
 func (g *GormDB) GetAllUsers() ([]*models.User, error) {
 	var users []*models.User

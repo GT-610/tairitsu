@@ -12,15 +12,11 @@ import {
   Button,
   Alert,
   CircularProgress,
-  Snackbar,
-  IconButton
+  Snackbar
 } from '@mui/material';
-import { ArrowBack } from '@mui/icons-material';
-import { useNavigate } from 'react-router-dom';
 import { User, userAPI, authAPI } from '../services/api';
 
 function UserManagement() {
-  const navigate = useNavigate();
   const [users, setUsers] = useState<User[]>([]);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -99,20 +95,10 @@ function UserManagement() {
 
   return (
     <Box sx={{ p: 3 }}>
-      {/* 标题栏与其他页面保持一致 */}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-          <IconButton 
-            onClick={() => navigate('/dashboard')} 
-            size="large"
-            aria-label="返回仪表盘"
-          >
-            <ArrowBack />
-          </IconButton>
-          <Typography variant="h4" component="h1">
-            用户管理
-          </Typography>
-        </Box>
+        <Typography variant="h4" component="h1">
+          用户管理
+        </Typography>
       </Box>
 
       {message && (

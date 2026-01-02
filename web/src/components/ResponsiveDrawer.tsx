@@ -18,6 +18,8 @@ import LanguageIcon from '@mui/icons-material/Language';
 import SettingsIcon from '@mui/icons-material/Settings';
 import AccountCircle from '@mui/icons-material/AccountCircle';
 import ImportExportIcon from '@mui/icons-material/ImportExport';
+import GroupIcon from '@mui/icons-material/Group';
+import PublicIcon from '@mui/icons-material/Public';
 import MenuItem from '@mui/material/MenuItem';
 import Menu from '@mui/material/Menu';
 import MenuList from '@mui/material/MenuList';
@@ -39,6 +41,7 @@ interface MenuItemType {
   text: string;
   path: string;
   icon: React.ReactNode;
+  isAction?: boolean;
 }
 
 const mainMenuItems: MenuItemType[] = [
@@ -59,6 +62,23 @@ const adminMenuItems: MenuItemType[] = [
     text: '管理员面板',
     path: '/dashboard',
     icon: <DashboardIcon />
+  },
+  {
+    text: '用户管理',
+    path: '/user-management',
+    icon: <GroupIcon />
+  },
+  {
+    text: '导入网络',
+    path: '',
+    icon: <ImportExportIcon />,
+    isAction: true
+  },
+  {
+    text: '生成 planet',
+    path: '',
+    icon: <PublicIcon />,
+    isAction: true
   }
 ];
 
@@ -160,27 +180,28 @@ export default function ResponsiveDrawer({ window, children, title = 'Tairitsu',
           <List>
             {adminMenuItems.map((item) => (
               <ListItem key={item.text} disablePadding>
-                <ListItemButton
-                  component={Link}
-                  to={item.path}
-                  selected={location.pathname.startsWith(item.path)}
-                  onClick={handleDrawerClose}
-                >
-                  <ListItemIcon>
-                    {item.icon}
-                  </ListItemIcon>
-                  <ListItemText primary={item.text} />
-                </ListItemButton>
+                {item.isAction ? (
+                  <ListItemButton onClick={() => { handleDrawerClose(); item.text === '导入网络' && handleOpenImportModal(); item.text === '生成 planet' && alert('功能正在开发中'); }}>
+                    <ListItemIcon>
+                      {item.icon}
+                    </ListItemIcon>
+                    <ListItemText primary={item.text} />
+                  </ListItemButton>
+                ) : (
+                  <ListItemButton
+                    component={Link}
+                    to={item.path}
+                    selected={location.pathname.startsWith(item.path)}
+                    onClick={handleDrawerClose}
+                  >
+                    <ListItemIcon>
+                      {item.icon}
+                    </ListItemIcon>
+                    <ListItemText primary={item.text} />
+                  </ListItemButton>
+                )}
               </ListItem>
             ))}
-            <ListItem disablePadding>
-              <ListItemButton onClick={() => { handleDrawerClose(); handleOpenImportModal(); }}>
-                <ListItemIcon>
-                  <ImportExportIcon />
-                </ListItemIcon>
-                <ListItemText primary="导入网络" />
-              </ListItemButton>
-            </ListItem>
           </List>
         </>
       )}

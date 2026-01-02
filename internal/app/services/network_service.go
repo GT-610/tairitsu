@@ -231,7 +231,7 @@ func (s *NetworkService) CreateNetwork(network *zerotier.Network, ownerID string
 	if err := s.db.CreateNetwork(dbNetwork); err != nil {
 		logger.Error("服务层：保存网络所有权失败", zap.String("network_id", createdNetwork.ID), zap.Error(err))
 		// Try to delete network from ZeroTier if database save fails
-		if delErr := s.ztClient.DeleteNetwork(createdNetwork.ID); err != nil {
+		if delErr := s.ztClient.DeleteNetwork(createdNetwork.ID); delErr != nil {
 			logger.Error("服务层：回滚删除网络失败", zap.String("network_id", createdNetwork.ID), zap.Error(delErr))
 		}
 		return nil, err

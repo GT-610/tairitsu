@@ -10,6 +10,7 @@ import Members from './pages/Members';
 import Profile from './pages/Profile';
 import Settings from './pages/Settings';
 import UserManagement from './pages/UserManagement';
+import NotFound from './pages/NotFound';
 import Layout from './components/Layout';
 import api from './services/api';
 import { useAuth } from './services/auth';
@@ -139,12 +140,13 @@ function AppContent() {
                   {user && user.role === 'admin' && (
                     <>
                       <Route path="dashboard" element={<Dashboard />}></Route>
-                      <Route path="dashboard/user-management" element={<UserManagement />}></Route>
+                      <Route path="user-management" element={<UserManagement />}></Route>
                     </>
                   )}
                   
                   {/* 默认路由重定向 */}
                   <Route path="" element={<Navigate to="/networks" replace />}></Route>
+                  <Route path="*" element={<NotFound />}></Route>
                 </Route>
               </>
             ) : (

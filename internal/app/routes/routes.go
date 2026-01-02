@@ -163,8 +163,8 @@ func SetupRoutesWithReload(router *fiber.App, ztClient *zerotier.Client, jwtSecr
 			admin.Put("/users/:userId/role", userHandler.UpdateUserRole) // Update user role
 
 			// Network import (admin only)
-			admin.Get("/networks/importable", networkHandler.GetImportableNetworks) // Get list of importable networks
-			admin.Post("/networks/import", networkHandler.ImportNetworks)           // Import specified networks
+			admin.Get("/admin/networks/importable", networkHandler.GetImportableNetworks) // Get list of importable networks
+			admin.Post("/admin/networks/import", networkHandler.ImportNetworks)           // Import specified networks
 		}
 	}
 }
