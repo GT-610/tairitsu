@@ -11,6 +11,7 @@ import Profile from './pages/Profile';
 import Settings from './pages/Settings';
 import UserManagement from './pages/UserManagement';
 import Planet from './pages/Planet';
+import ImportNetwork from './pages/ImportNetwork';
 import NotFound from './pages/NotFound';
 import Layout from './components/Layout';
 import api from './services/api';
@@ -142,6 +143,7 @@ function AppContent() {
                     <>
                       <Route path="dashboard" element={<Dashboard />}></Route>
                       <Route path="user-management" element={<UserManagement />}></Route>
+                      <Route path="import-network" element={<ImportNetwork />}></Route>
                       <Route path="planet" element={<Planet />}></Route>
                     </>
                   )}

@@ -32,7 +32,6 @@ import Button from '@mui/material/Button';
 import { Link, useLocation} from 'react-router-dom';
 import { User } from '../services/api';
 import LogoutIcon from '@mui/icons-material/Logout';
-import { ImportNetworkModal } from './ImportNetworkModal';
 
 const drawerWidth = 240;
 
@@ -70,12 +69,11 @@ const adminMenuItems: MenuItemType[] = [
   },
   {
     text: '导入网络',
-    path: '',
-    icon: <ImportExportIcon />,
-    isAction: true
+    path: '/import-network',
+    icon: <ImportExportIcon />
   },
   {
-    text: '生成 planet',
+    text: '生成 Planet',
     path: '/planet',
     icon: <PublicIcon />
   }
@@ -95,7 +93,6 @@ export default function ResponsiveDrawer({ window, children, title = 'Tairitsu',
   const [isClosing, setIsClosing] = React.useState<boolean>(false);
   const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
   const [openConfirmDialog, setOpenConfirmDialog] = React.useState<boolean>(false);
-  const [openImportModal, setOpenImportModal] = React.useState<boolean>(false);
   const location = useLocation();
 
   const handleDrawerClose = () => {
@@ -133,16 +130,6 @@ export default function ResponsiveDrawer({ window, children, title = 'Tairitsu',
 
   const handleCancelLogout = () => {
     setOpenConfirmDialog(false);
-  };
-
-  const handleCloseImportModal = () => {
-    setOpenImportModal(false);
-  };
-
-  const handleImportComplete = () => {
-    if (window) {
-      window().location.reload();
-    }
   };
 
   const drawer = (
@@ -316,12 +303,6 @@ export default function ResponsiveDrawer({ window, children, title = 'Tairitsu',
           </Button>
         </DialogActions>
       </Dialog>
-
-      <ImportNetworkModal
-        open={openImportModal}
-        onClose={handleCloseImportModal}
-        onImportComplete={handleImportComplete}
-      />
     </Box>
   );
 }

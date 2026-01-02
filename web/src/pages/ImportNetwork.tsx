@@ -1,12 +1,8 @@
 import { useState, useEffect } from 'react';
 import {
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  Button,
-  Typography,
   Box,
+  Typography,
+  Button,
   Checkbox,
   FormControlLabel,
   List,
@@ -18,17 +14,12 @@ import {
   Chip,
   Alert,
   CircularProgress,
-  Divider
+  Divider,
+  Paper
 } from '@mui/material';
 import { ImportableNetworkSummary } from '../services/api';
 
-interface ImportNetworkModalProps {
-  open: boolean;
-  onClose: () => void;
-  onImportComplete: () => void;
-}
-
-export function ImportNetworkModal({ open, onClose, onImportComplete }: ImportNetworkModalProps) {
+function ImportNetwork() {
   const [networks, setNetworks] = useState<ImportableNetworkSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [importing, setImporting] = useState(false);
@@ -36,10 +27,8 @@ export function ImportNetworkModal({ open, onClose, onImportComplete }: ImportNe
   const [error, setError] = useState<string>('');
 
   useEffect(() => {
-    if (open) {
-      fetchImportableNetworks();
-    }
-  }, [open]);
+    fetchImportableNetworks();
+  }, []);
 
   const fetchImportableNetworks = async () => {
     setLoading(true);
@@ -100,8 +89,7 @@ export function ImportNetworkModal({ open, onClose, onImportComplete }: ImportNe
         throw new Error('导入网络失败');
       }
 
-      onImportComplete();
-      onClose();
+      window.location.reload();
     } catch (err: any) {
       setError(err.message || '导入网络失败');
     } finally {
@@ -113,27 +101,27 @@ export function ImportNetworkModal({ open, onClose, onImportComplete }: ImportNe
   const nonImportableNetworks = networks.filter(n => !n.is_importable);
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
-      <DialogTitle>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <Typography variant="h6">导入ZeroTier网络</Typography>
-          <Chip
-            label={`${importableNetworks.length}个可导入`}
-            color="primary"
-            size="small"
-            sx={{ ml: 1 }}
-          />
-        </Box>
-      </DialogTitle>
-      <DialogContent dividers>
-        {error && (
-          <Alert severity="error" sx={{ mb: 2 }}>
-            {error}
-          </Alert>
-        )}
+    <Box sx={{ p: 3 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+        <Typography variant="h4" component="h1">
+          导入 ZeroTier 网络
+        </Typography>
+        <Chip
+          label={`${importableNetworks.length}个可导入`}
+          color="primary"
+          size="small"
+        />
+      </Box>
 
+      {error && (
+        <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError('')}>
+          {error}
+        </Alert>
+      )}
+
+      <Paper elevation={3} sx={{ p: 3, mb: 3 }}>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          以下是ZeroTier控制器上存在但尚未在Tairitsu中登记或无主的网络。选择要导入的网络，它们将被登记为您（当前管理员）所有。
+          以下是 ZeroTier 控制器上存在但尚未在 Tairitsu 中登记或无主的网络。选择要导入的网络，它们将被登记为您（当前管理员）所有。
         </Typography>
 
         {loading ? (
@@ -142,7 +130,7 @@ export function ImportNetworkModal({ open, onClose, onImportComplete }: ImportNe
           </Box>
         ) : networks.length === 0 ? (
           <Typography sx={{ py: 4, textAlign: 'center', color: 'text.secondary' }}>
-            没有找到可导入的网络。所有网络都已在Tairitsu中登记且有所有者。
+            没有找到可导入的网络。所有网络都已在 Tairitsu 中登记且有所有者。
           </Typography>
         ) : (
           <>
@@ -239,29 +227,29 @@ export function ImportNetworkModal({ open, onClose, onImportComplete }: ImportNe
                 </List>
               </>
             )}
+
+            <Box sx={{ mt: 3, display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
+              <Button
+                variant="contained"
+                color="primary"
+                onClick={handleImport}
+                disabled={selectedNetworks.size === 0 || importing}
+              >
+                {importing ? (
+                  <>
+                    <CircularProgress size={20} sx={{ mr: 1 }} />
+                    导入中...
+                  </>
+                ) : (
+                  `导入所选网络 (${selectedNetworks.size})`
+                )}
+              </Button>
+            </Box>
           </>
         )}
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose} disabled={importing}>
-          取消
-        </Button>
-        <Button
-          variant="contained"
-          color="primary"
-          onClick={handleImport}
-          disabled={selectedNetworks.size === 0 || importing}
-        >
-          {importing ? (
-            <>
-              <CircularProgress size={20} sx={{ mr: 1 }} />
-              导入中...
-            </>
-          ) : (
-            `导入所选网络 (${selectedNetworks.size})`
-          )}
-        </Button>
-      </DialogActions>
-    </Dialog>
+      </Paper>
+    </Box>
   );
 }
+
+export default ImportNetwork;
