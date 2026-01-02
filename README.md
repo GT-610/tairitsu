@@ -101,6 +101,17 @@ Contributions are welcome! Please feel free to submit issues, feature requests, 
 
 This project is licensed under GNU GPL v3 License - see the [LICENSE](LICENSE) file for details.
 
+## Legal Notice
+
+Since version 1.16.0, ZeroTier's controller component is licensed under a [commercial source-available non-free license](https://github.com/zerotier/ZeroTierOne/blob/main/nonfree/LICENSE.md). Tairitsu does not redistribute any ZeroTier controller code and is fully compliant with ZeroTier's licensing terms.
+
+### ZeroTier License Compliance
+Tairitsu is a standalone management interface for ZeroTier networks. This project **DOES NOT** include, distribute, or modify any ZeroTier source code or binaries.
+
+This software communicates with a **separately installed** ZeroTier controller via its official API. Users must install and run their own ZeroTier controller independently.
+
+Tairitsu is **NOT** a ZeroTier product. It is **NOT** affiliated with, endorsed by, or supported by ZeroTier, Inc.
+
 ## Sponsor
 Currently we have not prepared for accepting sponsorships. However, if you find Tairitsu useful, please consider starring the project, or recommend it to others.
 
