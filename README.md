@@ -110,11 +110,8 @@ Tairitsu is a standalone management interface for ZeroTier networks. This projec
 
 This software communicates with a **separately installed** ZeroTier controller via its official API. Users must install and run their own ZeroTier controller independently.
 
-Tairitsu is **NOT** a ZeroTier product. It is **NOT** affiliated with, endorsed by, or supported by ZeroTier, Inc.
+The "Generate Planet" feature is modified from [ztnodeid-go](https://github.com/kmahyyg/ztnodeid-go) under GNU GPL v3 License, **not** from ZeroTier itself.
 
-## Sponsor
-Currently we have not prepared for accepting sponsorships. However, if you find Tairitsu useful, please consider starring the project, or recommend it to others.
+--- 
 
----
-
-Tairitsu is an independent project and is **NOT officially affiliated** with ZeroTier, Inc.
+Tairitsu is **NOT** a ZeroTier product. It is **NOT affiliated with, endorsed by, or supported by ZeroTier, Inc**.

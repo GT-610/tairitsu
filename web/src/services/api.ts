@@ -110,6 +110,29 @@ export interface SetupStatus {
   adminCreated: boolean;
 }
 
+export interface IdentityInfo {
+  success: boolean;
+  message: string;
+  identityPublic?: string;
+  identityPath?: string;
+}
+
+export interface GeneratePlanetResponse {
+  success: boolean;
+  message: string;
+  planetData?: number[];
+  planetId: number;
+  birthTime: number;
+  cHeader?: string;
+}
+
+export interface GeneratePlanetRequest {
+  identityPublic: string;
+  endpoints: string[];
+  comments?: string;
+  outputPath?: string;
+}
+
 // Create axios instance
 const api = axios.create({
   baseURL: '/api',
@@ -223,6 +246,20 @@ export const systemAPI = {
   initializeAdminCreation: () => api.post('/system/admin/init'),
   // Get system statistics (CPU, memory usage)
   getSystemStats: () => api.get<SystemStats>('/system/stats')
+}
+
+// Planet related APIs (admin only)
+export const planetAPI = {
+  // Get identity.public from ZeroTier data directory
+  getIdentity: (ztPath?: string) => api.get<IdentityInfo>('/admin/planet/identity', {
+    params: { path: ztPath || '/var/lib/zerotier-one' }
+  }),
+  // Generate signing keys
+  generateSigningKeys: (ztPath?: string) => api.post<{ success: boolean; message: string; previousKey: string; currentKey: string }>('/admin/planet/keys', null, {
+    params: { path: ztPath || '/var/lib/zerotier-one' }
+  }),
+  // Generate custom planet file
+  generatePlanet: (data: GeneratePlanetRequest) => api.post<GeneratePlanetResponse>('/admin/planet/generate', data)
 }
 
 export default api

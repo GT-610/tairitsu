@@ -29,7 +29,7 @@ import DialogContent from '@mui/material/DialogContent';
 import DialogContentText from '@mui/material/DialogContentText';
 import DialogTitle from '@mui/material/DialogTitle';
 import Button from '@mui/material/Button';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation} from 'react-router-dom';
 import { User } from '../services/api';
 import LogoutIcon from '@mui/icons-material/Logout';
 import { ImportNetworkModal } from './ImportNetworkModal';
@@ -76,9 +76,8 @@ const adminMenuItems: MenuItemType[] = [
   },
   {
     text: '生成 planet',
-    path: '',
-    icon: <PublicIcon />,
-    isAction: true
+    path: '/planet',
+    icon: <PublicIcon />
   }
 ];
 
@@ -136,10 +135,6 @@ export default function ResponsiveDrawer({ window, children, title = 'Tairitsu',
     setOpenConfirmDialog(false);
   };
 
-  const handleOpenImportModal = () => {
-    setOpenImportModal(true);
-  };
-
   const handleCloseImportModal = () => {
     setOpenImportModal(false);
   };
@@ -180,26 +175,17 @@ export default function ResponsiveDrawer({ window, children, title = 'Tairitsu',
           <List>
             {adminMenuItems.map((item) => (
               <ListItem key={item.text} disablePadding>
-                {item.isAction ? (
-                  <ListItemButton onClick={() => { handleDrawerClose(); item.text === '导入网络' && handleOpenImportModal(); item.text === '生成 planet' && alert('功能正在开发中'); }}>
-                    <ListItemIcon>
-                      {item.icon}
-                    </ListItemIcon>
-                    <ListItemText primary={item.text} />
-                  </ListItemButton>
-                ) : (
-                  <ListItemButton
-                    component={Link}
-                    to={item.path}
-                    selected={location.pathname.startsWith(item.path)}
-                    onClick={handleDrawerClose}
-                  >
-                    <ListItemIcon>
-                      {item.icon}
-                    </ListItemIcon>
-                    <ListItemText primary={item.text} />
-                  </ListItemButton>
-                )}
+                <ListItemButton
+                  component={Link}
+                  to={item.path}
+                  selected={location.pathname.startsWith(item.path)}
+                  onClick={handleDrawerClose}
+                >
+                  <ListItemIcon>
+                    {item.icon}
+                  </ListItemIcon>
+                  <ListItemText primary={item.text} />
+                </ListItemButton>
               </ListItem>
             ))}
           </List>

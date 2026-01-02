@@ -165,6 +165,10 @@ func SetupRoutesWithReload(router *fiber.App, ztClient *zerotier.Client, jwtSecr
 			// Network import (admin only)
 			admin.Get("/admin/networks/importable", networkHandler.GetImportableNetworks) // Get list of importable networks
 			admin.Post("/admin/networks/import", networkHandler.ImportNetworks)           // Import specified networks
+
+			// Planet generation (admin only)
+			admin.Post("/admin/planet/generate", handlers.GeneratePlanetHandler) // Generate custom planet file
+			admin.Post("/admin/planet/keys", handlers.GenerateSigningKeysHandler) // Generate signing keys
 		}
 	}
 }
