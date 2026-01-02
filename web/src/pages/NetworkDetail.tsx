@@ -5,6 +5,55 @@ import { ArrowBack, ContentCopy, Add } from '@mui/icons-material';
 import { useParams, Link } from 'react-router-dom';
 import { networkAPI, Network } from '../services/api';
 
+interface IpAssignmentPool {
+  ipRangeStart: string;
+  ipRangeEnd: string;
+}
+
+interface Route {
+  target: string;
+  via?: string;
+}
+
+interface V4AssignMode {
+  zt: boolean;
+}
+
+interface V6AssignMode {
+  zt: boolean;
+  '6plane': boolean;
+  rfc4193: boolean;
+}
+
+interface NetworkConfig {
+  private: boolean;
+  allowPassiveBridging: boolean;
+  enableBroadcast: boolean;
+  mtu: number;
+  multicastLimit: number;
+  v4AssignMode: V4AssignMode;
+  v6AssignMode: V6AssignMode;
+  ipAssignmentPools: IpAssignmentPool[];
+  routes: Route[];
+}
+
+// Default configuration for optional fields (null instead of default values)
+const defaultNetworkConfig: Partial<NetworkConfig> = {
+  private: true,
+  allowPassiveBridging: true,
+  enableBroadcast: true,
+  mtu: 2800,
+  multicastLimit: 32,
+  v4AssignMode: {
+    zt: false
+  },
+  v6AssignMode: {
+    zt: false,
+    '6plane': false,
+    rfc4193: false
+  }
+};
+
 function NetworkDetail() {
   const { id } = useParams<{ id: string }>();
   const [network, setNetwork] = useState<Network | null>(null);
@@ -23,7 +72,19 @@ function NetworkDetail() {
         throw new Error('网络ID不能为空');
       }
       const response = await networkAPI.getNetwork(id);
-      setNetwork(response.data);
+      // Merge API response with default config to ensure all properties exist
+      const networkData = response.data;
+      if (networkData) {
+        networkData.config = { ...defaultNetworkConfig, ...networkData.config };
+        // Ensure nested objects are properly merged
+        if (networkData.config.v4AssignMode) {
+          networkData.config.v4AssignMode = { ...defaultNetworkConfig.v4AssignMode, ...networkData.config.v4AssignMode };
+        }
+        if (networkData.config.v6AssignMode) {
+          networkData.config.v6AssignMode = { ...defaultNetworkConfig.v6AssignMode, ...networkData.config.v6AssignMode };
+        }
+      }
+      setNetwork(networkData);
     } catch (err: any) {
       setError('获取网络详情失败');
       console.error('Fetch network detail error:', err);
@@ -35,6 +96,19 @@ function NetworkDetail() {
   const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
     setActiveTab(newValue);
   };
+
+  // Safe accessor functions for nested config properties
+  const getV4AssignMode = (): boolean => network?.config?.v4AssignMode?.zt ?? false;
+  const getV6AssignMode = (): 'zt' | '6plane' | 'rfc4193' | 'none' => {
+    if (network?.config?.v6AssignMode?.rfc4193) return 'rfc4193';
+    if (network?.config?.v6AssignMode?.['6plane']) return '6plane';
+    if (network?.config?.v6AssignMode?.zt) return 'zt';
+    return 'none';
+  };
+  const getMulticastLimit = (): number => network?.config?.multicastLimit ?? 32;
+  const getEnableBroadcast = (): boolean => network?.config?.enableBroadcast ?? true;
+  const getFirstIpPool = (): IpAssignmentPool | undefined => network?.config?.ipAssignmentPools?.[0];
+  const getFirstRoute = (): Route | undefined => network?.config?.routes?.[0];
 
   if (error || !id) {
     return (
@@ -194,7 +268,7 @@ function NetworkDetail() {
                     自动分配的IPv4地址段
                   </Typography>
                   <Typography variant="body1">
-                    192.168.192.0/24
+                    {getFirstRoute()?.target || '未设置'}
                   </Typography>
                 </Box>
                 
@@ -202,33 +276,39 @@ function NetworkDetail() {
                   <Typography variant="subtitle1" sx={{ mb: 2 }}>
                     IPv4地址分配池
                   </Typography>
-                  <Box sx={{ mb: 2 }}>
-                    <Grid container spacing={2} alignItems="center">
-                      <Grid size={{ xs: 5 }}>
-                        <TextField
-                          fullWidth
-                          label="起始IP"
-                          variant="outlined"
-                          size="small"
-                          value="192.168.192.2"
-                        />
+                  {getFirstIpPool() ? (
+                    <Box sx={{ mb: 2 }}>
+                      <Grid container spacing={2} alignItems="center">
+                        <Grid size={{ xs: 5 }}>
+                          <TextField
+                            fullWidth
+                            label="起始IP"
+                            variant="outlined"
+                            size="small"
+                            value={getFirstIpPool()?.ipRangeStart || ''}
+                          />
+                        </Grid>
+                        <Grid size={{ xs: 5 }}>
+                          <TextField
+                            fullWidth
+                            label="结束IP"
+                            variant="outlined"
+                            size="small"
+                            value={getFirstIpPool()?.ipRangeEnd || ''}
+                          />
+                        </Grid>
+                        <Grid size={{ xs: 2 }}>
+                          <Button variant="outlined" color="error" fullWidth size="small">
+                            删除
+                          </Button>
+                        </Grid>
                       </Grid>
-                      <Grid size={{ xs: 5 }}>
-                        <TextField
-                          fullWidth
-                          label="结束IP"
-                          variant="outlined"
-                          size="small"
-                          value="192.168.192.254"
-                        />
-                      </Grid>
-                      <Grid size={{ xs: 2 }}>
-                        <Button variant="outlined" color="error" fullWidth size="small">
-                          删除
-                        </Button>
-                      </Grid>
-                    </Grid>
-                  </Box>
+                    </Box>
+                  ) : (
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                      未设置地址池
+                    </Typography>
+                  )}
                   <Box sx={{ display: 'flex', gap: 2 }}>
                     <Button variant="outlined" startIcon={<Add />} size="small">
                       添加地址池
@@ -244,7 +324,7 @@ function NetworkDetail() {
                     IPv4自动分配模式
                   </Typography>
                   <FormControlLabel
-                    control={<Switch checked={network?.config.v4AssignMode.zt || false} />}
+                    control={<Switch checked={getV4AssignMode()} />}
                     label="自动分配IPv4地址给新成员设备"
                   />
                   <Box sx={{ pl: 4, mt: -1 }}>
@@ -258,33 +338,40 @@ function NetworkDetail() {
                   <Typography variant="subtitle1" sx={{ mb: 2 }}>
                     活跃路由
                   </Typography>
-                  <Box sx={{ mb: 2 }}>
-                    <Grid container spacing={2} alignItems="center">
-                      <Grid size={{ xs: 5 }}>
-                        <TextField
-                          fullWidth
-                          label="目标网络"
-                          variant="outlined"
-                          size="small"
-                          value="192.168.192.0/24"
-                        />
+                  {getFirstRoute() ? (
+                    <Box sx={{ mb: 2 }}>
+                      <Grid container spacing={2} alignItems="center">
+                        <Grid size={{ xs: 5 }}>
+                          <TextField
+                            fullWidth
+                            label="目标网络"
+                            variant="outlined"
+                            size="small"
+                            value={getFirstRoute()?.target || ''}
+                          />
+                        </Grid>
+                        <Grid size={{ xs: 5 }}>
+                          <TextField
+                            fullWidth
+                            label="下一跳地址"
+                            variant="outlined"
+                            size="small"
+                            placeholder="可选"
+                            value={getFirstRoute()?.via || ''}
+                          />
+                        </Grid>
+                        <Grid size={{ xs: 2 }}>
+                          <Button variant="outlined" color="error" fullWidth size="small">
+                            删除
+                          </Button>
+                        </Grid>
                       </Grid>
-                      <Grid size={{ xs: 5 }}>
-                        <TextField
-                          fullWidth
-                          label="下一跳地址"
-                          variant="outlined"
-                          size="small"
-                          placeholder="可选"
-                        />
-                      </Grid>
-                      <Grid size={{ xs: 2 }}>
-                        <Button variant="outlined" color="error" fullWidth size="small">
-                          删除
-                        </Button>
-                      </Grid>
-                    </Grid>
-                  </Box>
+                    </Box>
+                  ) : (
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                      未设置路由
+                    </Typography>
+                  )}
                   <Button variant="outlined" startIcon={<Add />} size="small">
                     添加路由
                   </Button>
@@ -304,11 +391,11 @@ function NetworkDetail() {
                   <FormControl component="fieldset" sx={{ mb: 2 }}>
                     <RadioGroup
                       row
-                      value={network?.config.v6AssignMode.rfc4193 ? 'rfc4193' : network?.config.v6AssignMode.zt ? 'zt' : 'custom'}
+                      value={getV6AssignMode()}
                     >
                       <FormControlLabel value="none" control={<Radio />} label="不分配IPv6地址" />
                       <FormControlLabel value="rfc4193" control={<Radio />} label="分配RFC4193唯一地址" />
-                      <FormControlLabel value="custom" control={<Radio />} label="从自定义IPv6范围分配" />
+                      <FormControlLabel value="6plane" control={<Radio />} label="分配6plane地址" />
                     </RadioGroup>
                   </FormControl>
                   
@@ -362,14 +449,14 @@ function NetworkDetail() {
                       <TextField
                         type="number"
                         size="small"
-                        value={network?.config.multicastLimit || 32}
+                        value={getMulticastLimit()}
                         sx={{ width: 120 }}
                       />
                     </Box>
                   </Grid>
                   <Grid size={{ xs: 12, md: 6 }}>
                     <FormControlLabel
-                      control={<Switch checked={true} />}
+                      control={<Switch checked={getEnableBroadcast()} />}
                       label="启用广播"
                     />
                   </Grid>

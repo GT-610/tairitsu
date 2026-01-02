@@ -33,12 +33,22 @@ type Network struct {
 type NetworkConfig struct {
 	Private                    bool               `json:"private"`
 	AllowPassivePortForwarding bool               `json:"allowPassivePortForwarding"`
+	EnableBroadcast            bool               `json:"enableBroadcast"`
+	Mtu                        int                `json:"mtu"`
+	MulticastLimit             int                `json:"multicastLimit"`
 	IPAssignmentPools          []IPAssignmentPool `json:"ipAssignmentPools"`
 	Routes                     []Route            `json:"routes"`
 	Tags                       []Tag              `json:"tags"`
 	Rules                      []Rule             `json:"rules"`
 	V4AssignMode               AssignmentMode     `json:"v4AssignMode"`
-	V6AssignMode               AssignmentMode     `json:"v6AssignMode"`
+	V6AssignMode               V6AssignmentMode   `json:"v6AssignMode"`
+}
+
+// V6AssignmentMode IPv6分配模式
+type V6AssignmentMode struct {
+	ZT      bool `json:"zt"`
+	Plane6  bool `json:"6plane"`
+	Rfc4193 bool `json:"rfc4193"`
 }
 
 // IPAssignmentPool IP分配池

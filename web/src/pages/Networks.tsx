@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Box, Typography, Button, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, CircularProgress, Alert, Modal, TextField, IconButton, Grid, Card, CardContent, Select, MenuItem, FormControl, InputLabel, Chip } from '@mui/material';
+import { Box, Typography, Button, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, CircularProgress, Alert, Modal, TextField, IconButton, Grid, Card, CardContent } from '@mui/material';
 import { Link } from 'react-router-dom';
 import { Add, Edit, Delete, Close } from '@mui/icons-material';
 import { networkAPI, Network, NetworkConfig } from '../services/api';
@@ -23,16 +23,17 @@ function Networks() {
     config: {
       private: true,
       allowPassiveBridging: true,
+      enableBroadcast: true,
+      mtu: 2800,
+      multicastLimit: 32,
       ipAssignmentPools: [{ ipRangeStart: '192.168.192.1', ipRangeEnd: '192.168.192.254' }],
       routes: [{ target: '192.168.192.0/24' }],
-      v4AssignMode: { zt: true, rfc4193: false, user: false },
-      v6AssignMode: { zt: false, rfc4193: false, user: false },
-      multicastLimit: 32
+      v4AssignMode: { zt: true },
+      v6AssignMode: { zt: false, '6plane': false, rfc4193: false }
     }
   });
   // 搜索和筛选状态
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [statusFilter, setStatusFilter] = useState<string>('');
 
 
   const fetchNetworks = async () => {
@@ -61,11 +62,13 @@ function Networks() {
         config: {
           private: network.config?.private ?? true,
           allowPassiveBridging: network.config?.allowPassiveBridging ?? true,
+          enableBroadcast: network.config?.enableBroadcast ?? true,
+          mtu: network.config?.mtu ?? 2800,
+          multicastLimit: network.config?.multicastLimit ?? 32,
           ipAssignmentPools: network.config?.ipAssignmentPools ?? [{ ipRangeStart: '192.168.192.1', ipRangeEnd: '192.168.192.254' }],
           routes: network.config?.routes ?? [{ target: '192.168.192.0/24' }],
-          v4AssignMode: network.config?.v4AssignMode ?? { zt: true, rfc4193: false, user: false },
-          v6AssignMode: network.config?.v6AssignMode ?? { zt: false, rfc4193: false, user: false },
-          multicastLimit: network.config?.multicastLimit ?? 32
+          v4AssignMode: network.config?.v4AssignMode ?? { zt: true },
+          v6AssignMode: network.config?.v6AssignMode ?? { zt: false, '6plane': false, rfc4193: false }
         }
       });
     } else {
@@ -75,11 +78,13 @@ function Networks() {
         config: {
           private: true,
           allowPassiveBridging: true,
+          enableBroadcast: true,
+          mtu: 2800,
+          multicastLimit: 32,
           ipAssignmentPools: [{ ipRangeStart: '192.168.192.1', ipRangeEnd: '192.168.192.254' }],
           routes: [{ target: '192.168.192.0/24' }],
-          v4AssignMode: { zt: true, rfc4193: false, user: false },
-          v6AssignMode: { zt: false, rfc4193: false, user: false },
-          multicastLimit: 32
+          v4AssignMode: { zt: true },
+          v6AssignMode: { zt: false, '6plane': false, rfc4193: false }
         }
       });
     }
@@ -95,11 +100,13 @@ function Networks() {
       config: {
         private: true,
         allowPassiveBridging: true,
+        enableBroadcast: true,
+        mtu: 2800,
+        multicastLimit: 32,
         ipAssignmentPools: [{ ipRangeStart: '192.168.192.1', ipRangeEnd: '192.168.192.254' }],
         routes: [{ target: '192.168.192.0/24' }],
-        v4AssignMode: { zt: true, rfc4193: false, user: false },
-        v6AssignMode: { zt: false, rfc4193: false, user: false },
-        multicastLimit: 32
+        v4AssignMode: { zt: true },
+        v6AssignMode: { zt: false, '6plane': false, rfc4193: false }
       }
     });
   };
@@ -181,16 +188,11 @@ function Networks() {
   // 过滤网络列表的函数
   const getFilteredNetworks = () => {
     return networks.filter(network => {
-      // 搜索过滤
       const matchesSearch = searchQuery === '' || 
         (network.name && network.name.toLowerCase().includes(searchQuery.toLowerCase())) ||
         (network.id && network.id.toLowerCase().includes(searchQuery.toLowerCase()));
       
-      // 状态过滤（暂时不实现实际状态判断，因为后端还没提供）
-      // const matchesStatus = statusFilter === '' || network.status === statusFilter;
-      const matchesStatus = statusFilter === '';
-      
-      return matchesSearch && matchesStatus;
+      return matchesSearch;
     });
   };
 
@@ -204,28 +206,6 @@ function Networks() {
   }, 0);
   
   const unauthorizedMembers = totalMembers - authorizedMembers;
-
-  // 获取网络状态的显示信息
-  const getNetworkStatusInfo = (status: string) => {
-    switch (status) {
-      case 'OK':
-        return { label: '正常运行', color: 'success' as const };
-      case 'REQUESTING_CONFIGURATION':
-        return { label: '等待配置', color: 'warning' as const };
-      case 'ACCESS_DENIED':
-        return { label: '访问被拒绝', color: 'error' as const };
-      case 'NOT_FOUND':
-        return { label: '网络不存在', color: 'error' as const };
-      case 'PORT_ERROR':
-        return { label: '端口错误', color: 'error' as const };
-      case 'CLIENT_TOO_OLD':
-        return { label: '客户端版本过旧', color: 'warning' as const };
-      case 'AUTHENTICATION_REQUIRED':
-        return { label: '需要认证', color: 'warning' as const };
-      default:
-        return { label: status || '未知', color: 'default' as const };
-    }
-  };
 
   return (
     <Box sx={{ p: 3 }}>
@@ -304,19 +284,6 @@ function Networks() {
               onChange={(e) => setSearchQuery(e.target.value)}
               sx={{ width: { xs: '100%', sm: '250px' } }}
             />
-            <FormControl variant="outlined" size="small" sx={{ width: { xs: '100%', sm: '150px' } }}>
-              <InputLabel>状态</InputLabel>
-              <Select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                label="状态"
-              >
-                <MenuItem value="">全部</MenuItem>
-                <MenuItem value="online">在线</MenuItem>
-                <MenuItem value="offline">离线</MenuItem>
-                <MenuItem value="warning">警告</MenuItem>
-              </Select>
-            </FormControl>
           </Box>
 
           <TableContainer component={Paper} sx={{ overflowX: 'auto' }}>
@@ -326,7 +293,6 @@ function Networks() {
                   <TableCell>名称</TableCell>
                   <TableCell>网络ID</TableCell>
                   <TableCell>设备数</TableCell>
-                  <TableCell>状态</TableCell>
                   <TableCell>操作</TableCell>
                 </TableRow>
               </TableHead>
@@ -338,13 +304,6 @@ function Networks() {
                     </TableCell>
                     <TableCell>{network.id}</TableCell>
                     <TableCell>{(network.members?.length || 0)}</TableCell>
-                    <TableCell>
-                      <Chip 
-                        label={getNetworkStatusInfo(network.status).label}
-                        color={getNetworkStatusInfo(network.status).color}
-                        size="small"
-                      />
-                    </TableCell>
                     <TableCell>
                       <Box sx={{ display: 'flex', gap: 1 }}>
                         <Button 

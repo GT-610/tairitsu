@@ -24,17 +24,17 @@ export interface Network {
 export interface NetworkConfig {
   private: boolean;
   allowPassiveBridging: boolean;
+  enableBroadcast: boolean;
+  mtu: number;
+  multicastLimit: number;
   v4AssignMode: {
     zt: boolean;
-    rfc4193: boolean;
-    user: boolean;
   };
   v6AssignMode: {
     zt: boolean;
+    '6plane': boolean;
     rfc4193: boolean;
-    user: boolean;
   };
-  multicastLimit: number;
   routes: Route[];
   ipAssignmentPools: IpAssignmentPool[];
 }
