@@ -117,7 +117,7 @@ func (h *NetworkHandler) CreateNetwork(c fiber.Ctx) error {
 func (h *NetworkHandler) UpdateNetwork(c fiber.Ctx) error {
 	id := c.Params("id")
 
-	var req zerotier.Network
+	var req zerotier.NetworkUpdateRequest
 	if err := c.Bind().Body(&req); err != nil {
 		logger.Error("更新网络请求参数绑定失败", zap.Error(err))
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
@@ -139,6 +139,40 @@ func (h *NetworkHandler) UpdateNetwork(c fiber.Ctx) error {
 	}
 
 	logger.Info("成功更新网络", zap.String("network_id", network.ID))
+
+	return c.Status(fiber.StatusOK).JSON(network)
+}
+
+// UpdateNetworkMetadata 更新网络元数据（名称和描述）
+// 名称同步更新控制器和数据库，描述仅更新数据库
+func (h *NetworkHandler) UpdateNetworkMetadata(c fiber.Ctx) error {
+	id := c.Params("id")
+
+	var req struct {
+		Name        string `json:"name"`
+		Description string `json:"description"`
+	}
+	if err := c.Bind().Body(&req); err != nil {
+		logger.Error("更新网络元数据请求参数绑定失败", zap.Error(err))
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	logger.Info("开始更新网络元数据", zap.String("network_id", id), zap.String("name", req.Name))
+
+	// Get user ID from context
+	userID := c.Locals("user_id")
+	if userID == nil {
+		logger.Error("获取用户ID失败")
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "未授权访问"})
+	}
+
+	network, err := h.networkService.UpdateNetworkMetadata(id, req.Name, req.Description, userID.(string))
+	if err != nil {
+		logger.Error("更新网络元数据失败", zap.String("network_id", id), zap.Error(err))
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	logger.Info("成功更新网络元数据", zap.String("network_id", network.ID))
 
 	return c.Status(fiber.StatusOK).JSON(network)
 }

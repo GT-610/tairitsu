@@ -21,12 +21,78 @@ type Client struct {
 // Network 网络结构
 type Network struct {
 	ID          string        `json:"id"`
-	Name        string        `json:"name" binding:"required"`
+	Name        string        `json:"name"`
 	Description string        `json:"description"`
-	Config      NetworkConfig `json:"config" binding:"required"`
+	Config      NetworkConfig `json:"config"`
 	Created     int64         `json:"creationTime"`
 	Modified    int64         `json:"lastModifiedTime"`
 	Status      string        `json:"status"`
+}
+
+// NetworkResponse ZeroTier API返回的扁平网络结构（用于自定义解析）
+type NetworkResponse struct {
+	ID                         string             `json:"id"`
+	Name                       string             `json:"name"`
+	Description                string             `json:"description"`
+	Private                    bool               `json:"private"`
+	AllowPassivePortForwarding bool               `json:"allowPassivePortForwarding"`
+	EnableBroadcast            bool               `json:"enableBroadcast"`
+	Mtu                        int                `json:"mtu"`
+	MulticastLimit             int                `json:"multicastLimit"`
+	IpAssignmentPools          []IpAssignmentPool `json:"ipAssignmentPools"`
+	Routes                     []Route            `json:"routes"`
+	Tags                       []Tag              `json:"tags"`
+	Rules                      []Rule             `json:"rules"`
+	V4AssignMode               AssignmentMode     `json:"v4AssignMode"`
+	V6AssignMode               V6AssignmentMode   `json:"v6AssignMode"`
+	CreationTime               int64              `json:"creationTime"`
+	LastModifiedTime           int64              `json:"lastModifiedTime"`
+	Status                     string             `json:"status"`
+}
+
+func (n *Network) UnmarshalJSON(data []byte) error {
+	var resp NetworkResponse
+	if err := json.Unmarshal(data, &resp); err != nil {
+		return fmt.Errorf("解析网络JSON失败: %w", err)
+	}
+
+	n.ID = resp.ID
+	n.Name = resp.Name
+	n.Description = resp.Description
+	n.Created = resp.CreationTime
+	n.Modified = resp.LastModifiedTime
+	n.Status = resp.Status
+
+	n.Config = NetworkConfig{
+		Private:                    resp.Private,
+		AllowPassivePortForwarding: resp.AllowPassivePortForwarding,
+		EnableBroadcast:            resp.EnableBroadcast,
+		Mtu:                        resp.Mtu,
+		MulticastLimit:             resp.MulticastLimit,
+		IpAssignmentPools:          resp.IpAssignmentPools,
+		Routes:                     resp.Routes,
+		Tags:                       resp.Tags,
+		Rules:                      resp.Rules,
+		V4AssignMode:               resp.V4AssignMode,
+		V6AssignMode:               resp.V6AssignMode,
+	}
+
+	return nil
+}
+
+// NetworkUpdateRequest 部分更新网络请求（不强制要求必填字段）
+type NetworkUpdateRequest struct {
+	Name                 string             `json:"name,omitempty"`
+	Description          string             `json:"description,omitempty"`
+	Private              bool               `json:"private"`
+	AllowPassiveBridging *bool              `json:"allowPassiveBridging,omitempty"`
+	EnableBroadcast      bool               `json:"enableBroadcast"`
+	Mtu                  *int               `json:"mtu,omitempty"`
+	MulticastLimit       *int               `json:"multicastLimit,omitempty"`
+	IpAssignmentPools    []IpAssignmentPool `json:"ipAssignmentPools,omitempty"`
+	Routes               []Route            `json:"routes,omitempty"`
+	V4AssignMode         *AssignmentMode    `json:"v4AssignMode,omitempty"`
+	V6AssignMode         *V6AssignmentMode  `json:"v6AssignMode,omitempty"`
 }
 
 // NetworkConfig 网络配置
@@ -36,7 +102,7 @@ type NetworkConfig struct {
 	EnableBroadcast            bool               `json:"enableBroadcast"`
 	Mtu                        int                `json:"mtu"`
 	MulticastLimit             int                `json:"multicastLimit"`
-	IPAssignmentPools          []IPAssignmentPool `json:"ipAssignmentPools"`
+	IpAssignmentPools          []IpAssignmentPool `json:"ipAssignmentPools"`
 	Routes                     []Route            `json:"routes"`
 	Tags                       []Tag              `json:"tags"`
 	Rules                      []Rule             `json:"rules"`
@@ -51,10 +117,10 @@ type V6AssignmentMode struct {
 	Rfc4193 bool `json:"rfc4193"`
 }
 
-// IPAssignmentPool IP分配池
-type IPAssignmentPool struct {
-	IPRangeStart string `json:"ipRangeStart"`
-	IPRangeEnd   string `json:"ipRangeEnd"`
+// IpAssignmentPool IP分配池
+type IpAssignmentPool struct {
+	IpRangeStart string `json:"ipRangeStart"`
+	IpRangeEnd   string `json:"ipRangeEnd"`
 }
 
 // Route 路由
@@ -72,7 +138,7 @@ type Tag struct {
 // Rule 规则
 type Rule struct {
 	Not       bool   `json:"not"`
-	Or        []Rule `json:"or,omitempty"`
+	Or        bool   `json:"or,omitempty"`
 	Type      string `json:"type"`
 	Metric    int    `json:"metric"`
 	PortMin   int    `json:"portMin,omitempty"`
@@ -306,6 +372,22 @@ func (c *Client) CreateNetwork(network *Network) (*Network, error) {
 func (c *Client) UpdateNetwork(networkID string, network *Network) (*Network, error) {
 	endpoint := fmt.Sprintf("/controller/network/%s", networkID)
 	respBody, err := c.doRequest("POST", endpoint, network)
+	if err != nil {
+		return nil, err
+	}
+
+	var updatedNetwork Network
+	if err := json.Unmarshal(respBody, &updatedNetwork); err != nil {
+		return nil, fmt.Errorf("解析更新网络响应失败: %w", err)
+	}
+
+	return &updatedNetwork, nil
+}
+
+// PartialUpdateNetwork 部分更新网络配置
+func (c *Client) PartialUpdateNetwork(networkID string, updateReq *NetworkUpdateRequest) (*Network, error) {
+	endpoint := fmt.Sprintf("/controller/network/%s", networkID)
+	respBody, err := c.doRequest("POST", endpoint, updateReq)
 	if err != nil {
 		return nil, err
 	}

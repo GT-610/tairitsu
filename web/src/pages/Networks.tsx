@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Box, Typography, Button, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, CircularProgress, Alert, Modal, TextField, IconButton, Grid, Card, CardContent } from '@mui/material';
 import { Link } from 'react-router-dom';
-import { Add, Edit, Delete, Close } from '@mui/icons-material';
+import { Add, Delete, Close } from '@mui/icons-material';
 import { networkAPI, NetworkSummary } from '../services/api';
 
 function Networks() {
@@ -211,14 +211,6 @@ function Networks() {
                           size="small"
                         >
                           详情
-                        </Button>
-                        <Button
-                          variant="outlined"
-                          size="small"
-                          startIcon={<Edit />}
-                          onClick={() => handleOpenModal(network)}
-                        >
-                          编辑
                         </Button>
                         <Button
                           variant="outlined"

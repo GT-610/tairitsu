@@ -139,6 +139,7 @@ func SetupRoutesWithReload(router *fiber.App, ztClient *zerotier.Client, jwtSecr
 					networks.Post("", networkHandler.CreateNetwork)       // Create network
 					networks.Get("/:id", networkHandler.GetNetwork)       // Get single network
 					networks.Put("/:id", networkHandler.UpdateNetwork)    // Update network
+					networks.Put("/:id/metadata", networkHandler.UpdateNetworkMetadata) // Update network metadata (name and description)
 					networks.Delete("/:id", networkHandler.DeleteNetwork) // Delete network
 
 					// Member management (nested within network routes)

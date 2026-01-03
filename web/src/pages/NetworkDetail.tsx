@@ -1,41 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Box, Typography, Card, CardContent, CircularProgress, Alert, Button, Grid, IconButton, Tabs, Tab, Paper, TextField, Switch, FormControlLabel, FormControl, RadioGroup, Radio }
-from '@mui/material';
+import { Box, Typography, Card, CardContent, CircularProgress, Alert, Button, Grid, IconButton, Tabs, Tab, Paper, TextField, Switch, FormControlLabel, FormControl, RadioGroup, Radio, Dialog, DialogTitle, DialogContent, DialogActions, DialogContentText, Snackbar } from '@mui/material';
 import { ArrowBack, ContentCopy, Add } from '@mui/icons-material';
 import { useParams, Link } from 'react-router-dom';
-import { networkAPI, Network } from '../services/api';
-
-interface IpAssignmentPool {
-  ipRangeStart: string;
-  ipRangeEnd: string;
-}
-
-interface Route {
-  target: string;
-  via?: string;
-}
-
-interface V4AssignMode {
-  zt: boolean;
-}
-
-interface V6AssignMode {
-  zt: boolean;
-  '6plane': boolean;
-  rfc4193: boolean;
-}
-
-interface NetworkConfig {
-  private: boolean;
-  allowPassiveBridging: boolean;
-  enableBroadcast: boolean;
-  mtu: number;
-  multicastLimit: number;
-  v4AssignMode: V4AssignMode;
-  v6AssignMode: V6AssignMode;
-  ipAssignmentPools: IpAssignmentPool[];
-  routes: Route[];
-}
+import { networkAPI, Network, NetworkConfig, NetworkUpdateRequest, NetworkMetadataUpdateRequest, IpAssignmentPool, Route } from '../services/api';
 
 // Default configuration for optional fields (null instead of default values)
 const defaultNetworkConfig: Partial<NetworkConfig> = {
@@ -58,8 +25,19 @@ function NetworkDetail() {
   const { id } = useParams<{ id: string }>();
   const [network, setNetwork] = useState<Network | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
+  const [saving, setSaving] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
   const [activeTab, setActiveTab] = useState<number>(0);
+  const [editingName, setEditingName] = useState<string>('');
+  const [editingDescription, setEditingDescription] = useState<string>('');
+  const [v4AssignMode, setV4AssignMode] = useState<boolean>(false);
+  const [v6AssignMode, setV6AssignMode] = useState<'zt' | '6plane' | 'rfc4193' | 'none'>('none');
+  const [multicastLimit, setMulticastLimit] = useState<number>(32);
+  const [enableBroadcast, setEnableBroadcast] = useState<boolean>(true);
+  const [ipPools, setIpPools] = useState<IpAssignmentPool[]>([]);
+  const [routes, setRoutes] = useState<Route[]>([]);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState<boolean>(false);
+  const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' | 'info' }>({ open: false, message: '', severity: 'success' });
 
   useEffect(() => {
     fetchNetworkDetail();
@@ -72,19 +50,26 @@ function NetworkDetail() {
         throw new Error('网络ID不能为空');
       }
       const response = await networkAPI.getNetwork(id);
-      // Merge API response with default config to ensure all properties exist
       const networkData = response.data;
       if (networkData) {
         networkData.config = { ...defaultNetworkConfig, ...networkData.config };
-        // Ensure nested objects are properly merged
         if (networkData.config.v4AssignMode) {
           networkData.config.v4AssignMode = { ...defaultNetworkConfig.v4AssignMode, ...networkData.config.v4AssignMode };
         }
         if (networkData.config.v6AssignMode) {
           networkData.config.v6AssignMode = { ...defaultNetworkConfig.v6AssignMode, ...networkData.config.v6AssignMode };
         }
+        setNetwork(networkData);
+        setEditingName(networkData.name || '');
+        setEditingDescription(networkData.db_description || networkData.description || '');
+        setV4AssignMode(networkData.config.v4AssignMode?.zt ?? false);
+        setV6AssignMode(getV6AssignModeFromConfig(networkData.config.v6AssignMode));
+        setMulticastLimit(networkData.config.multicastLimit ?? 32);
+        setEnableBroadcast(networkData.config.enableBroadcast ?? true);
+        const pools = networkData.config.ipAssignmentPools || [];
+        setIpPools(pools);
+        setRoutes(networkData.config.routes || []);
       }
-      setNetwork(networkData);
     } catch (err: any) {
       setError('获取网络详情失败');
       console.error('Fetch network detail error:', err);
@@ -93,22 +78,145 @@ function NetworkDetail() {
     }
   };
 
+  const getV6AssignModeFromConfig = (config: any): 'zt' | '6plane' | 'rfc4193' | 'none' => {
+    if (config?.rfc4193) return 'rfc4193';
+    if (config?.['6plane']) return '6plane';
+    if (config?.zt) return 'zt';
+    return 'none';
+  };
+
+  const showSnackbar = (message: string, severity: 'success' | 'error' | 'info' = 'success') => {
+    setSnackbar({ open: true, message, severity });
+  };
+
+  const handleSaveMetadata = async () => {
+    if (!id || !network) return;
+    setSaving(true);
+    try {
+      const metadataData: NetworkMetadataUpdateRequest = {
+        name: editingName,
+        description: editingDescription
+      };
+      await networkAPI.updateNetworkMetadata(id, metadataData);
+      showSnackbar('名称和描述保存成功');
+      setTimeout(() => fetchNetworkDetail(), 1000);
+    } catch (err: any) {
+      showSnackbar('保存失败: ' + (err.response?.data?.error || err.message), 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSaveBasicInfo = async () => {
+    if (!id || !network) return;
+    setSaving(true);
+    try {
+      const updateData: NetworkUpdateRequest = {
+        v4AssignMode: { zt: v4AssignMode },
+        v6AssignMode: {
+          zt: v6AssignMode === 'zt',
+          '6plane': v6AssignMode === '6plane',
+          rfc4193: v6AssignMode === 'rfc4193'
+        },
+        multicastLimit: multicastLimit,
+        enableBroadcast: enableBroadcast
+      };
+      await networkAPI.updateNetwork(id, updateData);
+      showSnackbar('基本配置保存成功');
+      setTimeout(() => fetchNetworkDetail(), 1000);
+    } catch (err: any) {
+      showSnackbar('保存失败: ' + (err.response?.data?.error || err.message), 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeleteNetwork = async () => {
+    if (!id) return;
+    setSaving(true);
+    try {
+      await networkAPI.deleteNetwork(id);
+      showSnackbar('网络删除成功', 'success');
+      setTimeout(() => {
+        window.location.href = '/networks';
+      }, 1000);
+    } catch (err: any) {
+      showSnackbar('删除失败: ' + (err.response?.data?.error || err.message), 'error');
+    } finally {
+      setSaving(false);
+      setDeleteDialogOpen(false);
+    }
+  };
+
+  const handleSaveIpPools = async () => {
+    if (!id) return;
+    setSaving(true);
+    try {
+      await networkAPI.updateNetwork(id, { ipAssignmentPools: ipPools });
+      showSnackbar('IP地址池保存成功');
+      setTimeout(() => fetchNetworkDetail(), 1000);
+    } catch (err: any) {
+      showSnackbar('保存失败: ' + (err.response?.data?.error || err.message), 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleAddIpPool = () => {
+    setIpPools([...ipPools, { ipRangeStart: '', ipRangeEnd: '' }]);
+  };
+
+  const handleRemoveIpPool = (index: number) => {
+    const newPools = [...ipPools];
+    newPools.splice(index, 1);
+    setIpPools(newPools);
+  };
+
+  const handleUpdateIpPool = (index: number, field: 'ipRangeStart' | 'ipRangeEnd', value: string) => {
+    const newPools = [...ipPools];
+    newPools[index] = { ...newPools[index], [field]: value };
+    setIpPools(newPools);
+  };
+
+  const handleSaveRoutes = async () => {
+    if (!id) return;
+    setSaving(true);
+    try {
+      await networkAPI.updateNetwork(id, { routes: routes });
+      showSnackbar('路由保存成功');
+      setTimeout(() => fetchNetworkDetail(), 1000);
+    } catch (err: any) {
+      showSnackbar('保存失败: ' + (err.response?.data?.error || err.message), 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleAddRoute = () => {
+    setRoutes([...routes, { target: '', via: '' }]);
+  };
+
+  const handleRemoveRoute = (index: number) => {
+    const newRoutes = [...routes];
+    newRoutes.splice(index, 1);
+    setRoutes(newRoutes);
+  };
+
+  const handleUpdateRoute = (index: number, field: 'target' | 'via', value: string) => {
+    const newRoutes = [...routes];
+    newRoutes[index] = { ...newRoutes[index], [field]: value };
+    setRoutes(newRoutes);
+  };
+
   const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
     setActiveTab(newValue);
   };
 
-  // Safe accessor functions for nested config properties
-  const getV4AssignMode = (): boolean => network?.config?.v4AssignMode?.zt ?? false;
-  const getV6AssignMode = (): 'zt' | '6plane' | 'rfc4193' | 'none' => {
-    if (network?.config?.v6AssignMode?.rfc4193) return 'rfc4193';
-    if (network?.config?.v6AssignMode?.['6plane']) return '6plane';
-    if (network?.config?.v6AssignMode?.zt) return 'zt';
-    return 'none';
+  const handleCloseSnackbar = () => {
+    setSnackbar({ ...snackbar, open: false });
   };
-  const getMulticastLimit = (): number => network?.config?.multicastLimit ?? 32;
-  const getEnableBroadcast = (): boolean => network?.config?.enableBroadcast ?? true;
-  const getFirstIpPool = (): IpAssignmentPool | undefined => network?.config?.ipAssignmentPools?.[0];
-  const getFirstRoute = (): Route | undefined => network?.config?.routes?.[0];
+
+  const getFirstRoute = (): Route | undefined => routes[0];
 
   if (error || !id) {
     return (
@@ -230,7 +338,8 @@ function NetworkDetail() {
                       fullWidth
                       label="网络名称"
                       variant="outlined"
-                      value={network?.name || ''}
+                      value={editingName}
+                      onChange={(e) => setEditingName(e.target.value)}
                       sx={{ mb: 2 }}
                     />
                   </Grid>
@@ -241,19 +350,15 @@ function NetworkDetail() {
                       variant="outlined"
                       multiline
                       rows={3}
-                      value={network?.description || ''}
+                      value={editingDescription}
+                      onChange={(e) => setEditingDescription(e.target.value)}
                       sx={{ mb: 2 }}
                     />
                   </Grid>
                   <Grid size={{ xs: 12 }}>
-                    <Box sx={{ display: 'flex', gap: 2 }}>
-                      <Button variant="contained" color="primary">
-                        保存
-                      </Button>
-                      <Button variant="outlined">
-                        重置
-                      </Button>
-                    </Box>
+                    <Button variant="contained" color="primary" onClick={handleSaveMetadata} disabled={saving}>
+                      保存
+                    </Button>
                   </Grid>
                 </Grid>
               </Paper>
@@ -265,44 +370,58 @@ function NetworkDetail() {
                 </Typography>
                 <Box sx={{ mb: 3, p: 2, bgcolor: 'background.paper', borderRadius: 1, border: '1px solid', borderColor: 'divider' }}>
                   <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                    自动分配的IPv4地址段
+                    已分配的IPv4地址段
                   </Typography>
-                  <Typography variant="body1">
-                    {getFirstRoute()?.target || '未设置'}
-                  </Typography>
+                  {ipPools.length > 0 ? (
+                    <Box>
+                      {ipPools.map((pool, index) => (
+                        <Typography key={index} variant="body1">
+                          {pool.ipRangeStart} - {pool.ipRangeEnd}
+                        </Typography>
+                      ))}
+                    </Box>
+                  ) : (
+                    <Typography variant="body1">
+                      未设置
+                    </Typography>
+                  )}
                 </Box>
                 
                 <Box sx={{ mb: 3 }}>
                   <Typography variant="subtitle1" sx={{ mb: 2 }}>
                     IPv4地址分配池
                   </Typography>
-                  {getFirstIpPool() ? (
+                  {ipPools.length > 0 ? (
                     <Box sx={{ mb: 2 }}>
-                      <Grid container spacing={2} alignItems="center">
-                        <Grid size={{ xs: 5 }}>
-                          <TextField
-                            fullWidth
-                            label="起始IP"
-                            variant="outlined"
-                            size="small"
-                            value={getFirstIpPool()?.ipRangeStart || ''}
-                          />
+                      {ipPools.map((pool, index) => (
+                        <Grid container spacing={2} alignItems="center" key={index} sx={{ mb: 2 }}>
+                          <Grid size={{ xs: 5 }}>
+                            <TextField
+                              fullWidth
+                              label="起始IP"
+                              variant="outlined"
+                              size="small"
+                              value={pool.ipRangeStart}
+                              onChange={(e) => handleUpdateIpPool(index, 'ipRangeStart', e.target.value)}
+                            />
+                          </Grid>
+                          <Grid size={{ xs: 5 }}>
+                            <TextField
+                              fullWidth
+                              label="结束IP"
+                              variant="outlined"
+                              size="small"
+                              value={pool.ipRangeEnd}
+                              onChange={(e) => handleUpdateIpPool(index, 'ipRangeEnd', e.target.value)}
+                            />
+                          </Grid>
+                          <Grid size={{ xs: 2 }}>
+                            <Button variant="outlined" color="error" fullWidth size="small" onClick={() => handleRemoveIpPool(index)}>
+                              删除
+                            </Button>
+                          </Grid>
                         </Grid>
-                        <Grid size={{ xs: 5 }}>
-                          <TextField
-                            fullWidth
-                            label="结束IP"
-                            variant="outlined"
-                            size="small"
-                            value={getFirstIpPool()?.ipRangeEnd || ''}
-                          />
-                        </Grid>
-                        <Grid size={{ xs: 2 }}>
-                          <Button variant="outlined" color="error" fullWidth size="small">
-                            删除
-                          </Button>
-                        </Grid>
-                      </Grid>
+                      ))}
                     </Box>
                   ) : (
                     <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
@@ -310,12 +429,24 @@ function NetworkDetail() {
                     </Typography>
                   )}
                   <Box sx={{ display: 'flex', gap: 2 }}>
-                    <Button variant="outlined" startIcon={<Add />} size="small">
+                    <Button variant="outlined" startIcon={<Add />} size="small" onClick={handleAddIpPool}>
                       添加地址池
                     </Button>
-                    <Button variant="outlined" size="small">
+                    <Button variant="outlined" size="small" onClick={() => {
+                      // Generate a random IP pool
+                      const randomPool: IpAssignmentPool = {
+                        ipRangeStart: `10.${Math.floor(Math.random() * 256)}.${Math.floor(Math.random() * 256)}.1`,
+                        ipRangeEnd: `10.${Math.floor(Math.random() * 256)}.${Math.floor(Math.random() * 256)}.254`
+                      };
+                      setIpPools([...ipPools, randomPool]);
+                    }}>
                       随机分配一个地址池
                     </Button>
+                    {ipPools.length > 0 && (
+                      <Button variant="contained" color="primary" size="small" onClick={handleSaveIpPools} disabled={saving}>
+                        保存地址池
+                      </Button>
+                    )}
                   </Box>
                 </Box>
                 
@@ -324,7 +455,7 @@ function NetworkDetail() {
                     IPv4自动分配模式
                   </Typography>
                   <FormControlLabel
-                    control={<Switch checked={getV4AssignMode()} />}
+                    control={<Switch checked={v4AssignMode} onChange={(e) => setV4AssignMode(e.target.checked)} />}
                     label="自动分配IPv4地址给新成员设备"
                   />
                   <Box sx={{ pl: 4, mt: -1 }}>
@@ -338,43 +469,54 @@ function NetworkDetail() {
                   <Typography variant="subtitle1" sx={{ mb: 2 }}>
                     活跃路由
                   </Typography>
-                  {getFirstRoute() ? (
+                  {routes.length > 0 ? (
                     <Box sx={{ mb: 2 }}>
-                      <Grid container spacing={2} alignItems="center">
-                        <Grid size={{ xs: 5 }}>
-                          <TextField
-                            fullWidth
-                            label="目标网络"
-                            variant="outlined"
-                            size="small"
-                            value={getFirstRoute()?.target || ''}
-                          />
+                      {routes.map((route, index) => (
+                        <Grid container spacing={2} alignItems="center" key={index} sx={{ mb: 2 }}>
+                          <Grid size={{ xs: 5 }}>
+                            <TextField
+                              fullWidth
+                              label="目标网络"
+                              variant="outlined"
+                              size="small"
+                              value={route.target}
+                              onChange={(e) => handleUpdateRoute(index, 'target', e.target.value)}
+                            />
+                          </Grid>
+                          <Grid size={{ xs: 5 }}>
+                            <TextField
+                              fullWidth
+                              label="下一跳地址"
+                              variant="outlined"
+                              size="small"
+                              placeholder="可选"
+                              value={route.via || ''}
+                              onChange={(e) => handleUpdateRoute(index, 'via', e.target.value)}
+                            />
+                          </Grid>
+                          <Grid size={{ xs: 2 }}>
+                            <Button variant="outlined" color="error" fullWidth size="small" onClick={() => handleRemoveRoute(index)}>
+                              删除
+                            </Button>
+                          </Grid>
                         </Grid>
-                        <Grid size={{ xs: 5 }}>
-                          <TextField
-                            fullWidth
-                            label="下一跳地址"
-                            variant="outlined"
-                            size="small"
-                            placeholder="可选"
-                            value={getFirstRoute()?.via || ''}
-                          />
-                        </Grid>
-                        <Grid size={{ xs: 2 }}>
-                          <Button variant="outlined" color="error" fullWidth size="small">
-                            删除
-                          </Button>
-                        </Grid>
-                      </Grid>
+                      ))}
                     </Box>
                   ) : (
                     <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                       未设置路由
                     </Typography>
                   )}
-                  <Button variant="outlined" startIcon={<Add />} size="small">
-                    添加路由
-                  </Button>
+                  <Box sx={{ display: 'flex', gap: 2 }}>
+                    <Button variant="outlined" startIcon={<Add />} size="small" onClick={handleAddRoute}>
+                      添加路由
+                    </Button>
+                    {routes.length > 0 && (
+                      <Button variant="contained" color="primary" size="small" onClick={handleSaveRoutes} disabled={saving}>
+                        保存路由
+                      </Button>
+                    )}
+                  </Box>
                 </Box>
               </Paper>
               
@@ -391,7 +533,8 @@ function NetworkDetail() {
                   <FormControl component="fieldset" sx={{ mb: 2 }}>
                     <RadioGroup
                       row
-                      value={getV6AssignMode()}
+                      value={v6AssignMode}
+                      onChange={(e) => setV6AssignMode(e.target.value as 'zt' | '6plane' | 'rfc4193' | 'none')}
                     >
                       <FormControlLabel value="none" control={<Radio />} label="不分配IPv6地址" />
                       <FormControlLabel value="rfc4193" control={<Radio />} label="分配RFC4193唯一地址" />
@@ -449,14 +592,15 @@ function NetworkDetail() {
                       <TextField
                         type="number"
                         size="small"
-                        value={getMulticastLimit()}
+                        value={multicastLimit}
+                        onChange={(e) => setMulticastLimit(parseInt(e.target.value) || 0)}
                         sx={{ width: 120 }}
                       />
                     </Box>
                   </Grid>
                   <Grid size={{ xs: 12, md: 6 }}>
                     <FormControlLabel
-                      control={<Switch checked={getEnableBroadcast()} />}
+                      control={<Switch checked={enableBroadcast} onChange={(e) => setEnableBroadcast(e.target.checked)} />}
                       label="启用广播"
                     />
                   </Grid>
@@ -465,20 +609,58 @@ function NetworkDetail() {
               
               {/* 删除网络 */}
               <Paper elevation={3} sx={{ p: 3, mb: 4 }}>
-                <Typography variant="h5" sx={{ mb: 2, color: 'error.main' }}>
-                  删除网络
-                </Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                  此操作不可恢复。删除网络将断开所有连接的设备，并永久删除网络配置。
-                </Typography>
-                <Button variant="contained" color="error" size="large">
-                  删除网络
-                </Button>
-              </Paper>
+                  <Typography variant="h5" sx={{ mb: 2, color: 'error.main' }}>
+                    删除网络
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                    此操作不可恢复。删除网络将断开所有连接的设备，并永久删除网络配置。
+                  </Typography>
+                  <Button variant="contained" color="error" size="large" onClick={() => setDeleteDialogOpen(true)}>
+                    删除网络
+                  </Button>
+                </Paper>
+
+                {/* 删除确认对话框 */}
+                <Dialog
+                  open={deleteDialogOpen}
+                  onClose={() => setDeleteDialogOpen(false)}
+                >
+                  <DialogTitle>
+                    确认删除网络
+                  </DialogTitle>
+                  <DialogContent>
+                    <DialogContentText>
+                      您确定要删除网络 "{network?.name}" 吗？此操作不可恢复，将永久删除该网络及其所有配置。
+                    </DialogContentText>
+                  </DialogContent>
+                  <DialogActions>
+                    <Button onClick={() => setDeleteDialogOpen(false)} color="primary">
+                      取消
+                    </Button>
+                    <Button onClick={handleDeleteNetwork} color="error" autoFocus disabled={saving}>
+                      {saving ? '删除中...' : '确认删除'}
+                    </Button>
+                  </DialogActions>
+                </Dialog>
             </>
           )}
         </>
       )}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={3000}
+        onClose={handleCloseSnackbar}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        <Alert
+          onClose={handleCloseSnackbar}
+          severity={snackbar.severity}
+          variant="filled"
+          sx={{ width: '100%' }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 }

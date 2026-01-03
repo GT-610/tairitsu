@@ -14,6 +14,7 @@ export interface Network {
   id: string;
   name: string;
   description?: string;
+  db_description?: string;
   config: NetworkConfig;
   members: Member[];
   status: string;
@@ -33,20 +34,45 @@ export interface NetworkSummary {
 
 export interface NetworkConfig {
   private: boolean;
-  allowPassiveBridging: boolean;
+  allowPassiveBridging?: boolean;
   enableBroadcast: boolean;
-  mtu: number;
-  multicastLimit: number;
-  v4AssignMode: {
+  mtu?: number;
+  multicastLimit?: number;
+  v4AssignMode?: {
     zt: boolean;
   };
-  v6AssignMode: {
+  v6AssignMode?: {
     zt: boolean;
     '6plane': boolean;
     rfc4193: boolean;
   };
-  routes: Route[];
-  ipAssignmentPools: IpAssignmentPool[];
+  routes?: Route[];
+  ipAssignmentPools?: IpAssignmentPool[];
+}
+
+export interface NetworkUpdateRequest {
+  name?: string;
+  description?: string;
+  private?: boolean;
+  allowPassiveBridging?: boolean;
+  enableBroadcast?: boolean;
+  mtu?: number;
+  multicastLimit?: number;
+  v4AssignMode?: {
+    zt: boolean;
+  };
+  v6AssignMode?: {
+    zt: boolean;
+    '6plane': boolean;
+    rfc4193: boolean;
+  };
+  routes?: Route[];
+  ipAssignmentPools?: IpAssignmentPool[];
+}
+
+export interface NetworkMetadataUpdateRequest {
+  name: string;
+  description?: string;
 }
 
 export interface Route {
@@ -195,8 +221,10 @@ export const networkAPI = {
   getNetwork: (networkId: string) => api.get<Network>(`/networks/${networkId}`),
   // Create a network
   createNetwork: (data: { name: string; description?: string }) => api.post<Network>('/networks', data),
-  // Update a network
-  updateNetwork: (networkId: string, data: Partial<NetworkConfig>) => api.put<Network>(`/networks/${networkId}`, data),
+  // Update a network (config only, goes to ZeroTier controller)
+  updateNetwork: (networkId: string, data: NetworkUpdateRequest) => api.put<Network>(`/networks/${networkId}`, data),
+  // Update network metadata (name and description, goes to database only for description, both for name)
+  updateNetworkMetadata: (networkId: string, data: NetworkMetadataUpdateRequest) => api.put<Network>(`/networks/${networkId}/metadata`, data),
   // Delete a network
   deleteNetwork: (networkId: string) => api.delete<void>(`/networks/${networkId}`),
   // Get importable networks (admin only)
