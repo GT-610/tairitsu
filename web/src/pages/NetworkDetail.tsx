@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Box, Typography, Card, CardContent, CircularProgress, Alert, Button, Grid, IconButton, Tabs, Tab, Paper, TextField, Switch, FormControlLabel, FormControl, RadioGroup, Radio, Dialog, DialogTitle, DialogContent, DialogActions, DialogContentText, Snackbar } from '@mui/material';
 import { ArrowBack, ContentCopy, Add } from '@mui/icons-material';
 import { useParams, Link } from 'react-router-dom';
-import { networkAPI, Network, NetworkConfig, NetworkUpdateRequest, NetworkMetadataUpdateRequest, IpAssignmentPool, Route } from '../services/api';
+import { networkAPI, Network, NetworkConfig, NetworkMetadataUpdateRequest, IpAssignmentPool, Route } from '../services/api';
 
 // Default configuration for optional fields (null instead of default values)
 const defaultNetworkConfig: Partial<NetworkConfig> = {
@@ -38,10 +38,43 @@ function NetworkDetail() {
   const [routes, setRoutes] = useState<Route[]>([]);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState<boolean>(false);
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' | 'info' }>({ open: false, message: '', severity: 'success' });
+  const [basicInfoUnsaved, setBasicInfoUnsaved] = useState<boolean>(false);
+  const [ipv4Unsaved, setIpv4Unsaved] = useState<boolean>(false);
+  const [ipv6Unsaved, setIpv6Unsaved] = useState<boolean>(false);
+  const [multicastUnsaved, setMulticastUnsaved] = useState<boolean>(false);
 
   useEffect(() => {
     fetchNetworkDetail();
   }, [id]);
+
+  useEffect(() => {
+    if (network) {
+      setBasicInfoUnsaved(editingName !== (network.name || '') || editingDescription !== (network.db_description || network.description || ''));
+    }
+  }, [editingName, editingDescription, network]);
+
+  useEffect(() => {
+    if (network) {
+      const poolsChanged = JSON.stringify(ipPools) !== JSON.stringify(network.config.ipAssignmentPools || []);
+      const routesChanged = JSON.stringify(routes) !== JSON.stringify(network.config.routes || []);
+      const v4Changed = v4AssignMode !== (network.config.v4AssignMode?.zt ?? false);
+      setIpv4Unsaved(poolsChanged || routesChanged || v4Changed);
+    }
+  }, [ipPools, routes, v4AssignMode, network]);
+
+  useEffect(() => {
+    if (network) {
+      setIpv6Unsaved(v6AssignMode !== getV6AssignModeFromConfig(network.config.v6AssignMode));
+    }
+  }, [v6AssignMode, network]);
+
+  useEffect(() => {
+    if (network) {
+      const multicastChanged = multicastLimit !== (network.config.multicastLimit ?? 32);
+      const broadcastChanged = enableBroadcast !== (network.config.enableBroadcast ?? true);
+      setMulticastUnsaved(multicastChanged || broadcastChanged);
+    }
+  }, [multicastLimit, enableBroadcast, network]);
 
   const fetchNetworkDetail = async () => {
     setLoading(true);
@@ -107,30 +140,6 @@ function NetworkDetail() {
     }
   };
 
-  const handleSaveBasicInfo = async () => {
-    if (!id || !network) return;
-    setSaving(true);
-    try {
-      const updateData: NetworkUpdateRequest = {
-        v4AssignMode: { zt: v4AssignMode },
-        v6AssignMode: {
-          zt: v6AssignMode === 'zt',
-          '6plane': v6AssignMode === '6plane',
-          rfc4193: v6AssignMode === 'rfc4193'
-        },
-        multicastLimit: multicastLimit,
-        enableBroadcast: enableBroadcast
-      };
-      await networkAPI.updateNetwork(id, updateData);
-      showSnackbar('基本配置保存成功');
-      setTimeout(() => fetchNetworkDetail(), 1000);
-    } catch (err: any) {
-      showSnackbar('保存失败: ' + (err.response?.data?.error || err.message), 'error');
-    } finally {
-      setSaving(false);
-    }
-  };
-
   const handleDeleteNetwork = async () => {
     if (!id) return;
     setSaving(true);
@@ -148,12 +157,52 @@ function NetworkDetail() {
     }
   };
 
-  const handleSaveIpPools = async () => {
+  const handleSaveIPv4 = async () => {
     if (!id) return;
     setSaving(true);
     try {
-      await networkAPI.updateNetwork(id, { ipAssignmentPools: ipPools });
-      showSnackbar('IP地址池保存成功');
+      await networkAPI.updateNetwork(id, {
+        ipAssignmentPools: ipPools,
+        routes: routes,
+        v4AssignMode: { zt: v4AssignMode }
+      });
+      showSnackbar('IPv4配置保存成功');
+      setTimeout(() => fetchNetworkDetail(), 1000);
+    } catch (err: any) {
+      showSnackbar('保存失败: ' + (err.response?.data?.error || err.message), 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSaveIPv6 = async () => {
+    if (!id) return;
+    setSaving(true);
+    try {
+      const v6Mode = {
+        zt: v6AssignMode === 'zt',
+        '6plane': v6AssignMode === '6plane',
+        rfc4193: v6AssignMode === 'rfc4193'
+      };
+      await networkAPI.updateNetwork(id, { v6AssignMode: v6Mode });
+      showSnackbar('IPv6配置保存成功');
+      setTimeout(() => fetchNetworkDetail(), 1000);
+    } catch (err: any) {
+      showSnackbar('保存失败: ' + (err.response?.data?.error || err.message), 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSaveMulticast = async () => {
+    if (!id) return;
+    setSaving(true);
+    try {
+      await networkAPI.updateNetwork(id, {
+        multicastLimit: multicastLimit,
+        enableBroadcast: enableBroadcast
+      });
+      showSnackbar('多播设置保存成功');
       setTimeout(() => fetchNetworkDetail(), 1000);
     } catch (err: any) {
       showSnackbar('保存失败: ' + (err.response?.data?.error || err.message), 'error');
@@ -176,20 +225,6 @@ function NetworkDetail() {
     const newPools = [...ipPools];
     newPools[index] = { ...newPools[index], [field]: value };
     setIpPools(newPools);
-  };
-
-  const handleSaveRoutes = async () => {
-    if (!id) return;
-    setSaving(true);
-    try {
-      await networkAPI.updateNetwork(id, { routes: routes });
-      showSnackbar('路由保存成功');
-      setTimeout(() => fetchNetworkDetail(), 1000);
-    } catch (err: any) {
-      showSnackbar('保存失败: ' + (err.response?.data?.error || err.message), 'error');
-    } finally {
-      setSaving(false);
-    }
   };
 
   const handleAddRoute = () => {
@@ -215,8 +250,6 @@ function NetworkDetail() {
   const handleCloseSnackbar = () => {
     setSnackbar({ ...snackbar, open: false });
   };
-
-  const getFirstRoute = (): Route | undefined => routes[0];
 
   if (error || !id) {
     return (
@@ -328,10 +361,17 @@ function NetworkDetail() {
           {activeTab === 1 && (
             <>
               {/* 网络基本信息 */}
-              <Paper elevation={3} sx={{ p: 3, mb: 4 }}>
-                <Typography variant="h5" sx={{ mb: 2 }}>
-                  网络基本信息
-                </Typography>
+              <Paper elevation={3} sx={{ p: 3, mb: 4, border: basicInfoUnsaved ? '2px solid' : 'none', borderColor: 'warning.main' }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                  <Typography variant="h5">
+                    网络基本信息
+                  </Typography>
+                  {basicInfoUnsaved && (
+                    <Typography variant="body2" color="warning.main">
+                      未保存
+                    </Typography>
+                  )}
+                </Box>
                 <Grid container spacing={3}>
                   <Grid size={{ xs: 12 }}>
                     <TextField
@@ -364,10 +404,17 @@ function NetworkDetail() {
               </Paper>
               
               {/* IPv4分配 */}
-              <Paper elevation={3} sx={{ p: 3, mb: 4 }}>
-                <Typography variant="h5" sx={{ mb: 2 }}>
-                  IPv4分配
-                </Typography>
+              <Paper elevation={3} sx={{ p: 3, mb: 4, border: ipv4Unsaved ? '2px solid' : 'none', borderColor: 'warning.main' }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                  <Typography variant="h5">
+                    IPv4分配
+                  </Typography>
+                  {ipv4Unsaved && (
+                    <Typography variant="body2" color="warning.main">
+                      未保存
+                    </Typography>
+                  )}
+                </Box>
                 <Box sx={{ mb: 3, p: 2, bgcolor: 'background.paper', borderRadius: 1, border: '1px solid', borderColor: 'divider' }}>
                   <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
                     已分配的IPv4地址段
@@ -433,7 +480,6 @@ function NetworkDetail() {
                       添加地址池
                     </Button>
                     <Button variant="outlined" size="small" onClick={() => {
-                      // Generate a random IP pool
                       const randomPool: IpAssignmentPool = {
                         ipRangeStart: `10.${Math.floor(Math.random() * 256)}.${Math.floor(Math.random() * 256)}.1`,
                         ipRangeEnd: `10.${Math.floor(Math.random() * 256)}.${Math.floor(Math.random() * 256)}.254`
@@ -442,11 +488,6 @@ function NetworkDetail() {
                     }}>
                       随机分配一个地址池
                     </Button>
-                    {ipPools.length > 0 && (
-                      <Button variant="contained" color="primary" size="small" onClick={handleSaveIpPools} disabled={saving}>
-                        保存地址池
-                      </Button>
-                    )}
                   </Box>
                 </Box>
                 
@@ -455,9 +496,9 @@ function NetworkDetail() {
                     IPv4自动分配模式
                   </Typography>
                   <FormControlLabel
-                    control={<Switch checked={v4AssignMode} onChange={(e) => setV4AssignMode(e.target.checked)} />}
-                    label="自动分配IPv4地址给新成员设备"
-                  />
+                      control={<Switch checked={v4AssignMode} onChange={(e) => setV4AssignMode(e.target.checked)} />}
+                      label="自动分配IPv4地址给新成员设备"
+                    />
                   <Box sx={{ pl: 4, mt: -1 }}>
                     <Typography variant="body2" color="text.secondary">
                       每个成员设备将自动获取一个IPv4地址。您可以在上方定义地址池范围。
@@ -511,20 +552,28 @@ function NetworkDetail() {
                     <Button variant="outlined" startIcon={<Add />} size="small" onClick={handleAddRoute}>
                       添加路由
                     </Button>
-                    {routes.length > 0 && (
-                      <Button variant="contained" color="primary" size="small" onClick={handleSaveRoutes} disabled={saving}>
-                        保存路由
-                      </Button>
-                    )}
                   </Box>
+                </Box>
+                
+                <Box sx={{ display: 'flex', justifyContent: 'flex-start' }}>
+                  <Button variant="contained" color="primary" onClick={handleSaveIPv4} disabled={saving || !ipv4Unsaved}>
+                    保存
+                  </Button>
                 </Box>
               </Paper>
               
               {/* IPv6分配 */}
-              <Paper elevation={3} sx={{ p: 3, mb: 4 }}>
-                <Typography variant="h5" sx={{ mb: 2 }}>
-                  IPv6分配
-                </Typography>
+              <Paper elevation={3} sx={{ p: 3, mb: 4, border: ipv6Unsaved ? '2px solid' : 'none', borderColor: 'warning.main' }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                  <Typography variant="h5">
+                    IPv6分配
+                  </Typography>
+                  {ipv6Unsaved && (
+                    <Typography variant="body2" color="warning.main">
+                      未保存
+                    </Typography>
+                  )}
+                </Box>
                 
                 <Box sx={{ mb: 3 }}>
                   <Typography variant="subtitle1" sx={{ mb: 2 }}>
@@ -541,47 +590,27 @@ function NetworkDetail() {
                       <FormControlLabel value="6plane" control={<Radio />} label="分配6plane地址" />
                     </RadioGroup>
                   </FormControl>
-                  
-                  <Box sx={{ pl: 4 }}>
-                    <Box sx={{ mb: 2 }}>
-                      <Grid container spacing={2} alignItems="center">
-                        <Grid size={{ xs: 5 }}>
-                          <TextField
-                            fullWidth
-                            label="起始IPv6"
-                            variant="outlined"
-                            size="small"
-                            placeholder="例如: fd00::1"
-                          />
-                        </Grid>
-                        <Grid size={{ xs: 5 }}>
-                          <TextField
-                            fullWidth
-                            label="结束IPv6"
-                            variant="outlined"
-                            size="small"
-                            placeholder="例如: fd00::ffff"
-                          />
-                        </Grid>
-                        <Grid size={{ xs: 2 }}>
-                          <Button variant="outlined" color="error" fullWidth size="small">
-                            删除
-                          </Button>
-                        </Grid>
-                      </Grid>
-                    </Box>
-                    <Button variant="outlined" startIcon={<Add />} size="small">
-                      添加IPv6地址池
-                    </Button>
-                  </Box>
+                </Box>
+                
+                <Box sx={{ display: 'flex', justifyContent: 'flex-start' }}>
+                  <Button variant="contained" color="primary" onClick={handleSaveIPv6} disabled={saving || !ipv6Unsaved}>
+                    保存
+                  </Button>
                 </Box>
               </Paper>
               
               {/* 多播设置 */}
-              <Paper elevation={3} sx={{ p: 3, mb: 4 }}>
-                <Typography variant="h5" sx={{ mb: 2 }}>
-                  多播设置
-                </Typography>
+              <Paper elevation={3} sx={{ p: 3, mb: 4, border: multicastUnsaved ? '2px solid' : 'none', borderColor: 'warning.main' }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                  <Typography variant="h5">
+                    多播设置
+                  </Typography>
+                  {multicastUnsaved && (
+                    <Typography variant="body2" color="warning.main">
+                      未保存
+                    </Typography>
+                  )}
+                </Box>
                 
                 <Grid container spacing={3}>
                   <Grid size={{ xs: 12, md: 6 }}>
@@ -605,6 +634,12 @@ function NetworkDetail() {
                     />
                   </Grid>
                 </Grid>
+                
+                <Box sx={{ display: 'flex', justifyContent: 'flex-start', mt: 3 }}>
+                  <Button variant="contained" color="primary" onClick={handleSaveMulticast} disabled={saving || !multicastUnsaved}>
+                    保存
+                  </Button>
+                </Box>
               </Paper>
               
               {/* 删除网络 */}
