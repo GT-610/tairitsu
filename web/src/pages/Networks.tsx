@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Box, Typography, Button, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, CircularProgress, Alert, Modal, TextField, IconButton, Grid, Card, CardContent } from '@mui/material';
+import { Box, Typography, Button, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, CircularProgress, Alert, Modal, TextField, IconButton, Grid, Card, CardContent, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions } from '@mui/material';
 import { Link } from 'react-router-dom';
 import { Add, Delete, Close } from '@mui/icons-material';
 import { networkAPI, NetworkSummary } from '../services/api';
@@ -15,6 +15,9 @@ function Networks() {
     description: ''
   });
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState<boolean>(false);
+  const [deletingNetworkId, setDeletingNetworkId] = useState<string | null>(null);
+  const [deletingNetworkName, setDeletingNetworkName] = useState<string>('');
 
   const fetchNetworks = async () => {
     setLoading(true);
@@ -86,15 +89,29 @@ function Networks() {
     }
   };
 
-  const handleDelete = async (networkId: string) => {
-    if (window.confirm('确定要删除这个网络吗？')) {
-      try {
-        await networkAPI.deleteNetwork(networkId);
-        fetchNetworks();
-      } catch (err: any) {
-        setError('删除网络失败');
-      }
+  const handleDeleteClick = (networkId: string, networkName: string) => {
+    setDeletingNetworkId(networkId);
+    setDeletingNetworkName(networkName);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deletingNetworkId) return;
+    try {
+      await networkAPI.deleteNetwork(deletingNetworkId);
+      fetchNetworks();
+      setDeleteDialogOpen(false);
+      setDeletingNetworkId(null);
+      setDeletingNetworkName('');
+    } catch (err: any) {
+      setError('删除网络失败');
     }
+  };
+
+  const handleDeleteCancel = () => {
+    setDeleteDialogOpen(false);
+    setDeletingNetworkId(null);
+    setDeletingNetworkName('');
   };
 
   const getFilteredNetworks = () => {
@@ -217,7 +234,7 @@ function Networks() {
                           size="small"
                           color="error"
                           startIcon={<Delete />}
-                          onClick={() => handleDelete(network.id)}
+                          onClick={() => handleDeleteClick(network.id, network.name || '未命名网络')}
                         >
                           删除
                         </Button>
@@ -296,6 +313,28 @@ function Networks() {
           </Box>
         </Box>
       </Modal>
+
+      <Dialog
+        open={deleteDialogOpen}
+        onClose={handleDeleteCancel}
+      >
+        <DialogTitle>
+          确认删除网络
+        </DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            您确定要删除网络 "{deletingNetworkName}" 吗？此操作不可恢复，将永久删除该网络及其所有配置。
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleDeleteCancel}>
+            取消
+          </Button>
+          <Button onClick={handleDeleteConfirm} color="error">
+            确认删除
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

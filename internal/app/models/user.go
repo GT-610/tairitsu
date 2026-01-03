@@ -40,7 +40,8 @@ type UserResponse struct {
 	ID        string    `json:"id"`
 	Username  string    `json:"username"`
 	Role      string    `json:"role"`
-	CreatedAt time.Time `json:"created_at"`
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
 }
 
 // ToResponse 转换为用户响应
