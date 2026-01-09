@@ -1,21 +1,38 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { CircularProgress, Box } from '@mui/material';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import SetupWizard from './pages/SetupWizard';
-import Dashboard from './pages/Dashboard';
 import Networks from './pages/Networks';
-import NetworkDetail from './pages/NetworkDetail';
-import Members from './pages/Members';
-import Profile from './pages/Profile';
-import Settings from './pages/Settings';
-import UserManagement from './pages/UserManagement';
-import Planet from './pages/Planet';
-import ImportNetwork from './pages/ImportNetwork';
 import NotFound from './pages/NotFound';
 import Layout from './components/Layout';
 import api from './services/api';
 import { useAuth } from './services/auth';
+
+const lazyPages = {
+  UserManagement: lazy(() => import('./pages/UserManagement')),
+  Planet: lazy(() => import('./pages/Planet')),
+  ImportNetwork: lazy(() => import('./pages/ImportNetwork')),
+  Dashboard: lazy(() => import('./pages/Dashboard')),
+  Settings: lazy(() => import('./pages/Settings')),
+  Profile: lazy(() => import('./pages/Profile')),
+  NetworkDetail: lazy(() => import('./pages/NetworkDetail')),
+  Members: lazy(() => import('./pages/Members')),
+};
+
+function Loading() {
+  return (
+    <Box sx={{
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'center',
+      height: '100vh'
+    }}>
+      <CircularProgress />
+    </Box>
+  );
+}
 // import './App.css';
 
 function AppContent() {
@@ -133,18 +150,18 @@ function AppContent() {
                 <Route path="/" element={<Layout user={user} />}>
                   {/* 公共路由 */}
                   <Route path="networks" element={<Networks />}></Route>
-                  <Route path="networks/:id" element={<NetworkDetail />}></Route>
-                  <Route path="networks/:id/members" element={<Members />}></Route>
-                  <Route path="profile" element={<Profile user={user} />}></Route>
-                  <Route path="settings" element={<Settings />}></Route>
+                  <Route path="networks/:id" element={<Suspense fallback={<Loading />}><lazyPages.NetworkDetail /></Suspense>}></Route>
+                  <Route path="networks/:id/members" element={<Suspense fallback={<Loading />}><lazyPages.Members /></Suspense>}></Route>
+                  <Route path="profile" element={<Suspense fallback={<Loading />}><lazyPages.Profile user={user} /></Suspense>}></Route>
+                  <Route path="settings" element={<Suspense fallback={<Loading />}><lazyPages.Settings /></Suspense>}></Route>
                   
                   {/* 管理员路由 */}
                   {user && user.role === 'admin' && (
                     <>
-                      <Route path="dashboard" element={<Dashboard />}></Route>
-                      <Route path="user-management" element={<UserManagement />}></Route>
-                      <Route path="import-network" element={<ImportNetwork />}></Route>
-                      <Route path="planet" element={<Planet />}></Route>
+                      <Route path="dashboard" element={<Suspense fallback={<Loading />}><lazyPages.Dashboard /></Suspense>}></Route>
+                      <Route path="user-management" element={<Suspense fallback={<Loading />}><lazyPages.UserManagement /></Suspense>}></Route>
+                      <Route path="import-network" element={<Suspense fallback={<Loading />}><lazyPages.ImportNetwork /></Suspense>}></Route>
+                      <Route path="planet" element={<Suspense fallback={<Loading />}><lazyPages.Planet /></Suspense>}></Route>
                     </>
                   )}
                   
