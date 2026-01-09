@@ -6,7 +6,7 @@ RUN npm ci && npm run build
 FROM golang:1.25-alpine AS backend-builder
 WORKDIR /app
 COPY go.mod go.sum ./
-RUN go mod download && cd build && go build -o tairitsu ../cmd/tairitsu
+RUN go mod download && mkdir build && cd build && go build -o tairitsu ../cmd/tairitsu
 
 FROM nginx:alpine-slim AS production
 COPY --from=frontend-builder /app/dist /usr/share/nginx/html
