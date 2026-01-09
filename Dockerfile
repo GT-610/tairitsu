@@ -9,7 +9,7 @@ COPY . .
 RUN go mod download && go build -o tairitsu ./cmd/tairitsu
 
 FROM nginx:alpine-slim AS production
-COPY --from=frontend-builder /app/web/dist /usr/share/nginx/html
+COPY --from=frontend-builder /app/dist /usr/share/nginx/html
 COPY --from=backend-builder /app/tairitsu /app/
 COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
 WORKDIR /app
