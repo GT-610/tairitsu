@@ -1,5 +1,7 @@
 # Tairitsu
 
+[**简体中文**](readme-i18n/README.zh-CN.md)
+
 **NOTE: This project is still in development. Some features may not be fully implemented or subject to change.**
 
 Tairitsu is a web-based controller interface for ZeroTier, providing a user-friendly GUI to manage ZeroTier networks, members, and configurations. It consists of a Golang backend that interfaces with the ZeroTier client API and a React-based web frontend.
@@ -12,7 +14,7 @@ Tairitsu is a web-based controller interface for ZeroTier, providing a user-frie
 - **Real-time Status**: Monitor network and member status
 - **Multi-database Support**: Works with SQLite, MySQL, and PostgreSQL
 - **Secure Authentication**: JWT-based authentication for secure access
-- **Responsive Design**: Modern, responsive UI built with Material UI
+- **Responsive Design**: Modern, responsive Material Design interface
 
 ## Deployment
 
@@ -82,13 +84,13 @@ Not ready yet.
 
 #### Prerequisites
 
-- Go 1.25 or later
+- Go 1.25 or later with CGO enabled
 - Node.js 22 or later with npm
 - ZeroTier controller installed and running
 
 #### Backend
 ```bash
-go build -o tairitsu ./cmd/tairitsu
+CGO_ENABLED=1 go build -o tairitsu ./cmd/tairitsu
 ```
 
 #### Frontend
@@ -114,7 +116,7 @@ Since version 1.16.0, ZeroTier's controller component is licensed under a [comme
 ### ZeroTier License Compliance
 Tairitsu is a standalone management interface for ZeroTier networks. This project **DOES NOT** include, distribute, or modify any ZeroTier source code or binaries.
 
-This software communicates with a **separately installed** ZeroTier controller via its official API. Users must install and run their own ZeroTier controller independently.
+This software communicates with a **separately installed** ZeroTier controller via its official API. Users must deploy their own ZeroTier controller under the terms of its license.
 
 The "Generate Planet" feature is modified from [ztnodeid-go](https://github.com/kmahyyg/ztnodeid-go) under GNU GPL v3 License, **not** from ZeroTier itself.
 
