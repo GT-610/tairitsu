@@ -14,72 +14,81 @@ Tairitsu is a web-based controller interface for ZeroTier, providing a user-frie
 - **Secure Authentication**: JWT-based authentication for secure access
 - **Responsive Design**: Modern, responsive UI built with Material UI
 
-## Getting Started
-
-### Prerequisites
-
-- Go 1.22 or later
-- Node.js 18 or later with npm
-- ZeroTier controller installed and running
+## Deployment
 
 ### Docker / Podman
-Not ready yet.
+
+1. Create a `local.conf` file in ZeroTier's home directory (Usually `/var/lib/zerotier-one`). If you already have a `local.conf` file, skip this step.
+
+2. Configure `allowManagementFrom` in ZeroTier's `local.conf`:
+
+   ```json
+   {
+      "settings": {
+         "allowManagementFrom": [
+               "0.0.0.0/0",
+               "::/0"
+         ]
+      }
+   }
+   ```
+
+   This will make ZeroTier controller accessible from any IP address.
+
+   Or for more restrictive access, but make sure this IP can be accessed by Tairitsu container:
+
+   ```json
+   {
+      "settings": {
+         "allowManagementFrom": [
+               "<local-ip-cidr>",
+         ]
+      }
+   }
+   ```
+
+   After modifying the configuration, restart the ZeroTier container.
+
+
+3. **Run Tairitsu container**
+
+   ```bash
+   docker run -d \
+       --name tairitsu \
+       -p 3000:3000 \
+       -v /var/lib/zerotier-one:/var/lib/zerotier-one \
+       -v path/to/tairitsu/data:/app/data \
+       ghcr.io/gt-610/tairitsu:latest
+   ```
+
+   Or through Compose:
+
+   ```yaml
+   services:
+     tairitsu:
+       image: ghcr.io/gt-610/tairitsu:latest
+       ports:
+         - 3000:3000
+       volumes:
+         - /var/lib/zerotier-one:/var/lib/zerotier-one
+         - path/to/tairitsu/data:/app/data
+   ```
 
 ### Manual Installation
 
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/GT-610/tairitsu.git
-   cd tairitsu
-   ```
+Not ready yet.
 
-2. **Backend Setup**
-   ```bash
-   # Install Go dependencies
-   go mod download
-   
-   # Build the backend
-   go build -o tairitsu ./cmd/tairitsu
-   ```
+### Development
 
-3. **Frontend Setup**
-   ```bash
-   cd web
-   
-   # Install npm dependencies
-   npm install
-   
-   # Build the frontend
-   npm run build
-   
-   cd ..
-   ```
+#### Prerequisites
 
-### Configuration
-
-Create a `.env` file in the project root with the following configuration:
-
-```
-# Server Configuration
-SERVER_PORT=8080
-```
-
-### Running the Application
-
-```bash
-# Run the compiled binary
-./tairitsu
-```
-
-The backend will start on port 8080 by default. You will see the notes when accessing through the browser.
-
-For the frontend, just download the static files and host it on a web server on the same host.
-
-### Development Mode
+- Go 1.25 or later
+- Node.js 22 or later with npm
+- ZeroTier controller installed and running
 
 #### Backend
 ```bash
-go run ./cmd/tairitsu
+go build -o tairitsu ./cmd/tairitsu
 ```
 
 #### Frontend
@@ -88,10 +97,7 @@ cd web
 npm run dev
 ```
 
-The frontend development server will start on port 5173 by default, and will proxy API requests to the backend server.
-
-## Usage
-Not ready yet.
+The frontend development server will start on port 3000 by default, and will proxy API requests to the backend server.
 
 ## Contributing
 
@@ -99,7 +105,7 @@ Contributions are welcome! Please feel free to submit issues, feature requests, 
 
 ## License
 
-This project is licensed under GNU GPL v3 License - see the [LICENSE](LICENSE) file for details.
+[GNU GPL v3](LICENSE).
 
 ## Legal Notice
 

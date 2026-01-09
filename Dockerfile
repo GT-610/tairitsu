@@ -3,10 +3,10 @@ WORKDIR /app
 COPY web/ ./
 RUN npm ci && npm run build
 
-FROM golang:1.25-alpine AS backend-builder
+FROM golang:1.25 AS backend-builder
 WORKDIR /app
 COPY . .
-RUN go mod download && go build -o tairitsu ./cmd/tairitsu
+RUN go mod download && CGO_ENABLED=1 go build -o tairitsu ./cmd/tairitsu
 
 FROM nginx:alpine-slim AS production
 COPY --from=frontend-builder /app/dist /usr/share/nginx/html
