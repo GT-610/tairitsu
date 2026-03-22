@@ -108,14 +108,10 @@ func SetupRoutesWithReload(router *fiber.App, ztClient *zerotier.Client, jwtSecr
 		// Reload routes (no authentication required, available during initial setup only)
 		api.Post("/system/reload", systemHandler.ReloadRoutes)
 
-		// Authentication routes (no authentication required)
 		auth := api.Group("/auth")
 		{
-			// Only enable registration and login if database is configured
-			if db != nil {
-				auth.Post("/register", authHandler.Register) // User registration
-				auth.Post("/login", authHandler.Login)       // User login
-			}
+			auth.Post("/register", authHandler.Register)
+			auth.Post("/login", authHandler.Login)
 		}
 
 		// Authenticated routes

@@ -105,7 +105,6 @@ func (h *SystemHandler) ConfigureDatabase(c fiber.Ctx) error {
 
 	logger.Info("开始配置数据库", zap.String("type", dbConfig.Type))
 
-	// Validate database configuration
 	dbCfg := database.Config{
 		Type: database.DatabaseType(dbConfig.Type),
 		Path: dbConfig.Path,
@@ -116,38 +115,32 @@ func (h *SystemHandler) ConfigureDatabase(c fiber.Ctx) error {
 		Name: dbConfig.Name,
 	}
 
-	// Try connecting to database
 	db, err := database.NewDatabase(dbCfg)
 	if err != nil {
 		logger.Error("数据库连接失败", zap.Error(err))
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "数据库连接失败: " + err.Error()})
 	}
 
-	// Initialize database schema
 	if err := db.Init(); err != nil {
 		logger.Error("数据库初始化失败", zap.Error(err))
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "数据库初始化失败: " + err.Error()})
 	}
 
-	// Close database connection
-	if err := db.Close(); err != nil {
-		logger.Warn("关闭数据库连接时出现警告", zap.Error(err))
-	}
-
-	// For SQLite, ensure path is properly saved to config
-	// NewDatabase function might set default path if Path is empty
 	if dbCfg.Type == database.SQLite {
-		// From factory.go we know if Path is empty, default value "data/tairitsu.db" will be used
 		if dbConfig.Path == "" {
 			dbCfg.Path = "data/tairitsu.db"
 		}
 		logger.Info("SQLite数据库路径已设置", zap.String("path", dbCfg.Path))
 	}
 
-	// Save database configuration to unified config management module
 	if err := database.SaveConfig(dbCfg); err != nil {
 		logger.Error("保存数据库配置失败", zap.Error(err))
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "保存数据库配置失败: " + err.Error()})
+	}
+
+	database.SetGlobalDB(db)
+	if h.userService != nil {
+		h.userService.SetDB(db)
 	}
 
 	logger.Info("数据库配置成功", zap.String("type", dbConfig.Type))

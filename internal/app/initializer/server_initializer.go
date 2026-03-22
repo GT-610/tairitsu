@@ -57,23 +57,32 @@ func (si *ServerInitializer) setupRoutes() error {
 	return nil
 }
 
-// ReloadRoutes 重新加载所有API路由
+// ReloadRoutes 更新数据库连接
 func (si *ServerInitializer) ReloadRoutes() {
-	logger.Info("开始重新加载路由")
+	logger.Info("开始更新数据库连接")
 
 	si.routerMutex.Lock()
 	defer si.routerMutex.Unlock()
 
-	// 清除现有路由，创建新的路由器实例
-	si.router = fiber.New()
-
-	// 重新注册路由
-	if err := si.setupRoutes(); err != nil {
-		logger.Error("重新注册路由失败", zap.Error(err))
-		return
+	si.db = database.GetGlobalDB()
+	if si.db == nil {
+		dbConfig := database.LoadConfig()
+		if dbConfig.Type != "" {
+			var err error
+			si.db, err = database.NewDatabase(dbConfig)
+			if err != nil {
+				logger.Error("重新连接数据库失败", zap.Error(err))
+				return
+			}
+			if err := si.db.Init(); err != nil {
+				logger.Error("重新初始化数据库失败", zap.Error(err))
+				return
+			}
+			database.SetGlobalDB(si.db)
+		}
 	}
 
-	logger.Info("路由重新加载完成")
+	logger.Info("数据库连接更新完成")
 }
 
 // GetRouter 获取路由器实例
