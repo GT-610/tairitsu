@@ -114,36 +114,28 @@ func SetupRoutesWithReload(router *fiber.App, ztClient *zerotier.Client, jwtSecr
 			auth.Post("/login", authHandler.Login)
 		}
 
-		// Authenticated routes
 		authenticated := api.Group("/")
 		authenticated.Use(authMiddleware)
 		{
-			// Only enable database-dependent features if database is configured
-			if db != nil {
-				// User information
-				authenticated.Get("/profile", authHandler.GetProfile)                   // Get current user info
-				authenticated.Post("/auth/update-password", authHandler.ChangePassword) // Update user password (deprecated)
-				authenticated.Put("/profile/password", authHandler.ChangePassword)      // Update user password
+			authenticated.Get("/profile", authHandler.GetProfile)
+			authenticated.Post("/auth/update-password", authHandler.ChangePassword)
+			authenticated.Put("/profile/password", authHandler.ChangePassword)
 
-				// ZeroTier status
-				authenticated.Get("/status", networkHandler.GetStatus)
+			authenticated.Get("/status", networkHandler.GetStatus)
 
-				// Network management
-				networks := authenticated.Group("/networks")
-				{
-					networks.Get("", networkHandler.GetNetworks)          // Get all networks
-					networks.Post("", networkHandler.CreateNetwork)       // Create network
-					networks.Get("/:id", networkHandler.GetNetwork)       // Get single network
-					networks.Put("/:id", networkHandler.UpdateNetwork)    // Update network
-					networks.Put("/:id/metadata", networkHandler.UpdateNetworkMetadata) // Update network metadata (name and description)
-					networks.Delete("/:id", networkHandler.DeleteNetwork) // Delete network
+			networks := authenticated.Group("/networks")
+			{
+				networks.Get("", networkHandler.GetNetworks)
+				networks.Post("", networkHandler.CreateNetwork)
+				networks.Get("/:id", networkHandler.GetNetwork)
+				networks.Put("/:id", networkHandler.UpdateNetwork)
+				networks.Put("/:id/metadata", networkHandler.UpdateNetworkMetadata)
+				networks.Delete("/:id", networkHandler.DeleteNetwork)
 
-					// Member management (nested within network routes)
-					networks.Get("/:id/members", memberHandler.GetMembers)                // Get member list
-					networks.Get("/:id/members/:memberId", memberHandler.GetMember)       // Get single member
-					networks.Put("/:id/members/:memberId", memberHandler.UpdateMember)    // Update member
-					networks.Delete("/:id/members/:memberId", memberHandler.DeleteMember) // Delete member
-				}
+				networks.Get("/:id/members", memberHandler.GetMembers)
+				networks.Get("/:id/members/:memberId", memberHandler.GetMember)
+				networks.Put("/:id/members/:memberId", memberHandler.UpdateMember)
+				networks.Delete("/:id/members/:memberId", memberHandler.DeleteMember)
 			}
 		}
 
