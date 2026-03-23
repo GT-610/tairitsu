@@ -2,6 +2,7 @@ package services
 
 import (
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/GT-610/tairitsu/internal/app/database"
@@ -11,20 +12,14 @@ import (
 	"go.uber.org/zap"
 )
 
-// GlobalZTClient is the global ZeroTier client instance, maintained after initialization
 var GlobalZTClient *zerotier.Client
 
-// NetworkService handles network-related operations with ZeroTier
-// This service provides methods to manage ZeroTier networks
-
 type NetworkService struct {
-	ztClient *zerotier.Client     // ZeroTier client for API interactions
-	db       database.DBInterface // Database interface for network ownership management
+	ztClient *zerotier.Client
+	db       database.DBInterface
+	mutex    sync.RWMutex
 }
 
-// NewNetworkService creates a new network service instance
-// If global ZT client is available and no specific client is provided,
-// it will use the global client to ensure continuity after route reloading
 func NewNetworkService(ztClient *zerotier.Client, db database.DBInterface) *NetworkService {
 	if GlobalZTClient != nil && ztClient == nil {
 		ztClient = GlobalZTClient
@@ -33,6 +28,24 @@ func NewNetworkService(ztClient *zerotier.Client, db database.DBInterface) *Netw
 		ztClient: ztClient,
 		db:       db,
 	}
+}
+
+func (s *NetworkService) SetDB(db database.DBInterface) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+	s.db = db
+	logger.Info("网络服务数据库连接已更新")
+}
+
+func (s *NetworkService) getDB() database.DBInterface {
+	s.mutex.RLock()
+	db := s.db
+	s.mutex.RUnlock()
+
+	if db == nil {
+		return database.GetGlobalDB()
+	}
+	return db
 }
 
 // GetStatus retrieves the current ZeroTier network status
@@ -71,14 +84,13 @@ type NetworkDetail struct {
 
 // GetAllNetworks retrieves all networks owned by a specific user from database
 func (s *NetworkService) GetAllNetworks(ownerID string) ([]NetworkSummary, error) {
-	// Check if database is initialized
-	if s.db == nil {
+	db := s.getDB()
+	if db == nil {
 		logger.Warn("服务层：数据库未初始化")
 		return nil, fmt.Errorf("数据库未初始化")
 	}
 
-	// Get network IDs owned by the user from database
-	ownedNetworks, err := s.db.GetNetworksByOwnerID(ownerID)
+	ownedNetworks, err := db.GetNetworksByOwnerID(ownerID)
 	if err != nil {
 		logger.Error("服务层：获取用户网络列表失败", zap.String("owner_id", ownerID), zap.Error(err))
 		return nil, err
@@ -106,72 +118,19 @@ func (s *NetworkService) GetAllNetworks(ownerID string) ([]NetworkSummary, error
 	return networkSummaries, nil
 }
 
-// GetAllNetworksWithDetails retrieves all networks owned by a specific user with full details from ZeroTier API
-func (s *NetworkService) GetAllNetworksWithDetails(ownerID string) ([]zerotier.Network, error) {
-	// Check if ZeroTier client is initialized
-	if s.ztClient == nil {
-		logger.Warn("服务层：ZeroTier客户端未初始化")
-		return nil, fmt.Errorf("ZeroTier客户端未初始化")
-	}
-
-	// Check if database is initialized
-	if s.db == nil {
-		logger.Warn("服务层：数据库未初始化")
-		return nil, fmt.Errorf("数据库未初始化")
-	}
-
-	// Get network IDs owned by the user from database
-	ownedNetworks, err := s.db.GetNetworksByOwnerID(ownerID)
-	if err != nil {
-		logger.Error("服务层：获取用户网络列表失败", zap.String("owner_id", ownerID), zap.Error(err))
-		return nil, err
-	}
-
-	// If no networks owned, return empty slice
-	if len(ownedNetworks) == 0 {
-		return []zerotier.Network{}, nil
-	}
-
-	// Get all networks from ZeroTier
-	allNetworks, err := s.ztClient.GetNetworks()
-	if err != nil {
-		logger.Error("服务层：获取网络列表失败", zap.Error(err))
-		return nil, err
-	}
-
-	// Filter networks to only include owned ones
-	var filteredNetworks []zerotier.Network
-	ownedNetworkIDs := make(map[string]bool)
-	for _, net := range ownedNetworks {
-		ownedNetworkIDs[net.ID] = true
-	}
-
-	for _, net := range allNetworks {
-		if ownedNetworkIDs[net.ID] {
-			filteredNetworks = append(filteredNetworks, net)
-		}
-	}
-
-	return filteredNetworks, nil
-}
-
-// GetNetworkByID retrieves a network by its ID with ownership check
-// Returns NetworkDetail containing both ZeroTier network info and database description
 func (s *NetworkService) GetNetworkByID(id string, userID string) (*NetworkDetail, error) {
-	// Check if ZeroTier client is initialized
 	if s.ztClient == nil {
 		logger.Warn("服务层：ZeroTier客户端未初始化")
 		return nil, fmt.Errorf("ZeroTier客户端未初始化")
 	}
 
-	// Check if database is initialized
-	if s.db == nil {
+	db := s.getDB()
+	if db == nil {
 		logger.Warn("服务层：数据库未初始化")
 		return nil, fmt.Errorf("数据库未初始化")
 	}
 
-	// Check if network is owned by the user
-	ownedNetwork, err := s.db.GetNetworkByID(id)
+	ownedNetwork, err := db.GetNetworkByID(id)
 	if err != nil {
 		logger.Error("服务层：获取网络所有权失败", zap.String("network_id", id), zap.Error(err))
 		return nil, err
@@ -214,22 +173,19 @@ func (s *NetworkService) GetNetworkByID(id string, userID string) (*NetworkDetai
 
 // CreateNetwork creates a new ZeroTier network with ownership
 func (s *NetworkService) CreateNetwork(network *zerotier.Network, ownerID string) (*zerotier.Network, error) {
-	// Check if ZeroTier client is initialized
 	if s.ztClient == nil {
 		logger.Warn("服务层：ZeroTier客户端未初始化")
 		return nil, fmt.Errorf("ZeroTier客户端未初始化")
 	}
 
-	// Check if database is initialized
-	if s.db == nil {
+	db := s.getDB()
+	if db == nil {
 		logger.Warn("服务层：数据库未初始化")
 		return nil, fmt.Errorf("数据库未初始化")
 	}
 
-	// Force network to be private
 	network.Config.Private = true
 
-	// Create network in ZeroTier
 	createdNetwork, err := s.ztClient.CreateNetwork(network)
 	if err != nil {
 		logger.Error("服务层：创建网络失败", zap.String("network_name", network.Name), zap.Error(err))
@@ -244,7 +200,7 @@ func (s *NetworkService) CreateNetwork(network *zerotier.Network, ownerID string
 		OwnerID:     ownerID,
 	}
 
-	if err := s.db.CreateNetwork(dbNetwork); err != nil {
+	if err := db.CreateNetwork(dbNetwork); err != nil {
 		logger.Error("服务层：保存网络所有权失败", zap.String("network_id", createdNetwork.ID), zap.Error(err))
 		// Try to delete network from ZeroTier if database save fails
 		if delErr := s.ztClient.DeleteNetwork(createdNetwork.ID); delErr != nil {
@@ -258,20 +214,18 @@ func (s *NetworkService) CreateNetwork(network *zerotier.Network, ownerID string
 
 // UpdateNetwork 更新网络 with ownership check and private network enforcement
 func (s *NetworkService) UpdateNetwork(id string, updateReq *zerotier.NetworkUpdateRequest, userID string) (*zerotier.Network, error) {
-	// 检查ZeroTier客户端是否已初始化
 	if s.ztClient == nil {
 		logger.Warn("服务层：ZeroTier客户端未初始化")
 		return nil, fmt.Errorf("ZeroTier客户端未初始化")
 	}
 
-	// Check if database is initialized
-	if s.db == nil {
+	db := s.getDB()
+	if db == nil {
 		logger.Warn("服务层：数据库未初始化")
 		return nil, fmt.Errorf("数据库未初始化")
 	}
 
-	// Check if network is owned by the user
-	ownedNetwork, err := s.db.GetNetworkByID(id)
+	ownedNetwork, err := db.GetNetworkByID(id)
 	if err != nil {
 		logger.Error("服务层：获取网络所有权失败", zap.String("network_id", id), zap.Error(err))
 		return nil, err
@@ -306,7 +260,7 @@ func (s *NetworkService) UpdateNetwork(id string, updateReq *zerotier.NetworkUpd
 		ownedNetwork.Description = updateReq.Description
 	}
 	if updateReq.Name != "" || updateReq.Description != "" {
-		if err := s.db.UpdateNetwork(ownedNetwork); err != nil {
+		if err := db.UpdateNetwork(ownedNetwork); err != nil {
 			logger.Error("服务层：更新数据库中网络信息失败", zap.String("network_id", id), zap.Error(err))
 		}
 	}
@@ -314,23 +268,19 @@ func (s *NetworkService) UpdateNetwork(id string, updateReq *zerotier.NetworkUpd
 	return updatedNetwork, nil
 }
 
-// UpdateNetworkMetadata 更新网络元数据（名称和描述）
-// 名称同步更新控制器和数据库，描述仅更新数据库
 func (s *NetworkService) UpdateNetworkMetadata(id string, name string, description string, userID string) (*zerotier.Network, error) {
-	// 检查ZeroTier客户端是否已初始化
 	if s.ztClient == nil {
 		logger.Warn("服务层：ZeroTier客户端未初始化")
 		return nil, fmt.Errorf("ZeroTier客户端未初始化")
 	}
 
-	// Check if database is initialized
-	if s.db == nil {
+	db := s.getDB()
+	if db == nil {
 		logger.Warn("服务层：数据库未初始化")
 		return nil, fmt.Errorf("数据库未初始化")
 	}
 
-	// Check if network is owned by the user
-	ownedNetwork, err := s.db.GetNetworkByID(id)
+	ownedNetwork, err := db.GetNetworkByID(id)
 	if err != nil {
 		logger.Error("服务层：获取网络所有权失败", zap.String("network_id", id), zap.Error(err))
 		return nil, err
@@ -360,7 +310,7 @@ func (s *NetworkService) UpdateNetworkMetadata(id string, name string, descripti
 	// 更新数据库中的名称和描述（描述只更新数据库）
 	ownedNetwork.Name = name
 	ownedNetwork.Description = description
-	if err := s.db.UpdateNetwork(ownedNetwork); err != nil {
+	if err := db.UpdateNetwork(ownedNetwork); err != nil {
 		logger.Error("服务层：更新数据库网络信息失败", zap.String("network_id", id), zap.Error(err))
 		return nil, err
 	}
@@ -372,20 +322,18 @@ func (s *NetworkService) UpdateNetworkMetadata(id string, name string, descripti
 
 // DeleteNetwork 删除网络 with ownership check
 func (s *NetworkService) DeleteNetwork(networkID string, userID string) error {
-	// 检查ZeroTier客户端是否已初始化
 	if s.ztClient == nil {
 		logger.Warn("服务层：ZeroTier客户端未初始化")
 		return fmt.Errorf("ZeroTier客户端未初始化")
 	}
 
-	// Check if database is initialized
-	if s.db == nil {
+	db := s.getDB()
+	if db == nil {
 		logger.Warn("服务层：数据库未初始化")
 		return fmt.Errorf("数据库未初始化")
 	}
 
-	// Check if network is owned by the user
-	ownedNetwork, err := s.db.GetNetworkByID(networkID)
+	ownedNetwork, err := db.GetNetworkByID(networkID)
 	if err != nil {
 		logger.Error("服务层：获取网络所有权失败", zap.String("network_id", networkID), zap.Error(err))
 		return err
@@ -410,7 +358,7 @@ func (s *NetworkService) DeleteNetwork(networkID string, userID string) error {
 	}
 
 	// Delete network from database
-	if err := s.db.DeleteNetwork(networkID); err != nil {
+	if err := db.DeleteNetwork(networkID); err != nil {
 		logger.Error("服务层：从数据库删除网络失败", zap.String("network_id", networkID), zap.Error(err))
 		// Continue anyway, as ZeroTier deletion was successful
 	}
@@ -420,20 +368,18 @@ func (s *NetworkService) DeleteNetwork(networkID string, userID string) error {
 
 // GetNetworkMembers 获取网络中的所有成员 with ownership check
 func (s *NetworkService) GetNetworkMembers(networkID string, userID string) ([]zerotier.Member, error) {
-	// 检查ZeroTier客户端是否已初始化
 	if s.ztClient == nil {
 		logger.Warn("服务层：ZeroTier客户端未初始化")
 		return nil, fmt.Errorf("ZeroTier客户端未初始化")
 	}
 
-	// Check if database is initialized
-	if s.db == nil {
+	db := s.getDB()
+	if db == nil {
 		logger.Warn("服务层：数据库未初始化")
 		return nil, fmt.Errorf("数据库未初始化")
 	}
 
-	// Check if network is owned by the user
-	ownedNetwork, err := s.db.GetNetworkByID(networkID)
+	ownedNetwork, err := db.GetNetworkByID(networkID)
 	if err != nil {
 		logger.Error("服务层：获取网络所有权失败", zap.String("network_id", networkID), zap.Error(err))
 		return nil, err
@@ -461,20 +407,18 @@ func (s *NetworkService) GetNetworkMembers(networkID string, userID string) ([]z
 
 // GetNetworkMember 获取网络中的特定成员 with ownership check
 func (s *NetworkService) GetNetworkMember(networkID, memberID string, userID string) (*zerotier.Member, error) {
-	// 检查ZeroTier客户端是否已初始化
 	if s.ztClient == nil {
 		logger.Warn("服务层：ZeroTier客户端未初始化")
 		return nil, fmt.Errorf("ZeroTier客户端未初始化")
 	}
 
-	// Check if database is initialized
-	if s.db == nil {
+	db := s.getDB()
+	if db == nil {
 		logger.Warn("服务层：数据库未初始化")
 		return nil, fmt.Errorf("数据库未初始化")
 	}
 
-	// Check if network is owned by the user
-	ownedNetwork, err := s.db.GetNetworkByID(networkID)
+	ownedNetwork, err := db.GetNetworkByID(networkID)
 	if err != nil {
 		logger.Error("服务层：获取网络所有权失败", zap.String("network_id", networkID), zap.Error(err))
 		return nil, err
@@ -507,20 +451,18 @@ func (s *NetworkService) GetNetworkMember(networkID, memberID string, userID str
 
 // UpdateNetworkMember 更新网络成员 with ownership check
 func (s *NetworkService) UpdateNetworkMember(networkID, memberID string, member *zerotier.Member, userID string) (*zerotier.Member, error) {
-	// 检查ZeroTier客户端是否已初始化
 	if s.ztClient == nil {
 		logger.Warn("服务层：ZeroTier客户端未初始化")
 		return nil, fmt.Errorf("ZeroTier客户端未初始化")
 	}
 
-	// Check if database is initialized
-	if s.db == nil {
+	db := s.getDB()
+	if db == nil {
 		logger.Warn("服务层：数据库未初始化")
 		return nil, fmt.Errorf("数据库未初始化")
 	}
 
-	// Check if network is owned by the user
-	ownedNetwork, err := s.db.GetNetworkByID(networkID)
+	ownedNetwork, err := db.GetNetworkByID(networkID)
 	if err != nil {
 		logger.Error("服务层：获取网络所有权失败", zap.String("network_id", networkID), zap.Error(err))
 		return nil, err
@@ -548,20 +490,18 @@ func (s *NetworkService) UpdateNetworkMember(networkID, memberID string, member 
 
 // RemoveNetworkMember 从网络中移除成员 with ownership check
 func (s *NetworkService) RemoveNetworkMember(networkID, memberID string, userID string) error {
-	// 检查ZeroTier客户端是否已初始化
 	if s.ztClient == nil {
 		logger.Warn("服务层：ZeroTier客户端未初始化")
 		return fmt.Errorf("ZeroTier客户端未初始化")
 	}
 
-	// Check if database is initialized
-	if s.db == nil {
+	db := s.getDB()
+	if db == nil {
 		logger.Warn("服务层：数据库未初始化")
 		return fmt.Errorf("数据库未初始化")
 	}
 
-	// Check if network is owned by the user
-	ownedNetwork, err := s.db.GetNetworkByID(networkID)
+	ownedNetwork, err := db.GetNetworkByID(networkID)
 	if err != nil {
 		logger.Error("服务层：获取网络所有权失败", zap.String("network_id", networkID), zap.Error(err))
 		return err
@@ -609,21 +549,24 @@ type ImportableNetworkSummary struct {
 
 // GetImportableNetworks 获取可导入的网络ID列表（轻量级）
 func (s *NetworkService) GetImportableNetworks(userID string) ([]ImportableNetworkSummary, error) {
-	// 检查数据库是否已初始化
-	if s.db == nil {
+	db := s.getDB()
+	if db == nil {
 		logger.Warn("服务层：数据库未初始化")
 		return nil, fmt.Errorf("数据库未初始化")
 	}
 
-	// 获取所有ZeroTier网络ID列表（轻量级，只调用一次API）
+	if s.ztClient == nil {
+		logger.Warn("服务层：ZeroTier客户端未初始化")
+		return nil, fmt.Errorf("ZeroTier客户端未初始化")
+	}
+
 	ztNetworkIDs, err := s.ztClient.GetNetworkIDs()
 	if err != nil {
 		logger.Error("服务层：获取ZeroTier网络ID列表失败", zap.Error(err))
 		return nil, err
 	}
 
-	// 获取数据库中所有网络
-	dbNetworks, err := s.db.GetAllNetworks()
+	dbNetworks, err := db.GetAllNetworks()
 	if err != nil {
 		logger.Error("服务层：获取数据库网络列表失败", zap.Error(err))
 		return nil, err
@@ -668,20 +611,18 @@ func (s *NetworkService) GetImportableNetworks(userID string) ([]ImportableNetwo
 
 // ImportNetworks 导入指定的网络
 func (s *NetworkService) ImportNetworks(networkIDs []string, userID string) ([]string, error) {
-	// 检查ZeroTier客户端是否已初始化
 	if s.ztClient == nil {
 		logger.Warn("服务层：ZeroTier客户端未初始化")
 		return nil, fmt.Errorf("ZeroTier客户端未初始化")
 	}
 
-	// 检查数据库是否已初始化
-	if s.db == nil {
+	db := s.getDB()
+	if db == nil {
 		logger.Warn("服务层：数据库未初始化")
 		return nil, fmt.Errorf("数据库未初始化")
 	}
 
-	// 获取数据库中所有网络
-	dbNetworks, err := s.db.GetAllNetworks()
+	dbNetworks, err := db.GetAllNetworks()
 	if err != nil {
 		logger.Error("服务层：获取数据库网络列表失败", zap.Error(err))
 		return nil, err
@@ -735,7 +676,7 @@ func (s *NetworkService) ImportNetworks(networkIDs []string, userID string) ([]s
 				UpdatedAt:   now,
 			}
 
-			if err := s.db.CreateNetwork(newNetwork); err != nil {
+			if err := db.CreateNetwork(newNetwork); err != nil {
 				logger.Error("服务层：创建网络记录失败", zap.String("network_id", networkID), zap.Error(err))
 				continue
 			}
@@ -747,7 +688,7 @@ func (s *NetworkService) ImportNetworks(networkIDs []string, userID string) ([]s
 			dbNet.OwnerID = userID
 			dbNet.UpdatedAt = now
 
-			if err := s.db.UpdateNetwork(dbNet); err != nil {
+			if err := db.UpdateNetwork(dbNet); err != nil {
 				logger.Error("服务层：更新网络所有者失败", zap.String("network_id", networkID), zap.Error(err))
 				continue
 			}
