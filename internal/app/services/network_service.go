@@ -555,6 +555,11 @@ func (s *NetworkService) GetImportableNetworks(userID string) ([]ImportableNetwo
 		return nil, fmt.Errorf("数据库未初始化")
 	}
 
+	if s.ztClient == nil {
+		logger.Warn("服务层：ZeroTier客户端未初始化")
+		return nil, fmt.Errorf("ZeroTier客户端未初始化")
+	}
+
 	ztNetworkIDs, err := s.ztClient.GetNetworkIDs()
 	if err != nil {
 		logger.Error("服务层：获取ZeroTier网络ID列表失败", zap.Error(err))

@@ -123,6 +123,7 @@ func (h *SystemHandler) ConfigureDatabase(c fiber.Ctx) error {
 
 	if err := db.Init(); err != nil {
 		logger.Error("数据库初始化失败", zap.Error(err))
+		db.Close()
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "数据库初始化失败: " + err.Error()})
 	}
 
@@ -135,6 +136,7 @@ func (h *SystemHandler) ConfigureDatabase(c fiber.Ctx) error {
 
 	if err := database.SaveConfig(dbCfg); err != nil {
 		logger.Error("保存数据库配置失败", zap.Error(err))
+		db.Close()
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "保存数据库配置失败: " + err.Error()})
 	}
 
