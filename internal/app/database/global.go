@@ -54,6 +54,10 @@ func InitGlobalDB() error {
 		return err
 	}
 
+	if globalDB != nil {
+		globalDB.Close()
+		logger.Info("已关闭旧的数据库连接")
+	}
 	globalDB = db
 	logger.Info("全局数据库初始化成功", zap.String("type", string(config.Type)))
 	return nil

@@ -140,13 +140,13 @@ func (h *SystemHandler) ConfigureDatabase(c fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "保存数据库配置失败: " + err.Error()})
 	}
 
-	database.SetGlobalDB(db)
 	if h.userService != nil {
 		h.userService.SetDB(db)
 	}
 	if h.networkService != nil {
 		h.networkService.SetDB(db)
 	}
+	database.SetGlobalDB(db)
 
 	logger.Info("数据库配置成功", zap.String("type", dbConfig.Type))
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
