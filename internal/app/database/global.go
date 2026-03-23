@@ -16,6 +16,10 @@ var (
 func SetGlobalDB(db DBInterface) {
 	globalDBMu.Lock()
 	defer globalDBMu.Unlock()
+	if globalDB != nil {
+		globalDB.Close()
+		logger.Info("已关闭旧的数据库连接")
+	}
 	globalDB = db
 	logger.Info("全局数据库实例已设置")
 }
