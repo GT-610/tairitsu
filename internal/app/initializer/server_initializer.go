@@ -75,9 +75,11 @@ func (si *ServerInitializer) ReloadRoutes() {
 				return
 			}
 			if err := si.db.Init(); err != nil {
-				logger.Error("重新初始化数据库失败", zap.Error(err))
-				return
-			}
+			logger.Error("重新初始化数据库失败", zap.Error(err))
+			si.db.Close()
+			si.db = nil
+			return
+		}
 			database.SetGlobalDB(si.db)
 		}
 	}

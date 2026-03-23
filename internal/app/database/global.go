@@ -46,6 +46,7 @@ func InitGlobalDB() error {
 
 	if err := db.Init(); err != nil {
 		logger.Error("初始化数据库失败", zap.Error(err))
+		db.Close()
 		return err
 	}
 
