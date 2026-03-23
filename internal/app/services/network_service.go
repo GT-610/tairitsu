@@ -2,6 +2,7 @@ package services
 
 import (
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/GT-610/tairitsu/internal/app/database"
@@ -11,15 +12,12 @@ import (
 	"go.uber.org/zap"
 )
 
-// GlobalZTClient is the global ZeroTier client instance, maintained after initialization
 var GlobalZTClient *zerotier.Client
-
-// NetworkService handles network-related operations with ZeroTier
-// This service provides methods to manage ZeroTier networks
 
 type NetworkService struct {
 	ztClient *zerotier.Client
 	db       database.DBInterface
+	mutex    sync.RWMutex
 }
 
 func NewNetworkService(ztClient *zerotier.Client, db database.DBInterface) *NetworkService {
@@ -33,15 +31,21 @@ func NewNetworkService(ztClient *zerotier.Client, db database.DBInterface) *Netw
 }
 
 func (s *NetworkService) SetDB(db database.DBInterface) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
 	s.db = db
 	logger.Info("网络服务数据库连接已更新")
 }
 
 func (s *NetworkService) getDB() database.DBInterface {
-	if s.db == nil {
+	s.mutex.RLock()
+	db := s.db
+	s.mutex.RUnlock()
+
+	if db == nil {
 		return database.GetGlobalDB()
 	}
-	return s.db
+	return db
 }
 
 // GetStatus retrieves the current ZeroTier network status
