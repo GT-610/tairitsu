@@ -89,13 +89,8 @@ func SetupRoutesWithReload(router *fiber.App, ztClient *zerotier.Client, jwtSecr
 
 		auth := api.Group("/auth")
 		{
-			setupAuth := auth.Group("/")
-			setupAuth.Use(middleware.SetupOnly())
-			setupAuth.Post("/register", authHandler.Register)
-
-			runtimeAuth := auth.Group("/")
-			runtimeAuth.Use(middleware.InitializedOnly())
-			runtimeAuth.Post("/login", authHandler.Login)
+			auth.Post("/register", middleware.SetupOnly(), authHandler.Register)
+			auth.Post("/login", middleware.InitializedOnly(), authHandler.Login)
 		}
 
 		setup := api.Group("/")
