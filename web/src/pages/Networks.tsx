@@ -3,6 +3,7 @@ import { Box, Typography, Button, Table, TableBody, TableCell, TableContainer, T
 import { Link } from 'react-router-dom';
 import { Add, Delete, Close } from '@mui/icons-material';
 import { networkAPI, NetworkSummary } from '../services/api';
+import { getErrorMessage } from '../services/errors';
 
 function Networks() {
   const [networks, setNetworks] = useState<NetworkSummary[]>([]);
@@ -24,8 +25,8 @@ function Networks() {
     try {
       const response = await networkAPI.getAllNetworks();
       setNetworks(response.data);
-    } catch (err: any) {
-      setError('获取网络列表失败');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, '获取网络列表失败'));
       console.error('Fetch networks error:', err);
     } finally {
       setLoading(false);
@@ -33,7 +34,7 @@ function Networks() {
   };
 
   useEffect(() => {
-    fetchNetworks();
+    void fetchNetworks();
   }, []);
 
   const handleOpenModal = (network: NetworkSummary | null = null) => {
@@ -73,9 +74,10 @@ function Networks() {
     e.preventDefault();
     try {
       if (editingNetwork) {
-        await networkAPI.updateNetwork(editingNetwork.id, {
-          private: true
-        } as any);
+        await networkAPI.updateNetworkMetadata(editingNetwork.id, {
+          name: formData.name,
+          description: formData.description
+        });
       } else {
         await networkAPI.createNetwork({
           name: formData.name,
@@ -83,9 +85,9 @@ function Networks() {
         });
       }
       handleCloseModal();
-      fetchNetworks();
-    } catch (err: any) {
-      setError(editingNetwork ? '更新网络失败' : '创建网络失败');
+      void fetchNetworks();
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, editingNetwork ? '更新网络失败' : '创建网络失败'));
     }
   };
 
@@ -99,12 +101,12 @@ function Networks() {
     if (!deletingNetworkId) return;
     try {
       await networkAPI.deleteNetwork(deletingNetworkId);
-      fetchNetworks();
+      void fetchNetworks();
       setDeleteDialogOpen(false);
       setDeletingNetworkId(null);
       setDeletingNetworkName('');
-    } catch (err: any) {
-      setError('删除网络失败');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, '删除网络失败'));
     }
   };
 
@@ -281,7 +283,7 @@ function Networks() {
               <Close />
             </IconButton>
           </Box>
-          <Box component="form" onSubmit={handleSubmit} sx={{ mt: 1 }}>
+          <Box component="form" onSubmit={(event) => { void handleSubmit(event); }} sx={{ mt: 1 }}>
             <TextField
               margin="normal"
               required
@@ -330,7 +332,7 @@ function Networks() {
           <Button onClick={handleDeleteCancel}>
             取消
           </Button>
-          <Button onClick={handleDeleteConfirm} color="error">
+          <Button onClick={() => { void handleDeleteConfirm(); }} color="error">
             确认删除
           </Button>
         </DialogActions>

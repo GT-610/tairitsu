@@ -15,7 +15,8 @@ import {
   DialogContent,
   DialogActions,
   TextField,
-  CircularProgress
+  CircularProgress,
+  type SelectChangeEvent
 } from '@mui/material';
 import { authAPI } from '../services/api';
 
@@ -132,8 +133,8 @@ function Settings() {
   };
 
   // 处理语言变化
-  const handleLanguageChange = (event: any, _child: React.ReactNode) => {
-    setLanguage(event.target.value as string);
+  const handleLanguageChange = (event: SelectChangeEvent<string>, _child: React.ReactNode) => {
+    setLanguage(event.target.value);
     showDevelopmentMessage();
   };
 
@@ -252,7 +253,7 @@ function Settings() {
           <Button onClick={() => setOpenChangePasswordDialog(false)}>取消</Button>
           <Button 
             variant="contained" 
-            onClick={() => handleChangePassword()}
+            onClick={() => { void handleChangePassword(); }}
             disabled={changingPassword}
           >
             {changingPassword ? '修改中...' : '确认修改'}

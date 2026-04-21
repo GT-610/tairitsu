@@ -85,7 +85,7 @@ Not ready yet.
 #### Prerequisites
 
 - Go 1.25 or later with CGO enabled
-- Node.js 22 or later with npm
+- Bun 1.3 or later
 - ZeroTier controller installed and running
 
 #### Backend
@@ -96,10 +96,18 @@ CGO_ENABLED=1 go build -o tairitsu ./cmd/tairitsu
 #### Frontend
 ```bash
 cd web
-npm run dev
+bun install
+bun run dev
 ```
 
 The frontend development server will start on port 3000 by default, and will proxy API requests to the backend server.
+
+For production builds:
+
+```bash
+cd web
+bun run build
+```
 
 ## Contributing
 

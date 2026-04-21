@@ -23,6 +23,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import DownloadIcon from '@mui/icons-material/Download';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import { planetAPI } from '../services/api';
+import { getErrorMessage } from '../services/errors';
 
 interface Endpoint {
   id: string;
@@ -46,7 +47,7 @@ function PlanetGenerator() {
   const [copyDialogOpen, setCopyDialogOpen] = useState(false);
 
   useEffect(() => {
-    loadIdentity();
+    void loadIdentity();
   }, []);
 
   const loadIdentity = async () => {
@@ -58,10 +59,10 @@ function PlanetGenerator() {
       } else {
         setMessage({ type: 'error', text: response.data.message });
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       setMessage({
         type: 'error',
-        text: error.response?.data?.message || 'Failed to load identity.public'
+        text: getErrorMessage(error, 'Failed to load identity.public')
       });
     } finally {
       setLoading(false);
@@ -138,10 +139,10 @@ function PlanetGenerator() {
       } else {
         setMessage({ type: 'error', text: response.data.message || 'Failed to generate planet' });
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       setMessage({
         type: 'error',
-        text: error.response?.data?.message || 'Failed to generate planet'
+        text: getErrorMessage(error, 'Failed to generate planet')
       });
     } finally {
       setGenerating(false);
@@ -164,7 +165,7 @@ function PlanetGenerator() {
 
   const handleCopyCHeader = () => {
     if (generatedPlanet?.cHeader) {
-      navigator.clipboard.writeText(generatedPlanet.cHeader);
+      void navigator.clipboard.writeText(generatedPlanet.cHeader);
       setMessage({ type: 'success', text: 'C header copied to clipboard!' });
     }
     setCopyDialogOpen(false);
@@ -229,7 +230,7 @@ function PlanetGenerator() {
 
               <Button
                 variant="outlined"
-                onClick={loadIdentity}
+                onClick={() => { void loadIdentity(); }}
                 sx={{ mb: 2 }}
               >
                 重新加载身份
@@ -311,7 +312,7 @@ function PlanetGenerator() {
           <Box sx={{ display: 'flex', gap: 2, mb: 3 }}>
             <Button
               variant="contained"
-              onClick={handleGenerate}
+              onClick={() => { void handleGenerate(); }}
               disabled={generating || !identityPublic}
               startIcon={generating ? <CircularProgress size={20} color="inherit" /> : undefined}
             >
@@ -369,7 +370,7 @@ function PlanetGenerator() {
             </DialogContent>
             <DialogActions>
               <Button onClick={() => setCopyDialogOpen(false)}>关闭</Button>
-              <Button variant="contained" onClick={handleCopyCHeader}>
+              <Button variant="contained" onClick={() => { void handleCopyCHeader(); }}>
                 复制到剪贴板
               </Button>
             </DialogActions>

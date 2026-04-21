@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { toError } from './errors'
 
 // Type definitions for API responses and requests
 
@@ -131,9 +132,30 @@ export interface SystemStats {
 
 export interface SetupStatus {
   initialized: boolean;
-  databaseConfigured: boolean;
-  zeroTierConfigured: boolean;
-  adminCreated: boolean;
+  hasDatabase?: boolean;
+  hasAdmin?: boolean;
+  ztStatus?: {
+    version: string;
+    address: string;
+    online: boolean;
+    tcpFallbackAvailable?: boolean;
+    apiReady?: boolean;
+  };
+}
+
+export interface DatabaseSetupConfig {
+  type: 'sqlite' | 'mysql' | 'postgres';
+  path?: string;
+  host?: string;
+  port?: number;
+  user?: string;
+  pass?: string;
+  name?: string;
+}
+
+export interface ZeroTierSetupConfig {
+  controllerUrl: string;
+  tokenPath: string;
 }
 
 export interface IdentityInfo {
@@ -179,7 +201,7 @@ api.interceptors.request.use(
     return config
   },
   error => {
-    return Promise.reject(error)
+    return Promise.reject(toError(error))
   }
 )
 
@@ -189,7 +211,7 @@ api.interceptors.response.use(
     return response
   },
   error => {
-    return Promise.reject(error)
+    return Promise.reject(toError(error))
   }
 )
 
@@ -257,7 +279,7 @@ export const systemAPI = {
   // Get system setup status (used to check if it's first run)
   getSetupStatus: () => api.get<SetupStatus>('/system/status'),
   // Configure database
-  configureDatabase: (config: any) => api.post('/system/database', config),
+  configureDatabase: (config: DatabaseSetupConfig) => api.post('/system/database', config),
   // Reload routes
   reloadRoutes: () => api.post('/system/reload'),
   // Initialize ZeroTier client
@@ -265,9 +287,9 @@ export const systemAPI = {
   // Test ZeroTier connection
   testZtConnection: () => api.post('/system/zerotier/test'),
   // Save ZeroTier configuration
-  saveZtConfig: (config: any) => api.post('/system/zerotier/config', config),
+  saveZtConfig: (config: ZeroTierSetupConfig) => api.post('/system/zerotier/config', config),
   // Update system settings
-  updateSettings: (settings: any) => api.put('/settings', settings),
+  updateSettings: (settings: Record<string, unknown>) => api.put('/settings', settings),
   // Set system initialization status
   setInitialized: (initialized: boolean) => api.post('/system/initialized', { initialized }),
   // Initialize admin account creation step

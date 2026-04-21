@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Box, Typography, Paper, CircularProgress, Alert, 
   Chip, LinearProgress} from '@mui/material';
 import { statusAPI, systemAPI, SystemStatus } from '../services/api';
+import { getErrorMessage } from '../services/errors';
 import { useAuth } from '../services/auth';
 
 
@@ -55,7 +56,7 @@ function Dashboard() {
       }
     };
 
-    fetchData();
+    void fetchData();
   }, []);
 
   // 定期获取系统统计信息和系统信息（仅管理员）
@@ -76,9 +77,9 @@ function Dashboard() {
           kernelVersion: response.data.kernelVersion,
           error: null
         });
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error('Failed to fetch system stats:', err);
-        console.error('Error details:', err.response?.data || err.message);
+        console.error('Error details:', getErrorMessage(err, '无法获取系统资源统计信息'));
         setSystemStats(prev => ({
           ...prev,
           error: '无法获取系统资源统计信息'
@@ -87,7 +88,7 @@ function Dashboard() {
     };
 
     // 立即获取一次
-    fetchSystemStats();
+    void fetchSystemStats();
 
     // 每5秒获取一次系统统计信息
     const interval = setInterval(fetchSystemStats, 5000);

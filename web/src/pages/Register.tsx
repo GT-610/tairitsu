@@ -12,6 +12,7 @@ import {
 import { PersonAddOutlined } from '@mui/icons-material';
 import { Link, useNavigate } from 'react-router-dom';
 import { authAPI } from '../services/api';
+import { getErrorMessage } from '../services/errors';
 
 // 表单数据类型定义
 interface FormData {
@@ -91,15 +92,11 @@ function Register() {
       setRegisterSuccess('注册成功，请登录');
       // 3秒后跳转到登录页
       setTimeout(() => {
-        navigate('/login');
+        void navigate('/login');
       }, 3000);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('注册错误:', err);
-      if (err.response && err.response.data && err.response.data.error) {
-        setRegisterError(err.response.data.error);
-      } else {
-        setRegisterError('注册失败，请稍后重试');
-      }
+      setRegisterError(getErrorMessage(err, '注册失败，请稍后重试'));
     } finally {
       setLoading(false);
     }
@@ -156,7 +153,7 @@ function Register() {
             </Alert>
           )}
           
-          <Box component="form" onSubmit={handleSubmit} sx={{ mt: 1 }}>
+          <Box component="form" onSubmit={(event) => { void handleSubmit(event); }} sx={{ mt: 1 }}>
             <TextField
               margin="normal"
               required
