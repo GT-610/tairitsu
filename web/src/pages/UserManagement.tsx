@@ -15,6 +15,7 @@ import {
   Snackbar
 } from '@mui/material';
 import { User, userAPI, authAPI } from '../services/api';
+import { getErrorMessage } from '../services/errors';
 
 function UserManagement() {
   const [users, setUsers] = useState<User[]>([]);
@@ -38,11 +39,11 @@ function UserManagement() {
         const usersResponse = await userAPI.getAllUsers();
         console.log('所有用户信息:', usersResponse.data);
         setUsers(usersResponse.data);
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error('获取用户数据失败:', error);
-        console.error('错误详情:', error.response?.data || error.message);
+        console.error('错误详情:', getErrorMessage(error, '获取用户数据失败'));
         setMessage({ 
-          text: `获取用户数据失败: ${error.response?.data?.error || error.message}`, 
+          text: getErrorMessage(error, '获取用户数据失败'), 
           severity: 'error' 
         });
       } finally {
@@ -50,7 +51,7 @@ function UserManagement() {
       }
     };
 
-    fetchData();
+    void fetchData();
   }, []);
 
   // 处理用户角色更新
@@ -74,7 +75,7 @@ function UserManagement() {
       });
     } catch (error) {
       console.error('更新用户角色失败:', error);
-      setMessage({ text: '更新用户角色失败', severity: 'error' });
+      setMessage({ text: getErrorMessage(error, '更新用户角色失败'), severity: 'error' });
     } finally {
       setUpdating(false);
     }
@@ -160,7 +161,7 @@ function UserManagement() {
                     <Button
                       variant="contained"
                       color={user.role === 'admin' ? 'error' : 'primary'}
-                      onClick={() => handleUpdateUserRole(user.id, user.role)}
+                      onClick={() => { void handleUpdateUserRole(user.id, user.role); }}
                       disabled={updating}
                     >
                       {user.role === 'admin' ? '撤销管理员' : '赋予管理员'}

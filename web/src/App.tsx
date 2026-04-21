@@ -7,7 +7,8 @@ import SetupWizard from './pages/SetupWizard';
 import Networks from './pages/Networks';
 import NotFound from './pages/NotFound';
 import Layout from './components/Layout';
-import api from './services/api';
+import api, { type SetupStatus } from './services/api';
+import { hasStatus } from './services/errors';
 import { useAuth } from './services/auth';
 
 const lazyPages = {
@@ -44,9 +45,9 @@ function AppContent() {
 
   // Listen for API errors and handle logout on 401 unauthorized responses
   useEffect(() => {
-    const handleApiError = (error: any) => {
+    const handleApiError = (error: unknown) => {
       // Check if the error is a 401 unauthorized error
-      if (error.response && error.response.status === 401) {
+      if (hasStatus(error, 401)) {
         // Clear authentication information
         localStorage.removeItem('token');
         localStorage.removeItem('user');
@@ -56,7 +57,7 @@ function AppContent() {
         
         // Redirect to login page (using React Router instead of window.location)
         if (location.pathname !== '/login') {
-          navigate('/login');
+          void navigate('/login');
         }
       }
     };
@@ -66,7 +67,7 @@ function AppContent() {
       response => response,
       error => {
         handleApiError(error);
-        return Promise.reject(error);
+        return Promise.reject(error instanceof Error ? error : new Error(String(error)));
       }
     );
 
@@ -80,14 +81,14 @@ function AppContent() {
   useEffect(() => {
     const checkFirstRun = async () => {
       try {
-        const response = await api.get('/system/status', {
+        const response = await api.get<SetupStatus>('/system/status', {
           headers: {
             'Cache-Control': 'no-cache'
           }
         });
         
         // 确保response.data存在且包含initialized字段
-        const isBackendInitialized = response.data && response.data.initialized;
+        const isBackendInitialized = response.data.initialized;
         
         // 完全依赖后端API状态，不使用本地存储
         setIsFirstRun(!isBackendInitialized);
@@ -113,7 +114,7 @@ function AppContent() {
       }
     };
 
-    checkFirstRun();
+    void checkFirstRun();
   }, []);
 
   if (loading || isFirstRun === null) {

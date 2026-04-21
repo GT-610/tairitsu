@@ -2,8 +2,6 @@
 .DS_Store
 Thumbs.db
 
-# IDE和编辑器文件
-.trae/
 
 # Go语言相关
 
@@ -80,3 +78,6 @@ data/
 *.bak
 *.old
 *.~*
+
+# Codex
+.codex

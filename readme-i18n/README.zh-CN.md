@@ -82,7 +82,7 @@ Tairitsu 是 ZeroTier 控制器的 Web 管理界面实现，提供友好的 GUI 
 #### 前置条件
 
 - Go 1.25 或更高版本（需启用 CGO）
-- Node.js 22 或更高版本
+- Bun 1.3 或更高版本
 - 已安装并运行的 ZeroTier 控制器
 
 #### 后端
@@ -93,10 +93,18 @@ CGO_ENABLED=1 go build -o tairitsu ./cmd/tairitsu
 #### 前端
 ```bash
 cd web
-npm run dev
+bun install
+bun run dev
 ```
 
 前端开发服务器默认在 3000 端口启动，并将 API 请求代理到后端服务器。
+
+生产构建命令：
+
+```bash
+cd web
+bun run build
+```
 
 ## 贡献
 

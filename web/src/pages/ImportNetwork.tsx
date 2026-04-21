@@ -18,6 +18,7 @@ import {
   Paper
 } from '@mui/material';
 import { ImportableNetworkSummary } from '../services/api';
+import { getErrorMessage } from '../services/errors';
 
 function ImportNetwork() {
   const [networks, setNetworks] = useState<ImportableNetworkSummary[]>([]);
@@ -27,7 +28,7 @@ function ImportNetwork() {
   const [error, setError] = useState<string>('');
 
   useEffect(() => {
-    fetchImportableNetworks();
+    void fetchImportableNetworks();
   }, []);
 
   const fetchImportableNetworks = async () => {
@@ -42,10 +43,10 @@ function ImportNetwork() {
       if (!response.ok) {
         throw new Error('获取可导入网络列表失败');
       }
-      const data = await response.json();
+      const data: ImportableNetworkSummary[] = await response.json() as ImportableNetworkSummary[];
       setNetworks(data);
-    } catch (err: any) {
-      setError(err.message || '获取可导入网络列表失败');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, '获取可导入网络列表失败'));
     } finally {
       setLoading(false);
     }
@@ -90,8 +91,8 @@ function ImportNetwork() {
       }
 
       window.location.reload();
-    } catch (err: any) {
-      setError(err.message || '导入网络失败');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, '导入网络失败'));
     } finally {
       setImporting(false);
     }
@@ -232,7 +233,7 @@ function ImportNetwork() {
               <Button
                 variant="contained"
                 color="primary"
-                onClick={handleImport}
+                onClick={() => { void handleImport(); }}
                 disabled={selectedNetworks.size === 0 || importing}
               >
                 {importing ? (

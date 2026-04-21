@@ -15,6 +15,7 @@ import { LockOutlined } from '@mui/icons-material';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../services/auth';
 import { authAPI } from '../services/api';
+import { getErrorMessage, hasStatus } from '../services/errors';
 
 /**
  * Login Component
@@ -106,13 +107,14 @@ function Login() {
       login(user, token);
       
       // Login successful, redirect to networks
-      navigate('/networks');
-    } catch (error: any) {
+      void navigate('/networks');
+    } catch (error: unknown) {
       console.error('登录错误:', error);
-      if (error.response && error.response.data && error.response.data.error) {
-        setLoginError(error.response.data.error);
-      } else if (error.response && error.response.status === 401) {
+      const serverMessage = getErrorMessage(error, '');
+      if (hasStatus(error, 401) && (!serverMessage || serverMessage === '用户名或密码错误')) {
         setLoginError('用户名或密码错误');
+      } else if (serverMessage) {
+        setLoginError(serverMessage);
       } else {
         setLoginError('登录失败，请稍后重试');
       }
@@ -167,7 +169,7 @@ function Login() {
             </Alert>
           )}
           
-          <Box component="form" onSubmit={handleSubmit} sx={{ mt: 1 }}>
+          <Box component="form" onSubmit={(event) => { void handleSubmit(event); }} sx={{ mt: 1 }}>
             <TextField
               margin="normal"
               required

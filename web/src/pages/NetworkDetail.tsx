@@ -3,6 +3,7 @@ import { Box, Typography, Card, CardContent, CircularProgress, Alert, Button, Gr
 import { ArrowBack, ContentCopy, Add } from '@mui/icons-material';
 import { useParams, Link } from 'react-router-dom';
 import { networkAPI, Network, NetworkConfig, NetworkMetadataUpdateRequest, IpAssignmentPool, Route } from '../services/api';
+import { getErrorMessage } from '../services/errors';
 
 // Default configuration for optional fields (null instead of default values)
 const defaultNetworkConfig: Partial<NetworkConfig> = {
@@ -21,6 +22,8 @@ const defaultNetworkConfig: Partial<NetworkConfig> = {
   }
 };
 
+type V6AssignMode = 'zt' | '6plane' | 'rfc4193' | 'none';
+
 function NetworkDetail() {
   const { id } = useParams<{ id: string }>();
   const [network, setNetwork] = useState<Network | null>(null);
@@ -31,7 +34,7 @@ function NetworkDetail() {
   const [editingName, setEditingName] = useState<string>('');
   const [editingDescription, setEditingDescription] = useState<string>('');
   const [v4AssignMode, setV4AssignMode] = useState<boolean>(false);
-  const [v6AssignMode, setV6AssignMode] = useState<'zt' | '6plane' | 'rfc4193' | 'none'>('none');
+  const [v6AssignMode, setV6AssignMode] = useState<V6AssignMode>('none');
   const [multicastLimit, setMulticastLimit] = useState<number>(32);
   const [enableBroadcast, setEnableBroadcast] = useState<boolean>(true);
   const [ipPools, setIpPools] = useState<IpAssignmentPool[]>([]);
@@ -44,7 +47,7 @@ function NetworkDetail() {
   const [multicastUnsaved, setMulticastUnsaved] = useState<boolean>(false);
 
   useEffect(() => {
-    fetchNetworkDetail();
+    void fetchNetworkDetail();
   }, [id]);
 
   useEffect(() => {
@@ -103,15 +106,15 @@ function NetworkDetail() {
         setIpPools(pools);
         setRoutes(networkData.config.routes || []);
       }
-    } catch (err: any) {
-      setError('获取网络详情失败');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, '获取网络详情失败'));
       console.error('Fetch network detail error:', err);
     } finally {
       setLoading(false);
     }
   };
 
-  const getV6AssignModeFromConfig = (config: any): 'zt' | '6plane' | 'rfc4193' | 'none' => {
+  const getV6AssignModeFromConfig = (config?: NetworkConfig['v6AssignMode']): V6AssignMode => {
     if (config?.rfc4193) return 'rfc4193';
     if (config?.['6plane']) return '6plane';
     if (config?.zt) return 'zt';
@@ -132,9 +135,9 @@ function NetworkDetail() {
       };
       await networkAPI.updateNetworkMetadata(id, metadataData);
       showSnackbar('名称和描述保存成功');
-      setTimeout(() => fetchNetworkDetail(), 1000);
-    } catch (err: any) {
-      showSnackbar('保存失败: ' + (err.response?.data?.error || err.message), 'error');
+      setTimeout(() => { void fetchNetworkDetail(); }, 1000);
+    } catch (err: unknown) {
+      showSnackbar(getErrorMessage(err, '保存失败'), 'error');
     } finally {
       setSaving(false);
     }
@@ -149,8 +152,8 @@ function NetworkDetail() {
       setTimeout(() => {
         window.location.href = '/networks';
       }, 1000);
-    } catch (err: any) {
-      showSnackbar('删除失败: ' + (err.response?.data?.error || err.message), 'error');
+    } catch (err: unknown) {
+      showSnackbar(getErrorMessage(err, '删除失败'), 'error');
     } finally {
       setSaving(false);
       setDeleteDialogOpen(false);
@@ -167,9 +170,9 @@ function NetworkDetail() {
         v4AssignMode: { zt: v4AssignMode }
       });
       showSnackbar('IPv4配置保存成功');
-      setTimeout(() => fetchNetworkDetail(), 1000);
-    } catch (err: any) {
-      showSnackbar('保存失败: ' + (err.response?.data?.error || err.message), 'error');
+      setTimeout(() => { void fetchNetworkDetail(); }, 1000);
+    } catch (err: unknown) {
+      showSnackbar(getErrorMessage(err, '保存失败'), 'error');
     } finally {
       setSaving(false);
     }
@@ -186,9 +189,9 @@ function NetworkDetail() {
       };
       await networkAPI.updateNetwork(id, { v6AssignMode: v6Mode });
       showSnackbar('IPv6配置保存成功');
-      setTimeout(() => fetchNetworkDetail(), 1000);
-    } catch (err: any) {
-      showSnackbar('保存失败: ' + (err.response?.data?.error || err.message), 'error');
+      setTimeout(() => { void fetchNetworkDetail(); }, 1000);
+    } catch (err: unknown) {
+      showSnackbar(getErrorMessage(err, '保存失败'), 'error');
     } finally {
       setSaving(false);
     }
@@ -203,9 +206,9 @@ function NetworkDetail() {
         enableBroadcast: enableBroadcast
       });
       showSnackbar('多播设置保存成功');
-      setTimeout(() => fetchNetworkDetail(), 1000);
-    } catch (err: any) {
-      showSnackbar('保存失败: ' + (err.response?.data?.error || err.message), 'error');
+      setTimeout(() => { void fetchNetworkDetail(); }, 1000);
+    } catch (err: unknown) {
+      showSnackbar(getErrorMessage(err, '保存失败'), 'error');
     } finally {
       setSaving(false);
     }
@@ -396,7 +399,7 @@ function NetworkDetail() {
                     />
                   </Grid>
                   <Grid size={{ xs: 12 }}>
-                    <Button variant="contained" color="primary" onClick={handleSaveMetadata} disabled={saving}>
+                    <Button variant="contained" color="primary" onClick={() => { void handleSaveMetadata(); }} disabled={saving}>
                       保存
                     </Button>
                   </Grid>
@@ -556,7 +559,7 @@ function NetworkDetail() {
                 </Box>
                 
                 <Box sx={{ display: 'flex', justifyContent: 'flex-start' }}>
-                  <Button variant="contained" color="primary" onClick={handleSaveIPv4} disabled={saving || !ipv4Unsaved}>
+                  <Button variant="contained" color="primary" onClick={() => { void handleSaveIPv4(); }} disabled={saving || !ipv4Unsaved}>
                     保存
                   </Button>
                 </Box>
@@ -583,7 +586,7 @@ function NetworkDetail() {
                     <RadioGroup
                       row
                       value={v6AssignMode}
-                      onChange={(e) => setV6AssignMode(e.target.value as 'zt' | '6plane' | 'rfc4193' | 'none')}
+                      onChange={(e) => setV6AssignMode(e.target.value as V6AssignMode)}
                     >
                       <FormControlLabel value="none" control={<Radio />} label="不分配IPv6地址" />
                       <FormControlLabel value="rfc4193" control={<Radio />} label="分配RFC4193唯一地址" />
@@ -593,7 +596,7 @@ function NetworkDetail() {
                 </Box>
                 
                 <Box sx={{ display: 'flex', justifyContent: 'flex-start' }}>
-                  <Button variant="contained" color="primary" onClick={handleSaveIPv6} disabled={saving || !ipv6Unsaved}>
+                  <Button variant="contained" color="primary" onClick={() => { void handleSaveIPv6(); }} disabled={saving || !ipv6Unsaved}>
                     保存
                   </Button>
                 </Box>
@@ -636,7 +639,7 @@ function NetworkDetail() {
                 </Grid>
                 
                 <Box sx={{ display: 'flex', justifyContent: 'flex-start', mt: 3 }}>
-                  <Button variant="contained" color="primary" onClick={handleSaveMulticast} disabled={saving || !multicastUnsaved}>
+                  <Button variant="contained" color="primary" onClick={() => { void handleSaveMulticast(); }} disabled={saving || !multicastUnsaved}>
                     保存
                   </Button>
                 </Box>
@@ -672,7 +675,7 @@ function NetworkDetail() {
                     <Button onClick={() => setDeleteDialogOpen(false)} color="primary">
                       取消
                     </Button>
-                    <Button onClick={handleDeleteNetwork} color="error" autoFocus disabled={saving}>
+                    <Button onClick={() => { void handleDeleteNetwork(); }} color="error" autoFocus disabled={saving}>
                       {saving ? '删除中...' : '确认删除'}
                     </Button>
                   </DialogActions>

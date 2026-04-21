@@ -15,6 +15,7 @@ import {
 } from '@mui/material';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import { authAPI, systemAPI } from '../services/api';
+import { getErrorMessage } from '../services/errors';
 
 // 管理员账户数据类型
 interface AdminData {
@@ -108,8 +109,8 @@ const SetupWizard = () => {
       await systemAPI.saveZtConfig(ztConfig);
       setSuccess('ZeroTier 连接成功！已自动前往下一步。');
       return true;
-    } catch (err: any) {
-      setError('ZeroTier 连接失败: ' + (err.response?.data?.error || err.message));
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, 'ZeroTier 连接失败'));
       return false;
     } finally {
       setLoading(false);
@@ -205,18 +206,18 @@ const SetupWizard = () => {
           setSuccess('系统初始化完成！正在刷新页面...');
           
           // Delay page refresh to show success message
-          setTimeout(() => {
-            window.location.reload();
-          }, 2000);
-        } catch (err: any) {
-          setError('完成设置失败: ' + (err.response?.data?.error || err.message));
+        setTimeout(() => {
+          window.location.reload();
+        }, 2000);
+        } catch (err: unknown) {
+          setError(getErrorMessage(err, '完成设置失败'));
         }
       } else {
         // Default case: proceed to next step
         setActiveStep((prevActiveStep) => prevActiveStep + 1);
       }
-    } catch (err: any) {
-        setError('操作失败: ' + (err.response?.data?.error || err.message));
+    } catch (err: unknown) {
+        setError(getErrorMessage(err, '操作失败'));
       } finally {
         setLoading(false);
     }
@@ -308,7 +309,7 @@ const SetupWizard = () => {
               欢迎使用 Tairitsu
             </Typography>
             <IconButton 
-              onClick={handleSubmit}
+              onClick={() => { void handleSubmit(); }}
               sx={{ 
                 width: 60, 
                 height: 60, 
@@ -555,7 +556,7 @@ const SetupWizard = () => {
             <Button 
               variant="contained" 
               color="primary" 
-              onClick={handleSubmit}
+              onClick={() => { void handleSubmit(); }}
               disabled={loading}
             >
               {loading ? <CircularProgress size={24} /> : 
