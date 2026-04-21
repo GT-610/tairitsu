@@ -26,6 +26,7 @@ import {
 import { Edit, Delete, Search, Refresh, ArrowBack } from '@mui/icons-material';
 import { useParams } from 'react-router-dom';
 import { memberAPI, Member as ApiMember } from '../services/api';
+import { getErrorMessage } from '../services/errors';
 
 // 格式化后的成员类型定义（匹配ZeroTier设备属性）
 interface Member {
@@ -58,6 +59,19 @@ interface ConfirmDialogState {
   memberId: string | null;
 }
 
+function formatMember(member: ApiMember): Member {
+  return {
+    id: member.id || member.nodeId,
+    name: member.name || member.nodeId,
+    nodeId: member.nodeId || member.id,
+    authorized: member.authorized || false,
+    activeBridge: member.activeBridge || false,
+    ipAssignments: member.ipAssignments || [],
+    lastSeen: member.lastSeen ? new Date(member.lastSeen).toLocaleString() : '未知',
+    createdAt: member.createdAt ? new Date(member.createdAt).toLocaleDateString() : '未知'
+  };
+}
+
 function Members() {
   const { networkId } = useParams<{ networkId: string }>();
   const [members, setMembers] = useState<Member[]>([]);
@@ -81,23 +95,13 @@ function Members() {
           throw new Error('网络ID不能为空');
         }
         const response = await memberAPI.getMembers(networkId);
-        // 格式化从API获取的数据以匹配前端组件的期望格式
-        const formattedMembers: Member[] = response.data.map((member: ApiMember) => ({
-          id: member.id || member.nodeId,
-          name: member.name || member.nodeId,
-          nodeId: member.nodeId || member.id,
-          authorized: member.authorized || false,
-          activeBridge: member.activeBridge || false,
-          ipAssignments: member.ipAssignments || [],
-          lastSeen: member.lastSeen ? new Date(member.lastSeen).toLocaleString() : '未知',
-          createdAt: member.createdAt ? new Date(member.createdAt).toLocaleDateString() : '未知'
-        }));
+        const formattedMembers: Member[] = response.data.map(formatMember);
         setMembers(formattedMembers);
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error('获取成员列表失败:', error);
         setSnackbar({ 
           open: true, 
-          message: '获取成员列表失败: ' + (error.response?.data?.message || error.message), 
+          message: `获取成员列表失败: ${getErrorMessage(error, '获取成员列表失败')}`, 
           severity: 'error' 
         });
       } finally {
@@ -106,7 +110,7 @@ function Members() {
     };
 
     if (networkId) {
-      fetchMembers();
+      void fetchMembers();
     }
   }, [networkId]);
 
@@ -150,11 +154,11 @@ function Members() {
         message: '成员删除成功', 
         severity: 'success' 
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('删除成员失败:', error);
       setSnackbar({ 
         open: true, 
-        message: '成员删除失败: ' + (error.response?.data?.message || error.message), 
+        message: `成员删除失败: ${getErrorMessage(error, '成员删除失败')}`, 
         severity: 'error' 
       });
     } finally {
@@ -200,11 +204,11 @@ function Members() {
       });
       
       setOpenDialog(false);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('成员操作失败:', error);
       setSnackbar({ 
         open: true, 
-        message: '设备信息更新失败: ' + (error.response?.data?.message || error.message), 
+        message: `设备信息更新失败: ${getErrorMessage(error, '设备信息更新失败')}`, 
         severity: 'error' 
       });
     }
@@ -237,11 +241,11 @@ function Members() {
         message: `设备已${newStatus ? '授权' : '拒绝'}`, 
         severity: 'success' 
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('状态更新失败:', error);
       setSnackbar({ 
         open: true, 
-        message: '状态更新失败: ' + (error.response?.data?.message || error.message), 
+        message: `状态更新失败: ${getErrorMessage(error, '状态更新失败')}`, 
         severity: 'error' 
       });
     }
@@ -272,11 +276,11 @@ function Members() {
         message: '成员列表已刷新', 
         severity: 'success' 
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('刷新成员列表失败:', error);
       setSnackbar({ 
         open: true, 
-        message: '刷新成员列表失败: ' + (error.response?.data?.message || error.message), 
+        message: `刷新成员列表失败: ${getErrorMessage(error, '刷新成员列表失败')}`, 
         severity: 'error' 
       });
     } finally {
@@ -303,7 +307,7 @@ function Members() {
           <Button 
             variant="outlined" 
             startIcon={<Refresh />}
-            onClick={handleRefresh}
+            onClick={() => { void handleRefresh(); }}
             disabled={loading}
           >
             刷新
@@ -377,7 +381,7 @@ function Members() {
                         control={
                           <Switch
                             checked={member.authorized}
-                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleStatusToggle(member.id, e.target.checked)}
+                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => { void handleStatusToggle(member.id, e.target.checked); }}
                           />
                         }
                         label={member.authorized ? '已授权' : '未授权'}
@@ -442,7 +446,7 @@ function Members() {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setOpenDialog(false)}>取消</Button>
-          <Button onClick={handleSubmit} variant="contained">
+          <Button onClick={() => { void handleSubmit(); }} variant="contained">
             更新
           </Button>
         </DialogActions>
@@ -463,7 +467,7 @@ function Members() {
           <Button onClick={() => setConfirmDialog({ ...confirmDialog, open: false })}>
             取消
           </Button>
-          <Button onClick={handleDeleteMember} color="error">
+          <Button onClick={() => { void handleDeleteMember(); }} color="error">
             删除
           </Button>
         </DialogActions>
