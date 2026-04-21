@@ -19,31 +19,44 @@ import (
 
 // SystemHandler handles system-related API endpoints and operations
 type SystemHandler struct {
-	networkService   *services.NetworkService
-	userService      *services.UserService
-	systemService    *services.SystemService
-	reloadRoutesFunc func() // Function to reload application routes
+	networkService *services.NetworkService
+	userService    *services.UserService
+	systemService  *services.SystemService
 	// Database configuration is stored in config file
 }
 
 // NewSystemHandler creates a new system handler instance
-func NewSystemHandler(networkService *services.NetworkService, userService *services.UserService, reloadRoutesFunc func()) *SystemHandler {
+func NewSystemHandler(networkService *services.NetworkService, userService *services.UserService) *SystemHandler {
 	return &SystemHandler{
-		networkService:   networkService,
-		userService:      userService,
-		systemService:    services.NewSystemService(),
-		reloadRoutesFunc: reloadRoutesFunc,
+		networkService: networkService,
+		userService:    userService,
+		systemService:  services.NewSystemService(),
 	}
 }
 
 func (h *SystemHandler) bindDatabase(db database.DBInterface) {
+	if current := h.currentDatabase(); current != nil && current != db {
+		if err := current.Close(); err != nil {
+			logger.Warn("关闭旧数据库连接失败", zap.Error(err))
+		}
+	}
+
 	if h.userService != nil {
 		h.userService.SetDB(db)
 	}
 	if h.networkService != nil {
 		h.networkService.SetDB(db)
 	}
-	database.SetGlobalDB(db)
+}
+
+func (h *SystemHandler) currentDatabase() database.DBInterface {
+	if h.userService != nil && h.userService.GetDB() != nil {
+		return h.userService.GetDB()
+	}
+	if h.networkService != nil && h.networkService.GetDB() != nil {
+		return h.networkService.GetDB()
+	}
+	return nil
 }
 
 func (h *SystemHandler) reopenConfiguredDatabase() error {
@@ -64,6 +77,24 @@ func (h *SystemHandler) reopenConfiguredDatabase() error {
 
 	h.bindDatabase(db)
 	return nil
+}
+
+func (h *SystemHandler) closeCurrentDatabase() {
+	current := h.currentDatabase()
+	if current == nil {
+		return
+	}
+
+	if err := current.Close(); err != nil {
+		logger.Warn("关闭当前数据库连接失败", zap.Error(err))
+	}
+
+	if h.userService != nil {
+		h.userService.SetDB(nil)
+	}
+	if h.networkService != nil {
+		h.networkService.SetDB(nil)
+	}
 }
 
 // GetSystemStatus retrieves the current system status
@@ -310,6 +341,8 @@ func (h *SystemHandler) InitializeAdminCreation(c fiber.Ctx) error {
 
 	logger.Info("准备重置SQLite数据库")
 
+	h.closeCurrentDatabase()
+
 	// Execute database reset
 	if err := database.ResetDatabase(dbConfig); err != nil {
 		logger.Error("数据库重置失败", zap.Error(err))
@@ -405,14 +438,10 @@ func generateRandomSecret(length int) string {
 
 // ReloadRoutes handles API request to reload application routes
 func (h *SystemHandler) ReloadRoutes(c fiber.Ctx) error {
-	// Call internal reload function
-	if h.reloadRoutesFunc != nil {
-		h.reloadRoutesFunc()
-		return c.Status(fiber.StatusOK).JSON(fiber.Map{"message": "内部依赖已刷新"})
-	}
-
-	logger.Warn("重新加载路由函数未定义")
-	return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "重新加载路由功能不可用"})
+	logger.Info("重新加载路由接口已弃用")
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"message": "重新加载路由接口已弃用；当前版本会在现有服务实例上直接刷新依赖",
+	})
 }
 
 // GetSystemStats retrieves system resource usage statistics

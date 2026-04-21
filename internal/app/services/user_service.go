@@ -35,10 +35,6 @@ func (s *UserService) getDB() database.DBInterface {
 	s.mutex.RLock()
 	db := s.db
 	s.mutex.RUnlock()
-
-	if db == nil {
-		db = database.GetGlobalDB()
-	}
 	return db
 }
 

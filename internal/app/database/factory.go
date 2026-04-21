@@ -153,10 +153,6 @@ func ResetDatabase(config Config) error {
 
 		logger.Info("重置SQLite数据库", zap.String("path", config.Path))
 
-		if err := CloseGlobalDB(); err != nil {
-			logger.Warn("关闭全局数据库连接失败", zap.Error(err))
-		}
-
 		// 删除SQLite数据库文件以实现重置
 		err := os.Remove(config.Path)
 		if err != nil && !os.IsNotExist(err) {

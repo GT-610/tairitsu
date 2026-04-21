@@ -23,7 +23,6 @@ func TestSetupFlow_ResetDatabaseThenRegisterAdmin(t *testing.T) {
 	t.Cleanup(func() {
 		config.AppConfig = originalConfig
 		config.SetTempSetting("admin_creation_reset_done", originalResetFlag)
-		_ = database.CloseGlobalDB()
 	})
 
 	dbPath := filepath.Join(t.TempDir(), "nested", "tairitsu.db")
@@ -45,11 +44,10 @@ func TestSetupFlow_ResetDatabaseThenRegisterAdmin(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.NoError(t, db.Init())
-	database.SetGlobalDB(db)
 
 	userService := services.NewUserServiceWithDB(db)
 	networkService := services.NewNetworkService(nil, db)
-	systemHandler := apphandlers.NewSystemHandler(networkService, userService, nil)
+	systemHandler := apphandlers.NewSystemHandler(networkService, userService)
 	authHandler := apphandlers.NewAuthHandler(userService, services.NewJWTService("test-secret"))
 
 	app := fiber.New()

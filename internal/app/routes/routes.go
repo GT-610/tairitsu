@@ -12,11 +12,6 @@ import (
 
 // SetupRoutes configures application routes
 func SetupRoutes(router *fiber.App, ztClient *zerotier.Client, jwtSecret string, db database.DBInterface) {
-	SetupRoutesWithReload(router, ztClient, jwtSecret, db, nil)
-}
-
-// SetupRoutesWithReload configures routes with reload capability
-func SetupRoutesWithReload(router *fiber.App, ztClient *zerotier.Client, jwtSecret string, db database.DBInterface, reloadRoutesFunc func()) {
 	// Apply middleware
 	router.Use(middleware.Logger())
 	router.Use(cors.New())
@@ -66,12 +61,7 @@ func SetupRoutesWithReload(router *fiber.App, ztClient *zerotier.Client, jwtSecr
 	authHandler := handlers.NewAuthHandler(userService, jwtService)
 	userHandler := handlers.NewUserHandler(userService)
 
-	// Use empty function if no reload function provided
-	if reloadRoutesFunc == nil {
-		reloadRoutesFunc = func() {}
-	}
-
-	systemHandler := handlers.NewSystemHandler(networkService, userService, reloadRoutesFunc)
+	systemHandler := handlers.NewSystemHandler(networkService, userService)
 
 	// Create authentication middleware
 	authMiddleware := middleware.AuthMiddleware(jwtService)

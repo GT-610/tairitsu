@@ -114,7 +114,6 @@ func (ai *AppInitializer) initializeDatabase() error {
 	}
 
 	ai.context.Database = db
-	database.SetGlobalDB(db)
 	return nil
 }
 

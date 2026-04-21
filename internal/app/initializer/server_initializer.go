@@ -2,7 +2,6 @@ package initializer
 
 import (
 	"fmt"
-	"sync"
 
 	"github.com/GT-610/tairitsu/internal/app/config"
 	"github.com/GT-610/tairitsu/internal/app/database"
@@ -15,12 +14,10 @@ import (
 
 // ServerInitializer 服务器初始化器
 type ServerInitializer struct {
-	router      *fiber.App
-	jwtSecret   string
-	db          database.DBInterface
-	ztClient    *zerotier.Client
-	reloadFunc  func()
-	routerMutex sync.RWMutex
+	router    *fiber.App
+	jwtSecret string
+	db        database.DBInterface
+	ztClient  *zerotier.Client
 }
 
 // NewServerInitializer 创建新的服务器初始化器
@@ -38,9 +35,6 @@ func (si *ServerInitializer) Initialize(db database.DBInterface, ztClient *zerot
 	router := fiber.New()
 	si.router = router
 
-	// 设置路由重新加载函数
-	si.reloadFunc = si.ReloadRoutes
-
 	// 注册路由
 	if err := si.setupRoutes(); err != nil {
 		return nil, fmt.Errorf("设置路由失败: %w", err)
@@ -52,45 +46,12 @@ func (si *ServerInitializer) Initialize(db database.DBInterface, ztClient *zerot
 
 // setupRoutes 设置应用路由
 func (si *ServerInitializer) setupRoutes() error {
-	// 使用路由重新加载函数注册路由
-	routes.SetupRoutesWithReload(si.router, si.ztClient, si.jwtSecret, si.db, si.reloadFunc)
+	routes.SetupRoutes(si.router, si.ztClient, si.jwtSecret, si.db)
 	return nil
-}
-
-// ReloadRoutes 更新数据库连接
-func (si *ServerInitializer) ReloadRoutes() {
-	logger.Info("开始更新数据库连接")
-
-	si.routerMutex.Lock()
-	defer si.routerMutex.Unlock()
-
-	si.db = database.GetGlobalDB()
-	if si.db == nil {
-		dbConfig := database.LoadConfig()
-		if dbConfig.Type != "" {
-			var err error
-			si.db, err = database.NewDatabase(dbConfig)
-			if err != nil {
-				logger.Error("重新连接数据库失败", zap.Error(err))
-				return
-			}
-			if err := si.db.Init(); err != nil {
-				logger.Error("重新初始化数据库失败", zap.Error(err))
-				si.db.Close()
-				si.db = nil
-				return
-			}
-			database.SetGlobalDB(si.db)
-		}
-	}
-
-	logger.Info("数据库连接更新完成")
 }
 
 // GetRouter 获取路由器实例
 func (si *ServerInitializer) GetRouter() *fiber.App {
-	si.routerMutex.RLock()
-	defer si.routerMutex.RUnlock()
 	return si.router
 }
 
