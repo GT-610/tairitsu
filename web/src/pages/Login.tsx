@@ -110,10 +110,13 @@ function Login() {
       void navigate('/networks');
     } catch (error: unknown) {
       console.error('登录错误:', error);
-      if (hasStatus(error, 401)) {
+      const serverMessage = getErrorMessage(error, '');
+      if (hasStatus(error, 401) && (!serverMessage || serverMessage === '用户名或密码错误')) {
         setLoginError('用户名或密码错误');
+      } else if (serverMessage) {
+        setLoginError(serverMessage);
       } else {
-        setLoginError(getErrorMessage(error, '登录失败，请稍后重试'));
+        setLoginError('登录失败，请稍后重试');
       }
     } finally {
       setLoading(false);
