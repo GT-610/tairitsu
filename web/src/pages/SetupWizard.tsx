@@ -110,7 +110,7 @@ const SetupWizard = () => {
       setSuccess('ZeroTier 连接成功！已自动前往下一步。');
       return true;
     } catch (err: unknown) {
-      setError(`ZeroTier 连接失败: ${getErrorMessage(err, '连接失败')}`);
+      setError(getErrorMessage(err, 'ZeroTier 连接失败'));
       return false;
     } finally {
       setLoading(false);
@@ -206,18 +206,18 @@ const SetupWizard = () => {
           setSuccess('系统初始化完成！正在刷新页面...');
           
           // Delay page refresh to show success message
-          setTimeout(() => {
-            window.location.reload();
-          }, 2000);
+        setTimeout(() => {
+          window.location.reload();
+        }, 2000);
         } catch (err: unknown) {
-          setError(`完成设置失败: ${getErrorMessage(err, '完成设置失败')}`);
+          setError(getErrorMessage(err, '完成设置失败'));
         }
       } else {
         // Default case: proceed to next step
         setActiveStep((prevActiveStep) => prevActiveStep + 1);
       }
     } catch (err: unknown) {
-        setError(`操作失败: ${getErrorMessage(err, '操作失败')}`);
+        setError(getErrorMessage(err, '操作失败'));
       } finally {
         setLoading(false);
     }

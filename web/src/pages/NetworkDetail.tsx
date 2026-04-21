@@ -137,7 +137,7 @@ function NetworkDetail() {
       showSnackbar('名称和描述保存成功');
       setTimeout(() => { void fetchNetworkDetail(); }, 1000);
     } catch (err: unknown) {
-      showSnackbar(`保存失败: ${getErrorMessage(err, '保存失败')}`, 'error');
+      showSnackbar(getErrorMessage(err, '保存失败'), 'error');
     } finally {
       setSaving(false);
     }
@@ -153,7 +153,7 @@ function NetworkDetail() {
         window.location.href = '/networks';
       }, 1000);
     } catch (err: unknown) {
-      showSnackbar(`删除失败: ${getErrorMessage(err, '删除失败')}`, 'error');
+      showSnackbar(getErrorMessage(err, '删除失败'), 'error');
     } finally {
       setSaving(false);
       setDeleteDialogOpen(false);
@@ -172,7 +172,7 @@ function NetworkDetail() {
       showSnackbar('IPv4配置保存成功');
       setTimeout(() => { void fetchNetworkDetail(); }, 1000);
     } catch (err: unknown) {
-      showSnackbar(`保存失败: ${getErrorMessage(err, '保存失败')}`, 'error');
+      showSnackbar(getErrorMessage(err, '保存失败'), 'error');
     } finally {
       setSaving(false);
     }
@@ -191,7 +191,7 @@ function NetworkDetail() {
       showSnackbar('IPv6配置保存成功');
       setTimeout(() => { void fetchNetworkDetail(); }, 1000);
     } catch (err: unknown) {
-      showSnackbar(`保存失败: ${getErrorMessage(err, '保存失败')}`, 'error');
+      showSnackbar(getErrorMessage(err, '保存失败'), 'error');
     } finally {
       setSaving(false);
     }
@@ -208,7 +208,7 @@ function NetworkDetail() {
       showSnackbar('多播设置保存成功');
       setTimeout(() => { void fetchNetworkDetail(); }, 1000);
     } catch (err: unknown) {
-      showSnackbar(`保存失败: ${getErrorMessage(err, '保存失败')}`, 'error');
+      showSnackbar(getErrorMessage(err, '保存失败'), 'error');
     } finally {
       setSaving(false);
     }

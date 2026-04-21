@@ -43,7 +43,7 @@ function UserManagement() {
         console.error('获取用户数据失败:', error);
         console.error('错误详情:', getErrorMessage(error, '获取用户数据失败'));
         setMessage({ 
-          text: `获取用户数据失败: ${getErrorMessage(error, '获取用户数据失败')}`, 
+          text: getErrorMessage(error, '获取用户数据失败'), 
           severity: 'error' 
         });
       } finally {

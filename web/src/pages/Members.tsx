@@ -101,7 +101,7 @@ function Members() {
         console.error('获取成员列表失败:', error);
         setSnackbar({ 
           open: true, 
-          message: `获取成员列表失败: ${getErrorMessage(error, '获取成员列表失败')}`, 
+          message: getErrorMessage(error, '获取成员列表失败'), 
           severity: 'error' 
         });
       } finally {
@@ -158,7 +158,7 @@ function Members() {
       console.error('删除成员失败:', error);
       setSnackbar({ 
         open: true, 
-        message: `成员删除失败: ${getErrorMessage(error, '成员删除失败')}`, 
+        message: getErrorMessage(error, '成员删除失败'), 
         severity: 'error' 
       });
     } finally {
@@ -208,7 +208,7 @@ function Members() {
       console.error('成员操作失败:', error);
       setSnackbar({ 
         open: true, 
-        message: `设备信息更新失败: ${getErrorMessage(error, '设备信息更新失败')}`, 
+        message: getErrorMessage(error, '设备信息更新失败'), 
         severity: 'error' 
       });
     }
@@ -245,7 +245,7 @@ function Members() {
       console.error('状态更新失败:', error);
       setSnackbar({ 
         open: true, 
-        message: `状态更新失败: ${getErrorMessage(error, '状态更新失败')}`, 
+        message: getErrorMessage(error, '状态更新失败'), 
         severity: 'error' 
       });
     }
@@ -280,7 +280,7 @@ function Members() {
       console.error('刷新成员列表失败:', error);
       setSnackbar({ 
         open: true, 
-        message: `刷新成员列表失败: ${getErrorMessage(error, '刷新成员列表失败')}`, 
+        message: getErrorMessage(error, '刷新成员列表失败'), 
         severity: 'error' 
       });
     } finally {
