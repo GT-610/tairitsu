@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"github.com/GT-610/tairitsu/internal/app/config"
 	"github.com/GT-610/tairitsu/internal/app/logger"
 	"github.com/GT-610/tairitsu/internal/app/models"
 	"github.com/GT-610/tairitsu/internal/app/services"
@@ -14,6 +13,7 @@ import (
 type SystemHandler struct {
 	networkService *services.NetworkService
 	userService    *services.UserService
+	stateService   *services.StateService
 	runtimeService *services.RuntimeService
 	setupService   *services.SetupService
 	systemService  *services.SystemService
@@ -22,74 +22,25 @@ type SystemHandler struct {
 
 // NewSystemHandler creates a new system handler instance
 func NewSystemHandler(networkService *services.NetworkService, userService *services.UserService) *SystemHandler {
+	stateService := services.NewStateService()
 	runtimeService := services.NewRuntimeService(userService, networkService)
 	return &SystemHandler{
 		networkService: networkService,
 		userService:    userService,
+		stateService:   stateService,
 		runtimeService: runtimeService,
-		setupService:   services.NewSetupService(runtimeService),
+		setupService:   services.NewSetupService(runtimeService, stateService),
 		systemService:  services.NewSystemService(),
 	}
 }
 
 // GetSystemStatus retrieves the current system status
 func (h *SystemHandler) GetSystemStatus(c fiber.Ctx) error {
-	// Get system initialization status from config module
-	sysConfig := config.AppConfig
-	initialized := false
-
-	if sysConfig != nil {
-		// Check initialized field from config.json first
-		initialized = sysConfig.Initialized
-
-		// If not initialized, return uninitialized status directly
-		if !initialized {
-			return c.Status(fiber.StatusOK).JSON(map[string]interface{}{
-				"initialized": false,
-			})
-		}
+	status := h.stateService.GetSetupStatus(h.userService, h.networkService)
+	if status.Initialized && status.ZTStatus != nil && !status.ZTStatus.Online {
+		logger.Debug("[系统状态] ZeroTier状态检查失败或离线")
 	}
-
-	// If initialized, retrieve additional status information
-	hasDatabase := false
-	if sysConfig != nil && initialized {
-		// Check if database is configured
-		hasDatabase = sysConfig.Database.Type != ""
-	}
-
-	// Check for admin user only if database is configured
-	hasAdmin := false
-	if hasDatabase && h.userService != nil {
-		users := h.userService.GetAllUsers()
-		for _, user := range users {
-			if user.Role == "admin" {
-				hasAdmin = true
-				break
-			}
-		}
-	}
-
-	// Check ZeroTier connection status
-	ztStatus, err := h.networkService.GetStatus()
-	if err != nil {
-		logger.Debug("[系统状态] ZeroTier状态检查失败", zap.Error(err))
-		// Return system status even if ZeroTier connection fails
-		ztStatus = &zerotier.Status{
-			Version: "unknown",
-			Address: "",
-			Online:  false,
-		}
-	}
-
-	// 当已初始化时，返回完整的状态信息
-	response := map[string]interface{}{
-		"initialized": true,
-		"hasDatabase": hasDatabase,
-		"hasAdmin":    hasAdmin,
-		"ztStatus":    ztStatus,
-	}
-
-	return c.Status(fiber.StatusOK).JSON(response)
+	return c.Status(fiber.StatusOK).JSON(status)
 }
 
 // ConfigureDatabase configures the database connection settings

@@ -60,7 +60,7 @@ func SetupRoutes(router *fiber.App, ztClient *zerotier.Client, jwtSecret string,
 	memberHandler := handlers.NewMemberHandler(networkService)
 	authHandler := handlers.NewAuthHandler(userService, jwtService)
 	userHandler := handlers.NewUserHandler(userService)
-
+	stateService := services.NewStateService()
 	systemHandler := handlers.NewSystemHandler(networkService, userService)
 
 	// Create authentication middleware
@@ -79,12 +79,12 @@ func SetupRoutes(router *fiber.App, ztClient *zerotier.Client, jwtSecret string,
 
 		auth := api.Group("/auth")
 		{
-			auth.Post("/register", middleware.SetupOnly(), authHandler.Register)
-			auth.Post("/login", middleware.InitializedOnly(), authHandler.Login)
+			auth.Post("/register", middleware.SetupOnlyWithState(stateService), authHandler.Register)
+			auth.Post("/login", middleware.InitializedOnlyWithState(stateService), authHandler.Login)
 		}
 
 		setup := api.Group("/")
-		setup.Use(middleware.SetupOnly())
+		setup.Use(middleware.SetupOnlyWithState(stateService))
 		{
 			setup.Post("/system/database", systemHandler.ConfigureDatabase)
 			setup.Get("/system/zerotier/test", systemHandler.TestZeroTierConnection)
@@ -96,7 +96,7 @@ func SetupRoutes(router *fiber.App, ztClient *zerotier.Client, jwtSecret string,
 		}
 
 		authenticated := api.Group("/")
-		authenticated.Use(middleware.InitializedOnly())
+		authenticated.Use(middleware.InitializedOnlyWithState(stateService))
 		authenticated.Use(authMiddleware)
 		{
 			authenticated.Get("/profile", authHandler.GetProfile)
@@ -123,7 +123,7 @@ func SetupRoutes(router *fiber.App, ztClient *zerotier.Client, jwtSecret string,
 
 		// Admin-only routes
 		admin := api.Group("/")
-		admin.Use(middleware.InitializedOnly())
+		admin.Use(middleware.InitializedOnlyWithState(stateService))
 		admin.Use(authMiddleware)
 		admin.Use(middleware.AdminRequired())
 		{

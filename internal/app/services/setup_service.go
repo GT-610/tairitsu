@@ -17,11 +17,13 @@ import (
 
 type SetupService struct {
 	runtimeService *RuntimeService
+	stateService   *StateService
 }
 
-func NewSetupService(runtimeService *RuntimeService) *SetupService {
+func NewSetupService(runtimeService *RuntimeService, stateService *StateService) *SetupService {
 	return &SetupService{
 		runtimeService: runtimeService,
+		stateService:   stateService,
 	}
 }
 
@@ -113,17 +115,18 @@ func (s *SetupService) InitializeAdminCreation() (string, error) {
 
 func (s *SetupService) SetInitialized(initialized bool) error {
 	if initialized {
-		if config.AppConfig.Security.JWTSecret == "" {
-			config.AppConfig.Security.JWTSecret = generateRandomSecret(32)
+		cfg := s.stateService.Config()
+		if cfg.Security.JWTSecret == "" {
+			cfg.Security.JWTSecret = generateRandomSecret(32)
 			logger.Info("生成新的JWT密钥")
 		}
 
-		if config.AppConfig.Security.SessionSecret == "" {
-			config.AppConfig.Security.SessionSecret = generateRandomSecret(32)
+		if cfg.Security.SessionSecret == "" {
+			cfg.Security.SessionSecret = generateRandomSecret(32)
 			logger.Info("生成新的会话密钥")
 		}
 
-		if err := config.SaveConfig(config.AppConfig); err != nil {
+		if err := config.SaveConfig(cfg); err != nil {
 			return fmt.Errorf("生成安全密钥失败: %w", err)
 		}
 	}
