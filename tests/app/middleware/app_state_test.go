@@ -6,22 +6,22 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/GT-610/tairitsu/internal/app/config"
 	appmiddleware "github.com/GT-610/tairitsu/internal/app/middleware"
 	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/assert"
 )
 
+type stateStub struct {
+	initialized bool
+}
+
+func (s stateStub) IsInitialized() bool {
+	return s.initialized
+}
+
 func TestSetupOnly_BlocksAfterInitialization(t *testing.T) {
-	original := config.AppConfig
-	t.Cleanup(func() {
-		config.AppConfig = original
-	})
-
-	config.AppConfig = &config.Config{Initialized: true}
-
 	router := fiber.New()
-	router.Use(appmiddleware.SetupOnly())
+	router.Use(appmiddleware.SetupOnlyWithState(stateStub{initialized: true}))
 	router.Post("/setup-only", func(c fiber.Ctx) error {
 		return c.SendStatus(fiber.StatusNoContent)
 	})
@@ -38,15 +38,8 @@ func TestSetupOnly_BlocksAfterInitialization(t *testing.T) {
 }
 
 func TestInitializedOnly_BlocksBeforeInitialization(t *testing.T) {
-	original := config.AppConfig
-	t.Cleanup(func() {
-		config.AppConfig = original
-	})
-
-	config.AppConfig = &config.Config{Initialized: false}
-
 	router := fiber.New()
-	router.Use(appmiddleware.InitializedOnly())
+	router.Use(appmiddleware.InitializedOnlyWithState(stateStub{initialized: false}))
 	router.Get("/runtime-only", func(c fiber.Ctx) error {
 		return c.SendStatus(fiber.StatusNoContent)
 	})
