@@ -173,16 +173,12 @@ func ResetDatabase(config Config) error {
 		return nil
 
 	case MySQL:
-		// TODO: 实现MySQL数据库重置功能
-		// 注意：MySQL重置需要考虑数据备份、表结构重建等复杂操作
-		logger.Warn("MySQL数据库重置功能尚未实现")
-		return nil
+		logger.Warn("MySQL数据库重置在当前阶段不受支持")
+		return fmt.Errorf("当前一期版本仅正式支持 SQLite，MySQL 重置暂不支持")
 
 	case PostgreSQL:
-		// TODO: 实现PostgreSQL数据库重置功能
-		// 注意：PostgreSQL重置需要考虑数据备份、表结构重建等复杂操作
-		logger.Warn("PostgreSQL数据库重置功能尚未实现")
-		return nil
+		logger.Warn("PostgreSQL数据库重置在当前阶段不受支持")
+		return fmt.Errorf("当前一期版本仅正式支持 SQLite，PostgreSQL 重置暂不支持")
 
 	default:
 		logger.Error("不支持的数据库类型", zap.String("type", string(config.Type)))

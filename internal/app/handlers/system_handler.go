@@ -3,6 +3,7 @@ package handlers
 import (
 	"crypto/rand"
 	"encoding/base64"
+	"fmt"
 	mathrand "math/rand"
 	"time"
 
@@ -104,6 +105,12 @@ func (h *SystemHandler) ConfigureDatabase(c fiber.Ctx) error {
 	}
 
 	logger.Info("开始配置数据库", zap.String("type", dbConfig.Type))
+
+	if dbConfig.Type != string(database.SQLite) {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "当前一期版本仅正式支持 SQLite，请使用 SQLite 完成初始化",
+		})
+	}
 
 	dbCfg := database.Config{
 		Type: database.DatabaseType(dbConfig.Type),
@@ -265,20 +272,27 @@ func (h *SystemHandler) InitializeAdminCreation(c fiber.Ctx) error {
 	dbConfig := database.LoadConfig()
 	logger.Info("获取数据库配置", zap.String("type", string(dbConfig.Type)))
 
-	// Only perform reset for SQLite databases
-	if dbConfig.Type == database.SQLite {
-		logger.Info("准备重置SQLite数据库")
-
-		// Execute database reset
-		if err := database.ResetDatabase(dbConfig); err != nil {
-			logger.Error("数据库重置失败", zap.Error(err))
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "初始化管理员账户创建步骤失败: " + err.Error()})
-		}
-
-		logger.Info("SQLite数据库重置成功")
-	} else {
-		logger.Info("当前数据库类型不是SQLite，跳过数据库重置", zap.String("type", string(dbConfig.Type)))
+	if dbConfig.Type == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "尚未完成数据库配置，请先配置 SQLite 数据库",
+		})
 	}
+
+	if dbConfig.Type != database.SQLite {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": fmt.Sprintf("当前一期版本仅正式支持 SQLite，%s 初始化暂不支持", dbConfig.Type),
+		})
+	}
+
+	logger.Info("准备重置SQLite数据库")
+
+	// Execute database reset
+	if err := database.ResetDatabase(dbConfig); err != nil {
+		logger.Error("数据库重置失败", zap.Error(err))
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "初始化管理员账户创建步骤失败: " + err.Error()})
+	}
+
+	logger.Info("SQLite数据库重置成功")
 
 	// Set flag indicating reset operation is complete
 	config.SetTempSetting(resetDoneKey, "true")
@@ -362,11 +376,10 @@ func generateRandomSecret(length int) string {
 
 // ReloadRoutes handles API request to reload application routes
 func (h *SystemHandler) ReloadRoutes(c fiber.Ctx) error {
-
 	// Call internal reload function
 	if h.reloadRoutesFunc != nil {
 		h.reloadRoutesFunc()
-		return c.Status(fiber.StatusOK).JSON(fiber.Map{"message": "路由重新加载成功"})
+		return c.Status(fiber.StatusOK).JSON(fiber.Map{"message": "内部依赖已刷新"})
 	}
 
 	logger.Warn("重新加载路由函数未定义")

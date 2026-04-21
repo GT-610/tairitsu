@@ -87,34 +87,31 @@ func SetupRoutesWithReload(router *fiber.App, ztClient *zerotier.Client, jwtSecr
 		// System status check (no authentication required)
 		api.Get("/system/status", systemHandler.GetSystemStatus)
 
-		// Database configuration (no authentication required, available during initial setup only)
-		api.Post("/system/database", systemHandler.ConfigureDatabase)
-
-		// ZeroTier connection test (no authentication required, available during initial setup only)
-		api.Get("/system/zerotier/test", systemHandler.TestZeroTierConnection)
-
-		// Save ZeroTier configuration (no authentication required, available during initial setup only)
-		api.Post("/system/zerotier/config", systemHandler.SaveZeroTierConfig)
-
-		// ZeroTier client initialization (no authentication required, available during initial setup only)
-		api.Post("/system/zerotier/init", systemHandler.InitZeroTierClient)
-
-		// Set system initialization status (no authentication required, available during initial setup only)
-		api.Post("/system/initialized", systemHandler.SetInitialized)
-
-		// Initialize admin account creation step (no authentication required, available during initial setup only)
-		api.Post("/system/admin/init", systemHandler.InitializeAdminCreation)
-
-		// Reload routes (no authentication required, available during initial setup only)
-		api.Post("/system/reload", systemHandler.ReloadRoutes)
-
 		auth := api.Group("/auth")
 		{
-			auth.Post("/register", authHandler.Register)
-			auth.Post("/login", authHandler.Login)
+			setupAuth := auth.Group("/")
+			setupAuth.Use(middleware.SetupOnly())
+			setupAuth.Post("/register", authHandler.Register)
+
+			runtimeAuth := auth.Group("/")
+			runtimeAuth.Use(middleware.InitializedOnly())
+			runtimeAuth.Post("/login", authHandler.Login)
+		}
+
+		setup := api.Group("/")
+		setup.Use(middleware.SetupOnly())
+		{
+			setup.Post("/system/database", systemHandler.ConfigureDatabase)
+			setup.Get("/system/zerotier/test", systemHandler.TestZeroTierConnection)
+			setup.Post("/system/zerotier/config", systemHandler.SaveZeroTierConfig)
+			setup.Post("/system/zerotier/init", systemHandler.InitZeroTierClient)
+			setup.Post("/system/initialized", systemHandler.SetInitialized)
+			setup.Post("/system/admin/init", systemHandler.InitializeAdminCreation)
+			setup.Post("/system/reload", systemHandler.ReloadRoutes)
 		}
 
 		authenticated := api.Group("/")
+		authenticated.Use(middleware.InitializedOnly())
 		authenticated.Use(authMiddleware)
 		{
 			authenticated.Get("/profile", authHandler.GetProfile)
@@ -141,6 +138,7 @@ func SetupRoutesWithReload(router *fiber.App, ztClient *zerotier.Client, jwtSecr
 
 		// Admin-only routes
 		admin := api.Group("/")
+		admin.Use(middleware.InitializedOnly())
 		admin.Use(authMiddleware)
 		admin.Use(middleware.AdminRequired())
 		{
@@ -156,7 +154,7 @@ func SetupRoutesWithReload(router *fiber.App, ztClient *zerotier.Client, jwtSecr
 			admin.Post("/admin/networks/import", networkHandler.ImportNetworks)           // Import specified networks
 
 			// Planet generation (admin only)
-			admin.Post("/admin/planet/generate", handlers.GeneratePlanetHandler) // Generate custom planet file
+			admin.Post("/admin/planet/generate", handlers.GeneratePlanetHandler)  // Generate custom planet file
 			admin.Post("/admin/planet/keys", handlers.GenerateSigningKeysHandler) // Generate signing keys
 		}
 	}

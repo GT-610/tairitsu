@@ -2,7 +2,6 @@ import { useState, useEffect, lazy, Suspense } from 'react';
 import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { CircularProgress, Box } from '@mui/material';
 import Login from './pages/Login';
-import Register from './pages/Register';
 import SetupWizard from './pages/SetupWizard';
 import Networks from './pages/Networks';
 import NotFound from './pages/NotFound';
@@ -144,8 +143,6 @@ function AppContent() {
         ) : (
           <>
             <Route path="/login" element={<Login />}></Route>
-            <Route path="/register" element={<Register />}></Route>
-            
             {isAuthenticated() ? (
               <>
                 <Route path="/" element={<Layout user={user} />}>

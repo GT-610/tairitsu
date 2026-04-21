@@ -248,18 +248,18 @@ function Login() {
                 </Button>
               </Grid>
               <Grid size={6}>
-                <Button 
+                <Button
                   component={Link} 
-                  to="/register" 
-                  variant="text" 
+                  to="/setup"
+                  variant="text"
                   fullWidth
-                  sx={{ 
+                  sx={{
                     justifyContent: 'flex-end',
                     textTransform: 'none',
                     fontWeight: 'normal'
                   }}
                 >
-                  没有账户? 注册
+                  首次使用? 去设置
                 </Button>
               </Grid>
             </Grid>

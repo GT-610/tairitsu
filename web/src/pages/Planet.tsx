@@ -200,8 +200,8 @@ function PlanetGenerator() {
               实验性功能
             </Typography>
             <Typography variant="body2">
-              此功能仍处于实验性阶段，不保证可用。生成的 planet 文件可能存在兼容性问题，
-              请在生产环境使用前进行充分测试。使用此功能前，请确保已备份原有的 planet 文件。
+              该能力已在当前阶段冻结，不纳入 SQLite 一期 MVP 支持范围。生成的 planet 文件可能存在兼容性问题，
+              请仅在隔离环境中实验，并在生产环境使用前自行完成充分验证与备份。
             </Typography>
           </Alert>
 

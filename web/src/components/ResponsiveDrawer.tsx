@@ -68,12 +68,12 @@ const adminMenuItems: MenuItemType[] = [
     icon: <GroupIcon />
   },
   {
-    text: '导入网络',
+    text: '导入网络（实验性）',
     path: '/import-network',
     icon: <ImportExportIcon />
   },
   {
-    text: '生成 Planet',
+    text: '生成 Planet（实验性）',
     path: '/planet',
     icon: <PublicIcon />
   }

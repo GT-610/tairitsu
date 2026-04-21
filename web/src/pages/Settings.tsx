@@ -152,6 +152,10 @@ function Settings() {
         </Alert>
       )}
 
+      <Alert severity="warning" sx={{ mb: 3 }}>
+        当前设置页已收敛为一期 MVP 范围。现阶段仅“修改密码”属于正式支持能力，语言切换、账号注销等入口仍在冻结整理中。
+      </Alert>
+
       {loading ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', mt: 10 }}>
           <CircularProgress />
@@ -173,9 +177,10 @@ function Settings() {
                   <InputLabel id="language-select-label">选择语言</InputLabel>
                   <Select
                     labelId="language-select-label"
-                    value={language}
-                    label="选择语言"
-                    onChange={handleLanguageChange}
+                  value={language}
+                  label="选择语言"
+                  onChange={handleLanguageChange}
+                  disabled
                   >
                     <MenuItem value="zh-CN">简体中文</MenuItem>
                     <MenuItem value="en">English</MenuItem>
@@ -195,12 +200,12 @@ function Settings() {
 
               <Box>
                 <Button
-                  variant="contained"
-                  color="error"
+                  variant="outlined"
+                  color="inherit"
                   onClick={showDevelopmentMessage}
                   fullWidth
                 >
-                  注销账号
+                  注销账号（冻结中）
                 </Button>
               </Box>
             </CardContent>

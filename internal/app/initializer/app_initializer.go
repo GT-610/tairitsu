@@ -48,14 +48,18 @@ func (ai *AppInitializer) Initialize() (*AppContext, error) {
 
 	// 3. 初始化数据库
 	if err := ai.initializeDatabase(); err != nil {
-		logger.Warn("数据库初始化失败，将继续运行", zap.Error(err))
-		// 不返回错误，允许用户通过设置向导配置数据库
+		if ai.context.Config != nil && ai.context.Config.Initialized {
+			return nil, fmt.Errorf("系统已初始化，但数据库初始化失败: %w", err)
+		}
+		logger.Warn("数据库初始化失败，将以未初始化模式继续运行", zap.Error(err))
 	}
 
 	// 4. 初始化ZeroTier客户端
 	if err := ai.initializeZeroTierClient(); err != nil {
-		logger.Warn("ZeroTier客户端初始化失败，将继续运行", zap.Error(err))
-		// 不返回错误，允许用户通过设置向导配置ZeroTier
+		if ai.context.Config != nil && ai.context.Config.Initialized {
+			return nil, fmt.Errorf("系统已初始化，但ZeroTier客户端初始化失败: %w", err)
+		}
+		logger.Warn("ZeroTier客户端初始化失败，将以未初始化模式继续运行", zap.Error(err))
 	}
 
 	// 5. 初始化HTTP服务器
@@ -110,6 +114,7 @@ func (ai *AppInitializer) initializeDatabase() error {
 	}
 
 	ai.context.Database = db
+	database.SetGlobalDB(db)
 	return nil
 }
 

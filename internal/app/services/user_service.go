@@ -55,15 +55,8 @@ func NewUserServiceWithoutDB() *UserService {
 }
 
 func NewUserService() *UserService {
-	db, err := database.NewDatabase(database.Config{
-		Type: database.SQLite,
-	})
-	if err != nil {
-		panic("无法创建默认数据库: " + err.Error())
-	}
-
 	return &UserService{
-		db: db,
+		db: nil,
 	}
 }
 

@@ -105,7 +105,7 @@ function ImportNetwork() {
     <Box sx={{ p: 3 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Typography variant="h4" component="h1">
-          导入 ZeroTier 网络
+          导入 ZeroTier 网络（实验性）
         </Typography>
         <Chip
           label={`${importableNetworks.length}个可导入`}
@@ -119,6 +119,10 @@ function ImportNetwork() {
           {error}
         </Alert>
       )}
+
+      <Alert severity="warning" sx={{ mb: 3 }}>
+        该能力暂不纳入 SQLite 一期 MVP 验收范围。入口保留仅用于后续整理与实验验证，请勿把它作为关键路径依赖。
+      </Alert>
 
       <Paper elevation={3} sx={{ p: 3, mb: 3 }}>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
