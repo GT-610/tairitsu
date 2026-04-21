@@ -21,6 +21,7 @@ import (
 type SystemHandler struct {
 	networkService *services.NetworkService
 	userService    *services.UserService
+	runtimeService *services.RuntimeService
 	systemService  *services.SystemService
 	// Database configuration is stored in config file
 }
@@ -30,70 +31,8 @@ func NewSystemHandler(networkService *services.NetworkService, userService *serv
 	return &SystemHandler{
 		networkService: networkService,
 		userService:    userService,
+		runtimeService: services.NewRuntimeService(userService, networkService),
 		systemService:  services.NewSystemService(),
-	}
-}
-
-func (h *SystemHandler) bindDatabase(db database.DBInterface) {
-	if current := h.currentDatabase(); current != nil && current != db {
-		if err := current.Close(); err != nil {
-			logger.Warn("关闭旧数据库连接失败", zap.Error(err))
-		}
-	}
-
-	if h.userService != nil {
-		h.userService.SetDB(db)
-	}
-	if h.networkService != nil {
-		h.networkService.SetDB(db)
-	}
-}
-
-func (h *SystemHandler) currentDatabase() database.DBInterface {
-	if h.userService != nil && h.userService.GetDB() != nil {
-		return h.userService.GetDB()
-	}
-	if h.networkService != nil && h.networkService.GetDB() != nil {
-		return h.networkService.GetDB()
-	}
-	return nil
-}
-
-func (h *SystemHandler) reopenConfiguredDatabase() error {
-	dbConfig := database.LoadConfig()
-	if dbConfig.Type == "" {
-		return fmt.Errorf("数据库尚未配置")
-	}
-
-	db, err := database.NewDatabase(dbConfig)
-	if err != nil {
-		return fmt.Errorf("重新打开数据库失败: %w", err)
-	}
-
-	if err := db.Init(); err != nil {
-		db.Close()
-		return fmt.Errorf("重新初始化数据库失败: %w", err)
-	}
-
-	h.bindDatabase(db)
-	return nil
-}
-
-func (h *SystemHandler) closeCurrentDatabase() {
-	current := h.currentDatabase()
-	if current == nil {
-		return
-	}
-
-	if err := current.Close(); err != nil {
-		logger.Warn("关闭当前数据库连接失败", zap.Error(err))
-	}
-
-	if h.userService != nil {
-		h.userService.SetDB(nil)
-	}
-	if h.networkService != nil {
-		h.networkService.SetDB(nil)
 	}
 }
 
@@ -208,7 +147,7 @@ func (h *SystemHandler) ConfigureDatabase(c fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "保存数据库配置失败: " + err.Error()})
 	}
 
-	h.bindDatabase(db)
+	h.runtimeService.BindDatabase(db)
 
 	logger.Info("数据库配置成功", zap.String("type", dbConfig.Type))
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
@@ -240,21 +179,10 @@ func (h *SystemHandler) TestZeroTierConnection(c fiber.Ctx) error {
 // InitZeroTierClient initializes the ZeroTier client for the application
 func (h *SystemHandler) InitZeroTierClient(c fiber.Ctx) error {
 
-	// Dynamically create ZeroTier client
-	ztClient, err := zerotier.NewClient()
+	status, err := h.runtimeService.InitZTClientFromConfig()
 	if err != nil {
-		logger.Error("创建ZeroTier客户端失败", zap.Error(err))
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "创建ZeroTier客户端失败: " + err.Error()})
-	}
-
-	// Set client in network service
-	h.networkService.SetZTClient(ztClient)
-
-	// 验证客户端是否正常工作
-	status, err := h.networkService.GetStatus()
-	if err != nil {
-		logger.Error("ZeroTier客户端验证失败", zap.Error(err))
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "ZeroTier客户端初始化后验证失败: " + err.Error()})
+		logger.Error("ZeroTier客户端初始化失败", zap.Error(err))
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{"message": "ZeroTier客户端初始化成功", "status": status})
@@ -294,8 +222,7 @@ func (h *SystemHandler) SaveZeroTierConfig(c fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "ZeroTier客户端验证失败: " + err.Error()})
 	}
 
-	// Set client in network service
-	h.networkService.SetZTClient(ztClient)
+	h.runtimeService.BindZTClient(ztClient)
 
 	logger.Info("ZeroTier配置保存并验证成功")
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
@@ -341,7 +268,7 @@ func (h *SystemHandler) InitializeAdminCreation(c fiber.Ctx) error {
 
 	logger.Info("准备重置SQLite数据库")
 
-	h.closeCurrentDatabase()
+	h.runtimeService.CloseCurrentDatabase()
 
 	// Execute database reset
 	if err := database.ResetDatabase(dbConfig); err != nil {
@@ -349,7 +276,7 @@ func (h *SystemHandler) InitializeAdminCreation(c fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "初始化管理员账户创建步骤失败: " + err.Error()})
 	}
 
-	if err := h.reopenConfiguredDatabase(); err != nil {
+	if err := h.runtimeService.ReopenConfiguredDatabase(); err != nil {
 		logger.Error("重置后重新打开数据库失败", zap.Error(err))
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "数据库重置后重新初始化失败: " + err.Error()})
 	}
