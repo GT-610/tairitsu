@@ -36,6 +36,36 @@ func NewSystemHandler(networkService *services.NetworkService, userService *serv
 	}
 }
 
+func (h *SystemHandler) bindDatabase(db database.DBInterface) {
+	if h.userService != nil {
+		h.userService.SetDB(db)
+	}
+	if h.networkService != nil {
+		h.networkService.SetDB(db)
+	}
+	database.SetGlobalDB(db)
+}
+
+func (h *SystemHandler) reopenConfiguredDatabase() error {
+	dbConfig := database.LoadConfig()
+	if dbConfig.Type == "" {
+		return fmt.Errorf("数据库尚未配置")
+	}
+
+	db, err := database.NewDatabase(dbConfig)
+	if err != nil {
+		return fmt.Errorf("重新打开数据库失败: %w", err)
+	}
+
+	if err := db.Init(); err != nil {
+		db.Close()
+		return fmt.Errorf("重新初始化数据库失败: %w", err)
+	}
+
+	h.bindDatabase(db)
+	return nil
+}
+
 // GetSystemStatus retrieves the current system status
 func (h *SystemHandler) GetSystemStatus(c fiber.Ctx) error {
 	// Get system initialization status from config module
@@ -147,13 +177,7 @@ func (h *SystemHandler) ConfigureDatabase(c fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "保存数据库配置失败: " + err.Error()})
 	}
 
-	if h.userService != nil {
-		h.userService.SetDB(db)
-	}
-	if h.networkService != nil {
-		h.networkService.SetDB(db)
-	}
-	database.SetGlobalDB(db)
+	h.bindDatabase(db)
 
 	logger.Info("数据库配置成功", zap.String("type", dbConfig.Type))
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
@@ -290,6 +314,11 @@ func (h *SystemHandler) InitializeAdminCreation(c fiber.Ctx) error {
 	if err := database.ResetDatabase(dbConfig); err != nil {
 		logger.Error("数据库重置失败", zap.Error(err))
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "初始化管理员账户创建步骤失败: " + err.Error()})
+	}
+
+	if err := h.reopenConfiguredDatabase(); err != nil {
+		logger.Error("重置后重新打开数据库失败", zap.Error(err))
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "数据库重置后重新初始化失败: " + err.Error()})
 	}
 
 	logger.Info("SQLite数据库重置成功")

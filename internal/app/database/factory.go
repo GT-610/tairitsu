@@ -3,6 +3,7 @@ package database
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
@@ -41,6 +42,10 @@ func NewDatabase(config Config) (DBInterface, error) {
 		// 如果没有指定路径，使用默认路径
 		if config.Path == "" {
 			config.Path = "data/tairitsu.db"
+		}
+
+		if err := ensureSQLiteDir(config.Path); err != nil {
+			return nil, err
 		}
 
 		db, err := gorm.Open(sqlite.Open(config.Path), &gorm.Config{})
@@ -148,17 +153,12 @@ func ResetDatabase(config Config) error {
 
 		logger.Info("重置SQLite数据库", zap.String("path", config.Path))
 
-		// 关闭现有的数据库连接
-		existingDB, err := NewDatabase(config)
-		if err == nil {
-			logger.Info("关闭现有数据库连接")
-			existingDB.Close()
-		} else {
-			logger.Warn("无法创建数据库连接以关闭", zap.Error(err))
+		if err := CloseGlobalDB(); err != nil {
+			logger.Warn("关闭全局数据库连接失败", zap.Error(err))
 		}
 
 		// 删除SQLite数据库文件以实现重置
-		err = os.Remove(config.Path)
+		err := os.Remove(config.Path)
 		if err != nil && !os.IsNotExist(err) {
 			logger.Error("删除SQLite数据库文件失败", zap.Error(err))
 			return fmt.Errorf("重置SQLite数据库失败: %w", err)
@@ -184,6 +184,19 @@ func ResetDatabase(config Config) error {
 		logger.Error("不支持的数据库类型", zap.String("type", string(config.Type)))
 		return fmt.Errorf("不支持的数据库类型: %s", config.Type)
 	}
+}
+
+func ensureSQLiteDir(path string) error {
+	dir := filepath.Dir(path)
+	if dir == "." || dir == "" {
+		return nil
+	}
+
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("无法创建SQLite数据库目录: %w", err)
+	}
+
+	return nil
 }
 
 // SaveConfig 保存数据库配置到统一配置管理模块
