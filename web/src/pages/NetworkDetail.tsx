@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Box, Typography, Card, CardContent, CircularProgress, Alert, Button, Grid, IconButton, Tabs, Tab, Paper, TextField, Switch, FormControlLabel, FormControl, RadioGroup, Radio, Dialog, DialogTitle, DialogContent, DialogActions, DialogContentText, Snackbar, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Chip, Menu, MenuItem, Stack } from '@mui/material';
+import { Box, Typography, Card, CardContent, CircularProgress, Alert, Button, Grid, IconButton, Tabs, Tab, Paper, TextField, Switch, FormControlLabel, Dialog, DialogTitle, DialogContent, DialogActions, DialogContentText, Snackbar, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Chip, Menu, MenuItem, Stack } from '@mui/material';
 import { ArrowBack, ContentCopy, MoreHoriz } from '@mui/icons-material';
 import { useParams, Link } from 'react-router-dom';
 import { memberAPI, networkAPI, Network, NetworkConfig, NetworkMetadataUpdateRequest, IpAssignmentPool, Route, type Member as ApiMember } from '../services/api';
@@ -22,8 +22,6 @@ const defaultNetworkConfig: Partial<NetworkConfig> = {
   }
 };
 
-type V6AssignMode = 'zt' | '6plane' | 'rfc4193' | 'none';
-
 interface NetworkMemberDevice {
   id: string;
   name: string;
@@ -35,6 +33,11 @@ interface NetworkMemberDevice {
   activeBridge: boolean;
   noAutoAssignIps: boolean;
 }
+
+type ParsedIPv6CIDR = {
+  network: bigint;
+  prefix: number;
+};
 
 function parseIPv4Address(value: string): number | null {
   const parts = value.trim().split('.');
@@ -77,6 +80,67 @@ function formatIPv4Address(value: number): string {
   ].join('.');
 }
 
+function parseIPv6Address(value: string): bigint | null {
+  const input = value.trim().toLowerCase();
+  if (input === '' || !/^[0-9a-f:]+$/.test(input)) return null;
+  if ((input.match(/::/g) || []).length > 1) return null;
+
+  const [leftPart, rightPart] = input.split('::');
+  const left: string[] = leftPart ? leftPart.split(':').filter((part) => part !== '') : [];
+  const right: string[] = rightPart ? rightPart.split(':').filter((part) => part !== '') : [];
+
+  if (!input.includes('::')) {
+    if (left.length !== 8) return null;
+  } else if (left.length + right.length >= 8) {
+    return null;
+  }
+
+  const missing = input.includes('::') ? 8 - (left.length + right.length) : 0;
+  const filledGroups: string[] = Array.from({ length: missing }, () => '0');
+  const groups: string[] = input.includes('::') ? [...left, ...filledGroups, ...right] : left;
+  if (groups.length !== 8) return null;
+
+  let result = 0n;
+  for (const group of groups) {
+    if (!/^[0-9a-f]{1,4}$/.test(group)) return null;
+    result = (result << 16n) + BigInt(parseInt(group, 16));
+  }
+
+  return result;
+}
+
+function formatIPv6Address(value: bigint): string {
+  const groups: string[] = [];
+  for (let i = 7; i >= 0; i -= 1) {
+    const group = Number((value >> BigInt(i * 16)) & 0xffffn);
+    groups.push(group.toString(16));
+  }
+  return groups.join(':');
+}
+
+function parseIPv6CIDR(target: string): ParsedIPv6CIDR | null {
+  const [address, prefixText] = target.trim().split('/');
+  if (!address || !prefixText || !/^\d+$/.test(prefixText)) return null;
+
+  const prefix = Number(prefixText);
+  if (prefix < 0 || prefix > 128) return null;
+
+  const ip = parseIPv6Address(address);
+  if (ip === null) return null;
+
+  const mask = prefix === 0 ? 0n : ((1n << BigInt(prefix)) - 1n) << BigInt(128 - prefix);
+  return {
+    network: ip & mask,
+    prefix,
+  };
+}
+
+function normalizeIPv6CIDR(target: string): string | null {
+  const parsed = parseIPv6CIDR(target);
+  if (!parsed) return null;
+  return `${formatIPv6Address(parsed.network)}/${parsed.prefix}`;
+}
+
 function normalizeIPv4CIDR(target: string): string | null {
   const parsed = parseIPv4CIDR(target);
   if (!parsed) return null;
@@ -95,6 +159,11 @@ function getCIDRPrefix(target: string): number | null {
 
 function getPrimaryIPv4Subnet(routes: Route[]): string {
   const primaryRoute = routes.find((route) => !route.via && parseIPv4CIDR(route.target));
+  return primaryRoute?.target ?? '';
+}
+
+function getPrimaryIPv6Subnet(routes: Route[]): string {
+  const primaryRoute = routes.find((route) => !route.via && parseIPv6CIDR(route.target));
   return primaryRoute?.target ?? '';
 }
 
@@ -138,6 +207,18 @@ function isIPv4PoolCoveredByRoutes(pool: IpAssignmentPool, routes: Route[]): boo
 function isPoolInsideSubnet(pool: IpAssignmentPool, subnet: string): boolean {
   const route = { target: subnet };
   return isIPv4PoolCoveredByRoutes(pool, [route]);
+}
+
+function isIPv6PoolInsideSubnet(pool: IpAssignmentPool, subnet: string): boolean {
+  const parsedSubnet = parseIPv6CIDR(subnet);
+  const start = parseIPv6Address(pool.ipRangeStart);
+  const end = parseIPv6Address(pool.ipRangeEnd);
+  if (!parsedSubnet || start === null || end === null || start > end) {
+    return false;
+  }
+
+  const mask = parsedSubnet.prefix === 0 ? 0n : ((1n << BigInt(parsedSubnet.prefix)) - 1n) << BigInt(128 - parsedSubnet.prefix);
+  return (start & mask) === parsedSubnet.network && (end & mask) === parsedSubnet.network;
 }
 
 function getIPv4RangeIssue(ipv4Subnet: string, ipPool: IpAssignmentPool | null): string | null {
@@ -249,6 +330,89 @@ function getIPv4PoolOverlapIssues(ipPools: IpAssignmentPool[]): string[] {
   return issues;
 }
 
+function getIPv6RangeIssue(ipv6Subnet: string, ipPool: IpAssignmentPool | null): string | null {
+  const trimmedSubnet = ipv6Subnet.trim();
+  if (trimmedSubnet === '') {
+    return 'IPv6 子网不能为空。';
+  }
+
+  const normalizedSubnet = normalizeIPv6CIDR(trimmedSubnet);
+  if (!normalizedSubnet) {
+    return 'IPv6 子网必须是有效的 CIDR，例如 fd00::/48。';
+  }
+
+  const parsedSubnet = parseIPv6CIDR(normalizedSubnet);
+  if (!parsedSubnet || parsedSubnet.prefix > 127) {
+    return 'IPv6 子网前缀需要在 0 到 127 之间。';
+  }
+
+  if (!ipPool) {
+    return '必须提供一个有效的 IPv6 地址池范围。';
+  }
+
+  const start = ipPool.ipRangeStart.trim();
+  const end = ipPool.ipRangeEnd.trim();
+  if (start === '' || end === '') {
+    return '自定义 IPv6 地址池需要同时填写起始 IP 和结束 IP。';
+  }
+
+  const parsedStart = parseIPv6Address(start);
+  const parsedEnd = parseIPv6Address(end);
+  if (parsedStart === null || parsedEnd === null) {
+    return '自定义 IPv6 地址池不是有效的 IPv6 范围。';
+  }
+
+  if (parsedStart > parsedEnd) {
+    return '自定义 IPv6 地址池的起始 IP 不能大于结束 IP。';
+  }
+
+  if (!isIPv6PoolInsideSubnet(ipPool, normalizedSubnet)) {
+    return '自定义 IPv6 地址池必须完全落在 IPv6 子网内。';
+  }
+
+  return null;
+}
+
+function getIPv6PoolOverlapIssues(ipPools: IpAssignmentPool[]): string[] {
+  const parsedPools = ipPools.map((pool, index) => ({
+    index,
+    start: parseIPv6Address(pool.ipRangeStart),
+    end: parseIPv6Address(pool.ipRangeEnd),
+  }));
+
+  const issues: string[] = [];
+  for (let i = 0; i < parsedPools.length; i += 1) {
+    const current = parsedPools[i];
+    if (current.start === null || current.end === null) continue;
+
+    for (let j = i + 1; j < parsedPools.length; j += 1) {
+      const next = parsedPools[j];
+      if (next.start === null || next.end === null) continue;
+
+      if (current.start <= next.end && next.start <= current.end) {
+        issues.push(`IPv6 地址池 ${current.index + 1} 与地址池 ${next.index + 1} 存在重叠。`);
+      }
+    }
+  }
+
+  return issues;
+}
+
+function getIPv6ConfigurationIssues(ipv6Subnet: string, customAssign: boolean, ipv6Pools: IpAssignmentPool[]): string[] {
+  if (!customAssign) return [];
+
+  if (ipv6Pools.length === 0) {
+    return ['开启自定义 IPv6 范围后，至少需要配置一个 IPv6 地址池范围。'];
+  }
+
+  const rangeIssues = ipv6Pools.flatMap((pool, index) => {
+    const issue = getIPv6RangeIssue(ipv6Subnet, pool);
+    return issue ? [`IPv6 地址池 ${index + 1}：${issue}`] : [];
+  });
+
+  return [...rangeIssues, ...getIPv6PoolOverlapIssues(ipv6Pools)];
+}
+
 function generateRandomIPv4Subnet(): string {
   return `10.${Math.floor(Math.random() * 256)}.${Math.floor(Math.random() * 256)}.0/24`;
 }
@@ -284,7 +448,13 @@ function NetworkDetail() {
   const [editingName, setEditingName] = useState<string>('');
   const [editingDescription, setEditingDescription] = useState<string>('');
   const [v4AssignMode, setV4AssignMode] = useState<boolean>(false);
-  const [v6AssignMode, setV6AssignMode] = useState<V6AssignMode>('none');
+  const [ipv6Subnet, setIpv6Subnet] = useState<string>('');
+  const [ipv6CustomAssign, setIpv6CustomAssign] = useState<boolean>(false);
+  const [ipv6Rfc4193, setIpv6Rfc4193] = useState<boolean>(false);
+  const [ipv6Plane6, setIpv6Plane6] = useState<boolean>(false);
+  const [ipv6PoolStartDraft, setIpv6PoolStartDraft] = useState<string>('');
+  const [ipv6PoolEndDraft, setIpv6PoolEndDraft] = useState<string>('');
+  const [ipv6Pools, setIpv6Pools] = useState<IpAssignmentPool[]>([]);
   const [multicastLimit, setMulticastLimit] = useState<number>(32);
   const [enableBroadcast, setEnableBroadcast] = useState<boolean>(true);
   const [ipv4Subnet, setIpv4Subnet] = useState<string>('');
@@ -333,9 +503,14 @@ function NetworkDetail() {
 
   useEffect(() => {
     if (network) {
-      setIpv6Unsaved(v6AssignMode !== getV6AssignModeFromConfig(network.config.v6AssignMode));
+      const subnetChanged = ipv6Subnet !== getPrimaryIPv6Subnet(network.config.routes || []);
+      const customChanged = ipv6CustomAssign !== (network.config.v6AssignMode?.zt ?? false);
+      const rfcChanged = ipv6Rfc4193 !== (network.config.v6AssignMode?.rfc4193 ?? false);
+      const planeChanged = ipv6Plane6 !== (network.config.v6AssignMode?.['6plane'] ?? false);
+      const poolChanged = !areIpPoolsEqual(ipv6Pools, (network.config.ipAssignmentPools || []).filter((pool) => parseIPv6Address(pool.ipRangeStart) !== null));
+      setIpv6Unsaved(subnetChanged || customChanged || rfcChanged || planeChanged || poolChanged);
     }
-  }, [v6AssignMode, network]);
+  }, [ipv6Subnet, ipv6CustomAssign, ipv6Rfc4193, ipv6Plane6, ipv6Pools, network]);
 
   useEffect(() => {
     if (network) {
@@ -365,7 +540,14 @@ function NetworkDetail() {
         setEditingName(networkData.name || '');
         setEditingDescription(networkData.db_description || networkData.description || '');
         setV4AssignMode(networkData.config.v4AssignMode?.zt ?? false);
-        setV6AssignMode(getV6AssignModeFromConfig(networkData.config.v6AssignMode));
+        setIpv6Subnet(getPrimaryIPv6Subnet(networkData.config.routes || []));
+        setIpv6CustomAssign(networkData.config.v6AssignMode?.zt ?? false);
+        setIpv6Rfc4193(networkData.config.v6AssignMode?.rfc4193 ?? false);
+        setIpv6Plane6(networkData.config.v6AssignMode?.['6plane'] ?? false);
+        const loadedIPv6Pools = (networkData.config.ipAssignmentPools || []).filter((pool) => parseIPv6Address(pool.ipRangeStart) !== null);
+        setIpv6Pools(loadedIPv6Pools);
+        setIpv6PoolStartDraft(loadedIPv6Pools[0]?.ipRangeStart ?? '');
+        setIpv6PoolEndDraft(loadedIPv6Pools[0]?.ipRangeEnd ?? '');
         setMulticastLimit(networkData.config.multicastLimit ?? 32);
         setEnableBroadcast(networkData.config.enableBroadcast ?? true);
         const primarySubnet = getPrimaryIPv4Subnet(networkData.config.routes || []);
@@ -385,13 +567,6 @@ function NetworkDetail() {
     }
   };
 
-  const getV6AssignModeFromConfig = (config?: NetworkConfig['v6AssignMode']): V6AssignMode => {
-    if (config?.rfc4193) return 'rfc4193';
-    if (config?.['6plane']) return '6plane';
-    if (config?.zt) return 'zt';
-    return 'none';
-  };
-
   const showSnackbar = (message: string, severity: 'success' | 'error' | 'info' = 'success') => {
     setSnackbar({ open: true, message, severity });
   };
@@ -404,6 +579,11 @@ function NetworkDetail() {
     ipRangeEnd: ipv4PoolEndDraft,
   });
   const ipv4ConfigurationIssues = getIPv4ConfigurationIssues(ipv4Subnet, v4AssignMode, ipv4Pools);
+  const ipv6RangeDraftIssue = getIPv6RangeIssue(ipv6Subnet, {
+    ipRangeStart: ipv6PoolStartDraft,
+    ipRangeEnd: ipv6PoolEndDraft,
+  });
+  const ipv6ConfigurationIssues = getIPv6ConfigurationIssues(ipv6Subnet, ipv6CustomAssign, ipv6Pools);
   const filteredMembers = memberDevices.filter((member) => {
     const query = memberSearchTerm.trim().toLowerCase();
     if (query === '') return true;
@@ -563,14 +743,26 @@ function NetworkDetail() {
     setSaving(true);
     try {
       const normalizedSubnet = normalizeIPv4CIDR(ipv4Subnet);
+      const currentPrimaryIPv4Subnet = getPrimaryIPv4Subnet(routes);
+      const currentPrimaryIPv6Subnet = getPrimaryIPv6Subnet(routes);
       const updatedRoutes = [
-        { target: normalizedSubnet as string },
-        ...routes.filter((route) => route.via || !parseIPv4CIDR(route.target)),
+        ...(normalizedSubnet ? [{ target: normalizedSubnet }] : []),
+        ...(ipv6CustomAssign && normalizeIPv6CIDR(ipv6Subnet) ? [{ target: normalizeIPv6CIDR(ipv6Subnet) as string }] : []),
+        ...routes.filter((route) =>
+          route.via ||
+          (route.target !== currentPrimaryIPv4Subnet && route.target !== currentPrimaryIPv6Subnet)
+        ),
       ];
-      const updatedPools = v4AssignMode ? ipv4Pools.map((pool) => ({
-        ipRangeStart: pool.ipRangeStart.trim(),
-        ipRangeEnd: pool.ipRangeEnd.trim(),
-      })) : [];
+      const updatedPools = [
+        ...(v4AssignMode ? ipv4Pools.map((pool) => ({
+          ipRangeStart: pool.ipRangeStart.trim(),
+          ipRangeEnd: pool.ipRangeEnd.trim(),
+        })) : []),
+        ...(ipv6CustomAssign ? ipv6Pools.map((pool) => ({
+          ipRangeStart: pool.ipRangeStart.trim(),
+          ipRangeEnd: pool.ipRangeEnd.trim(),
+        })) : []),
+      ];
 
       await networkAPI.updateNetwork(id, {
         ipAssignmentPools: updatedPools,
@@ -599,14 +791,43 @@ function NetworkDetail() {
 
   const handleSaveIPv6 = async () => {
     if (!id) return;
+    if (ipv6ConfigurationIssues.length > 0) {
+      showSnackbar(ipv6ConfigurationIssues[0], 'error');
+      return;
+    }
     setSaving(true);
     try {
-      const v6Mode = {
-        zt: v6AssignMode === 'zt',
-        '6plane': v6AssignMode === '6plane',
-        rfc4193: v6AssignMode === 'rfc4193'
-      };
-      await networkAPI.updateNetwork(id, { v6AssignMode: v6Mode });
+      const currentPrimaryIPv4Subnet = getPrimaryIPv4Subnet(routes);
+      const currentPrimaryIPv6Subnet = getPrimaryIPv6Subnet(routes);
+      const normalizedIPv4Subnet = normalizeIPv4CIDR(ipv4Subnet);
+      const normalizedIPv6Subnet = normalizeIPv6CIDR(ipv6Subnet);
+      const updatedRoutes = [
+        ...(normalizedIPv4Subnet ? [{ target: normalizedIPv4Subnet }] : []),
+        ...(ipv6CustomAssign && normalizedIPv6Subnet ? [{ target: normalizedIPv6Subnet }] : []),
+        ...routes.filter((route) =>
+          route.via ||
+          (route.target !== currentPrimaryIPv4Subnet && route.target !== currentPrimaryIPv6Subnet)
+        ),
+      ];
+      const updatedPools = [
+        ...(v4AssignMode ? ipv4Pools.map((pool) => ({
+          ipRangeStart: pool.ipRangeStart.trim(),
+          ipRangeEnd: pool.ipRangeEnd.trim(),
+        })) : []),
+        ...(ipv6CustomAssign ? ipv6Pools.map((pool) => ({
+          ipRangeStart: pool.ipRangeStart.trim(),
+          ipRangeEnd: pool.ipRangeEnd.trim(),
+        })) : []),
+      ];
+      await networkAPI.updateNetwork(id, {
+        routes: updatedRoutes,
+        ipAssignmentPools: updatedPools,
+        v6AssignMode: {
+          zt: ipv6CustomAssign,
+          '6plane': ipv6Plane6,
+          rfc4193: ipv6Rfc4193,
+        }
+      });
       showSnackbar('IPv6配置保存成功');
       setTimeout(() => { void fetchNetworkDetail(); }, 1000);
     } catch (err: unknown) {
@@ -618,7 +839,14 @@ function NetworkDetail() {
 
   const handleResetIPv6 = () => {
     if (!network) return;
-    setV6AssignMode(getV6AssignModeFromConfig(network.config.v6AssignMode));
+    setIpv6Subnet(getPrimaryIPv6Subnet(network.config.routes || []));
+    setIpv6CustomAssign(network.config.v6AssignMode?.zt ?? false);
+    setIpv6Rfc4193(network.config.v6AssignMode?.rfc4193 ?? false);
+    setIpv6Plane6(network.config.v6AssignMode?.['6plane'] ?? false);
+    const loadedIPv6Pools = (network.config.ipAssignmentPools || []).filter((pool) => parseIPv6Address(pool.ipRangeStart) !== null);
+    setIpv6Pools(loadedIPv6Pools);
+    setIpv6PoolStartDraft(loadedIPv6Pools[0]?.ipRangeStart ?? '');
+    setIpv6PoolEndDraft(loadedIPv6Pools[0]?.ipRangeEnd ?? '');
   };
 
   const handleSaveMulticast = async () => {
@@ -710,6 +938,37 @@ function NetworkDetail() {
 
   const handleRemoveIPv4Range = (index: number) => {
     setIpv4Pools((prev) => prev.filter((_, currentIndex) => currentIndex !== index));
+  };
+
+  const handleSetIPv6Range = () => {
+    const nextPool = {
+      ipRangeStart: ipv6PoolStartDraft.trim(),
+      ipRangeEnd: ipv6PoolEndDraft.trim(),
+    };
+    const issue = getIPv6RangeIssue(ipv6Subnet, nextPool);
+    if (issue) {
+      showSnackbar(issue, 'error');
+      return;
+    }
+
+    if (ipv6Pools.some((pool) => pool.ipRangeStart === nextPool.ipRangeStart && pool.ipRangeEnd === nextPool.ipRangeEnd)) {
+      showSnackbar('该 IPv6 地址池范围已存在', 'info');
+      return;
+    }
+
+    const overlapIssues = getIPv6PoolOverlapIssues([...ipv6Pools, nextPool]);
+    if (overlapIssues.length > 0) {
+      showSnackbar(overlapIssues[0], 'error');
+      return;
+    }
+
+    setIpv6Pools((prev) => [...prev, nextPool]);
+    setIpv6PoolStartDraft('');
+    setIpv6PoolEndDraft('');
+  };
+
+  const handleRemoveIPv6Range = (index: number) => {
+    setIpv6Pools((prev) => prev.filter((_, currentIndex) => currentIndex !== index));
   };
 
   const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
@@ -1132,22 +1391,158 @@ function NetworkDetail() {
                 </Box>
                 
                 <Box sx={{ mb: 3 }}>
-                  <Typography variant="subtitle1" sx={{ mb: 2 }}>
-                    IPv6地址分配
+                  <Typography variant="body1" sx={{ mb: 2 }}>
+                    IPv6 默认不分配。只有自定义 IPv6 范围依赖手动填写子网；RFC4193 和 6PLANE 由控制器自动派生。
                   </Typography>
-                  <FormControl component="fieldset" sx={{ mb: 2 }}>
-                    <RadioGroup
-                      row
-                      value={v6AssignMode}
-                      onChange={(e) => setV6AssignMode(e.target.value as V6AssignMode)}
-                    >
-                      <FormControlLabel value="none" control={<Radio />} label="不分配IPv6地址" />
-                      <FormControlLabel value="rfc4193" control={<Radio />} label="分配RFC4193唯一地址" />
-                      <FormControlLabel value="6plane" control={<Radio />} label="分配6plane地址" />
-                    </RadioGroup>
-                  </FormControl>
+                  <TextField
+                    fullWidth
+                    label="IPv6 子网"
+                    placeholder="例如 fd00::/48"
+                    value={ipv6Subnet}
+                    onChange={(e) => setIpv6Subnet(e.target.value)}
+                  />
                 </Box>
-                
+
+                <Paper variant="outlined" sx={{ p: 2.5, mb: 3, bgcolor: 'action.hover' }}>
+                  <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 2, mb: ipv6CustomAssign ? 2 : 0, flexWrap: 'wrap' }}>
+                    <Box>
+                      <Typography variant="h6">
+                        Assign from Custom IPv6 Range
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        需要先填写合法的 IPv6 子网，然后才能配置自定义 IPv6 地址池。
+                      </Typography>
+                    </Box>
+                    <Switch
+                      checked={ipv6CustomAssign}
+                      disabled={!normalizeIPv6CIDR(ipv6Subnet)}
+                      onChange={(e) => {
+                        const enabled = e.target.checked;
+                        setIpv6CustomAssign(enabled);
+                        if (!enabled) {
+                          setIpv6PoolStartDraft('');
+                          setIpv6PoolEndDraft('');
+                          setIpv6Pools([]);
+                        }
+                      }}
+                    />
+                  </Box>
+
+                  {ipv6CustomAssign && (
+                    <>
+                      <Grid container spacing={2}>
+                        <Grid size={{ xs: 12, md: 6 }}>
+                          <TextField
+                            fullWidth
+                            label="起始 IPv6"
+                            placeholder="例如 fd00::1000"
+                            value={ipv6PoolStartDraft}
+                            onChange={(e) => setIpv6PoolStartDraft(e.target.value)}
+                            error={Boolean(ipv6PoolStartDraft || ipv6PoolEndDraft) && Boolean(ipv6RangeDraftIssue)}
+                            helperText={ipv6Subnet ? `必须落在 ${ipv6Subnet} 内` : '请先填写 IPv6 子网'}
+                          />
+                        </Grid>
+                        <Grid size={{ xs: 12, md: 6 }}>
+                          <TextField
+                            fullWidth
+                            label="结束 IPv6"
+                            placeholder="例如 fd00::1fff"
+                            value={ipv6PoolEndDraft}
+                            onChange={(e) => setIpv6PoolEndDraft(e.target.value)}
+                            error={Boolean(ipv6PoolStartDraft || ipv6PoolEndDraft) && Boolean(ipv6RangeDraftIssue)}
+                            helperText={ipv6Subnet ? `必须落在 ${ipv6Subnet} 内` : '请先填写 IPv6 子网'}
+                          />
+                        </Grid>
+                      </Grid>
+
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 2, flexWrap: 'wrap', mt: 2 }}>
+                        <Box>
+                          <Typography variant="subtitle1">
+                            Active IPv6 Auto-Assign Range
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            使用 `Set Range` 将当前输入加入 IPv6 地址池列表。
+                          </Typography>
+                        </Box>
+                        <Button variant="outlined" onClick={handleSetIPv6Range} disabled={Boolean(ipv6RangeDraftIssue)}>
+                          Set Range
+                        </Button>
+                      </Box>
+
+                      {Boolean(ipv6RangeDraftIssue) && Boolean(ipv6PoolStartDraft || ipv6PoolEndDraft) && (
+                        <Alert severity="warning" sx={{ mt: 2 }}>
+                          {ipv6RangeDraftIssue}
+                        </Alert>
+                      )}
+
+                      {ipv6Pools.length > 0 ? (
+                        <TableContainer component={Paper} variant="outlined" sx={{ mt: 2 }}>
+                          <Table size="small">
+                            <TableHead>
+                              <TableRow>
+                                <TableCell>Start</TableCell>
+                                <TableCell>End</TableCell>
+                                <TableCell align="right">Action</TableCell>
+                              </TableRow>
+                            </TableHead>
+                            <TableBody>
+                              {ipv6Pools.map((pool, index) => (
+                                <TableRow key={`${pool.ipRangeStart}-${pool.ipRangeEnd}`}>
+                                  <TableCell>{pool.ipRangeStart}</TableCell>
+                                  <TableCell>{pool.ipRangeEnd}</TableCell>
+                                  <TableCell align="right">
+                                    <Button variant="outlined" color="error" size="small" onClick={() => handleRemoveIPv6Range(index)}>
+                                      删除
+                                    </Button>
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </TableContainer>
+                      ) : (
+                        <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+                          尚未配置 IPv6 地址池。
+                        </Typography>
+                      )}
+                    </>
+                  )}
+                </Paper>
+
+                <Paper variant="outlined" sx={{ p: 2.5, mb: 3, bgcolor: 'action.hover' }}>
+                  <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 2, flexWrap: 'wrap' }}>
+                    <Box>
+                      <Typography variant="h6">
+                        Assign RFC4193 Unique Local Addresses (/128 per device)
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        自动为每个设备分配稳定的唯一本地 IPv6 地址。无需额外配置。
+                      </Typography>
+                    </Box>
+                    <Switch checked={ipv6Rfc4193} onChange={(e) => setIpv6Rfc4193(e.target.checked)} />
+                  </Box>
+                </Paper>
+
+                <Paper variant="outlined" sx={{ p: 2.5, mb: 3, bgcolor: 'action.hover' }}>
+                  <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 2, flexWrap: 'wrap' }}>
+                    <Box>
+                      <Typography variant="h6">
+                        Assign 6PLANE Routed Addresses (/80 per device)
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        为每个成员分配由节点 ID 派生的可路由 IPv6 地址。无需额外配置。
+                      </Typography>
+                    </Box>
+                    <Switch checked={ipv6Plane6} onChange={(e) => setIpv6Plane6(e.target.checked)} />
+                  </Box>
+                </Paper>
+
+                {ipv6ConfigurationIssues.length > 0 && (
+                  <Alert severity="warning" sx={{ mb: 3 }}>
+                    {ipv6ConfigurationIssues.join(' ')}
+                  </Alert>
+                )}
+
                 <Box sx={{ display: 'flex', justifyContent: 'flex-start', gap: 2 }}>
                   <Button variant="outlined" onClick={handleResetIPv6} disabled={saving || !ipv6Unsaved}>
                     重置更改
