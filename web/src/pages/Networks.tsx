@@ -126,6 +126,8 @@ function Networks() {
   };
 
   const totalNetworks = networks.length;
+  const totalAuthorizedMembers = networks.reduce((sum, network) => sum + (network.authorized_member_count || 0), 0);
+  const totalPendingMembers = networks.reduce((sum, network) => sum + (network.pending_member_count || 0), 0);
   const filteredNetworks = getFilteredNetworks();
   const isSearchMode = searchQuery.trim() !== '';
   const isEmptyState = !loading && networks.length === 0;
@@ -175,11 +177,8 @@ function Networks() {
                 <Typography variant="h6" color="text.secondary" gutterBottom>
                   已认证设备数
                 </Typography>
-                <Typography variant="h5">
-                  暂不可得
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  成员级统计将在后续版本补齐
+                <Typography variant="h4">
+                  {totalAuthorizedMembers}
                 </Typography>
               </CardContent>
             </Card>
@@ -190,11 +189,8 @@ function Networks() {
                 <Typography variant="h6" color="text.secondary" gutterBottom>
                   待认证设备数
                 </Typography>
-                <Typography variant="h5">
-                  暂不可得
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  成员级统计将在后续版本补齐
+                <Typography variant="h4">
+                  {totalPendingMembers}
                 </Typography>
               </CardContent>
             </Card>
@@ -260,6 +256,7 @@ function Networks() {
                   <TableRow>
                     <TableCell>名称</TableCell>
                     <TableCell>网络ID</TableCell>
+                    <TableCell>成员统计</TableCell>
                     <TableCell>操作</TableCell>
                   </TableRow>
                 </TableHead>
@@ -270,6 +267,12 @@ function Networks() {
                         {network.name || '未命名网络'}
                       </TableCell>
                       <TableCell>{network.id}</TableCell>
+                      <TableCell>
+                        {network.member_count} 台
+                        <Typography variant="body2" color="text.secondary">
+                          已授权 {network.authorized_member_count} / 待授权 {network.pending_member_count}
+                        </Typography>
+                      </TableCell>
                       <TableCell>
                         <Box sx={{ display: 'flex', gap: 1 }}>
                           <Button

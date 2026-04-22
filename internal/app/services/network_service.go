@@ -64,13 +64,15 @@ func (s *NetworkService) GetStatus() (*zerotier.Status, error) {
 
 // NetworkSummary 网络摘要信息（从数据库获取）
 type NetworkSummary struct {
-	ID          string    `json:"id"`
-	Name        string    `json:"name"`
-	Description string    `json:"description"`
-	OwnerID     string    `json:"owner_id"`
-	MemberCount int       `json:"member_count"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	ID                    string    `json:"id"`
+	Name                  string    `json:"name"`
+	Description           string    `json:"description"`
+	OwnerID               string    `json:"owner_id"`
+	MemberCount           int       `json:"member_count"`
+	AuthorizedMemberCount int       `json:"authorized_member_count"`
+	PendingMemberCount    int       `json:"pending_member_count"`
+	CreatedAt             time.Time `json:"created_at"`
+	UpdatedAt             time.Time `json:"updated_at"`
 }
 
 // NetworkDetail 网络详情（包含控制器信息和数据库描述）
@@ -99,17 +101,34 @@ func (s *NetworkService) GetAllNetworks(ownerID string) ([]NetworkSummary, error
 	}
 
 	// Convert to NetworkSummary
-	var networkSummaries []NetworkSummary
+	networkSummaries := make([]NetworkSummary, 0, len(ownedNetworks))
 	for _, net := range ownedNetworks {
-		networkSummaries = append(networkSummaries, NetworkSummary{
+		summary := NetworkSummary{
 			ID:          net.ID,
 			Name:        net.Name,
 			Description: net.Description,
 			OwnerID:     net.OwnerID,
-			MemberCount: 0,
 			CreatedAt:   net.CreatedAt,
 			UpdatedAt:   net.UpdatedAt,
-		})
+		}
+
+		if s.ztClient != nil {
+			members, err := s.ztClient.GetMembers(net.ID)
+			if err != nil {
+				logger.Warn("服务层：获取网络成员统计失败", zap.String("network_id", net.ID), zap.Error(err))
+			} else {
+				summary.MemberCount = len(members)
+				for _, member := range members {
+					if member.Config.Authorized {
+						summary.AuthorizedMemberCount++
+					} else {
+						summary.PendingMemberCount++
+					}
+				}
+			}
+		}
+
+		networkSummaries = append(networkSummaries, summary)
 	}
 
 	return networkSummaries, nil

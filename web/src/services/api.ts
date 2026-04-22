@@ -29,6 +29,8 @@ export interface NetworkSummary {
   description?: string;
   owner_id: string;
   member_count: number;
+  authorized_member_count: number;
+  pending_member_count: number;
   created_at: string;
   updated_at: string;
 }

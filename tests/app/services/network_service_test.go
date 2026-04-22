@@ -100,6 +100,41 @@ func TestNetworkServiceGetImportableNetworks_EmptySliceWhenControllerHasNoNetwor
 	assert.Empty(t, result)
 }
 
+func TestNetworkServiceGetAllNetworksIncludesMemberStats(t *testing.T) {
+	db := newTestSQLiteDB(t)
+	now := time.Now()
+	require.NoError(t, db.CreateNetwork(&models.Network{
+		ID:          "8056c2e21c000001",
+		Name:        "alpha",
+		Description: "alpha-desc",
+		OwnerID:     "user-1",
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}))
+
+	client := newTestZTClientWithMembers(t,
+		map[string]zerotier.Network{
+			"8056c2e21c000001": {ID: "8056c2e21c000001", Name: "alpha", Description: "alpha-desc"},
+		},
+		map[string][]zerotier.Member{
+			"8056c2e21c000001": {
+				{ID: "member-1", Config: zerotier.MemberConfig{Authorized: true}},
+				{ID: "member-2", Config: zerotier.MemberConfig{Authorized: true}},
+				{ID: "member-3", Config: zerotier.MemberConfig{Authorized: false}},
+			},
+		},
+	)
+
+	service := services.NewNetworkService(client, db)
+
+	summaries, err := service.GetAllNetworks("user-1")
+	require.NoError(t, err)
+	require.Len(t, summaries, 1)
+	assert.Equal(t, 3, summaries[0].MemberCount)
+	assert.Equal(t, 2, summaries[0].AuthorizedMemberCount)
+	assert.Equal(t, 1, summaries[0].PendingMemberCount)
+}
+
 func newTestSQLiteDB(t *testing.T) *database.SQLiteDB {
 	t.Helper()
 
@@ -114,6 +149,10 @@ func newTestSQLiteDB(t *testing.T) *database.SQLiteDB {
 }
 
 func newTestZTClient(t *testing.T, networks map[string]zerotier.Network) *zerotier.Client {
+	return newTestZTClientWithMembers(t, networks, map[string][]zerotier.Member{})
+}
+
+func newTestZTClientWithMembers(t *testing.T, networks map[string]zerotier.Network, members map[string][]zerotier.Member) *zerotier.Client {
 	t.Helper()
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -127,8 +166,20 @@ func newTestZTClient(t *testing.T, networks map[string]zerotier.Network) *zeroti
 			}
 			require.NoError(t, json.NewEncoder(w).Encode(ids))
 		default:
-			network, ok := networks[r.URL.Path[len("/controller/network/"):]]
-			if !ok || len(r.URL.Path) <= len("/controller/network/") {
+			if len(r.URL.Path) <= len("/controller/network/") {
+				http.NotFound(w, r)
+				return
+			}
+			path := r.URL.Path[len("/controller/network/"):]
+			for networkID, memberList := range members {
+				if path == networkID+"/member" {
+					require.NoError(t, json.NewEncoder(w).Encode(memberList))
+					return
+				}
+			}
+
+			network, ok := networks[path]
+			if !ok {
 				http.NotFound(w, r)
 				return
 			}
