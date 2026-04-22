@@ -491,6 +491,9 @@ function NetworkDetail() {
   const [ipv6Pools, setIpv6Pools] = useState<IpAssignmentPool[]>([]);
   const [managedRoutes, setManagedRoutes] = useState<Route[]>([]);
   const [managedRouteDraft, setManagedRouteDraft] = useState<Route>({ target: '', via: '' });
+  const [dnsDomain, setDnsDomain] = useState<string>('');
+  const [dnsServers, setDnsServers] = useState<string[]>([]);
+  const [dnsServerDraft, setDnsServerDraft] = useState<string>('');
   const [multicastLimit, setMulticastLimit] = useState<number>(32);
   const [enableBroadcast, setEnableBroadcast] = useState<boolean>(true);
   const [ipv4Subnet, setIpv4Subnet] = useState<string>('');
@@ -504,6 +507,7 @@ function NetworkDetail() {
   const [ipv4Unsaved, setIpv4Unsaved] = useState<boolean>(false);
   const [ipv6Unsaved, setIpv6Unsaved] = useState<boolean>(false);
   const [managedRoutesUnsaved, setManagedRoutesUnsaved] = useState<boolean>(false);
+  const [dnsUnsaved, setDnsUnsaved] = useState<boolean>(false);
   const [multicastUnsaved, setMulticastUnsaved] = useState<boolean>(false);
   const [memberSearchTerm, setMemberSearchTerm] = useState<string>('');
   const [memberMenuAnchor, setMemberMenuAnchor] = useState<null | HTMLElement>(null);
@@ -564,6 +568,15 @@ function NetworkDetail() {
     }
   }, [managedRoutes, network]);
 
+  useEffect(() => {
+    if (network) {
+      const configDNS = network.config.dns;
+      const domainChanged = dnsDomain !== (configDNS?.domain || '');
+      const serversChanged = JSON.stringify(dnsServers) !== JSON.stringify(configDNS?.servers || []);
+      setDnsUnsaved(domainChanged || serversChanged);
+    }
+  }, [dnsDomain, dnsServers, network]);
+
   const fetchNetworkDetail = async () => {
     setLoading(true);
     try {
@@ -603,6 +616,9 @@ function NetworkDetail() {
         setRoutes(networkData.config.routes || []);
         setManagedRoutes(getManagedRoutes(networkData.config.routes || []));
         setManagedRouteDraft({ target: '', via: '' });
+        setDnsDomain(networkData.config.dns?.domain || '');
+        setDnsServers(networkData.config.dns?.servers || []);
+        setDnsServerDraft('');
         setHidePendingBanner(false);
       }
     } catch (err: unknown) {
@@ -926,6 +942,32 @@ function NetworkDetail() {
     setManagedRouteDraft({ target: '', via: '' });
   };
 
+  const handleSaveDNS = async () => {
+    if (!id) return;
+    setSaving(true);
+    try {
+      await networkAPI.updateNetwork(id, {
+        dns: {
+          domain: dnsDomain.trim(),
+          servers: dnsServers,
+        },
+      });
+      showSnackbar('DNS 设置保存成功');
+      setTimeout(() => { void fetchNetworkDetail(); }, 1000);
+    } catch (err: unknown) {
+      showSnackbar(getErrorMessage(err, '保存失败'), 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleResetDNS = () => {
+    if (!network) return;
+    setDnsDomain(network.config.dns?.domain || '');
+    setDnsServers(network.config.dns?.servers || []);
+    setDnsServerDraft('');
+  };
+
   const handleSaveMulticast = async () => {
     if (!id) return;
     setSaving(true);
@@ -1072,6 +1114,24 @@ function NetworkDetail() {
 
   const handleRemoveManagedRoute = (index: number) => {
     setManagedRoutes((prev) => prev.filter((_, currentIndex) => currentIndex !== index));
+  };
+
+  const handleAddDnsServer = () => {
+    const nextServer = dnsServerDraft.trim();
+    if (!isValidRouteVia(nextServer) || nextServer === '') {
+      showSnackbar('DNS 服务器必须是有效的 IPv4 或 IPv6 地址', 'error');
+      return;
+    }
+    if (dnsServers.includes(nextServer)) {
+      showSnackbar('该 DNS 服务器已存在', 'info');
+      return;
+    }
+    setDnsServers((prev) => [...prev, nextServer]);
+    setDnsServerDraft('');
+  };
+
+  const handleRemoveDnsServer = (index: number) => {
+    setDnsServers((prev) => prev.filter((_, currentIndex) => currentIndex !== index));
   };
 
   const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
@@ -1735,6 +1795,88 @@ function NetworkDetail() {
                     重置更改
                   </Button>
                   <Button variant="contained" color="primary" onClick={() => { void handleSaveManagedRoutes(); }} disabled={saving || !managedRoutesUnsaved}>
+                    保存
+                  </Button>
+                </Box>
+              </Paper>
+
+              {/* DNS 设置 */}
+              <Paper elevation={3} sx={{ p: 3, mb: 4, border: dnsUnsaved ? '2px solid' : 'none', borderColor: 'warning.main' }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                  <Typography variant="h5">
+                    DNS 设置
+                  </Typography>
+                  {dnsUnsaved && (
+                    <Typography variant="body2" color="warning.main">
+                      未保存
+                    </Typography>
+                  )}
+                </Box>
+
+                <Typography variant="body1" sx={{ mb: 3 }}>
+                  为网络内的自定义域名解析配置 DNS。每个网络只允许一个搜索域，但可以配置多个 DNS 服务器。
+                </Typography>
+
+                <TextField
+                  fullWidth
+                  label="Search Domain"
+                  placeholder="例如 home.arpa"
+                  value={dnsDomain}
+                  onChange={(e) => setDnsDomain(e.target.value)}
+                  sx={{ mb: 3 }}
+                />
+
+                <Grid container spacing={2} sx={{ mb: 2 }}>
+                  <Grid size={{ xs: 12, md: 10 }}>
+                    <TextField
+                      fullWidth
+                      label="DNS Server"
+                      placeholder="例如 1.1.1.1 或 fd00::53"
+                      value={dnsServerDraft}
+                      onChange={(e) => setDnsServerDraft(e.target.value)}
+                    />
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 2 }}>
+                    <Button fullWidth variant="outlined" onClick={handleAddDnsServer} sx={{ height: '100%' }}>
+                      Add DNS
+                    </Button>
+                  </Grid>
+                </Grid>
+
+                {dnsServers.length > 0 ? (
+                  <TableContainer component={Paper} variant="outlined" sx={{ mb: 3 }}>
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow>
+                          <TableCell>Server</TableCell>
+                          <TableCell align="right">Action</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {dnsServers.map((server, index) => (
+                          <TableRow key={server}>
+                            <TableCell>{server}</TableCell>
+                            <TableCell align="right">
+                              <Button variant="outlined" color="error" size="small" onClick={() => handleRemoveDnsServer(index)}>
+                                删除
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                ) : (
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+                    尚未配置 DNS 服务器。
+                  </Typography>
+                )}
+
+                <Box sx={{ display: 'flex', justifyContent: 'flex-start', gap: 2 }}>
+                  <Button variant="outlined" onClick={handleResetDNS} disabled={saving || !dnsUnsaved}>
+                    重置更改
+                  </Button>
+                  <Button variant="contained" color="primary" onClick={() => { void handleSaveDNS(); }} disabled={saving || !dnsUnsaved}>
                     保存
                   </Button>
                 </Box>

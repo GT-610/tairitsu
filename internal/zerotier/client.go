@@ -47,6 +47,7 @@ type NetworkResponse struct {
 	Routes                     []Route            `json:"routes"`
 	Tags                       []Tag              `json:"tags"`
 	Rules                      []Rule             `json:"rules"`
+	DNS                        DNSConfig          `json:"dns"`
 	V4AssignMode               AssignmentMode     `json:"v4AssignMode"`
 	V6AssignMode               V6AssignmentMode   `json:"v6AssignMode"`
 	CreationTime               int64              `json:"creationTime"`
@@ -77,6 +78,7 @@ func (n *Network) UnmarshalJSON(data []byte) error {
 		Routes:                     resp.Routes,
 		Tags:                       resp.Tags,
 		Rules:                      resp.Rules,
+		DNS:                        resp.DNS,
 		V4AssignMode:               resp.V4AssignMode,
 		V6AssignMode:               resp.V6AssignMode,
 	}
@@ -95,6 +97,7 @@ type NetworkUpdateRequest struct {
 	MulticastLimit       *int               `json:"multicastLimit,omitempty"`
 	IpAssignmentPools    []IpAssignmentPool `json:"ipAssignmentPools,omitempty"`
 	Routes               []Route            `json:"routes,omitempty"`
+	DNS                  *DNSConfig         `json:"dns,omitempty"`
 	V4AssignMode         *AssignmentMode    `json:"v4AssignMode,omitempty"`
 	V6AssignMode         *V6AssignmentMode  `json:"v6AssignMode,omitempty"`
 }
@@ -110,8 +113,36 @@ type NetworkConfig struct {
 	Routes                     []Route            `json:"routes"`
 	Tags                       []Tag              `json:"tags"`
 	Rules                      []Rule             `json:"rules"`
+	DNS                        DNSConfig          `json:"dns"`
 	V4AssignMode               AssignmentMode     `json:"v4AssignMode"`
 	V6AssignMode               V6AssignmentMode   `json:"v6AssignMode"`
+}
+
+type DNSConfig struct {
+	Domain  string   `json:"domain"`
+	Servers []string `json:"servers"`
+}
+
+func (d *DNSConfig) UnmarshalJSON(data []byte) error {
+	trimmed := strings.TrimSpace(string(data))
+	if trimmed == "" || trimmed == "null" {
+		*d = DNSConfig{}
+		return nil
+	}
+
+	if trimmed == "[]" {
+		*d = DNSConfig{}
+		return nil
+	}
+
+	type dnsAlias DNSConfig
+	var alias dnsAlias
+	if err := json.Unmarshal(data, &alias); err != nil {
+		return fmt.Errorf("解析 DNS 配置失败: %w", err)
+	}
+
+	*d = DNSConfig(alias)
+	return nil
 }
 
 // V6AssignmentMode IPv6分配模式

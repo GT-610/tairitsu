@@ -41,6 +41,7 @@ export interface NetworkConfig {
   enableBroadcast: boolean;
   mtu?: number;
   multicastLimit?: number;
+  dns?: DNSConfig;
   v4AssignMode?: {
     zt: boolean;
   };
@@ -61,6 +62,7 @@ export interface NetworkUpdateRequest {
   enableBroadcast?: boolean;
   mtu?: number;
   multicastLimit?: number;
+  dns?: DNSConfig;
   v4AssignMode?: {
     zt: boolean;
   };
@@ -86,6 +88,11 @@ export interface Route {
 export interface IpAssignmentPool {
   ipRangeStart: string;
   ipRangeEnd: string;
+}
+
+export interface DNSConfig {
+  domain?: string;
+  servers?: string[];
 }
 
 export interface Member {
