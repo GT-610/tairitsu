@@ -15,8 +15,12 @@ import {
   Alert,
   CircularProgress,
   Divider,
-  Paper
+  Paper,
+  Stack
 } from '@mui/material';
+import RefreshIcon from '@mui/icons-material/Refresh';
+import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
+import { Link as RouterLink } from 'react-router-dom';
 import { ImportableNetworkSummary, networkAPI } from '../services/api';
 import { getErrorMessage } from '../services/errors';
 
@@ -26,6 +30,7 @@ function ImportNetwork() {
   const [importing, setImporting] = useState(false);
   const [selectedNetworks, setSelectedNetworks] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string>('');
+  const [successMessage, setSuccessMessage] = useState<string>('');
 
   useEffect(() => {
     void fetchImportableNetworks();
@@ -67,12 +72,15 @@ function ImportNetwork() {
   const handleImport = async () => {
     if (selectedNetworks.size === 0) return;
 
+    const importCount = selectedNetworks.size;
     setImporting(true);
     setError('');
+    setSuccessMessage('');
     try {
       await networkAPI.importNetworks(Array.from(selectedNetworks));
-
-      window.location.reload();
+      setSelectedNetworks(new Set());
+      setSuccessMessage(`已成功导入 ${importCount} 个网络，列表已刷新。`);
+      await fetchImportableNetworks();
     } catch (err: unknown) {
       setError(getErrorMessage(err, '导入网络失败'));
     } finally {
@@ -89,16 +97,43 @@ function ImportNetwork() {
         <Typography variant="h4" component="h1">
           导入 ZeroTier 网络
         </Typography>
-        <Chip
-          label={`${importableNetworks.length}个可导入`}
-          color="primary"
-          size="small"
-        />
+        <Stack direction="row" spacing={1} alignItems="center">
+          <Chip
+            label={`${importableNetworks.length}个可导入`}
+            color="primary"
+            size="small"
+          />
+          <Button
+            variant="outlined"
+            size="small"
+            startIcon={<RefreshIcon />}
+            onClick={() => { void fetchImportableNetworks(); }}
+            disabled={loading || importing}
+          >
+            刷新
+          </Button>
+        </Stack>
       </Box>
 
       {error && (
         <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError('')}>
           {error}
+        </Alert>
+      )}
+
+      {successMessage && (
+        <Alert
+          severity="success"
+          sx={{ mb: 3 }}
+          icon={<CheckCircleOutlineIcon fontSize="inherit" />}
+          onClose={() => setSuccessMessage('')}
+          action={(
+            <Button component={RouterLink} to="/networks" color="inherit" size="small">
+              查看网络
+            </Button>
+          )}
+        >
+          {successMessage}
         </Alert>
       )}
 
@@ -116,9 +151,18 @@ function ImportNetwork() {
             <CircularProgress />
           </Box>
         ) : networks.length === 0 ? (
-          <Typography sx={{ py: 4, textAlign: 'center', color: 'text.secondary' }}>
-            没有找到可导入的网络。所有网络都已在 Tairitsu 中登记且有所有者。
-          </Typography>
+          <Box sx={{ py: 5, textAlign: 'center' }}>
+            <Typography sx={{ color: 'text.secondary', mb: 2 }}>
+              没有找到可导入的网络。所有网络都已在 Tairitsu 中登记且有所有者。
+            </Typography>
+            <Button
+              variant="outlined"
+              startIcon={<RefreshIcon />}
+              onClick={() => { void fetchImportableNetworks(); }}
+            >
+              重新检查
+            </Button>
+          </Box>
         ) : (
           <>
             {importableNetworks.length > 0 && (
