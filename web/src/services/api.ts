@@ -41,6 +41,7 @@ export interface NetworkConfig {
   enableBroadcast: boolean;
   mtu?: number;
   multicastLimit?: number;
+  dns?: DNSConfig;
   v4AssignMode?: {
     zt: boolean;
   };
@@ -61,6 +62,7 @@ export interface NetworkUpdateRequest {
   enableBroadcast?: boolean;
   mtu?: number;
   multicastLimit?: number;
+  dns?: DNSConfig;
   v4AssignMode?: {
     zt: boolean;
   };
@@ -88,18 +90,36 @@ export interface IpAssignmentPool {
   ipRangeEnd: string;
 }
 
+export interface DNSConfig {
+  domain?: string;
+  servers?: string[];
+}
+
 export interface Member {
   id: string;
-  networkId: string;
-  nodeId: string;
+  networkId?: string;
+  nodeId?: string;
   name?: string;
   description?: string;
-  authorized: boolean;
-  activeBridge: boolean;
-  ipAssignments: string[];
-  lastSeen: string;
-  createdAt: string;
-  updatedAt: string;
+  authorized?: boolean;
+  activeBridge?: boolean;
+  ipAssignments?: string[];
+  lastSeen?: string | number;
+  createdAt?: string | number;
+  updatedAt?: string | number;
+  clientVersion?: string;
+  online?: boolean;
+  address?: string;
+  config?: {
+    authorized?: boolean;
+    activeBridge?: boolean;
+    ipAssignments?: string[];
+    noAutoAssignIps?: boolean;
+  };
+  noAutoAssignIps?: boolean;
+  vMajor?: number;
+  vMinor?: number;
+  vRev?: number;
 }
 
 export interface ImportableNetworkSummary {
@@ -109,7 +129,6 @@ export interface ImportableNetworkSummary {
 }
 
 export interface ImportNetworksResponse {
-  message: string;
   imported_ids: string[];
   failed: Array<{
     network_id: string;
@@ -258,7 +277,10 @@ export const networkAPI = {
   // Get importable networks (admin only)
   getImportableNetworks: () => api.get<ImportableNetworkSummary[]>('/admin/networks/importable'),
   // Import specified networks (admin only)
-  importNetworks: (networkIds: string[]) => api.post<ImportNetworksResponse>('/admin/networks/import', { network_ids: networkIds })
+  importNetworks: (networkIds: string[], ownerId: string) => api.post<ImportNetworksResponse>('/admin/networks/import', {
+    network_ids: networkIds,
+    owner_id: ownerId
+  })
 }
 
 // Member related APIs
@@ -268,7 +290,7 @@ export const memberAPI = {
   // Get a single member
   getMember: (networkId: string, memberId: string) => api.get<Member>(`/networks/${networkId}/members/${memberId}`),
   // Update a member
-  updateMember: (networkId: string, memberId: string, data: { authorized?: boolean; name?: string; description?: string }) => api.put<Member>(`/networks/${networkId}/members/${memberId}`, data),
+  updateMember: (networkId: string, memberId: string, data: { authorized?: boolean; name?: string; activeBridge?: boolean; noAutoAssignIps?: boolean; ipAssignments?: string[] }) => api.put<Member>(`/networks/${networkId}/members/${memberId}`, data),
   // Delete a member
   deleteMember: (networkId: string, memberId: string) => api.delete<void>(`/networks/${networkId}/members/${memberId}`)
 }

@@ -72,12 +72,7 @@ func (h *NetworkHandler) GetNetwork(c fiber.Ctx) error {
 	network, err := h.networkService.GetNetworkByID(id, userID.(string))
 	if err != nil {
 		logger.Error("获取网络失败", zap.String("network_id", id), zap.Error(err))
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
-	}
-
-	if network == nil {
-		logger.Warn("网络不存在或无权限访问", zap.String("network_id", id))
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "网络不存在或无权限访问"})
+		return writeNetworkServiceError(c, err, "网络不存在", "无权限访问网络")
 	}
 
 	logger.Info("成功获取网络", zap.String("network_id", id))
@@ -135,7 +130,7 @@ func (h *NetworkHandler) UpdateNetwork(c fiber.Ctx) error {
 	network, err := h.networkService.UpdateNetwork(id, &req, userID.(string))
 	if err != nil {
 		logger.Error("更新网络失败", zap.String("network_id", id), zap.Error(err))
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return writeNetworkServiceError(c, err, "网络不存在", "无权限更新网络")
 	}
 
 	logger.Info("成功更新网络", zap.String("network_id", network.ID))
@@ -169,7 +164,7 @@ func (h *NetworkHandler) UpdateNetworkMetadata(c fiber.Ctx) error {
 	network, err := h.networkService.UpdateNetworkMetadata(id, req.Name, req.Description, userID.(string))
 	if err != nil {
 		logger.Error("更新网络元数据失败", zap.String("network_id", id), zap.Error(err))
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return writeNetworkServiceError(c, err, "网络不存在", "无权限更新网络")
 	}
 
 	logger.Info("成功更新网络元数据", zap.String("network_id", network.ID))
@@ -192,7 +187,7 @@ func (h *NetworkHandler) DeleteNetwork(c fiber.Ctx) error {
 	err := h.networkService.DeleteNetwork(id, userID.(string))
 	if err != nil {
 		logger.Error("删除网络失败", zap.String("network_id", id), zap.Error(err))
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return writeNetworkServiceError(c, err, "网络不存在", "无权限删除网络")
 	}
 
 	logger.Info("成功删除网络", zap.String("network_id", id))
@@ -211,10 +206,10 @@ func (h *NetworkHandler) GetImportableNetworks(c fiber.Ctx) error {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "未授权访问"})
 	}
 
-	importableNetworks, err := h.networkService.GetImportableNetworks(userID.(string))
+	importableNetworks, err := h.networkService.GetImportableNetworks()
 	if err != nil {
 		logger.Error("获取可导入网络列表失败", zap.Error(err))
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return writeNetworkServiceError(c, err, "网络不存在", "无权限获取可导入网络")
 	}
 
 	logger.Info("成功获取可导入网络列表", zap.Int("count", len(importableNetworks)))
@@ -236,6 +231,7 @@ func (h *NetworkHandler) ImportNetworks(c fiber.Ctx) error {
 	// Parse request body
 	var request struct {
 		NetworkIDs []string `json:"network_ids"`
+		OwnerID    string   `json:"owner_id"`
 	}
 
 	if err := c.Bind().Body(&request); err != nil {
@@ -247,12 +243,14 @@ func (h *NetworkHandler) ImportNetworks(c fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "网络ID列表为空"})
 	}
 
-	logger.Info("开始导入网络", zap.Strings("network_ids", request.NetworkIDs))
+	role, _ := c.Locals("role").(string)
 
-	result, err := h.networkService.ImportNetworks(request.NetworkIDs, userID.(string))
+	logger.Info("开始导入网络", zap.Strings("network_ids", request.NetworkIDs), zap.String("owner_id", request.OwnerID))
+
+	result, err := h.networkService.ImportNetworks(request.NetworkIDs, request.OwnerID, role)
 	if err != nil {
 		logger.Error("导入网络失败", zap.Error(err))
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return writeNetworkServiceError(c, err, "网络不存在", "无权限导入网络")
 	}
 
 	logger.Info("导入网络处理完成",

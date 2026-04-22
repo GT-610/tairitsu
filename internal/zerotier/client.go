@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/GT-610/tairitsu/internal/app/config"
@@ -17,6 +19,8 @@ type Client struct {
 	Token      string
 	HTTPClient *http.Client
 }
+
+const responsePreviewLimit = 160
 
 // Network 网络结构
 type Network struct {
@@ -43,6 +47,7 @@ type NetworkResponse struct {
 	Routes                     []Route            `json:"routes"`
 	Tags                       []Tag              `json:"tags"`
 	Rules                      []Rule             `json:"rules"`
+	DNS                        DNSConfig          `json:"dns"`
 	V4AssignMode               AssignmentMode     `json:"v4AssignMode"`
 	V6AssignMode               V6AssignmentMode   `json:"v6AssignMode"`
 	CreationTime               int64              `json:"creationTime"`
@@ -73,6 +78,7 @@ func (n *Network) UnmarshalJSON(data []byte) error {
 		Routes:                     resp.Routes,
 		Tags:                       resp.Tags,
 		Rules:                      resp.Rules,
+		DNS:                        resp.DNS,
 		V4AssignMode:               resp.V4AssignMode,
 		V6AssignMode:               resp.V6AssignMode,
 	}
@@ -91,6 +97,7 @@ type NetworkUpdateRequest struct {
 	MulticastLimit       *int               `json:"multicastLimit,omitempty"`
 	IpAssignmentPools    []IpAssignmentPool `json:"ipAssignmentPools,omitempty"`
 	Routes               []Route            `json:"routes,omitempty"`
+	DNS                  *DNSConfig         `json:"dns,omitempty"`
 	V4AssignMode         *AssignmentMode    `json:"v4AssignMode,omitempty"`
 	V6AssignMode         *V6AssignmentMode  `json:"v6AssignMode,omitempty"`
 }
@@ -106,8 +113,36 @@ type NetworkConfig struct {
 	Routes                     []Route            `json:"routes"`
 	Tags                       []Tag              `json:"tags"`
 	Rules                      []Rule             `json:"rules"`
+	DNS                        DNSConfig          `json:"dns"`
 	V4AssignMode               AssignmentMode     `json:"v4AssignMode"`
 	V6AssignMode               V6AssignmentMode   `json:"v6AssignMode"`
+}
+
+type DNSConfig struct {
+	Domain  string   `json:"domain"`
+	Servers []string `json:"servers"`
+}
+
+func (d *DNSConfig) UnmarshalJSON(data []byte) error {
+	trimmed := strings.TrimSpace(string(data))
+	if trimmed == "" || trimmed == "null" {
+		*d = DNSConfig{}
+		return nil
+	}
+
+	if trimmed == "[]" {
+		*d = DNSConfig{}
+		return nil
+	}
+
+	type dnsAlias DNSConfig
+	var alias dnsAlias
+	if err := json.Unmarshal(data, &alias); err != nil {
+		return fmt.Errorf("解析 DNS 配置失败: %w", err)
+	}
+
+	*d = DNSConfig(alias)
+	return nil
 }
 
 // V6AssignmentMode IPv6分配模式
@@ -155,16 +190,126 @@ type AssignmentMode struct {
 
 // Member 网络成员
 type Member struct {
-	ID            string       `json:"id"`
-	Address       string       `json:"address"`
-	Config        MemberConfig `json:"config"`
-	Identity      string       `json:"identity"`
-	Name          string       `json:"name"`
-	Description   string       `json:"description"`
-	ClientVersion string       `json:"clientVersion"`
-	Online        bool         `json:"online"`
-	LastSeen      int64        `json:"lastOnline"`
-	CreationTime  int64        `json:"creationTime"`
+	ID              string       `json:"id"`
+	Address         string       `json:"address"`
+	Config          MemberConfig `json:"config"`
+	Authorized      bool         `json:"authorized,omitempty"`
+	ActiveBridge    bool         `json:"activeBridge,omitempty"`
+	IPAssignments   []string     `json:"ipAssignments,omitempty"`
+	Tags            []Tag        `json:"tags,omitempty"`
+	Capabilities    []int        `json:"capabilities,omitempty"`
+	NoAutoAssignIPs bool         `json:"noAutoAssignIps,omitempty"`
+	Identity        string       `json:"identity"`
+	Name            string       `json:"name"`
+	Description     string       `json:"description"`
+	ClientVersion   string       `json:"clientVersion,omitempty"`
+	Online          bool         `json:"online,omitempty"`
+	LastSeen        int64        `json:"lastOnline,omitempty"`
+	CreationTime    int64        `json:"creationTime,omitempty"`
+	VMajor          int          `json:"vMajor,omitempty"`
+	VMinor          int          `json:"vMinor,omitempty"`
+	VRev            int          `json:"vRev,omitempty"`
+}
+
+type memberAlias struct {
+	ID              string       `json:"id"`
+	Address         string       `json:"address"`
+	Config          MemberConfig `json:"config"`
+	Authorized      *bool        `json:"authorized"`
+	ActiveBridge    *bool        `json:"activeBridge"`
+	IPAssignments   []string     `json:"ipAssignments"`
+	Tags            []Tag        `json:"tags"`
+	Capabilities    []int        `json:"capabilities"`
+	NoAutoAssignIPs *bool        `json:"noAutoAssignIps"`
+	Identity        string       `json:"identity"`
+	Name            string       `json:"name"`
+	Description     string       `json:"description"`
+	ClientVersion   string       `json:"clientVersion"`
+	Online          bool         `json:"online"`
+	LastSeen        int64        `json:"lastOnline"`
+	CreationTime    int64        `json:"creationTime"`
+	VMajor          int          `json:"vMajor"`
+	VMinor          int          `json:"vMinor"`
+	VRev            int          `json:"vRev"`
+}
+
+func (m *Member) UnmarshalJSON(data []byte) error {
+	var raw memberAlias
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return fmt.Errorf("解析成员JSON失败: %w", err)
+	}
+
+	m.ID = raw.ID
+	m.Address = raw.Address
+	m.Identity = raw.Identity
+	m.Name = raw.Name
+	m.Description = raw.Description
+	m.Online = raw.Online
+	m.LastSeen = raw.LastSeen
+	m.CreationTime = raw.CreationTime
+	m.VMajor = raw.VMajor
+	m.VMinor = raw.VMinor
+	m.VRev = raw.VRev
+
+	m.Config = raw.Config
+
+	if raw.Authorized != nil {
+		m.Authorized = *raw.Authorized
+		m.Config.Authorized = *raw.Authorized
+	} else {
+		m.Authorized = raw.Config.Authorized
+	}
+
+	if raw.ActiveBridge != nil {
+		m.ActiveBridge = *raw.ActiveBridge
+		m.Config.ActiveBridge = *raw.ActiveBridge
+	} else {
+		m.ActiveBridge = raw.Config.ActiveBridge
+	}
+
+	if raw.IPAssignments != nil {
+		m.IPAssignments = raw.IPAssignments
+		m.Config.IPAssignments = raw.IPAssignments
+	} else {
+		m.IPAssignments = raw.Config.IPAssignments
+	}
+
+	if raw.Tags != nil {
+		m.Tags = raw.Tags
+		m.Config.Tags = raw.Tags
+	} else {
+		m.Tags = raw.Config.Tags
+	}
+
+	if raw.Capabilities != nil {
+		m.Capabilities = raw.Capabilities
+		m.Config.Capabilities = raw.Capabilities
+	} else {
+		m.Capabilities = raw.Config.Capabilities
+	}
+
+	if raw.NoAutoAssignIPs != nil {
+		m.NoAutoAssignIPs = *raw.NoAutoAssignIPs
+		m.Config.NoAutoAssignIPs = *raw.NoAutoAssignIPs
+	} else {
+		m.NoAutoAssignIPs = raw.Config.NoAutoAssignIPs
+	}
+
+	if raw.ClientVersion != "" {
+		m.ClientVersion = raw.ClientVersion
+	} else if raw.VMajor > 0 || raw.VMinor > 0 || raw.VRev > 0 {
+		m.ClientVersion = fmt.Sprintf("%d.%d.%d", raw.VMajor, raw.VMinor, raw.VRev)
+	}
+
+	return nil
+}
+
+type MemberUpdateRequest struct {
+	Name            string   `json:"name,omitempty"`
+	Authorized      *bool    `json:"authorized,omitempty"`
+	ActiveBridge    *bool    `json:"activeBridge,omitempty"`
+	IPAssignments   []string `json:"ipAssignments,omitempty"`
+	NoAutoAssignIPs *bool    `json:"noAutoAssignIps,omitempty"`
 }
 
 // MemberConfig 成员配置
@@ -276,7 +421,7 @@ func (c *Client) GetStatus() (*Status, error) {
 
 	var status Status
 	if err := json.Unmarshal(respBody, &status); err != nil {
-		return nil, fmt.Errorf("解析状态响应失败: %w", err)
+		return nil, fmt.Errorf("解析状态响应失败: %w; 响应预览: %s", err, responsePreview(respBody))
 	}
 
 	return &status, nil
@@ -312,7 +457,7 @@ func (c *Client) GetNetworkIDs() ([]string, error) {
 
 	var networkIDs []string
 	if err := json.Unmarshal(respBody, &networkIDs); err != nil {
-		return nil, fmt.Errorf("解析网络ID列表失败: %w", err)
+		return nil, fmt.Errorf("解析网络ID列表失败: %w; 响应预览: %s", err, responsePreview(respBody))
 	}
 
 	return networkIDs, nil
@@ -331,7 +476,7 @@ func (c *Client) GetNetworkStatus(networkID string) (string, error) {
 		Status string `json:"status"`
 	}
 	if err := json.Unmarshal(respBody, &status); err != nil {
-		return "", fmt.Errorf("解析网络状态失败: %w", err)
+		return "", fmt.Errorf("解析网络状态失败: %w; 响应预览: %s", err, responsePreview(respBody))
 	}
 
 	return status.Status, nil
@@ -347,7 +492,7 @@ func (c *Client) GetNetwork(networkID string) (*Network, error) {
 
 	var network Network
 	if err := json.Unmarshal(respBody, &network); err != nil {
-		return nil, fmt.Errorf("解析网络详情失败: %w", err)
+		return nil, fmt.Errorf("解析网络详情失败: %w; 响应预览: %s", err, responsePreview(respBody))
 	}
 
 	return &network, nil
@@ -362,7 +507,7 @@ func (c *Client) CreateNetwork(network *Network) (*Network, error) {
 
 	var createdNetwork Network
 	if err := json.Unmarshal(respBody, &createdNetwork); err != nil {
-		return nil, fmt.Errorf("解析创建网络响应失败: %w", err)
+		return nil, fmt.Errorf("解析创建网络响应失败: %w; 响应预览: %s", err, responsePreview(respBody))
 	}
 
 	return &createdNetwork, nil
@@ -378,7 +523,7 @@ func (c *Client) UpdateNetwork(networkID string, network *Network) (*Network, er
 
 	var updatedNetwork Network
 	if err := json.Unmarshal(respBody, &updatedNetwork); err != nil {
-		return nil, fmt.Errorf("解析更新网络响应失败: %w", err)
+		return nil, fmt.Errorf("解析更新网络响应失败: %w; 响应预览: %s", err, responsePreview(respBody))
 	}
 
 	return &updatedNetwork, nil
@@ -394,7 +539,7 @@ func (c *Client) PartialUpdateNetwork(networkID string, updateReq *NetworkUpdate
 
 	var updatedNetwork Network
 	if err := json.Unmarshal(respBody, &updatedNetwork); err != nil {
-		return nil, fmt.Errorf("解析更新网络响应失败: %w", err)
+		return nil, fmt.Errorf("解析更新网络响应失败: %w; 响应预览: %s", err, responsePreview(respBody))
 	}
 
 	return &updatedNetwork, nil
@@ -415,10 +560,30 @@ func (c *Client) GetMembers(networkID string) ([]Member, error) {
 		return nil, err
 	}
 
-	var members []Member
-	if err := json.Unmarshal(respBody, &members); err != nil {
-		return nil, fmt.Errorf("解析成员列表失败: %w", err)
+	members, err := parseMemberList(respBody)
+	if err == nil {
+		return members, nil
 	}
+
+	memberIDs, indexErr := parseMemberIndexList(respBody)
+	if indexErr != nil {
+		return nil, err
+	}
+
+	members = make([]Member, 0, len(memberIDs))
+	for _, memberID := range memberIDs {
+		member, detailErr := c.GetMember(networkID, memberID)
+		if detailErr != nil {
+			return nil, fmt.Errorf("获取成员 %s 详情失败: %w", memberID, detailErr)
+		}
+		if member != nil {
+			members = append(members, *member)
+		}
+	}
+
+	sort.Slice(members, func(i, j int) bool {
+		return members[i].ID < members[j].ID
+	})
 
 	return members, nil
 }
@@ -433,14 +598,14 @@ func (c *Client) GetMember(networkID, memberID string) (*Member, error) {
 
 	var member Member
 	if err := json.Unmarshal(respBody, &member); err != nil {
-		return nil, fmt.Errorf("解析成员详情失败: %w", err)
+		return nil, fmt.Errorf("解析成员详情失败: %w; 响应预览: %s", err, responsePreview(respBody))
 	}
 
 	return &member, nil
 }
 
 // UpdateMember 更新成员配置
-func (c *Client) UpdateMember(networkID, memberID string, member *Member) (*Member, error) {
+func (c *Client) UpdateMember(networkID, memberID string, member *MemberUpdateRequest) (*Member, error) {
 	endpoint := fmt.Sprintf("/controller/network/%s/member/%s", networkID, memberID)
 	respBody, err := c.doRequest("POST", endpoint, member)
 	if err != nil {
@@ -449,7 +614,7 @@ func (c *Client) UpdateMember(networkID, memberID string, member *Member) (*Memb
 
 	var updatedMember Member
 	if err := json.Unmarshal(respBody, &updatedMember); err != nil {
-		return nil, fmt.Errorf("解析更新成员响应失败: %w", err)
+		return nil, fmt.Errorf("解析更新成员响应失败: %w; 响应预览: %s", err, responsePreview(respBody))
 	}
 
 	return &updatedMember, nil
@@ -460,4 +625,56 @@ func (c *Client) DeleteMember(networkID, memberID string) error {
 	endpoint := fmt.Sprintf("/controller/network/%s/member/%s", networkID, memberID)
 	_, err := c.doRequest("DELETE", endpoint, nil)
 	return err
+}
+
+func parseMemberList(respBody []byte) ([]Member, error) {
+	var members []Member
+	if err := json.Unmarshal(respBody, &members); err == nil {
+		return members, nil
+	}
+
+	var memberMap map[string]Member
+	if err := json.Unmarshal(respBody, &memberMap); err != nil {
+		return nil, fmt.Errorf("解析成员列表失败: %w; 响应预览: %s", err, responsePreview(respBody))
+	}
+
+	members = make([]Member, 0, len(memberMap))
+	for memberID, member := range memberMap {
+		if member.ID == "" {
+			member.ID = memberID
+		}
+		members = append(members, member)
+	}
+
+	sort.Slice(members, func(i, j int) bool {
+		return members[i].ID < members[j].ID
+	})
+
+	return members, nil
+}
+
+func parseMemberIndexList(respBody []byte) ([]string, error) {
+	var memberIndex map[string]int
+	if err := json.Unmarshal(respBody, &memberIndex); err != nil {
+		return nil, fmt.Errorf("解析成员索引失败: %w; 响应预览: %s", err, responsePreview(respBody))
+	}
+
+	memberIDs := make([]string, 0, len(memberIndex))
+	for memberID := range memberIndex {
+		memberIDs = append(memberIDs, memberID)
+	}
+	sort.Strings(memberIDs)
+
+	return memberIDs, nil
+}
+
+func responsePreview(respBody []byte) string {
+	preview := strings.TrimSpace(string(respBody))
+	if preview == "" {
+		return "<empty>"
+	}
+	if len(preview) > responsePreviewLimit {
+		return preview[:responsePreviewLimit] + "..."
+	}
+	return preview
 }

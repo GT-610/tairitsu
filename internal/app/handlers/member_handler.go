@@ -13,6 +13,14 @@ type MemberHandler struct {
 	networkService *services.NetworkService
 }
 
+func memberRouteNetworkID(c fiber.Ctx) string {
+	networkID := c.Params("networkId")
+	if networkID == "" {
+		networkID = c.Params("id")
+	}
+	return networkID
+}
+
 // NewMemberHandler 创建成员处理器实例
 func NewMemberHandler(networkService *services.NetworkService) *MemberHandler {
 	return &MemberHandler{
@@ -22,7 +30,7 @@ func NewMemberHandler(networkService *services.NetworkService) *MemberHandler {
 
 // GetMembers 获取网络中的所有成员
 func (h *MemberHandler) GetMembers(c fiber.Ctx) error {
-	networkID := c.Params("networkId")
+	networkID := memberRouteNetworkID(c)
 
 	// Get user ID from context
 	userID := c.Locals("user_id")
@@ -34,7 +42,7 @@ func (h *MemberHandler) GetMembers(c fiber.Ctx) error {
 	members, err := h.networkService.GetNetworkMembers(networkID, userID.(string))
 	if err != nil {
 		logger.Error("获取网络成员列表失败", zap.String("network_id", networkID), zap.Error(err))
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return writeNetworkServiceError(c, err, "网络不存在", "无权限访问网络成员")
 	}
 
 	return c.Status(fiber.StatusOK).JSON(members)
@@ -42,7 +50,7 @@ func (h *MemberHandler) GetMembers(c fiber.Ctx) error {
 
 // GetMember 获取网络中的特定成员
 func (h *MemberHandler) GetMember(c fiber.Ctx) error {
-	networkID := c.Params("networkId")
+	networkID := memberRouteNetworkID(c)
 	memberID := c.Params("memberId")
 
 	// Get user ID from context
@@ -55,7 +63,7 @@ func (h *MemberHandler) GetMember(c fiber.Ctx) error {
 	member, err := h.networkService.GetNetworkMember(networkID, memberID, userID.(string))
 	if err != nil {
 		logger.Error("获取网络成员失败", zap.String("network_id", networkID), zap.String("member_id", memberID), zap.Error(err))
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "获取成员失败: " + err.Error()})
+		return writeNetworkServiceError(c, err, "网络不存在", "无权限访问网络成员")
 	}
 
 	if member == nil {
@@ -68,10 +76,10 @@ func (h *MemberHandler) GetMember(c fiber.Ctx) error {
 
 // UpdateMember 更新网络成员
 func (h *MemberHandler) UpdateMember(c fiber.Ctx) error {
-	networkID := c.Params("networkId")
+	networkID := memberRouteNetworkID(c)
 	memberID := c.Params("memberId")
 
-	var req zerotier.Member
+	var req zerotier.MemberUpdateRequest
 	if err := c.Bind().Body(&req); err != nil {
 		logger.Error("请求参数绑定失败", zap.String("network_id", networkID), zap.String("member_id", memberID), zap.Error(err))
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
@@ -87,7 +95,7 @@ func (h *MemberHandler) UpdateMember(c fiber.Ctx) error {
 	member, err := h.networkService.UpdateNetworkMember(networkID, memberID, &req, userID.(string))
 	if err != nil {
 		logger.Error("更新网络成员失败", zap.String("network_id", networkID), zap.String("member_id", memberID), zap.Error(err))
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "更新成员失败: " + err.Error()})
+		return writeNetworkServiceError(c, err, "网络不存在", "无权限更新网络成员")
 	}
 
 	return c.Status(fiber.StatusOK).JSON(member)
@@ -95,7 +103,7 @@ func (h *MemberHandler) UpdateMember(c fiber.Ctx) error {
 
 // DeleteMember 删除网络成员
 func (h *MemberHandler) DeleteMember(c fiber.Ctx) error {
-	networkID := c.Params("networkId")
+	networkID := memberRouteNetworkID(c)
 	memberID := c.Params("memberId")
 
 	// Get user ID from context
@@ -108,7 +116,7 @@ func (h *MemberHandler) DeleteMember(c fiber.Ctx) error {
 	err := h.networkService.RemoveNetworkMember(networkID, memberID, userID.(string))
 	if err != nil {
 		logger.Error("删除网络成员失败", zap.String("network_id", networkID), zap.String("member_id", memberID), zap.Error(err))
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "删除成员失败: " + err.Error()})
+		return writeNetworkServiceError(c, err, "网络不存在", "无权限删除网络成员")
 	}
 
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{"message": "成员删除成功"})

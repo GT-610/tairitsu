@@ -251,6 +251,12 @@ Most API endpoints require authentication using JWT (JSON Web Tokens). To authen
 
 ### Network APIs
 
+Permission model for this section:
+- Network APIs are owner-scoped.
+- The authenticated user only sees networks where they are the recorded `owner_id`.
+- Accessing an existing network owned by someone else returns `403 Forbidden`.
+- Accessing a missing network returns `404 Not Found`.
+
 #### Get ZeroTier Status
 - **URL**: `/api/status`
 - **Method**: `GET`
@@ -423,7 +429,54 @@ Most API endpoints require authentication using JWT (JSON Web Tokens). To authen
   }
   ```
 
+#### Get Importable Networks
+- **URL**: `/api/admin/networks/importable`
+- **Method**: `GET`
+- **Description**: Lists controller networks that are not yet registered in Tairitsu or do not currently have an owner
+- **Authentication**: Required, admin only
+- **Response**:
+  ```json
+  [
+    {
+      "network_id": "8056c2e21c000001",
+      "reason": "网络尚未登记到 Tairitsu",
+      "is_importable": true
+    },
+    {
+      "network_id": "8056c2e21c000002",
+      "reason": "网络已有所有者",
+      "is_importable": false
+    }
+  ]
+  ```
+
+#### Import Networks
+- **URL**: `/api/admin/networks/import`
+- **Method**: `POST`
+- **Description**: Assigns unowned controller networks to a specific Tairitsu user
+- **Authentication**: Required, admin only
+- **Request Body**:
+  ```json
+  {
+    "network_ids": ["8056c2e21c000001", "8056c2e21c000002"],
+    "owner_id": "user-uuid"
+  }
+  ```
+- **Response**:
+  ```json
+  {
+    "message": "成功导入 2 个网络",
+    "imported_ids": ["8056c2e21c000001", "8056c2e21c000002"],
+    "failed": []
+  }
+  ```
+
 ### Member APIs
+
+Permission model for this section:
+- Member APIs follow network ownership.
+- Only the owner of the parent network can list, inspect, authorize, update, or delete members.
+- Accessing members on someone else's network returns `403 Forbidden`.
 
 #### Get Network Members
 - **URL**: `/api/networks/{networkId}/members`
