@@ -12,8 +12,6 @@ import (
 	"go.uber.org/zap"
 )
 
-var GlobalZTClient *zerotier.Client
-
 type NetworkService struct {
 	ztClient *zerotier.Client
 	db       database.DBInterface
@@ -21,9 +19,6 @@ type NetworkService struct {
 }
 
 func NewNetworkService(ztClient *zerotier.Client, db database.DBInterface) *NetworkService {
-	if GlobalZTClient != nil && ztClient == nil {
-		ztClient = GlobalZTClient
-	}
 	return &NetworkService{
 		ztClient: ztClient,
 		db:       db,
@@ -37,14 +32,16 @@ func (s *NetworkService) SetDB(db database.DBInterface) {
 	logger.Info("网络服务数据库连接已更新")
 }
 
+func (s *NetworkService) GetDB() database.DBInterface {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+	return s.db
+}
+
 func (s *NetworkService) getDB() database.DBInterface {
 	s.mutex.RLock()
 	db := s.db
 	s.mutex.RUnlock()
-
-	if db == nil {
-		return database.GetGlobalDB()
-	}
 	return db
 }
 
@@ -529,14 +526,11 @@ func (s *NetworkService) RemoveNetworkMember(networkID, memberID string, userID 
 
 // SetZTClient 设置ZeroTier客户端
 func (s *NetworkService) SetZTClient(client *zerotier.Client) {
-	if client != nil {
-		// 同时更新全局客户端实例，确保路由重新加载后仍然保持
-		GlobalZTClient = client
-	} else {
+	if client == nil {
 		logger.Warn("服务层：尝试设置空的ZeroTier客户端")
-		// 也清空全局实例
-		GlobalZTClient = nil
 	}
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
 	s.ztClient = client
 }
 
@@ -579,7 +573,7 @@ func (s *NetworkService) GetImportableNetworks(userID string) ([]ImportableNetwo
 	}
 
 	// 筛选可导入的网络
-	var importableNetworks []ImportableNetworkSummary
+	importableNetworks := make([]ImportableNetworkSummary, 0, len(ztNetworkIDs))
 	for _, networkID := range ztNetworkIDs {
 		dbNet, exists := dbNetworkMap[networkID]
 

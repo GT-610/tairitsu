@@ -2,7 +2,7 @@
 
 [**简体中文**](readme-i18n/README.zh-CN.md)
 
-**NOTE: This project is still in development. Some features may not be fully implemented or subject to change.**
+**NOTE: This project is still in development. The current priority is a stable SQLite-first MVP for single-instance self-hosted deployments.**
 
 Tairitsu is a web-based controller interface for ZeroTier, providing a user-friendly GUI to manage ZeroTier networks, members, and configurations. It consists of a Golang backend that interfaces with the ZeroTier client API and a React-based web frontend.
 
@@ -12,9 +12,16 @@ Tairitsu is a web-based controller interface for ZeroTier, providing a user-frie
 - **Member Administration**: Manage network members, authorize devices, and assign IPs
 - **Configuration Control**: Configure network settings including IP ranges, routes, and rules
 - **Real-time Status**: Monitor network and member status
-- **Multi-database Support**: Works with SQLite, MySQL, and PostgreSQL
+- **SQLite-first MVP**: SQLite is the only Phase 1 database with formal support
 - **Secure Authentication**: JWT-based authentication for secure access
 - **Responsive Design**: Modern, responsive Material Design interface
+- **Experimental Tools**: Import Network and Planet generation remain available only as experimental surfaces
+
+## Phase 1 Support Matrix
+
+- Supported: SQLite, single-instance self-hosted ZeroTier controller, small admin teams
+- Experimental / frozen: Import Network, Planet, broader Settings
+- Not currently supported as a Phase 1 promise: MySQL, PostgreSQL
 
 ## Deployment
 
@@ -86,11 +93,11 @@ Not ready yet.
 
 - Go 1.25 or later with CGO enabled
 - Bun 1.3 or later
-- ZeroTier controller installed and running
+- ZeroTier controller running locally or in Docker
 
 #### Backend
 ```bash
-CGO_ENABLED=1 go build -o tairitsu ./cmd/tairitsu
+GOCACHE=/tmp/go-build GOMODCACHE=/tmp/go-mod go build -o ./build/tairitsu ./cmd/tairitsu
 ```
 
 #### Frontend
@@ -108,6 +115,11 @@ For production builds:
 cd web
 bun run build
 ```
+
+Additional internal docs:
+
+- [Phase 1 audit](docs/phase1-audit.md)
+- [ZeroTier Docker manual checklist](docs/testing/zerotier-docker-checklist.md)
 
 ## Contributing
 

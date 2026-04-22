@@ -3,6 +3,7 @@ package database
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
@@ -41,6 +42,10 @@ func NewDatabase(config Config) (DBInterface, error) {
 		// 如果没有指定路径，使用默认路径
 		if config.Path == "" {
 			config.Path = "data/tairitsu.db"
+		}
+
+		if err := ensureSQLiteDir(config.Path); err != nil {
+			return nil, err
 		}
 
 		db, err := gorm.Open(sqlite.Open(config.Path), &gorm.Config{})
@@ -148,17 +153,8 @@ func ResetDatabase(config Config) error {
 
 		logger.Info("重置SQLite数据库", zap.String("path", config.Path))
 
-		// 关闭现有的数据库连接
-		existingDB, err := NewDatabase(config)
-		if err == nil {
-			logger.Info("关闭现有数据库连接")
-			existingDB.Close()
-		} else {
-			logger.Warn("无法创建数据库连接以关闭", zap.Error(err))
-		}
-
 		// 删除SQLite数据库文件以实现重置
-		err = os.Remove(config.Path)
+		err := os.Remove(config.Path)
 		if err != nil && !os.IsNotExist(err) {
 			logger.Error("删除SQLite数据库文件失败", zap.Error(err))
 			return fmt.Errorf("重置SQLite数据库失败: %w", err)
@@ -173,21 +169,30 @@ func ResetDatabase(config Config) error {
 		return nil
 
 	case MySQL:
-		// TODO: 实现MySQL数据库重置功能
-		// 注意：MySQL重置需要考虑数据备份、表结构重建等复杂操作
-		logger.Warn("MySQL数据库重置功能尚未实现")
-		return nil
+		logger.Warn("MySQL数据库重置在当前阶段不受支持")
+		return fmt.Errorf("当前一期版本仅正式支持 SQLite，MySQL 重置暂不支持")
 
 	case PostgreSQL:
-		// TODO: 实现PostgreSQL数据库重置功能
-		// 注意：PostgreSQL重置需要考虑数据备份、表结构重建等复杂操作
-		logger.Warn("PostgreSQL数据库重置功能尚未实现")
-		return nil
+		logger.Warn("PostgreSQL数据库重置在当前阶段不受支持")
+		return fmt.Errorf("当前一期版本仅正式支持 SQLite，PostgreSQL 重置暂不支持")
 
 	default:
 		logger.Error("不支持的数据库类型", zap.String("type", string(config.Type)))
 		return fmt.Errorf("不支持的数据库类型: %s", config.Type)
 	}
+}
+
+func ensureSQLiteDir(path string) error {
+	dir := filepath.Dir(path)
+	if dir == "." || dir == "" {
+		return nil
+	}
+
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("无法创建SQLite数据库目录: %w", err)
+	}
+
+	return nil
 }
 
 // SaveConfig 保存数据库配置到统一配置管理模块

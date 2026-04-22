@@ -35,10 +35,6 @@ func (s *UserService) getDB() database.DBInterface {
 	s.mutex.RLock()
 	db := s.db
 	s.mutex.RUnlock()
-
-	if db == nil {
-		db = database.GetGlobalDB()
-	}
 	return db
 }
 
@@ -55,15 +51,8 @@ func NewUserServiceWithoutDB() *UserService {
 }
 
 func NewUserService() *UserService {
-	db, err := database.NewDatabase(database.Config{
-		Type: database.SQLite,
-	})
-	if err != nil {
-		panic("无法创建默认数据库: " + err.Error())
-	}
-
 	return &UserService{
-		db: db,
+		db: nil,
 	}
 }
 

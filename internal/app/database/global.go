@@ -16,7 +16,7 @@ var (
 func SetGlobalDB(db DBInterface) {
 	globalDBMu.Lock()
 	defer globalDBMu.Unlock()
-	if globalDB != nil {
+	if globalDB != nil && globalDB != db {
 		globalDB.Close()
 		logger.Info("已关闭旧的数据库连接")
 	}
@@ -29,6 +29,21 @@ func GetGlobalDB() DBInterface {
 	globalDBMu.RLock()
 	defer globalDBMu.RUnlock()
 	return globalDB
+}
+
+// CloseGlobalDB closes and clears the global database instance.
+func CloseGlobalDB() error {
+	globalDBMu.Lock()
+	defer globalDBMu.Unlock()
+
+	if globalDB == nil {
+		return nil
+	}
+
+	err := globalDB.Close()
+	globalDB = nil
+	logger.Info("全局数据库连接已关闭")
+	return err
 }
 
 // InitGlobalDB initializes the global database from config

@@ -144,7 +144,7 @@ export interface SetupStatus {
 }
 
 export interface DatabaseSetupConfig {
-  type: 'sqlite' | 'mysql' | 'postgres';
+  type: 'sqlite';
   path?: string;
   host?: string;
   port?: number;
@@ -285,7 +285,7 @@ export const systemAPI = {
   // Initialize ZeroTier client
   initZeroTierClient: () => api.post('/system/zerotier/init'),
   // Test ZeroTier connection
-  testZtConnection: () => api.post('/system/zerotier/test'),
+  testZtConnection: () => api.get('/system/zerotier/test'),
   // Save ZeroTier configuration
   saveZtConfig: (config: ZeroTierSetupConfig) => api.post('/system/zerotier/config', config),
   // Update system settings

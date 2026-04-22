@@ -14,3 +14,10 @@ func TestNewNetworkService(t *testing.T) {
 	// Assert
 	assert.NotNil(t, networkService)
 }
+
+func TestImportableNetworkSummariesStartAsEmptySlice(t *testing.T) {
+	summaries := make([]services.ImportableNetworkSummary, 0)
+
+	assert.NotNil(t, summaries)
+	assert.Len(t, summaries, 0)
+}

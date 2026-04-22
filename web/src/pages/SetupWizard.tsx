@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react';
-import { 
-  Box, 
+import {
+  Box,
   Container,
-  Typography, 
-  Paper, 
-  Stepper, 
-  Step, 
-  StepLabel, 
-  Button, 
+  Typography,
+  Paper,
+  Stepper,
+  Step,
+  StepLabel,
+  Button,
   CircularProgress,
   Alert,
   TextField,
@@ -25,7 +25,7 @@ interface AdminData {
 
 // 数据库配置类型
 interface DbConfig {
-  type: 'sqlite' | 'mysql' | 'postgres';
+  type: 'sqlite';
   path: string;
   host: string;
   port: number;
@@ -52,13 +52,13 @@ const SetupWizard = () => {
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
   const [success, setSuccess] = useState<string>('');
-  
+
   // Admin account data
   const [adminData, setAdminData] = useState<AdminData>({
     username: '',
     password: ''
   });
-  
+
   // Database configuration
   const [dbConfig, setDbConfig] = useState<DbConfig>({
     type: 'sqlite',
@@ -69,7 +69,7 @@ const SetupWizard = () => {
     pass: '',
     name: ''
   });
-  
+
   // ZeroTier configuration
   const [ztConfig, setZtConfig] = useState<ZtConfig>({
     controllerUrl: 'http://localhost:9993',
@@ -89,7 +89,7 @@ const SetupWizard = () => {
   useEffect(() => {
     // Mark setup wizard as started
     localStorage.setItem('tairitsu_setup_started', 'true');
-    
+
     // Cleanup function to maintain localStorage integrity
     return () => {
       // Only remove flag if setup process was interrupted
@@ -98,7 +98,7 @@ const SetupWizard = () => {
       }
     };
   }, []);
-  
+
   // Validate ZeroTier controller connection and save configuration
   const testAndInitZtConnection = async (): Promise<boolean> => {
     setLoading(true);
@@ -122,7 +122,7 @@ const SetupWizard = () => {
     setLoading(true);
     setError('');
     setSuccess('');
-    
+
     try {
       // Execute different actions based on current step
       if (activeStep === 0) {
@@ -136,41 +136,9 @@ const SetupWizard = () => {
           setActiveStep((prevActiveStep) => prevActiveStep + 1);
         }
       } else if (activeStep === 2) {
-        // Database configuration validation
-        if (!dbConfig.type) {
-          setError('请选择数据库类型');
-          return;
-        }
-        
-        // Validate based on database type
-        if (dbConfig.type === 'sqlite') {
-          // SQLite path is controlled by the program, no user input required
-        } else {
-          // Validate PostgreSQL or MySQL configuration
-          if (!dbConfig.host.trim()) {
-            setError('请输入数据库主机地址');
-            return;
-          }
-          if (!dbConfig.port || dbConfig.port <= 0) {
-            setError('请输入有效的数据库端口');
-            return;
-          }
-          if (!dbConfig.user.trim()) {
-            setError('请输入数据库用户名');
-            return;
-          }
-          if (!dbConfig.name.trim()) {
-            setError('请输入数据库名称');
-            return;
-          }
-        }
-        
         // Send database configuration to backend
         await systemAPI.configureDatabase(dbConfig);
-        
-        // Reload routes after database configuration
-        await systemAPI.reloadRoutes();
-        
+
         // Proceed to next step
         setActiveStep((prevActiveStep) => prevActiveStep + 1);
       } else if (activeStep === 3) {
@@ -184,8 +152,8 @@ const SetupWizard = () => {
           setError('密码长度至少为6位');
           return;
         }
-        
-        // Create administrator account
+
+        await systemAPI.initializeAdminCreation();
         await authAPI.register(adminData);
         // Proceed to next step
         setActiveStep((prevActiveStep) => prevActiveStep + 1);
@@ -194,21 +162,18 @@ const SetupWizard = () => {
         try {
           // Mark system as initialized
           await systemAPI.setInitialized(true);
-          
-          // Reload routes to ensure proper initialization
-          await systemAPI.reloadRoutes();
-          
+
           // Update localStorage flag to indicate system initialization
           localStorage.setItem('tairitsu_initialized', 'true');
           localStorage.removeItem('tairitsu_setup_started');
-          
+
           // Set success message
           setSuccess('系统初始化完成！正在刷新页面...');
-          
+
           // Delay page refresh to show success message
-        setTimeout(() => {
-          window.location.reload();
-        }, 2000);
+          setTimeout(() => {
+            window.location.reload();
+          }, 2000);
         } catch (err: unknown) {
           setError(getErrorMessage(err, '完成设置失败'));
         }
@@ -217,9 +182,9 @@ const SetupWizard = () => {
         setActiveStep((prevActiveStep) => prevActiveStep + 1);
       }
     } catch (err: unknown) {
-        setError(getErrorMessage(err, '操作失败'));
-      } finally {
-        setLoading(false);
+      setError(getErrorMessage(err, '操作失败'));
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -237,42 +202,11 @@ const SetupWizard = () => {
   };
 
   // Handle changes to database configuration
-  const handleDbConfigChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    // Special handling for database type changes
-    if (e.target.name === 'type') {
-      const newType = e.target.value as 'sqlite' | 'mysql' | 'postgres';
-      // Default configuration for SQLite
-      const sqliteConfig: DbConfig = {
-        type: 'sqlite',
-        path: '',
-        host: '',
-        port: 0,
-        user: '',
-        pass: '',
-        name: ''
-      };
-      
-      // Handle switching between database types
-      if (newType === 'sqlite') {
-        // Switch to SQLite with default configuration
-        setDbConfig(sqliteConfig);
-      } else {
-        // Switch to MySQL or PostgreSQL with default ports
-        const defaultPort = newType === 'mysql' ? 3306 : 5432;
-        setDbConfig({
-          ...dbConfig,
-          type: newType,
-          // Set default port only if current port is empty or zero
-          port: dbConfig.port || dbConfig.port === 0 ? dbConfig.port : defaultPort
-        });
-      }
-    } else {
-      // Handle changes to other fields
-      setDbConfig({
-        ...dbConfig,
-        [e.target.name]: e.target.value
-      });
-    }
+  const handleDbPathChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setDbConfig({
+      ...dbConfig,
+      path: e.target.value
+    });
   };
 
   // Handle changes to ZeroTier configuration
@@ -370,95 +304,32 @@ const SetupWizard = () => {
               配置数据库
             </Typography>
             <Typography variant="body1" paragraph>
-              请选择并配置您要使用的数据库。Tairitsu 支持 SQLite、MySQL 和 PostgreSQL。
+              当前一期版本仅正式支持 SQLite 单实例部署。数据库文件将由程序使用默认路径管理。
             </Typography>
+            <Alert severity="info" sx={{ mb: 2 }}>
+              MySQL 与 PostgreSQL 相关抽象暂时保留，但当前不纳入一期可用范围。
+            </Alert>
             <form onSubmit={(e) => e.preventDefault()}>
               <TextField
                 margin="normal"
-                required
                 fullWidth
                 id="type"
                 label="数据库类型"
-                name="type"
-                select
-                SelectProps={{
-                  native: true,
-                }}
                 value={dbConfig.type}
-                onChange={handleDbConfigChange}
+                disabled
+                helperText="一期固定为 SQLite"
+              />
+              <TextField
+                margin="normal"
+                fullWidth
+                id="path"
+                label="SQLite 文件路径"
+                name="path"
+                value={dbConfig.path}
+                onChange={handleDbPathChange}
                 disabled={loading}
-              >
-                <option value="sqlite">SQLite</option>
-                <option value="mysql">MySQL</option>
-                <option value="postgres">PostgreSQL</option>
-              </TextField>
-              
-              {dbConfig.type !== 'sqlite' && (
-                <>
-                  <TextField
-                    margin="normal"
-                    required
-                    fullWidth
-                    id="host"
-                    label="主机地址"
-                    name="host"
-                    autoComplete="hostname"
-                    value={dbConfig.host}
-                    onChange={handleDbConfigChange}
-                    disabled={loading}
-                  />
-                  <TextField
-                    margin="normal"
-                    required
-                    fullWidth
-                    id="port"
-                    label="端口"
-                    name="port"
-                    type="number"
-                    value={dbConfig.port || ''}
-                    onChange={handleDbConfigChange}
-                    disabled={loading}
-                    placeholder={dbConfig.type === 'mysql' ? '3306' : '5432'}
-                  />
-                  <TextField
-                    margin="normal"
-                    required
-                    fullWidth
-                    id="user"
-                    label="用户名"
-                    name="user"
-                    autoComplete="username"
-                    value={dbConfig.user}
-                    onChange={handleDbConfigChange}
-                    disabled={loading}
-                  />
-                  <TextField
-                    margin="normal"
-                    required
-                    fullWidth
-                    id="pass"
-                    label="密码"
-                    name="pass"
-                    type="password"
-                    autoComplete="current-password"
-                    value={dbConfig.pass}
-                    onChange={handleDbConfigChange}
-                    disabled={loading}
-                  />
-                  <TextField
-                    margin="normal"
-                    required
-                    fullWidth
-                    id="name"
-                    label="数据库名称"
-                    name="name"
-                    value={dbConfig.name}
-                    onChange={handleDbConfigChange}
-                    disabled={loading}
-                  />
-                </>
-              )}
-              
+                helperText="留空则使用默认值 data/tairitsu.db"
+              />
               {renderMessages()}
             </form>
           </Paper>

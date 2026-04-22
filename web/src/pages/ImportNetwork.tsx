@@ -17,7 +17,7 @@ import {
   Divider,
   Paper
 } from '@mui/material';
-import { ImportableNetworkSummary } from '../services/api';
+import { ImportableNetworkSummary, networkAPI } from '../services/api';
 import { getErrorMessage } from '../services/errors';
 
 function ImportNetwork() {
@@ -35,18 +35,11 @@ function ImportNetwork() {
     setLoading(true);
     setError('');
     try {
-      const response = await fetch('/api/admin/networks/importable', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token') || sessionStorage.getItem('token')}`
-        }
-      });
-      if (!response.ok) {
-        throw new Error('获取可导入网络列表失败');
-      }
-      const data: ImportableNetworkSummary[] = await response.json() as ImportableNetworkSummary[];
-      setNetworks(data);
+      const response = await networkAPI.getImportableNetworks();
+      setNetworks(Array.isArray(response.data) ? response.data : []);
     } catch (err: unknown) {
       setError(getErrorMessage(err, '获取可导入网络列表失败'));
+      setNetworks([]);
     } finally {
       setLoading(false);
     }
@@ -77,18 +70,7 @@ function ImportNetwork() {
     setImporting(true);
     setError('');
     try {
-      const response = await fetch('/api/admin/networks/import', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token') || sessionStorage.getItem('token')}`
-        },
-        body: JSON.stringify({ network_ids: Array.from(selectedNetworks) })
-      });
-
-      if (!response.ok) {
-        throw new Error('导入网络失败');
-      }
+      await networkAPI.importNetworks(Array.from(selectedNetworks));
 
       window.location.reload();
     } catch (err: unknown) {
@@ -105,7 +87,7 @@ function ImportNetwork() {
     <Box sx={{ p: 3 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Typography variant="h4" component="h1">
-          导入 ZeroTier 网络
+          导入 ZeroTier 网络（实验性）
         </Typography>
         <Chip
           label={`${importableNetworks.length}个可导入`}
@@ -119,6 +101,10 @@ function ImportNetwork() {
           {error}
         </Alert>
       )}
+
+      <Alert severity="warning" sx={{ mb: 3 }}>
+        该能力暂不纳入 SQLite 一期 MVP 验收范围。入口保留仅用于后续整理与实验验证，请勿把它作为关键路径依赖。
+      </Alert>
 
       <Paper elevation={3} sx={{ p: 3, mb: 3 }}>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>

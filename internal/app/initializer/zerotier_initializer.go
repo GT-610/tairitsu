@@ -20,10 +20,9 @@ func NewZeroTierInitializer() *ZeroTierInitializer {
 
 // Initialize 初始化ZeroTier客户端
 func (zi *ZeroTierInitializer) Initialize() (*zerotier.Client, error) {
-	// 获取配置
-	cfg := config.AppConfig
-	if cfg == nil {
-		return nil, fmt.Errorf("配置未加载")
+	cfg, err := config.Current()
+	if err != nil {
+		return nil, err
 	}
 
 	// 只有在系统已初始化的情况下才自动初始化ZeroTier客户端
@@ -72,9 +71,9 @@ func (zi *ZeroTierInitializer) TestConnection() error {
 
 // SaveConfig 保存ZeroTier配置
 func (zi *ZeroTierInitializer) SaveConfig(url, token string) error {
-	cfg := config.AppConfig
-	if cfg == nil {
-		return fmt.Errorf("配置未加载")
+	cfg, err := config.Current()
+	if err != nil {
+		return err
 	}
 
 	// 更新配置

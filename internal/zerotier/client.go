@@ -189,13 +189,13 @@ type Status struct {
 
 // NewClient 创建新的ZeroTier客户端
 func NewClient() (*Client, error) {
-	// 获取配置
-	if config.AppConfig == nil {
-		return nil, fmt.Errorf("配置未初始化")
+	ztConfig, err := config.ZeroTierSettings()
+	if err != nil {
+		return nil, err
 	}
 
 	// 尝试从TokenPath加载令牌到配置中
-	err := config.LoadTokenFromPath(config.AppConfig.ZeroTier.TokenPath)
+	err = config.LoadTokenFromPath(ztConfig.TokenPath)
 
 	// 获取令牌（可能是从文件加载的，也可能是已存在于配置中的）
 	token, err := config.GetZTToken()
@@ -209,7 +209,7 @@ func NewClient() (*Client, error) {
 	}
 
 	// 使用配置中的URL创建客户端
-	baseURL := config.AppConfig.ZeroTier.URL
+	baseURL := ztConfig.URL
 	if baseURL == "" {
 		baseURL = "http://localhost:9993"
 	}

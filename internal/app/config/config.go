@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 
@@ -364,6 +365,37 @@ func IsInitialized() bool {
 		return false
 	}
 	return AppConfig.Initialized
+}
+
+// Current returns the currently loaded config instance.
+func Current() (*Config, error) {
+	if AppConfig == nil {
+		return nil, fmt.Errorf("配置未加载")
+	}
+	return AppConfig, nil
+}
+
+// ServerAddress returns the configured server listen address.
+func ServerAddress() (string, error) {
+	cfg, err := Current()
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf(":%d", cfg.Server.Port), nil
+}
+
+// ZeroTierSettings returns the currently configured ZeroTier settings.
+func ZeroTierSettings() (ZeroTierConfig, error) {
+	cfg, err := Current()
+	if err != nil {
+		return ZeroTierConfig{}, err
+	}
+	return cfg.ZeroTier, nil
+}
+
+// ConfigPath returns the absolute path for the config file location.
+func ConfigPath() (string, error) {
+	return filepath.Abs(configFilePath)
 }
 
 // GetTempSetting Get temporary setting
