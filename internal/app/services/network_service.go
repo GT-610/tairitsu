@@ -12,6 +12,8 @@ import (
 	"go.uber.org/zap"
 )
 
+const networkMemberStatsConcurrency = 4
+
 type NetworkService struct {
 	ztClient *zerotier.Client
 	db       database.DBInterface
@@ -101,9 +103,9 @@ func (s *NetworkService) GetAllNetworks(ownerID string) ([]NetworkSummary, error
 	}
 
 	// Convert to NetworkSummary
-	networkSummaries := make([]NetworkSummary, 0, len(ownedNetworks))
-	for _, net := range ownedNetworks {
-		summary := NetworkSummary{
+	networkSummaries := make([]NetworkSummary, len(ownedNetworks))
+	for i, net := range ownedNetworks {
+		networkSummaries[i] = NetworkSummary{
 			ID:          net.ID,
 			Name:        net.Name,
 			Description: net.Description,
@@ -111,24 +113,40 @@ func (s *NetworkService) GetAllNetworks(ownerID string) ([]NetworkSummary, error
 			CreatedAt:   net.CreatedAt,
 			UpdatedAt:   net.UpdatedAt,
 		}
+	}
 
-		if s.ztClient != nil {
-			members, err := s.ztClient.GetMembers(net.ID)
-			if err != nil {
-				logger.Warn("服务层：获取网络成员统计失败", zap.String("network_id", net.ID), zap.Error(err))
-			} else {
-				summary.MemberCount = len(members)
+	if s.ztClient != nil {
+		var wg sync.WaitGroup
+		limiter := make(chan struct{}, min(networkMemberStatsConcurrency, len(ownedNetworks)))
+
+		for i, net := range ownedNetworks {
+			wg.Add(1)
+			go func(index int, networkID string) {
+				defer wg.Done()
+
+				limiter <- struct{}{}
+				defer func() {
+					<-limiter
+				}()
+
+				members, err := s.ztClient.GetMembers(networkID)
+				if err != nil {
+					logger.Warn("服务层：获取网络成员统计失败", zap.String("network_id", networkID), zap.Error(err))
+					return
+				}
+
+				networkSummaries[index].MemberCount = len(members)
 				for _, member := range members {
 					if member.Config.Authorized {
-						summary.AuthorizedMemberCount++
+						networkSummaries[index].AuthorizedMemberCount++
 					} else {
-						summary.PendingMemberCount++
+						networkSummaries[index].PendingMemberCount++
 					}
 				}
-			}
+			}(i, net.ID)
 		}
 
-		networkSummaries = append(networkSummaries, summary)
+		wg.Wait()
 	}
 
 	return networkSummaries, nil

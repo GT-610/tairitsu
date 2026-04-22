@@ -2,9 +2,11 @@ package services
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -135,6 +137,36 @@ func TestNetworkServiceGetAllNetworksIncludesMemberStats(t *testing.T) {
 	assert.Equal(t, 1, summaries[0].PendingMemberCount)
 }
 
+func TestNetworkServiceGetAllNetworksFetchesMemberStatsConcurrently(t *testing.T) {
+	db := newTestSQLiteDB(t)
+	now := time.Now()
+	for i := 1; i <= 5; i++ {
+		id := fmt.Sprintf("8056c2e21c00000%d", i)
+		require.NoError(t, db.CreateNetwork(&models.Network{
+			ID:          id,
+			Name:        fmt.Sprintf("net-%d", i),
+			Description: "desc",
+			OwnerID:     "user-1",
+			CreatedAt:   now,
+			UpdatedAt:   now,
+		}))
+	}
+
+	var activeRequests atomic.Int32
+	var maxConcurrent atomic.Int32
+	client := newDelayedMemberZTClient(t, 150*time.Millisecond, &activeRequests, &maxConcurrent)
+	service := services.NewNetworkService(client, db)
+
+	start := time.Now()
+	summaries, err := service.GetAllNetworks("user-1")
+	elapsed := time.Since(start)
+
+	require.NoError(t, err)
+	require.Len(t, summaries, 5)
+	assert.GreaterOrEqual(t, maxConcurrent.Load(), int32(2))
+	assert.Less(t, elapsed, 600*time.Millisecond)
+}
+
 func newTestSQLiteDB(t *testing.T) *database.SQLiteDB {
 	t.Helper()
 
@@ -174,6 +206,66 @@ func newTestZTClientWithMembers(t *testing.T, networks map[string]zerotier.Netwo
 			for networkID, memberList := range members {
 				if path == networkID+"/member" {
 					require.NoError(t, json.NewEncoder(w).Encode(memberList))
+					return
+				}
+			}
+
+			network, ok := networks[path]
+			if !ok {
+				http.NotFound(w, r)
+				return
+			}
+			require.NoError(t, json.NewEncoder(w).Encode(network))
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	return &zerotier.Client{
+		BaseURL:    server.URL,
+		Token:      "test-token",
+		HTTPClient: server.Client(),
+	}
+}
+
+func newDelayedMemberZTClient(t *testing.T, delay time.Duration, activeRequests *atomic.Int32, maxConcurrent *atomic.Int32) *zerotier.Client {
+	t.Helper()
+
+	networks := map[string]zerotier.Network{}
+	for i := 1; i <= 5; i++ {
+		id := fmt.Sprintf("8056c2e21c00000%d", i)
+		networks[id] = zerotier.Network{ID: id, Name: fmt.Sprintf("net-%d", i)}
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		switch r.URL.Path {
+		case "/controller/network":
+			ids := make([]string, 0, len(networks))
+			for id := range networks {
+				ids = append(ids, id)
+			}
+			require.NoError(t, json.NewEncoder(w).Encode(ids))
+		default:
+			if len(r.URL.Path) <= len("/controller/network/") {
+				http.NotFound(w, r)
+				return
+			}
+			path := r.URL.Path[len("/controller/network/"):]
+			for networkID := range networks {
+				if path == networkID+"/member" {
+					current := activeRequests.Add(1)
+					for {
+						observed := maxConcurrent.Load()
+						if current <= observed || maxConcurrent.CompareAndSwap(observed, current) {
+							break
+						}
+					}
+					time.Sleep(delay)
+					activeRequests.Add(-1)
+					require.NoError(t, json.NewEncoder(w).Encode([]zerotier.Member{
+						{ID: "member-1", Config: zerotier.MemberConfig{Authorized: true}},
+					}))
 					return
 				}
 			}

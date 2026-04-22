@@ -40,9 +40,12 @@ function ImportNetwork() {
     void fetchImportableNetworks();
   }, []);
 
-  const fetchImportableNetworks = async () => {
+  const fetchImportableNetworks = async (options?: { clearError?: boolean }) => {
+    const { clearError = true } = options ?? {};
     setLoading(true);
-    setError('');
+    if (clearError) {
+      setError('');
+    }
     try {
       const response = await networkAPI.getImportableNetworks();
       setNetworks(Array.isArray(response.data) ? response.data : []);
@@ -100,7 +103,7 @@ function ImportNetwork() {
         setError(response.data.message || '未成功导入任何网络');
       }
 
-      await fetchImportableNetworks();
+      await fetchImportableNetworks({ clearError: importedIds.length > 0 });
     } catch (err: unknown) {
       setError(getErrorMessage(err, '导入网络失败'));
     } finally {
