@@ -1,5 +1,6 @@
-import { Box, Typography, Card, CardContent, Avatar, Grid, Divider }
+import { Box, Typography, Card, CardContent, Avatar, Grid, Divider, Button, Alert }
 from '@mui/material';
+import { Link } from 'react-router-dom';
 import { User } from '../services/api';
 
 // Profile组件的props类型
@@ -23,6 +24,10 @@ function Profile({ user }: ProfileProps) {
       <Typography variant="h4" component="h1" gutterBottom>
         个人信息
       </Typography>
+
+      <Alert severity="info" sx={{ mb: 3 }}>
+        一期正式支持的账户相关能力已收敛到个人信息与密码修改。更多冻结中的账户设置请通过“设置”页面查看。
+      </Alert>
       
       <Grid container spacing={3}>
         <Grid size={{ xs: 12, md: 4 }}>
@@ -78,6 +83,12 @@ function Profile({ user }: ProfileProps) {
                     {user.updatedAt ? new Date(user.updatedAt).toLocaleString() : '未知'}
                   </Typography>
                 </Box>
+              </Box>
+
+              <Box sx={{ mt: 4 }}>
+                <Button component={Link} to="/settings" variant="outlined">
+                  打开账户设置与修改密码
+                </Button>
               </Box>
             </CardContent>
           </Card>
