@@ -83,64 +83,43 @@ func SetupRoutes(router *fiber.App, ztClient *zerotier.Client, jwtSecret string,
 			auth.Post("/login", middleware.InitializedOnlyWithState(stateService), authHandler.Login)
 		}
 
-		setup := api.Group("/")
-		setup.Use(middleware.SetupOnlyWithState(stateService))
-		{
-			setup.Post("/system/database", systemHandler.ConfigureDatabase)
-			setup.Get("/system/zerotier/test", systemHandler.TestZeroTierConnection)
-			setup.Post("/system/zerotier/config", systemHandler.SaveZeroTierConfig)
-			setup.Post("/system/zerotier/init", systemHandler.InitZeroTierClient)
-			setup.Post("/system/initialized", systemHandler.SetInitialized)
-			setup.Post("/system/admin/init", systemHandler.InitializeAdminCreation)
-			setup.Post("/system/reload", systemHandler.ReloadRoutes)
-		}
+		setupOnly := middleware.SetupOnlyWithState(stateService)
+		runtimeOnly := middleware.InitializedOnlyWithState(stateService)
+		adminOnly := middleware.AdminRequired()
 
-		authenticated := api.Group("/")
-		authenticated.Use(middleware.InitializedOnlyWithState(stateService))
-		authenticated.Use(authMiddleware)
-		{
-			authenticated.Get("/profile", authHandler.GetProfile)
-			authenticated.Post("/auth/update-password", authHandler.ChangePassword)
-			authenticated.Put("/profile/password", authHandler.ChangePassword)
+		api.Post("/system/database", setupOnly, systemHandler.ConfigureDatabase)
+		api.Get("/system/zerotier/test", setupOnly, systemHandler.TestZeroTierConnection)
+		api.Post("/system/zerotier/config", setupOnly, systemHandler.SaveZeroTierConfig)
+		api.Post("/system/zerotier/init", setupOnly, systemHandler.InitZeroTierClient)
+		api.Post("/system/initialized", setupOnly, systemHandler.SetInitialized)
+		api.Post("/system/admin/init", setupOnly, systemHandler.InitializeAdminCreation)
+		api.Post("/system/reload", setupOnly, systemHandler.ReloadRoutes)
 
-			authenticated.Get("/status", networkHandler.GetStatus)
+		api.Get("/profile", runtimeOnly, authMiddleware, authHandler.GetProfile)
+		api.Post("/auth/update-password", runtimeOnly, authMiddleware, authHandler.ChangePassword)
+		api.Put("/profile/password", runtimeOnly, authMiddleware, authHandler.ChangePassword)
 
-			networks := authenticated.Group("/networks")
-			{
-				networks.Get("", networkHandler.GetNetworks)
-				networks.Post("", networkHandler.CreateNetwork)
-				networks.Get("/:id", networkHandler.GetNetwork)
-				networks.Put("/:id", networkHandler.UpdateNetwork)
-				networks.Put("/:id/metadata", networkHandler.UpdateNetworkMetadata)
-				networks.Delete("/:id", networkHandler.DeleteNetwork)
+		api.Get("/status", runtimeOnly, authMiddleware, networkHandler.GetStatus)
 
-				networks.Get("/:id/members", memberHandler.GetMembers)
-				networks.Get("/:id/members/:memberId", memberHandler.GetMember)
-				networks.Put("/:id/members/:memberId", memberHandler.UpdateMember)
-				networks.Delete("/:id/members/:memberId", memberHandler.DeleteMember)
-			}
-		}
+		api.Get("/networks", runtimeOnly, authMiddleware, networkHandler.GetNetworks)
+		api.Post("/networks", runtimeOnly, authMiddleware, networkHandler.CreateNetwork)
+		api.Get("/networks/:id", runtimeOnly, authMiddleware, networkHandler.GetNetwork)
+		api.Put("/networks/:id", runtimeOnly, authMiddleware, networkHandler.UpdateNetwork)
+		api.Put("/networks/:id/metadata", runtimeOnly, authMiddleware, networkHandler.UpdateNetworkMetadata)
+		api.Delete("/networks/:id", runtimeOnly, authMiddleware, networkHandler.DeleteNetwork)
+
+		api.Get("/networks/:id/members", runtimeOnly, authMiddleware, memberHandler.GetMembers)
+		api.Get("/networks/:id/members/:memberId", runtimeOnly, authMiddleware, memberHandler.GetMember)
+		api.Put("/networks/:id/members/:memberId", runtimeOnly, authMiddleware, memberHandler.UpdateMember)
+		api.Delete("/networks/:id/members/:memberId", runtimeOnly, authMiddleware, memberHandler.DeleteMember)
 
 		// Admin-only routes
-		admin := api.Group("/")
-		admin.Use(middleware.InitializedOnlyWithState(stateService))
-		admin.Use(authMiddleware)
-		admin.Use(middleware.AdminRequired())
-		{
-			// System statistics
-			admin.Get("/system/stats", systemHandler.GetSystemStats) // Get system resource statistics
-
-			// User management
-			admin.Get("/users", userHandler.GetAllUsers)                 // Get all users
-			admin.Put("/users/:userId/role", userHandler.UpdateUserRole) // Update user role
-
-			// Network import (admin only)
-			admin.Get("/admin/networks/importable", networkHandler.GetImportableNetworks) // Get list of importable networks
-			admin.Post("/admin/networks/import", networkHandler.ImportNetworks)           // Import specified networks
-
-			// Planet generation (admin only)
-			admin.Post("/admin/planet/generate", handlers.GeneratePlanetHandler)  // Generate custom planet file
-			admin.Post("/admin/planet/keys", handlers.GenerateSigningKeysHandler) // Generate signing keys
-		}
+		api.Get("/system/stats", runtimeOnly, authMiddleware, adminOnly, systemHandler.GetSystemStats)
+		api.Get("/users", runtimeOnly, authMiddleware, adminOnly, userHandler.GetAllUsers)
+		api.Put("/users/:userId/role", runtimeOnly, authMiddleware, adminOnly, userHandler.UpdateUserRole)
+		api.Get("/admin/networks/importable", runtimeOnly, authMiddleware, adminOnly, networkHandler.GetImportableNetworks)
+		api.Post("/admin/networks/import", runtimeOnly, authMiddleware, adminOnly, networkHandler.ImportNetworks)
+		api.Post("/admin/planet/generate", runtimeOnly, authMiddleware, adminOnly, handlers.GeneratePlanetHandler)
+		api.Post("/admin/planet/keys", runtimeOnly, authMiddleware, adminOnly, handlers.GenerateSigningKeysHandler)
 	}
 }
