@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Box, Typography, Paper, CircularProgress, Alert, 
   Chip, LinearProgress, Button, Stack} from '@mui/material';
 import RefreshIcon from '@mui/icons-material/Refresh';
-import { statusAPI, systemAPI, SystemStatus } from '../services/api';
+import { networkAPI, statusAPI, systemAPI, SystemStatus, type NetworkSummary } from '../services/api';
 import { useAuth } from '../services/auth';
 
 
@@ -18,11 +18,25 @@ interface ExtendedSystemStats {
   kernelVersion?: string;
 }
 
+interface OverviewStats {
+  networkCount: number;
+  memberCount: number;
+  authorizedMemberCount: number;
+  pendingMemberCount: number;
+}
+
 function Dashboard() {
   const [status, setStatus] = useState<SystemStatus | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string>('');
   const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
+  const [overviewStats, setOverviewStats] = useState<OverviewStats>({
+    networkCount: 0,
+    memberCount: 0,
+    authorizedMemberCount: 0,
+    pendingMemberCount: 0,
+  });
+  const [overviewError, setOverviewError] = useState<string>('');
   // 系统统计信息状态
   const [systemStats, setSystemStats] = useState<ExtendedSystemStats>({
     cpuUsage: null,
@@ -38,6 +52,20 @@ function Dashboard() {
   // 信息提示状态
   const [infoMessage] = useState<string>('');
 
+  const buildOverviewStats = (networks: NetworkSummary[]): OverviewStats => {
+    return networks.reduce<OverviewStats>((summary, network) => ({
+      networkCount: summary.networkCount + 1,
+      memberCount: summary.memberCount + (network.member_count || 0),
+      authorizedMemberCount: summary.authorizedMemberCount + (network.authorized_member_count || 0),
+      pendingMemberCount: summary.pendingMemberCount + (network.pending_member_count || 0),
+    }), {
+      networkCount: 0,
+      memberCount: 0,
+      authorizedMemberCount: 0,
+      pendingMemberCount: 0,
+    });
+  };
+
   const fetchSystemStatus = async () => {
     setLoading(true);
     setError('');
@@ -49,6 +77,18 @@ function Dashboard() {
       setError('获取数据失败，请稍后重试');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchOverviewStats = async () => {
+    try {
+      setOverviewError('');
+      const response = await networkAPI.getAllNetworks();
+      const networks = Array.isArray(response.data) ? response.data : [];
+      setOverviewStats(buildOverviewStats(networks));
+      setLastUpdatedAt(new Date());
+    } catch {
+      setOverviewError('无法获取网络总览统计信息');
     }
   };
 
@@ -75,6 +115,7 @@ function Dashboard() {
 
   useEffect(() => {
     void fetchSystemStatus();
+    void fetchOverviewStats();
   }, []);
 
   // 定期获取系统统计信息和系统信息（仅管理员）
@@ -102,6 +143,7 @@ function Dashboard() {
           startIcon={<RefreshIcon />}
           onClick={() => {
             void fetchSystemStatus();
+            void fetchOverviewStats();
             if (isAdmin) {
               void fetchSystemStats();
             }
@@ -157,6 +199,51 @@ function Dashboard() {
               </Box>
             </Stack>
           </Alert>
+
+          <Paper elevation={3} sx={{ p: 3, mb: 4 }}>
+            <Typography variant="h6" component="h3" gutterBottom>
+              控制器总览
+            </Typography>
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(4, 1fr)' }, gap: 3 }}>
+              <Box>
+                <Typography variant="body2" color="text.secondary">
+                  网络总数
+                </Typography>
+                <Typography variant="h4">
+                  {overviewStats.networkCount}
+                </Typography>
+              </Box>
+              <Box>
+                <Typography variant="body2" color="text.secondary">
+                  成员总数
+                </Typography>
+                <Typography variant="h4">
+                  {overviewStats.memberCount}
+                </Typography>
+              </Box>
+              <Box>
+                <Typography variant="body2" color="text.secondary">
+                  已授权成员
+                </Typography>
+                <Typography variant="h4">
+                  {overviewStats.authorizedMemberCount}
+                </Typography>
+              </Box>
+              <Box>
+                <Typography variant="body2" color="text.secondary">
+                  待授权成员
+                </Typography>
+                <Typography variant="h4">
+                  {overviewStats.pendingMemberCount}
+                </Typography>
+              </Box>
+            </Box>
+            {overviewError && (
+              <Alert severity="info" sx={{ mt: 3 }}>
+                {overviewError}
+              </Alert>
+            )}
+          </Paper>
 
           {/* 系统健康监控 */}
           <Paper elevation={3} sx={{ p: 3, mb: 4 }}>
