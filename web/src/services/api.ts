@@ -90,16 +90,29 @@ export interface IpAssignmentPool {
 
 export interface Member {
   id: string;
-  networkId: string;
-  nodeId: string;
+  networkId?: string;
+  nodeId?: string;
   name?: string;
   description?: string;
-  authorized: boolean;
-  activeBridge: boolean;
-  ipAssignments: string[];
-  lastSeen: string;
-  createdAt: string;
-  updatedAt: string;
+  authorized?: boolean;
+  activeBridge?: boolean;
+  ipAssignments?: string[];
+  lastSeen?: string | number;
+  createdAt?: string | number;
+  updatedAt?: string | number;
+  clientVersion?: string;
+  online?: boolean;
+  address?: string;
+  config?: {
+    authorized?: boolean;
+    activeBridge?: boolean;
+    ipAssignments?: string[];
+    noAutoAssignIps?: boolean;
+  };
+  noAutoAssignIps?: boolean;
+  vMajor?: number;
+  vMinor?: number;
+  vRev?: number;
 }
 
 export interface ImportableNetworkSummary {
@@ -270,7 +283,7 @@ export const memberAPI = {
   // Get a single member
   getMember: (networkId: string, memberId: string) => api.get<Member>(`/networks/${networkId}/members/${memberId}`),
   // Update a member
-  updateMember: (networkId: string, memberId: string, data: { authorized?: boolean; name?: string; description?: string }) => api.put<Member>(`/networks/${networkId}/members/${memberId}`, data),
+  updateMember: (networkId: string, memberId: string, data: { authorized?: boolean; name?: string; activeBridge?: boolean; noAutoAssignIps?: boolean; ipAssignments?: string[] }) => api.put<Member>(`/networks/${networkId}/members/${memberId}`, data),
   // Delete a member
   deleteMember: (networkId: string, memberId: string) => api.delete<void>(`/networks/${networkId}/members/${memberId}`)
 }

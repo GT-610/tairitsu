@@ -71,7 +71,7 @@ func (h *MemberHandler) UpdateMember(c fiber.Ctx) error {
 	networkID := c.Params("networkId")
 	memberID := c.Params("memberId")
 
-	var req zerotier.Member
+	var req zerotier.MemberUpdateRequest
 	if err := c.Bind().Body(&req); err != nil {
 		logger.Error("请求参数绑定失败", zap.String("network_id", networkID), zap.String("member_id", memberID), zap.Error(err))
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})

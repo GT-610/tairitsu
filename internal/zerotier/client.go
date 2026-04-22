@@ -159,16 +159,126 @@ type AssignmentMode struct {
 
 // Member 网络成员
 type Member struct {
-	ID            string       `json:"id"`
-	Address       string       `json:"address"`
-	Config        MemberConfig `json:"config"`
-	Identity      string       `json:"identity"`
-	Name          string       `json:"name"`
-	Description   string       `json:"description"`
-	ClientVersion string       `json:"clientVersion"`
-	Online        bool         `json:"online"`
-	LastSeen      int64        `json:"lastOnline"`
-	CreationTime  int64        `json:"creationTime"`
+	ID              string       `json:"id"`
+	Address         string       `json:"address"`
+	Config          MemberConfig `json:"config"`
+	Authorized      bool         `json:"authorized,omitempty"`
+	ActiveBridge    bool         `json:"activeBridge,omitempty"`
+	IPAssignments   []string     `json:"ipAssignments,omitempty"`
+	Tags            []Tag        `json:"tags,omitempty"`
+	Capabilities    []int        `json:"capabilities,omitempty"`
+	NoAutoAssignIPs bool         `json:"noAutoAssignIps,omitempty"`
+	Identity        string       `json:"identity"`
+	Name            string       `json:"name"`
+	Description     string       `json:"description"`
+	ClientVersion   string       `json:"clientVersion,omitempty"`
+	Online          bool         `json:"online,omitempty"`
+	LastSeen        int64        `json:"lastOnline,omitempty"`
+	CreationTime    int64        `json:"creationTime,omitempty"`
+	VMajor          int          `json:"vMajor,omitempty"`
+	VMinor          int          `json:"vMinor,omitempty"`
+	VRev            int          `json:"vRev,omitempty"`
+}
+
+type memberAlias struct {
+	ID              string       `json:"id"`
+	Address         string       `json:"address"`
+	Config          MemberConfig `json:"config"`
+	Authorized      *bool        `json:"authorized"`
+	ActiveBridge    *bool        `json:"activeBridge"`
+	IPAssignments   []string     `json:"ipAssignments"`
+	Tags            []Tag        `json:"tags"`
+	Capabilities    []int        `json:"capabilities"`
+	NoAutoAssignIPs *bool        `json:"noAutoAssignIps"`
+	Identity        string       `json:"identity"`
+	Name            string       `json:"name"`
+	Description     string       `json:"description"`
+	ClientVersion   string       `json:"clientVersion"`
+	Online          bool         `json:"online"`
+	LastSeen        int64        `json:"lastOnline"`
+	CreationTime    int64        `json:"creationTime"`
+	VMajor          int          `json:"vMajor"`
+	VMinor          int          `json:"vMinor"`
+	VRev            int          `json:"vRev"`
+}
+
+func (m *Member) UnmarshalJSON(data []byte) error {
+	var raw memberAlias
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return fmt.Errorf("解析成员JSON失败: %w", err)
+	}
+
+	m.ID = raw.ID
+	m.Address = raw.Address
+	m.Identity = raw.Identity
+	m.Name = raw.Name
+	m.Description = raw.Description
+	m.Online = raw.Online
+	m.LastSeen = raw.LastSeen
+	m.CreationTime = raw.CreationTime
+	m.VMajor = raw.VMajor
+	m.VMinor = raw.VMinor
+	m.VRev = raw.VRev
+
+	m.Config = raw.Config
+
+	if raw.Authorized != nil {
+		m.Authorized = *raw.Authorized
+		m.Config.Authorized = *raw.Authorized
+	} else {
+		m.Authorized = raw.Config.Authorized
+	}
+
+	if raw.ActiveBridge != nil {
+		m.ActiveBridge = *raw.ActiveBridge
+		m.Config.ActiveBridge = *raw.ActiveBridge
+	} else {
+		m.ActiveBridge = raw.Config.ActiveBridge
+	}
+
+	if raw.IPAssignments != nil {
+		m.IPAssignments = raw.IPAssignments
+		m.Config.IPAssignments = raw.IPAssignments
+	} else {
+		m.IPAssignments = raw.Config.IPAssignments
+	}
+
+	if raw.Tags != nil {
+		m.Tags = raw.Tags
+		m.Config.Tags = raw.Tags
+	} else {
+		m.Tags = raw.Config.Tags
+	}
+
+	if raw.Capabilities != nil {
+		m.Capabilities = raw.Capabilities
+		m.Config.Capabilities = raw.Capabilities
+	} else {
+		m.Capabilities = raw.Config.Capabilities
+	}
+
+	if raw.NoAutoAssignIPs != nil {
+		m.NoAutoAssignIPs = *raw.NoAutoAssignIPs
+		m.Config.NoAutoAssignIPs = *raw.NoAutoAssignIPs
+	} else {
+		m.NoAutoAssignIPs = raw.Config.NoAutoAssignIPs
+	}
+
+	if raw.ClientVersion != "" {
+		m.ClientVersion = raw.ClientVersion
+	} else if raw.VMajor >= 0 && raw.VMinor >= 0 && raw.VRev >= 0 {
+		m.ClientVersion = fmt.Sprintf("%d.%d.%d", raw.VMajor, raw.VMinor, raw.VRev)
+	}
+
+	return nil
+}
+
+type MemberUpdateRequest struct {
+	Name            string   `json:"name,omitempty"`
+	Authorized      *bool    `json:"authorized,omitempty"`
+	ActiveBridge    *bool    `json:"activeBridge,omitempty"`
+	IPAssignments   []string `json:"ipAssignments,omitempty"`
+	NoAutoAssignIPs *bool    `json:"noAutoAssignIps,omitempty"`
 }
 
 // MemberConfig 成员配置
@@ -419,7 +529,32 @@ func (c *Client) GetMembers(networkID string) ([]Member, error) {
 		return nil, err
 	}
 
-	return parseMemberList(respBody)
+	members, err := parseMemberList(respBody)
+	if err == nil {
+		return members, nil
+	}
+
+	memberIDs, indexErr := parseMemberIndexList(respBody)
+	if indexErr != nil {
+		return nil, err
+	}
+
+	members = make([]Member, 0, len(memberIDs))
+	for _, memberID := range memberIDs {
+		member, detailErr := c.GetMember(networkID, memberID)
+		if detailErr != nil {
+			return nil, fmt.Errorf("获取成员 %s 详情失败: %w", memberID, detailErr)
+		}
+		if member != nil {
+			members = append(members, *member)
+		}
+	}
+
+	sort.Slice(members, func(i, j int) bool {
+		return members[i].ID < members[j].ID
+	})
+
+	return members, nil
 }
 
 // GetMember 获取单个成员详情
@@ -439,7 +574,7 @@ func (c *Client) GetMember(networkID, memberID string) (*Member, error) {
 }
 
 // UpdateMember 更新成员配置
-func (c *Client) UpdateMember(networkID, memberID string, member *Member) (*Member, error) {
+func (c *Client) UpdateMember(networkID, memberID string, member *MemberUpdateRequest) (*Member, error) {
 	endpoint := fmt.Sprintf("/controller/network/%s/member/%s", networkID, memberID)
 	respBody, err := c.doRequest("POST", endpoint, member)
 	if err != nil {
@@ -485,6 +620,21 @@ func parseMemberList(respBody []byte) ([]Member, error) {
 	})
 
 	return members, nil
+}
+
+func parseMemberIndexList(respBody []byte) ([]string, error) {
+	var memberIndex map[string]int
+	if err := json.Unmarshal(respBody, &memberIndex); err != nil {
+		return nil, fmt.Errorf("解析成员索引失败: %w; 响应预览: %s", err, responsePreview(respBody))
+	}
+
+	memberIDs := make([]string, 0, len(memberIndex))
+	for memberID := range memberIndex {
+		memberIDs = append(memberIDs, memberID)
+	}
+	sort.Strings(memberIDs)
+
+	return memberIDs, nil
 }
 
 func responsePreview(respBody []byte) string {

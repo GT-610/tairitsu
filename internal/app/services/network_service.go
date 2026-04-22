@@ -80,7 +80,8 @@ type NetworkSummary struct {
 // NetworkDetail 网络详情（包含控制器信息和数据库描述）
 type NetworkDetail struct {
 	*zerotier.Network
-	DBDescription string `json:"db_description"`
+	DBDescription string            `json:"db_description"`
+	Members       []zerotier.Member `json:"members"`
 }
 
 // GetAllNetworks retrieves all networks owned by a specific user from database
@@ -176,15 +177,23 @@ func (s *NetworkService) GetNetworkByID(id string, userID string) (*NetworkDetai
 		return nil, ErrNetworkNotFound
 	}
 
+	members, err := s.ztClient.GetMembers(id)
+	if err != nil {
+		logger.Error("服务层：获取网络成员失败", zap.String("network_id", id), zap.Error(err))
+		return nil, err
+	}
+
 	logger.Info("服务层：获取网络详情成功",
 		zap.String("network_id", id),
 		zap.Any("ipAssignmentPools", network.Config.IpAssignmentPools),
-		zap.String("db_description", ownedNetwork.Description))
+		zap.String("db_description", ownedNetwork.Description),
+		zap.Int("member_count", len(members)))
 
 	// Return combined network detail with database description
 	return &NetworkDetail{
 		Network:       network,
 		DBDescription: ownedNetwork.Description,
+		Members:       members,
 	}, nil
 }
 
@@ -406,7 +415,7 @@ func (s *NetworkService) GetNetworkMember(networkID, memberID string, userID str
 }
 
 // UpdateNetworkMember 更新网络成员 with ownership check
-func (s *NetworkService) UpdateNetworkMember(networkID, memberID string, member *zerotier.Member, userID string) (*zerotier.Member, error) {
+func (s *NetworkService) UpdateNetworkMember(networkID, memberID string, member *zerotier.MemberUpdateRequest, userID string) (*zerotier.Member, error) {
 	if s.ztClient == nil {
 		logger.Warn("服务层：ZeroTier客户端未初始化")
 		return nil, fmt.Errorf("ZeroTier客户端未初始化")

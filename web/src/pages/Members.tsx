@@ -60,13 +60,17 @@ interface ConfirmDialogState {
 }
 
 function formatMember(member: ApiMember): Member {
+  const authorized = member.config?.authorized ?? member.authorized ?? false;
+  const activeBridge = member.config?.activeBridge ?? member.activeBridge ?? false;
+  const ipAssignments = member.config?.ipAssignments ?? member.ipAssignments ?? [];
+  const memberId = member.id || member.nodeId || '';
   return {
-    id: member.id || member.nodeId,
-    name: member.name || member.nodeId,
-    nodeId: member.nodeId || member.id,
-    authorized: member.authorized || false,
-    activeBridge: member.activeBridge || false,
-    ipAssignments: member.ipAssignments || [],
+    id: memberId,
+    name: member.name || member.nodeId || member.id || '未命名设备',
+    nodeId: member.nodeId || member.id || '',
+    authorized,
+    activeBridge,
+    ipAssignments,
     lastSeen: member.lastSeen ? new Date(member.lastSeen).toLocaleString() : '未知',
     createdAt: member.createdAt ? new Date(member.createdAt).toLocaleDateString() : '未知'
   };
@@ -261,12 +265,12 @@ function Members() {
       const response = await memberAPI.getMembers(networkId);
       // 格式化从API获取的数据以匹配前端组件的期望格式
       const formattedMembers: Member[] = response.data.map((member: ApiMember) => ({
-        id: member.id || member.nodeId,
-        name: member.name || member.nodeId,
-        nodeId: member.nodeId || member.id,
-        authorized: member.authorized || false,
-        activeBridge: member.activeBridge || false,
-        ipAssignments: member.ipAssignments || [],
+        id: member.id || member.nodeId || '',
+        name: member.name || member.nodeId || member.id || '未命名设备',
+        nodeId: member.nodeId || member.id || '',
+        authorized: member.config?.authorized ?? member.authorized ?? false,
+        activeBridge: member.config?.activeBridge ?? member.activeBridge ?? false,
+        ipAssignments: member.config?.ipAssignments ?? member.ipAssignments ?? [],
         lastSeen: member.lastSeen ? new Date(member.lastSeen).toLocaleString() : '未知',
         createdAt: member.createdAt ? new Date(member.createdAt).toLocaleDateString() : '未知'
       }));

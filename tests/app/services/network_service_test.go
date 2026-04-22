@@ -212,6 +212,42 @@ func TestNetworkServiceGetAllNetworksIncludesMemberStats(t *testing.T) {
 	assert.Equal(t, 1, summaries[0].PendingMemberCount)
 }
 
+func TestNetworkServiceGetNetworkByIDIncludesMembers(t *testing.T) {
+	db := newTestSQLiteDB(t)
+	now := time.Now()
+	require.NoError(t, db.CreateNetwork(&models.Network{
+		ID:          "f76fd3000b86b177",
+		Name:        "detail-network",
+		Description: "detail-network-desc",
+		OwnerID:     "user-1",
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}))
+
+	client := newTestZTClientWithMemberIndexResponse(t,
+		map[string]zerotier.Network{
+			"f76fd3000b86b177": {ID: "f76fd3000b86b177", Name: "detail-network"},
+		},
+		map[string]map[string]int{
+			"f76fd3000b86b177": {
+				"8789af2692": 1,
+			},
+		},
+		map[string]zerotier.Member{
+			"8789af2692": {ID: "8789af2692", Name: "pending-node", Config: zerotier.MemberConfig{Authorized: false}},
+		},
+	)
+
+	service := services.NewNetworkService(client, db)
+
+	detail, err := service.GetNetworkByID("f76fd3000b86b177", "user-1")
+	require.NoError(t, err)
+	require.NotNil(t, detail)
+	require.Len(t, detail.Members, 1)
+	assert.Equal(t, "8789af2692", detail.Members[0].ID)
+	assert.False(t, detail.Members[0].Config.Authorized)
+}
+
 func TestNetworkServiceGetAllNetworksIncludesMemberStatsFromObjectResponse(t *testing.T) {
 	db := newTestSQLiteDB(t)
 	now := time.Now()
@@ -266,6 +302,44 @@ func TestZTClientGetMembersReturnsPreviewOnUnexpectedShape(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "响应预览")
 	assert.Contains(t, err.Error(), "\"unexpected\"")
+}
+
+func TestNetworkServiceGetAllNetworksIncludesMemberStatsFromIndexResponse(t *testing.T) {
+	db := newTestSQLiteDB(t)
+	now := time.Now()
+	require.NoError(t, db.CreateNetwork(&models.Network{
+		ID:          "f76fd3000b86b177",
+		Name:        "index-members",
+		Description: "index-members-desc",
+		OwnerID:     "user-1",
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}))
+
+	client := newTestZTClientWithMemberIndexResponse(t,
+		map[string]zerotier.Network{
+			"f76fd3000b86b177": {ID: "f76fd3000b86b177", Name: "index-members"},
+		},
+		map[string]map[string]int{
+			"f76fd3000b86b177": {
+				"8789af2692": 1,
+				"1234567890": 2,
+			},
+		},
+		map[string]zerotier.Member{
+			"8789af2692": {ID: "8789af2692", Config: zerotier.MemberConfig{Authorized: false}},
+			"1234567890": {ID: "1234567890", Config: zerotier.MemberConfig{Authorized: true}},
+		},
+	)
+
+	service := services.NewNetworkService(client, db)
+
+	summaries, err := service.GetAllNetworks("user-1")
+	require.NoError(t, err)
+	require.Len(t, summaries, 1)
+	assert.Equal(t, 2, summaries[0].MemberCount)
+	assert.Equal(t, 1, summaries[0].AuthorizedMemberCount)
+	assert.Equal(t, 1, summaries[0].PendingMemberCount)
 }
 
 func TestNetworkServiceGetAllNetworksFetchesMemberStatsConcurrently(t *testing.T) {
@@ -441,6 +515,59 @@ func newTestZTClientWithMemberObjectResponse(t *testing.T, networks map[string]z
 				if path == networkID+"/member" {
 					require.NoError(t, json.NewEncoder(w).Encode(memberMap))
 					return
+				}
+			}
+
+			network, ok := networks[path]
+			if !ok {
+				http.NotFound(w, r)
+				return
+			}
+			require.NoError(t, json.NewEncoder(w).Encode(network))
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	return &zerotier.Client{
+		BaseURL:    server.URL,
+		Token:      "test-token",
+		HTTPClient: server.Client(),
+	}
+}
+
+func newTestZTClientWithMemberIndexResponse(t *testing.T, networks map[string]zerotier.Network, memberIndexes map[string]map[string]int, memberDetails map[string]zerotier.Member) *zerotier.Client {
+	t.Helper()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		switch r.URL.Path {
+		case "/controller/network":
+			ids := make([]string, 0, len(networks))
+			for id := range networks {
+				ids = append(ids, id)
+			}
+			require.NoError(t, json.NewEncoder(w).Encode(ids))
+		default:
+			if len(r.URL.Path) <= len("/controller/network/") {
+				http.NotFound(w, r)
+				return
+			}
+			path := r.URL.Path[len("/controller/network/"):]
+
+			for networkID, memberIndex := range memberIndexes {
+				if path == networkID+"/member" {
+					require.NoError(t, json.NewEncoder(w).Encode(memberIndex))
+					return
+				}
+			}
+
+			for memberID, member := range memberDetails {
+				for networkID := range memberIndexes {
+					if path == networkID+"/member/"+memberID {
+						require.NoError(t, json.NewEncoder(w).Encode(member))
+						return
+					}
 				}
 			}
 
