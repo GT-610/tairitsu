@@ -61,12 +61,10 @@ func (si *ServerInitializer) StartServer() error {
 		return fmt.Errorf("路由器未初始化")
 	}
 
-	cfg := config.AppConfig
-	if cfg == nil {
-		return fmt.Errorf("配置未加载")
+	serverAddr, err := config.ServerAddress()
+	if err != nil {
+		return err
 	}
-
-	serverAddr := fmt.Sprintf(":%d", cfg.Server.Port)
 	logger.Info("启动HTTP服务器", zap.String("address", serverAddr))
 
 	if err := si.router.Listen(serverAddr); err != nil {
