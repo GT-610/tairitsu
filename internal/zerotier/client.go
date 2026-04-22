@@ -297,7 +297,7 @@ func (m *Member) UnmarshalJSON(data []byte) error {
 
 	if raw.ClientVersion != "" {
 		m.ClientVersion = raw.ClientVersion
-	} else if raw.VMajor >= 0 && raw.VMinor >= 0 && raw.VRev >= 0 {
+	} else if raw.VMajor > 0 || raw.VMinor > 0 || raw.VRev > 0 {
 		m.ClientVersion = fmt.Sprintf("%d.%d.%d", raw.VMajor, raw.VMinor, raw.VRev)
 	}
 
