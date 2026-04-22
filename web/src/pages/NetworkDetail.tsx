@@ -167,6 +167,12 @@ function getPrimaryIPv6Subnet(routes: Route[]): string {
   return primaryRoute?.target ?? '';
 }
 
+function getManagedRoutes(routes: Route[]): Route[] {
+  const primaryIPv4 = getPrimaryIPv4Subnet(routes);
+  const primaryIPv6 = getPrimaryIPv6Subnet(routes);
+  return routes.filter((route) => route.target !== primaryIPv4 && route.target !== primaryIPv6);
+}
+
 function buildAutoAssignPoolFromSubnet(subnet: string): IpAssignmentPool | null {
   const parsed = parseIPv4CIDR(subnet);
   const prefix = getCIDRPrefix(subnet);
@@ -413,6 +419,34 @@ function getIPv6ConfigurationIssues(ipv6Subnet: string, customAssign: boolean, i
   return [...rangeIssues, ...getIPv6PoolOverlapIssues(ipv6Pools)];
 }
 
+function normalizeRouteTarget(target: string): string | null {
+  return normalizeIPv4CIDR(target) ?? normalizeIPv6CIDR(target);
+}
+
+function isValidRouteVia(via: string): boolean {
+  const trimmed = via.trim();
+  if (trimmed === '') return true;
+  return parseIPv4Address(trimmed) !== null || parseIPv6Address(trimmed) !== null;
+}
+
+function getManagedRouteIssue(route: Route): string | null {
+  if (!normalizeRouteTarget(route.target)) {
+    return '目标网络必须是有效的 IPv4 或 IPv6 CIDR。';
+  }
+  if (!isValidRouteVia(route.via || '')) {
+    return '下一跳必须是有效的 IPv4 或 IPv6 地址。';
+  }
+  return null;
+}
+
+function areRoutesEqual(a: Route[], b: Route[]): boolean {
+  if (a.length !== b.length) return false;
+  return a.every((route, index) =>
+    route.target === b[index]?.target &&
+    (route.via || '') === (b[index]?.via || '')
+  );
+}
+
 function generateRandomIPv4Subnet(): string {
   return `10.${Math.floor(Math.random() * 256)}.${Math.floor(Math.random() * 256)}.0/24`;
 }
@@ -455,6 +489,8 @@ function NetworkDetail() {
   const [ipv6PoolStartDraft, setIpv6PoolStartDraft] = useState<string>('');
   const [ipv6PoolEndDraft, setIpv6PoolEndDraft] = useState<string>('');
   const [ipv6Pools, setIpv6Pools] = useState<IpAssignmentPool[]>([]);
+  const [managedRoutes, setManagedRoutes] = useState<Route[]>([]);
+  const [managedRouteDraft, setManagedRouteDraft] = useState<Route>({ target: '', via: '' });
   const [multicastLimit, setMulticastLimit] = useState<number>(32);
   const [enableBroadcast, setEnableBroadcast] = useState<boolean>(true);
   const [ipv4Subnet, setIpv4Subnet] = useState<string>('');
@@ -467,6 +503,7 @@ function NetworkDetail() {
   const [basicInfoUnsaved, setBasicInfoUnsaved] = useState<boolean>(false);
   const [ipv4Unsaved, setIpv4Unsaved] = useState<boolean>(false);
   const [ipv6Unsaved, setIpv6Unsaved] = useState<boolean>(false);
+  const [managedRoutesUnsaved, setManagedRoutesUnsaved] = useState<boolean>(false);
   const [multicastUnsaved, setMulticastUnsaved] = useState<boolean>(false);
   const [memberSearchTerm, setMemberSearchTerm] = useState<string>('');
   const [memberMenuAnchor, setMemberMenuAnchor] = useState<null | HTMLElement>(null);
@@ -495,7 +532,8 @@ function NetworkDetail() {
   useEffect(() => {
     if (network) {
       const subnetChanged = ipv4Subnet !== getPrimaryIPv4Subnet(network.config.routes || []);
-      const poolChanged = !areIpPoolsEqual(ipv4Pools, network.config.ipAssignmentPools || []);
+      const currentIPv4Pools = (network.config.ipAssignmentPools || []).filter((pool) => parseIPv4Address(pool.ipRangeStart) !== null);
+      const poolChanged = !areIpPoolsEqual(ipv4Pools, currentIPv4Pools);
       const v4Changed = v4AssignMode !== (network.config.v4AssignMode?.zt ?? false);
       setIpv4Unsaved(subnetChanged || poolChanged || v4Changed);
     }
@@ -519,6 +557,12 @@ function NetworkDetail() {
       setMulticastUnsaved(multicastChanged || broadcastChanged);
     }
   }, [multicastLimit, enableBroadcast, network]);
+
+  useEffect(() => {
+    if (network) {
+      setManagedRoutesUnsaved(!areRoutesEqual(managedRoutes, getManagedRoutes(network.config.routes || [])));
+    }
+  }, [managedRoutes, network]);
 
   const fetchNetworkDetail = async () => {
     setLoading(true);
@@ -552,11 +596,13 @@ function NetworkDetail() {
         setEnableBroadcast(networkData.config.enableBroadcast ?? true);
         const primarySubnet = getPrimaryIPv4Subnet(networkData.config.routes || []);
         setIpv4Subnet(primarySubnet);
-        const loadedPools = networkData.config.ipAssignmentPools || [];
+        const loadedPools = (networkData.config.ipAssignmentPools || []).filter((pool) => parseIPv4Address(pool.ipRangeStart) !== null);
         setIpv4Pools(loadedPools);
         setIpv4PoolStartDraft(loadedPools[0]?.ipRangeStart ?? '');
         setIpv4PoolEndDraft(loadedPools[0]?.ipRangeEnd ?? '');
         setRoutes(networkData.config.routes || []);
+        setManagedRoutes(getManagedRoutes(networkData.config.routes || []));
+        setManagedRouteDraft({ target: '', via: '' });
         setHidePendingBanner(false);
       }
     } catch (err: unknown) {
@@ -849,6 +895,37 @@ function NetworkDetail() {
     setIpv6PoolEndDraft(loadedIPv6Pools[0]?.ipRangeEnd ?? '');
   };
 
+  const handleSaveManagedRoutes = async () => {
+    if (!id) return;
+    setSaving(true);
+    try {
+      const normalizedIPv4Subnet = normalizeIPv4CIDR(ipv4Subnet);
+      const normalizedIPv6Subnet = normalizeIPv6CIDR(ipv6Subnet);
+      const updatedRoutes = [
+        ...(normalizedIPv4Subnet ? [{ target: normalizedIPv4Subnet }] : []),
+        ...(ipv6CustomAssign && normalizedIPv6Subnet ? [{ target: normalizedIPv6Subnet }] : []),
+        ...managedRoutes.map((route) => ({
+          target: normalizeRouteTarget(route.target) as string,
+          via: route.via?.trim() ? route.via.trim() : undefined,
+        })),
+      ];
+
+      await networkAPI.updateNetwork(id, { routes: updatedRoutes });
+      showSnackbar('托管路由保存成功');
+      setTimeout(() => { void fetchNetworkDetail(); }, 1000);
+    } catch (err: unknown) {
+      showSnackbar(getErrorMessage(err, '保存失败'), 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleResetManagedRoutes = () => {
+    if (!network) return;
+    setManagedRoutes(getManagedRoutes(network.config.routes || []));
+    setManagedRouteDraft({ target: '', via: '' });
+  };
+
   const handleSaveMulticast = async () => {
     if (!id) return;
     setSaving(true);
@@ -969,6 +1046,32 @@ function NetworkDetail() {
 
   const handleRemoveIPv6Range = (index: number) => {
     setIpv6Pools((prev) => prev.filter((_, currentIndex) => currentIndex !== index));
+  };
+
+  const handleSetManagedRoute = () => {
+    const nextRoute: Route = {
+      target: managedRouteDraft.target.trim(),
+      via: managedRouteDraft.via?.trim() || undefined,
+    };
+
+    const issue = getManagedRouteIssue(nextRoute);
+    if (issue) {
+      showSnackbar(issue, 'error');
+      return;
+    }
+
+    const normalizedTarget = normalizeRouteTarget(nextRoute.target);
+    if (managedRoutes.some((route) => normalizeRouteTarget(route.target) === normalizedTarget)) {
+      showSnackbar('该托管路由目标已存在', 'info');
+      return;
+    }
+
+    setManagedRoutes((prev) => [...prev, { target: normalizedTarget as string, via: nextRoute.via }]);
+    setManagedRouteDraft({ target: '', via: '' });
+  };
+
+  const handleRemoveManagedRoute = (index: number) => {
+    setManagedRoutes((prev) => prev.filter((_, currentIndex) => currentIndex !== index));
   };
 
   const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
@@ -1548,6 +1651,90 @@ function NetworkDetail() {
                     重置更改
                   </Button>
                   <Button variant="contained" color="primary" onClick={() => { void handleSaveIPv6(); }} disabled={saving || !ipv6Unsaved}>
+                    保存
+                  </Button>
+                </Box>
+              </Paper>
+
+              {/* 托管路由 */}
+              <Paper elevation={3} sx={{ p: 3, mb: 4, border: managedRoutesUnsaved ? '2px solid' : 'none', borderColor: 'warning.main' }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                  <Typography variant="h5">
+                    Managed Routes
+                  </Typography>
+                  {managedRoutesUnsaved && (
+                    <Typography variant="body2" color="warning.main">
+                      未保存
+                    </Typography>
+                  )}
+                </Box>
+
+                <Typography variant="body1" sx={{ mb: 3 }}>
+                  定义该网络还能到达的附加网段。主 IPv4/IPv6 子网由上面的分配区块维护，这里只管理额外的托管路由。
+                </Typography>
+
+                <Grid container spacing={2} sx={{ mb: 2 }}>
+                  <Grid size={{ xs: 12, md: 6 }}>
+                    <TextField
+                      fullWidth
+                      label="目标网络 (CIDR)"
+                      placeholder="例如 10.1.2.0/24 或 fd00:1::/64"
+                      value={managedRouteDraft.target}
+                      onChange={(e) => setManagedRouteDraft((prev) => ({ ...prev, target: e.target.value }))}
+                    />
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 4 }}>
+                    <TextField
+                      fullWidth
+                      label="下一跳地址"
+                      placeholder="可选"
+                      value={managedRouteDraft.via || ''}
+                      onChange={(e) => setManagedRouteDraft((prev) => ({ ...prev, via: e.target.value }))}
+                    />
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 2 }}>
+                    <Button fullWidth variant="outlined" onClick={handleSetManagedRoute} sx={{ height: '100%' }}>
+                      Add Route
+                    </Button>
+                  </Grid>
+                </Grid>
+
+                {managedRoutes.length > 0 ? (
+                  <TableContainer component={Paper} variant="outlined" sx={{ mb: 3 }}>
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow>
+                          <TableCell>Destination (CIDR)</TableCell>
+                          <TableCell>Via</TableCell>
+                          <TableCell align="right">Action</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {managedRoutes.map((route, index) => (
+                          <TableRow key={`${route.target}-${route.via || 'direct'}`}>
+                            <TableCell>{route.target}</TableCell>
+                            <TableCell>{route.via || '-'}</TableCell>
+                            <TableCell align="right">
+                              <Button variant="outlined" color="error" size="small" onClick={() => handleRemoveManagedRoute(index)}>
+                                删除
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                ) : (
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+                    尚未配置额外托管路由。
+                  </Typography>
+                )}
+
+                <Box sx={{ display: 'flex', justifyContent: 'flex-start', gap: 2 }}>
+                  <Button variant="outlined" onClick={handleResetManagedRoutes} disabled={saving || !managedRoutesUnsaved}>
+                    重置更改
+                  </Button>
+                  <Button variant="contained" color="primary" onClick={() => { void handleSaveManagedRoutes(); }} disabled={saving || !managedRoutesUnsaved}>
                     保存
                   </Button>
                 </Box>
