@@ -15,8 +15,12 @@ import {
   Alert,
   CircularProgress,
   Divider,
-  Paper
+  Paper,
+  Stack
 } from '@mui/material';
+import RefreshIcon from '@mui/icons-material/Refresh';
+import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
+import { Link as RouterLink } from 'react-router-dom';
 import { ImportableNetworkSummary, networkAPI } from '../services/api';
 import { getErrorMessage } from '../services/errors';
 
@@ -26,14 +30,22 @@ function ImportNetwork() {
   const [importing, setImporting] = useState(false);
   const [selectedNetworks, setSelectedNetworks] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string>('');
+  const [successMessage, setSuccessMessage] = useState<string>('');
+  const [importResult, setImportResult] = useState<{
+    importedIds: string[];
+    failed: Array<{ network_id: string; reason: string }>;
+  } | null>(null);
 
   useEffect(() => {
     void fetchImportableNetworks();
   }, []);
 
-  const fetchImportableNetworks = async () => {
+  const fetchImportableNetworks = async (options?: { clearError?: boolean }) => {
+    const { clearError = true } = options ?? {};
     setLoading(true);
-    setError('');
+    if (clearError) {
+      setError('');
+    }
     try {
       const response = await networkAPI.getImportableNetworks();
       setNetworks(Array.isArray(response.data) ? response.data : []);
@@ -67,12 +79,31 @@ function ImportNetwork() {
   const handleImport = async () => {
     if (selectedNetworks.size === 0) return;
 
+    const importCount = selectedNetworks.size;
     setImporting(true);
     setError('');
+    setSuccessMessage('');
+    setImportResult(null);
     try {
-      await networkAPI.importNetworks(Array.from(selectedNetworks));
+      const response = await networkAPI.importNetworks(Array.from(selectedNetworks));
+      const importedIds = Array.isArray(response.data.imported_ids) ? response.data.imported_ids : [];
+      const failed = Array.isArray(response.data.failed) ? response.data.failed : [];
 
-      window.location.reload();
+      setSelectedNetworks(new Set());
+      setImportResult({
+        importedIds,
+        failed,
+      });
+
+      if (importedIds.length === importCount && failed.length === 0) {
+        setSuccessMessage(`已成功导入 ${importedIds.length} 个网络，列表已刷新。`);
+      } else if (importedIds.length > 0) {
+        setSuccessMessage(`已导入 ${importedIds.length} 个网络，另有 ${failed.length} 个网络未完成导入。`);
+      } else {
+        setError(response.data.message || '未成功导入任何网络');
+      }
+
+      await fetchImportableNetworks({ clearError: importedIds.length > 0 });
     } catch (err: unknown) {
       setError(getErrorMessage(err, '导入网络失败'));
     } finally {
@@ -87,13 +118,24 @@ function ImportNetwork() {
     <Box sx={{ p: 3 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Typography variant="h4" component="h1">
-          导入 ZeroTier 网络（实验性）
+          导入 ZeroTier 网络
         </Typography>
-        <Chip
-          label={`${importableNetworks.length}个可导入`}
-          color="primary"
-          size="small"
-        />
+        <Stack direction="row" spacing={1} alignItems="center">
+          <Chip
+            label={`${importableNetworks.length}个可导入`}
+            color="primary"
+            size="small"
+          />
+          <Button
+            variant="outlined"
+            size="small"
+            startIcon={<RefreshIcon />}
+            onClick={() => { void fetchImportableNetworks(); }}
+            disabled={loading || importing}
+          >
+            刷新
+          </Button>
+        </Stack>
       </Box>
 
       {error && (
@@ -102,8 +144,47 @@ function ImportNetwork() {
         </Alert>
       )}
 
-      <Alert severity="warning" sx={{ mb: 3 }}>
-        该能力暂不纳入 SQLite 一期 MVP 验收范围。入口保留仅用于后续整理与实验验证，请勿把它作为关键路径依赖。
+      {successMessage && (
+        <Alert
+          severity="success"
+          sx={{ mb: 3 }}
+          icon={<CheckCircleOutlineIcon fontSize="inherit" />}
+          onClose={() => setSuccessMessage('')}
+          action={(
+            <Button component={RouterLink} to="/networks" color="inherit" size="small">
+              查看网络
+            </Button>
+          )}
+        >
+          {successMessage}
+        </Alert>
+      )}
+
+      {importResult && importResult.failed.length > 0 && (
+        <Alert severity={importResult.importedIds.length > 0 ? 'warning' : 'error'} sx={{ mb: 3 }}>
+          <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>
+            导入结果摘要
+          </Typography>
+          <Typography variant="body2" sx={{ mb: 1 }}>
+            成功 {importResult.importedIds.length} 个，失败 {importResult.failed.length} 个。
+          </Typography>
+          <List dense sx={{ py: 0 }}>
+            {importResult.failed.map((item) => (
+              <ListItem key={`${item.network_id}-${item.reason}`} disablePadding sx={{ py: 0.25 }}>
+                <ListItemText
+                  primary={item.network_id}
+                  secondary={item.reason}
+                  primaryTypographyProps={{ variant: 'body2' }}
+                  secondaryTypographyProps={{ variant: 'caption' }}
+                />
+              </ListItem>
+            ))}
+          </List>
+        </Alert>
+      )}
+
+      <Alert severity="info" sx={{ mb: 3 }}>
+        该页面用于把控制器中已存在、但尚未在 Tairitsu 中登记的网络纳入当前管理员账号。导入前请先确认网络归属关系，避免误接管其他已使用中的网络。
       </Alert>
 
       <Paper elevation={3} sx={{ p: 3, mb: 3 }}>
@@ -116,9 +197,18 @@ function ImportNetwork() {
             <CircularProgress />
           </Box>
         ) : networks.length === 0 ? (
-          <Typography sx={{ py: 4, textAlign: 'center', color: 'text.secondary' }}>
-            没有找到可导入的网络。所有网络都已在 Tairitsu 中登记且有所有者。
-          </Typography>
+          <Box sx={{ py: 5, textAlign: 'center' }}>
+            <Typography sx={{ color: 'text.secondary', mb: 2 }}>
+              没有找到可导入的网络。所有网络都已在 Tairitsu 中登记且有所有者。
+            </Typography>
+            <Button
+              variant="outlined"
+              startIcon={<RefreshIcon />}
+              onClick={() => { void fetchImportableNetworks(); }}
+            >
+              重新检查
+            </Button>
+          </Box>
         ) : (
           <>
             {importableNetworks.length > 0 && (
@@ -230,6 +320,9 @@ function ImportNetwork() {
                 ) : (
                   `导入所选网络 (${selectedNetworks.size})`
                 )}
+              </Button>
+              <Button component={RouterLink} to="/networks" variant="outlined">
+                返回网络列表
               </Button>
             </Box>
           </>

@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Box, Typography, Paper, CircularProgress, Alert, 
-  Chip, LinearProgress} from '@mui/material';
-import { statusAPI, systemAPI, SystemStatus } from '../services/api';
-import { getErrorMessage } from '../services/errors';
+  Chip, LinearProgress, Button, Stack} from '@mui/material';
+import RefreshIcon from '@mui/icons-material/Refresh';
+import { networkAPI, statusAPI, systemAPI, SystemStatus, type NetworkSummary } from '../services/api';
 import { useAuth } from '../services/auth';
 
 
@@ -18,10 +18,25 @@ interface ExtendedSystemStats {
   kernelVersion?: string;
 }
 
+interface OverviewStats {
+  networkCount: number;
+  memberCount: number;
+  authorizedMemberCount: number;
+  pendingMemberCount: number;
+}
+
 function Dashboard() {
   const [status, setStatus] = useState<SystemStatus | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string>('');
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
+  const [overviewStats, setOverviewStats] = useState<OverviewStats>({
+    networkCount: 0,
+    memberCount: 0,
+    authorizedMemberCount: 0,
+    pendingMemberCount: 0,
+  });
+  const [overviewError, setOverviewError] = useState<string>('');
   // 系统统计信息状态
   const [systemStats, setSystemStats] = useState<ExtendedSystemStats>({
     cpuUsage: null,
@@ -37,55 +52,75 @@ function Dashboard() {
   // 信息提示状态
   const [infoMessage] = useState<string>('');
 
-  useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      try {
-        // 获取系统状态
-        const statusResponse = await statusAPI.getStatus();
-        setStatus(statusResponse.data);
-        
-        // 获取网络列表 - 暂时不使用
-        // const networksResponse = await networkAPI.getAllNetworks();
-        // setNetworks(networksResponse.data);
-      } catch (err) {
-        setError('获取数据失败，请稍后重试');
-        console.error('Dashboard fetch error:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
+  const buildOverviewStats = (networks: NetworkSummary[]): OverviewStats => {
+    return networks.reduce<OverviewStats>((summary, network) => ({
+      networkCount: summary.networkCount + 1,
+      memberCount: summary.memberCount + (network.member_count || 0),
+      authorizedMemberCount: summary.authorizedMemberCount + (network.authorized_member_count || 0),
+      pendingMemberCount: summary.pendingMemberCount + (network.pending_member_count || 0),
+    }), {
+      networkCount: 0,
+      memberCount: 0,
+      authorizedMemberCount: 0,
+      pendingMemberCount: 0,
+    });
+  };
 
-    void fetchData();
+  const fetchSystemStatus = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const statusResponse = await statusAPI.getStatus();
+      setStatus(statusResponse.data);
+      setLastUpdatedAt(new Date());
+    } catch {
+      setError('获取数据失败，请稍后重试');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchOverviewStats = async () => {
+    try {
+      setOverviewError('');
+      const response = await networkAPI.getAllNetworks();
+      const networks = Array.isArray(response.data) ? response.data : [];
+      setOverviewStats(buildOverviewStats(networks));
+      setLastUpdatedAt(new Date());
+    } catch {
+      setOverviewError('无法获取网络总览统计信息');
+    }
+  };
+
+  const fetchSystemStats = async () => {
+    try {
+      const response = await systemAPI.getSystemStats();
+      setSystemStats({
+        cpuUsage: response.data.cpuUsage,
+        memoryUsage: response.data.memoryUsage,
+        osName: response.data.osName,
+        platform: response.data.platform,
+        platformVersion: response.data.platformVersion,
+        kernelVersion: response.data.kernelVersion,
+        error: null
+      });
+      setLastUpdatedAt(new Date());
+    } catch {
+      setSystemStats(prev => ({
+        ...prev,
+        error: '无法获取系统资源统计信息'
+      }));
+    }
+  };
+
+  useEffect(() => {
+    void fetchSystemStatus();
+    void fetchOverviewStats();
   }, []);
 
   // 定期获取系统统计信息和系统信息（仅管理员）
   useEffect(() => {
     if (!isAdmin) return;
-
-    // 获取系统统计信息（包含操作系统信息）
-    const fetchSystemStats = async () => {
-      try {
-        const response = await systemAPI.getSystemStats();
-        console.log('System stats response:', response.data);
-        setSystemStats({
-          cpuUsage: response.data.cpuUsage,
-          memoryUsage: response.data.memoryUsage,
-          osName: response.data.osName,
-          platform: response.data.platform,
-          platformVersion: response.data.platformVersion,
-          kernelVersion: response.data.kernelVersion,
-          error: null
-        });
-      } catch (err: unknown) {
-        console.error('Failed to fetch system stats:', err);
-        console.error('Error details:', getErrorMessage(err, '无法获取系统资源统计信息'));
-        setSystemStats(prev => ({
-          ...prev,
-          error: '无法获取系统资源统计信息'
-        }));
-      }
-    };
 
     // 立即获取一次
     void fetchSystemStats();
@@ -100,13 +135,35 @@ function Dashboard() {
   return (
     <Box sx={{ p: 3 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-          <Typography variant="h4" component="h1">
-            管理员面板
-          </Typography>
-        </Box>
+        <Typography variant="h4" component="h1">
+          管理员面板
+        </Typography>
+        <Button
+          variant="outlined"
+          startIcon={<RefreshIcon />}
+          onClick={() => {
+            void fetchSystemStatus();
+            void fetchOverviewStats();
+            if (isAdmin) {
+              void fetchSystemStats();
+            }
+          }}
+          disabled={loading}
+        >
+          刷新
+        </Button>
+      </Box>
       
       {error && (
-        <Alert severity="error" sx={{ mb: 3 }}>
+        <Alert
+          severity="error"
+          sx={{ mb: 3 }}
+          action={(
+            <Button color="inherit" size="small" onClick={() => { void fetchSystemStatus(); }}>
+              重试
+            </Button>
+          )}
+        >
           {error}
         </Alert>
       )}
@@ -122,6 +179,72 @@ function Dashboard() {
         </Box>
       ) : (
         <>
+          <Alert severity="info" sx={{ mb: 3 }}>
+            <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} justifyContent="space-between">
+              <Box>
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                  ZeroTier: {status?.zeroTierStatus || 'unknown'}
+                </Typography>
+                <Typography variant="body2">
+                  数据库: {status?.databaseStatus || 'unknown'}
+                </Typography>
+              </Box>
+              <Box>
+                <Typography variant="body2">
+                  运行时长: {status?.uptime !== undefined ? `${Math.floor(status.uptime)} 秒` : '未知'}
+                </Typography>
+                <Typography variant="body2">
+                  最近更新时间: {lastUpdatedAt ? lastUpdatedAt.toLocaleTimeString() : '尚未获取'}
+                </Typography>
+              </Box>
+            </Stack>
+          </Alert>
+
+          <Paper elevation={3} sx={{ p: 3, mb: 4 }}>
+            <Typography variant="h6" component="h3" gutterBottom>
+              控制器总览
+            </Typography>
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(4, 1fr)' }, gap: 3 }}>
+              <Box>
+                <Typography variant="body2" color="text.secondary">
+                  网络总数
+                </Typography>
+                <Typography variant="h4">
+                  {overviewStats.networkCount}
+                </Typography>
+              </Box>
+              <Box>
+                <Typography variant="body2" color="text.secondary">
+                  成员总数
+                </Typography>
+                <Typography variant="h4">
+                  {overviewStats.memberCount}
+                </Typography>
+              </Box>
+              <Box>
+                <Typography variant="body2" color="text.secondary">
+                  已授权成员
+                </Typography>
+                <Typography variant="h4">
+                  {overviewStats.authorizedMemberCount}
+                </Typography>
+              </Box>
+              <Box>
+                <Typography variant="body2" color="text.secondary">
+                  待授权成员
+                </Typography>
+                <Typography variant="h4">
+                  {overviewStats.pendingMemberCount}
+                </Typography>
+              </Box>
+            </Box>
+            {overviewError && (
+              <Alert severity="info" sx={{ mt: 3 }}>
+                {overviewError}
+              </Alert>
+            )}
+          </Paper>
+
           {/* 系统健康监控 */}
           <Paper elevation={3} sx={{ p: 3, mb: 4 }}>
             <Typography variant="h6" component="h3" gutterBottom>
@@ -205,8 +328,18 @@ function Dashboard() {
                   控制器状态
                 </Typography>
                 <Chip 
-                  label="运行中" 
-                  color="success" 
+                  label={status?.zeroTierStatus || '未知'}
+                  color={status?.zeroTierStatus === 'online' ? 'success' : status?.zeroTierStatus === 'error' ? 'error' : 'warning'} 
+                  size="small"
+                />
+              </Box>
+              <Box>
+                <Typography variant="body2" color="text.secondary">
+                  数据库状态
+                </Typography>
+                <Chip
+                  label={status?.databaseStatus || '未知'}
+                  color={status?.databaseStatus === 'connected' ? 'success' : status?.databaseStatus === 'error' ? 'error' : 'warning'}
                   size="small"
                 />
               </Box>

@@ -50,6 +50,11 @@ const mainMenuItems: MenuItemType[] = [
     icon: <LanguageIcon />
   },
   {
+    text: '个人信息',
+    path: '/profile',
+    icon: <AccountCircle />
+  },
+  {
     text: '设置',
     path: '/settings',
     icon: <SettingsIcon />
@@ -68,7 +73,7 @@ const adminMenuItems: MenuItemType[] = [
     icon: <GroupIcon />
   },
   {
-    text: '导入网络（实验性）',
+    text: '导入网络',
     path: '/import-network',
     icon: <ImportExportIcon />
   },

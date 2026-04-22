@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Box, Typography, Button, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, CircularProgress, Alert, Modal, TextField, IconButton, Grid, Card, CardContent, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions } from '@mui/material';
+import { Box, Typography, Button, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, CircularProgress, Alert, Modal, TextField, IconButton, Grid, Card, CardContent, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions, Stack } from '@mui/material';
 import { Link } from 'react-router-dom';
-import { Add, Delete, Close } from '@mui/icons-material';
+import { Add, Delete, Close, Refresh } from '@mui/icons-material';
 import { networkAPI, NetworkSummary } from '../services/api';
 import { getErrorMessage } from '../services/errors';
 
@@ -27,7 +27,6 @@ function Networks() {
       setNetworks(response.data);
     } catch (err: unknown) {
       setError(getErrorMessage(err, '获取网络列表失败'));
-      console.error('Fetch networks error:', err);
     } finally {
       setLoading(false);
     }
@@ -127,6 +126,12 @@ function Networks() {
   };
 
   const totalNetworks = networks.length;
+  const totalAuthorizedMembers = networks.reduce((sum, network) => sum + (network.authorized_member_count || 0), 0);
+  const totalPendingMembers = networks.reduce((sum, network) => sum + (network.pending_member_count || 0), 0);
+  const filteredNetworks = getFilteredNetworks();
+  const isSearchMode = searchQuery.trim() !== '';
+  const isEmptyState = !loading && networks.length === 0;
+  const isSearchEmptyState = !loading && networks.length > 0 && filteredNetworks.length === 0;
 
   return (
     <Box sx={{ p: 3 }}>
@@ -134,9 +139,14 @@ function Networks() {
         <Typography variant="h4" component="h1">
           网络管理
         </Typography>
-        <Button variant="contained" startIcon={<Add />} onClick={() => handleOpenModal()}>
-          创建网络
-        </Button>
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
+          <Button variant="outlined" startIcon={<Refresh />} onClick={() => { void fetchNetworks(); }} disabled={loading}>
+            刷新
+          </Button>
+          <Button variant="contained" startIcon={<Add />} onClick={() => handleOpenModal()}>
+            创建网络
+          </Button>
+        </Stack>
       </Box>
 
       {error && (
@@ -168,7 +178,7 @@ function Networks() {
                   已认证设备数
                 </Typography>
                 <Typography variant="h4">
-                  -
+                  {totalAuthorizedMembers}
                 </Typography>
               </CardContent>
             </Card>
@@ -180,7 +190,7 @@ function Networks() {
                   待认证设备数
                 </Typography>
                 <Typography variant="h4">
-                  -
+                  {totalPendingMembers}
                 </Typography>
               </CardContent>
             </Card>
@@ -203,55 +213,92 @@ function Networks() {
               onChange={(e) => setSearchQuery(e.target.value)}
               sx={{ width: { xs: '100%', sm: '250px' } }}
             />
+            {isSearchMode && (
+              <Button variant="text" onClick={() => setSearchQuery('')}>
+                清除搜索
+              </Button>
+            )}
           </Box>
 
-          <TableContainer component={Paper} sx={{ overflowX: 'auto' }}>
-            <Table sx={{ minWidth: 650 }}>
-              <TableHead>
-                <TableRow>
-                  <TableCell>名称</TableCell>
-                  <TableCell>网络ID</TableCell>
-                  <TableCell>操作</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {getFilteredNetworks().map((network) => (
-                  <TableRow key={network.id}>
-                    <TableCell component="th" scope="row">
-                      {network.name || '未命名网络'}
-                    </TableCell>
-                    <TableCell>{network.id}</TableCell>
-                    <TableCell>
-                      <Box sx={{ display: 'flex', gap: 1 }}>
-                        <Button
-                          component={Link}
-                          to={`/networks/${network.id}`}
-                          variant="outlined"
-                          size="small"
-                        >
-                          详情
-                        </Button>
-                        <Button
-                          variant="outlined"
-                          size="small"
-                          color="error"
-                          startIcon={<Delete />}
-                          onClick={() => handleDeleteClick(network.id, network.name || '未命名网络')}
-                        >
-                          删除
-                        </Button>
-                      </Box>
-                    </TableCell>
+          {isEmptyState ? (
+            <Paper sx={{ p: 5, textAlign: 'center' }}>
+              <Typography variant="h6" sx={{ mb: 1 }}>
+                还没有任何网络
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+                您可以直接创建一个新网络，或前往“导入网络”把控制器中已有的网络登记到当前账号。
+              </Typography>
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} justifyContent="center">
+                <Button variant="contained" startIcon={<Add />} onClick={() => handleOpenModal()}>
+                  创建网络
+                </Button>
+                <Button component={Link} to="/import-network" variant="outlined">
+                  导入现有网络
+                </Button>
+              </Stack>
+            </Paper>
+          ) : isSearchEmptyState ? (
+            <Paper sx={{ p: 5, textAlign: 'center' }}>
+              <Typography variant="h6" sx={{ mb: 1 }}>
+                没有匹配的网络
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+                当前搜索条件未匹配到任何网络，请尝试缩短关键字或清空搜索后重试。
+              </Typography>
+              <Button variant="outlined" onClick={() => setSearchQuery('')}>
+                清空搜索
+              </Button>
+            </Paper>
+          ) : (
+            <TableContainer component={Paper} sx={{ overflowX: 'auto' }}>
+              <Table sx={{ minWidth: 650 }}>
+                <TableHead>
+                  <TableRow>
+                    <TableCell>名称</TableCell>
+                    <TableCell>网络ID</TableCell>
+                    <TableCell>成员统计</TableCell>
+                    <TableCell>操作</TableCell>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
-
-          {getFilteredNetworks().length === 0 && (
-            <Typography variant="body1" sx={{ textAlign: 'center', mt: 5 }} color="text.secondary">
-              暂无网络或未匹配到搜索结果
-            </Typography>
+                </TableHead>
+                <TableBody>
+                  {filteredNetworks.map((network) => (
+                    <TableRow key={network.id}>
+                      <TableCell component="th" scope="row">
+                        {network.name || '未命名网络'}
+                      </TableCell>
+                      <TableCell>{network.id}</TableCell>
+                      <TableCell>
+                        {network.member_count} 台
+                        <Typography variant="body2" color="text.secondary">
+                          已授权 {network.authorized_member_count} / 待授权 {network.pending_member_count}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Box sx={{ display: 'flex', gap: 1 }}>
+                          <Button
+                            component={Link}
+                            to={`/networks/${network.id}`}
+                            variant="outlined"
+                            size="small"
+                          >
+                            详情
+                          </Button>
+                          <Button
+                            variant="outlined"
+                            size="small"
+                            color="error"
+                            startIcon={<Delete />}
+                            onClick={() => handleDeleteClick(network.id, network.name || '未命名网络')}
+                          >
+                            删除
+                          </Button>
+                        </Box>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
           )}
         </>
       )}

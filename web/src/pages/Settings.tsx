@@ -17,14 +17,19 @@ import {
   DialogActions,
   TextField,
   CircularProgress,
+  Stack,
+  Divider,
   type SelectChangeEvent
 } from '@mui/material';
 import { authAPI } from '../services/api';
+import { getErrorMessage } from '../services/errors';
+import { useAuth } from '../services/auth';
 
 function Settings() {
   const [loading, setLoading] = useState<boolean>(true);
-  const [infoMessage, setInfoMessage] = useState<string>('');
+  const [message, setMessage] = useState<{ severity: 'info' | 'success' | 'error'; text: string } | null>(null);
   const [language, setLanguage] = useState<string>('zh-CN');
+  const { user } = useAuth();
   
   // 修改密码对话框相关状态
   const [openChangePasswordDialog, setOpenChangePasswordDialog] = useState<boolean>(false);
@@ -48,10 +53,24 @@ function Settings() {
 
   // 显示开发中提示
   const showDevelopmentMessage = () => {
-    setInfoMessage('该能力当前处于冻结整理中，暂不纳入一期正式支持范围');
+    setMessage({ severity: 'info', text: '该能力仍在继续完善中，当前版本暂未开放。' });
     setTimeout(() => {
-      setInfoMessage('');
+      setMessage(null);
     }, 3000);
+  };
+
+  const resetPasswordDialog = () => {
+    setOpenChangePasswordDialog(false);
+    setPasswordForm({
+      oldPassword: '',
+      newPassword: '',
+      confirmPassword: ''
+    });
+    setPasswordErrors({
+      oldPassword: '',
+      newPassword: '',
+      confirmPassword: ''
+    });
   };
   
   // 验证密码表单
@@ -107,27 +126,15 @@ function Settings() {
       });
       
       // 修改成功
-      setInfoMessage('密码修改成功');
-      setOpenChangePasswordDialog(false);
-      
-      // 重置表单
-      setPasswordForm({
-        oldPassword: '',
-        newPassword: '',
-        confirmPassword: ''
-      });
-      setPasswordErrors({
-        oldPassword: '',
-        newPassword: '',
-        confirmPassword: ''
-      });
-    } catch (error) {
-      // 修改失败
-      console.error('修改密码失败:', error);
+      setMessage({ severity: 'success', text: '密码修改成功' });
+      resetPasswordDialog();
+    } catch (error: unknown) {
+      const errorMessage = getErrorMessage(error, '密码修改失败，请稍后重试');
       setPasswordErrors(prev => ({
         ...prev,
-        oldPassword: '原密码错误或密码修改失败'
+        oldPassword: errorMessage
       }));
+      setMessage({ severity: 'error', text: errorMessage });
     } finally {
       setChangingPassword(false);
     }
@@ -147,14 +154,14 @@ function Settings() {
         </Typography>
       </Box>
 
-      {infoMessage && (
-        <Alert severity="info" sx={{ mb: 3 }}>
-          {infoMessage}
+      {message && (
+        <Alert severity={message.severity} sx={{ mb: 3 }} onClose={() => setMessage(null)}>
+          {message.text}
         </Alert>
       )}
 
-      <Alert severity="warning" sx={{ mb: 3 }}>
-        当前设置页已收敛为一期 MVP 范围。现阶段仅“修改密码”属于正式支持能力，语言切换、账号注销等入口仍在冻结整理中。
+      <Alert severity="info" sx={{ mb: 3 }}>
+        设置页正在逐步补齐中。当前可用能力以密码修改为主，语言切换与账号注销等入口会在后续继续完善。
       </Alert>
 
       {loading ? (
@@ -167,8 +174,29 @@ function Settings() {
           <Card sx={{ mb: 3 }}>
             <CardContent>
               <Typography variant="h6" gutterBottom>
-                个人设置
+                账户设置
               </Typography>
+
+              <Stack spacing={2.5} sx={{ mb: 3 }}>
+                <Box>
+                  <Typography variant="body2" color="text.secondary">
+                    当前账号
+                  </Typography>
+                  <Typography variant="body1">
+                    {user?.username || '未知用户'}
+                  </Typography>
+                </Box>
+                <Box>
+                  <Typography variant="body2" color="text.secondary">
+                    当前角色
+                  </Typography>
+                  <Typography variant="body1">
+                    {user?.role === 'admin' ? '管理员' : '普通用户'}
+                  </Typography>
+                </Box>
+              </Stack>
+
+              <Divider sx={{ mb: 3 }} />
 
               <Box sx={{ mb: 3 }}>
                 <Typography variant="body1" sx={{ mb: 1 }}>
@@ -186,11 +214,11 @@ function Settings() {
                     <MenuItem value="zh-CN">简体中文</MenuItem>
                     <MenuItem value="en">English</MenuItem>
                   </Select>
-                  <FormHelperText>语言切换功能当前冻结中</FormHelperText>
+                  <FormHelperText>语言切换功能尚未开放</FormHelperText>
                 </FormControl>
               </Box>
 
-              <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
+              <Stack spacing={2} sx={{ mb: 2 }}>
                 <Button
                   variant="contained"
                   onClick={() => setOpenChangePasswordDialog(true)}
@@ -198,7 +226,10 @@ function Settings() {
                 >
                   修改密码
                 </Button>
-              </Box>
+                <Typography variant="body2" color="text.secondary">
+                  修改密码后，当前登录状态会继续保持，但建议您在其他设备上重新验证新密码是否生效。
+                </Typography>
+              </Stack>
 
               <Box>
                 <Button
@@ -207,20 +238,37 @@ function Settings() {
                   onClick={showDevelopmentMessage}
                   fullWidth
                 >
-                  注销账号（冻结中）
+                  注销账号（即将支持）
                 </Button>
               </Box>
             </CardContent>
           </Card>
 
-
+          <Card>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                会话与安全
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                更多账户安全能力仍在开发中。后续会补充会话管理、登录设备查看和更完整的账号操作入口。
+              </Typography>
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
+                <Button variant="outlined" disabled fullWidth>
+                  会话管理（开发中）
+                </Button>
+                <Button variant="outlined" disabled fullWidth>
+                  登录设备（开发中）
+                </Button>
+              </Stack>
+            </CardContent>
+          </Card>
         </>
       )}
 
       {/* 修改密码对话框 */}
       <Dialog
         open={openChangePasswordDialog}
-        onClose={() => setOpenChangePasswordDialog(false)}
+        onClose={resetPasswordDialog}
         maxWidth="sm"
         fullWidth
       >
@@ -232,32 +280,50 @@ function Settings() {
               type="password"
               fullWidth
               value={passwordForm.oldPassword}
-              onChange={(e) => setPasswordForm({ ...passwordForm, oldPassword: e.target.value })}
+              onChange={(e) => {
+                setPasswordForm({ ...passwordForm, oldPassword: e.target.value });
+                if (passwordErrors.oldPassword) {
+                  setPasswordErrors(prev => ({ ...prev, oldPassword: '' }));
+                }
+              }}
               error={!!passwordErrors.oldPassword}
               helperText={passwordErrors.oldPassword}
+              disabled={changingPassword}
             />
             <TextField
               label="新密码"
               type="password"
               fullWidth
               value={passwordForm.newPassword}
-              onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
+              onChange={(e) => {
+                setPasswordForm({ ...passwordForm, newPassword: e.target.value });
+                if (passwordErrors.newPassword) {
+                  setPasswordErrors(prev => ({ ...prev, newPassword: '' }));
+                }
+              }}
               error={!!passwordErrors.newPassword}
-              helperText={passwordErrors.newPassword}
+              helperText={passwordErrors.newPassword || '密码长度至少 6 位'}
+              disabled={changingPassword}
             />
             <TextField
               label="再次确认新密码"
               type="password"
               fullWidth
               value={passwordForm.confirmPassword}
-              onChange={(e) => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
+              onChange={(e) => {
+                setPasswordForm({ ...passwordForm, confirmPassword: e.target.value });
+                if (passwordErrors.confirmPassword) {
+                  setPasswordErrors(prev => ({ ...prev, confirmPassword: '' }));
+                }
+              }}
               error={!!passwordErrors.confirmPassword}
               helperText={passwordErrors.confirmPassword}
+              disabled={changingPassword}
             />
           </Box>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setOpenChangePasswordDialog(false)}>取消</Button>
+          <Button onClick={resetPasswordDialog} disabled={changingPassword}>取消</Button>
           <Button 
             variant="contained" 
             onClick={() => { void handleChangePassword(); }}

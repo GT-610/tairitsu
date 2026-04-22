@@ -249,16 +249,27 @@ func (h *NetworkHandler) ImportNetworks(c fiber.Ctx) error {
 
 	logger.Info("开始导入网络", zap.Strings("network_ids", request.NetworkIDs))
 
-	importedIDs, err := h.networkService.ImportNetworks(request.NetworkIDs, userID.(string))
+	result, err := h.networkService.ImportNetworks(request.NetworkIDs, userID.(string))
 	if err != nil {
 		logger.Error("导入网络失败", zap.Error(err))
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	logger.Info("成功导入网络", zap.Int("imported_count", len(importedIDs)))
+	logger.Info("导入网络处理完成",
+		zap.Int("imported_count", len(result.ImportedIDs)),
+		zap.Int("failed_count", len(result.Failed)))
+
+	message := "导入成功"
+	switch {
+	case len(result.ImportedIDs) == 0 && len(result.Failed) > 0:
+		message = "未成功导入任何网络"
+	case len(result.ImportedIDs) > 0 && len(result.Failed) > 0:
+		message = "部分网络导入成功"
+	}
 
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
-		"message":      "导入成功",
-		"imported_ids": importedIDs,
+		"message":      message,
+		"imported_ids": result.ImportedIDs,
+		"failed":       result.Failed,
 	})
 }

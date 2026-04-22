@@ -32,16 +32,12 @@ function UserManagement() {
         
         // 获取当前用户信息
         const currentUserResponse = await authAPI.getProfile();
-        console.log('当前用户信息:', currentUserResponse.data);
         setCurrentUser(currentUserResponse.data);
         
         // 获取所有用户
         const usersResponse = await userAPI.getAllUsers();
-        console.log('所有用户信息:', usersResponse.data);
         setUsers(usersResponse.data);
       } catch (error: unknown) {
-        console.error('获取用户数据失败:', error);
-        console.error('错误详情:', getErrorMessage(error, '获取用户数据失败'));
         setMessage({ 
           text: getErrorMessage(error, '获取用户数据失败'), 
           severity: 'error' 
@@ -74,7 +70,6 @@ function UserManagement() {
         severity: 'success'
       });
     } catch (error) {
-      console.error('更新用户角色失败:', error);
       setMessage({ text: getErrorMessage(error, '更新用户角色失败'), severity: 'error' });
     } finally {
       setUpdating(false);
