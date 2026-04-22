@@ -208,10 +208,12 @@ function getIPv4ConfigurationIssues(ipv4Subnet: string, v4AssignMode: boolean, i
     return ['开启自动分配后，至少需要配置一个 IPv4 地址池范围。'];
   }
 
-  return ipPools.flatMap((ipPool, index) => {
+  const rangeIssues = ipPools.flatMap((ipPool, index) => {
     const issue = getIPv4RangeIssue(ipv4Subnet, ipPool);
     return issue ? [`地址池 ${index + 1}：${issue}`] : [];
   });
+
+  return [...rangeIssues, ...getIPv4PoolOverlapIssues(ipPools)];
 }
 
 function areIpPoolsEqual(a: IpAssignmentPool[], b: IpAssignmentPool[]): boolean {
@@ -220,6 +222,31 @@ function areIpPoolsEqual(a: IpAssignmentPool[], b: IpAssignmentPool[]): boolean 
     pool.ipRangeStart === b[index]?.ipRangeStart &&
     pool.ipRangeEnd === b[index]?.ipRangeEnd
   );
+}
+
+function getIPv4PoolOverlapIssues(ipPools: IpAssignmentPool[]): string[] {
+  const parsedPools = ipPools.map((pool, index) => ({
+    index,
+    start: parseIPv4Address(pool.ipRangeStart),
+    end: parseIPv4Address(pool.ipRangeEnd),
+  }));
+
+  const issues: string[] = [];
+  for (let i = 0; i < parsedPools.length; i += 1) {
+    const current = parsedPools[i];
+    if (current.start === null || current.end === null) continue;
+
+    for (let j = i + 1; j < parsedPools.length; j += 1) {
+      const next = parsedPools[j];
+      if (next.start === null || next.end === null) continue;
+
+      if (current.start <= next.end && next.start <= current.end) {
+        issues.push(`地址池 ${current.index + 1} 与地址池 ${next.index + 1} 存在重叠。`);
+      }
+    }
+  }
+
+  return issues;
 }
 
 function generateRandomIPv4Subnet(): string {
@@ -504,6 +531,12 @@ function NetworkDetail() {
     }
   };
 
+  const handleResetMetadata = () => {
+    if (!network) return;
+    setEditingName(network.name || '');
+    setEditingDescription(network.db_description || network.description || '');
+  };
+
   const handleDeleteNetwork = async () => {
     if (!id) return;
     setSaving(true);
@@ -553,6 +586,17 @@ function NetworkDetail() {
     }
   };
 
+  const handleResetIPv4 = () => {
+    if (!network) return;
+    const primarySubnet = getPrimaryIPv4Subnet(network.config.routes || []);
+    const loadedPools = network.config.ipAssignmentPools || [];
+    setIpv4Subnet(primarySubnet);
+    setV4AssignMode(network.config.v4AssignMode?.zt ?? false);
+    setIpv4Pools(loadedPools);
+    setIpv4PoolStartDraft(loadedPools[0]?.ipRangeStart ?? '');
+    setIpv4PoolEndDraft(loadedPools[0]?.ipRangeEnd ?? '');
+  };
+
   const handleSaveIPv6 = async () => {
     if (!id) return;
     setSaving(true);
@@ -572,6 +616,11 @@ function NetworkDetail() {
     }
   };
 
+  const handleResetIPv6 = () => {
+    if (!network) return;
+    setV6AssignMode(getV6AssignModeFromConfig(network.config.v6AssignMode));
+  };
+
   const handleSaveMulticast = async () => {
     if (!id) return;
     setSaving(true);
@@ -587,6 +636,12 @@ function NetworkDetail() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleResetMulticast = () => {
+    if (!network) return;
+    setMulticastLimit(network.config.multicastLimit ?? 32);
+    setEnableBroadcast(network.config.enableBroadcast ?? true);
   };
 
   const handleGenerateSubnetAndRange = () => {
@@ -639,6 +694,12 @@ function NetworkDetail() {
 
     if (ipv4Pools.some((pool) => pool.ipRangeStart === nextPool.ipRangeStart && pool.ipRangeEnd === nextPool.ipRangeEnd)) {
       showSnackbar('该地址池范围已存在', 'info');
+      return;
+    }
+
+    const overlapIssues = getIPv4PoolOverlapIssues([...ipv4Pools, nextPool]);
+    if (overlapIssues.length > 0) {
+      showSnackbar(overlapIssues[0], 'error');
       return;
     }
 
@@ -901,9 +962,14 @@ function NetworkDetail() {
                     />
                   </Grid>
                   <Grid size={{ xs: 12 }}>
-                    <Button variant="contained" color="primary" onClick={() => { void handleSaveMetadata(); }} disabled={saving}>
-                      保存
-                    </Button>
+                    <Box sx={{ display: 'flex', justifyContent: 'flex-start', gap: 2 }}>
+                      <Button variant="outlined" onClick={handleResetMetadata} disabled={saving || !basicInfoUnsaved}>
+                        重置更改
+                      </Button>
+                      <Button variant="contained" color="primary" onClick={() => { void handleSaveMetadata(); }} disabled={saving || !basicInfoUnsaved}>
+                        保存
+                      </Button>
+                    </Box>
                   </Grid>
                 </Grid>
               </Paper>
@@ -1042,7 +1108,10 @@ function NetworkDetail() {
                   </Alert>
                 )}
                 
-                <Box sx={{ display: 'flex', justifyContent: 'flex-start' }}>
+                <Box sx={{ display: 'flex', justifyContent: 'flex-start', gap: 2 }}>
+                  <Button variant="outlined" onClick={handleResetIPv4} disabled={saving || !ipv4Unsaved}>
+                    重置更改
+                  </Button>
                   <Button variant="contained" color="primary" onClick={() => { void handleSaveIPv4(); }} disabled={saving || !ipv4Unsaved}>
                     保存
                   </Button>
@@ -1079,7 +1148,10 @@ function NetworkDetail() {
                   </FormControl>
                 </Box>
                 
-                <Box sx={{ display: 'flex', justifyContent: 'flex-start' }}>
+                <Box sx={{ display: 'flex', justifyContent: 'flex-start', gap: 2 }}>
+                  <Button variant="outlined" onClick={handleResetIPv6} disabled={saving || !ipv6Unsaved}>
+                    重置更改
+                  </Button>
                   <Button variant="contained" color="primary" onClick={() => { void handleSaveIPv6(); }} disabled={saving || !ipv6Unsaved}>
                     保存
                   </Button>
@@ -1122,7 +1194,10 @@ function NetworkDetail() {
                   </Grid>
                 </Grid>
                 
-                <Box sx={{ display: 'flex', justifyContent: 'flex-start', mt: 3 }}>
+                <Box sx={{ display: 'flex', justifyContent: 'flex-start', gap: 2, mt: 3 }}>
+                  <Button variant="outlined" onClick={handleResetMulticast} disabled={saving || !multicastUnsaved}>
+                    重置更改
+                  </Button>
                   <Button variant="contained" color="primary" onClick={() => { void handleSaveMulticast(); }} disabled={saving || !multicastUnsaved}>
                     保存
                   </Button>
