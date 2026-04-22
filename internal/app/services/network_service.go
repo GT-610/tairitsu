@@ -573,7 +573,7 @@ func (s *NetworkService) GetImportableNetworks(userID string) ([]ImportableNetwo
 	}
 
 	// 筛选可导入的网络
-	var importableNetworks []ImportableNetworkSummary
+	importableNetworks := make([]ImportableNetworkSummary, 0, len(ztNetworkIDs))
 	for _, networkID := range ztNetworkIDs {
 		dbNet, exists := dbNetworkMap[networkID]
 
