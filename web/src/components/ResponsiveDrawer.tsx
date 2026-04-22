@@ -53,6 +53,11 @@ const mainMenuItems: MenuItemType[] = [
     text: '个人信息',
     path: '/profile',
     icon: <AccountCircle />
+  },
+  {
+    text: '设置',
+    path: '/settings',
+    icon: <SettingsIcon />
   }
 ];
 
@@ -66,12 +71,9 @@ const adminMenuItems: MenuItemType[] = [
     text: '用户管理',
     path: '/user-management',
     icon: <GroupIcon />
-  }
-];
-
-const experimentalMenuItems: MenuItemType[] = [
+  },
   {
-    text: '导入网络（实验性）',
+    text: '导入网络',
     path: '/import-network',
     icon: <ImportExportIcon />
   },
@@ -79,11 +81,6 @@ const experimentalMenuItems: MenuItemType[] = [
     text: '生成 Planet（实验性）',
     path: '/planet',
     icon: <PublicIcon />
-  },
-  {
-    text: '设置（冻结中）',
-    path: '/settings',
-    icon: <SettingsIcon />
   }
 ];
 
@@ -169,32 +166,6 @@ export default function ResponsiveDrawer({ window, children, title = 'Tairitsu',
           <Divider />
           <List>
             {adminMenuItems.map((item) => (
-              <ListItem key={item.text} disablePadding>
-                <ListItemButton
-                  component={Link}
-                  to={item.path}
-                  selected={location.pathname.startsWith(item.path)}
-                  onClick={handleDrawerClose}
-                >
-                  <ListItemIcon>
-                    {item.icon}
-                  </ListItemIcon>
-                  <ListItemText primary={item.text} />
-                </ListItemButton>
-              </ListItem>
-            ))}
-          </List>
-          <Divider />
-          <Box sx={{ px: 2, py: 1.5 }}>
-            <Typography variant="caption" color="text.secondary">
-              实验功能与冻结入口
-            </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-              不纳入 SQLite 一期 MVP 验收
-            </Typography>
-          </Box>
-          <List>
-            {experimentalMenuItems.map((item) => (
               <ListItem key={item.text} disablePadding>
                 <ListItemButton
                   component={Link}

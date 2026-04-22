@@ -26,7 +26,7 @@ function Profile({ user }: ProfileProps) {
       </Typography>
 
       <Alert severity="info" sx={{ mb: 3 }}>
-        一期正式支持的账户相关能力已收敛到个人信息与密码修改。更多冻结中的账户设置请通过“设置”页面查看。
+        这里显示当前账户的基础信息。密码修改和后续账户偏好设置可在“设置”页面中完成。
       </Alert>
       
       <Grid container spacing={3}>

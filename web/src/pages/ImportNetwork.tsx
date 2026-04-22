@@ -87,7 +87,7 @@ function ImportNetwork() {
     <Box sx={{ p: 3 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Typography variant="h4" component="h1">
-          导入 ZeroTier 网络（实验性）
+          导入 ZeroTier 网络
         </Typography>
         <Chip
           label={`${importableNetworks.length}个可导入`}
@@ -102,8 +102,8 @@ function ImportNetwork() {
         </Alert>
       )}
 
-      <Alert severity="warning" sx={{ mb: 3 }}>
-        该能力暂不纳入 SQLite 一期 MVP 验收范围。入口保留仅用于后续整理与实验验证，请勿把它作为关键路径依赖。
+      <Alert severity="info" sx={{ mb: 3 }}>
+        该页面用于把控制器中已存在、但尚未在 Tairitsu 中登记的网络纳入当前管理员账号。导入前请先确认网络归属关系，避免误接管其他已使用中的网络。
       </Alert>
 
       <Paper elevation={3} sx={{ p: 3, mb: 3 }}>

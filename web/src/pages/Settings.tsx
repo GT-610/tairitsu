@@ -48,7 +48,7 @@ function Settings() {
 
   // 显示开发中提示
   const showDevelopmentMessage = () => {
-    setInfoMessage('该能力当前处于冻结整理中，暂不纳入一期正式支持范围');
+    setInfoMessage('该能力仍在继续完善中，当前版本暂未开放。');
     setTimeout(() => {
       setInfoMessage('');
     }, 3000);
@@ -153,8 +153,8 @@ function Settings() {
         </Alert>
       )}
 
-      <Alert severity="warning" sx={{ mb: 3 }}>
-        当前设置页已收敛为一期 MVP 范围。现阶段仅“修改密码”属于正式支持能力，语言切换、账号注销等入口仍在冻结整理中。
+      <Alert severity="info" sx={{ mb: 3 }}>
+        设置页正在逐步补齐中。当前可用能力以密码修改为主，语言切换与账号注销等入口会在后续继续完善。
       </Alert>
 
       {loading ? (
@@ -186,7 +186,7 @@ function Settings() {
                     <MenuItem value="zh-CN">简体中文</MenuItem>
                     <MenuItem value="en">English</MenuItem>
                   </Select>
-                  <FormHelperText>语言切换功能当前冻结中</FormHelperText>
+                  <FormHelperText>语言切换功能尚未开放</FormHelperText>
                 </FormControl>
               </Box>
 
@@ -207,7 +207,7 @@ function Settings() {
                   onClick={showDevelopmentMessage}
                   fullWidth
                 >
-                  注销账号（冻结中）
+                  注销账号（即将支持）
                 </Button>
               </Box>
             </CardContent>

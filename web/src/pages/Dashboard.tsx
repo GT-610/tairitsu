@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { Box, Typography, Paper, CircularProgress, Alert, 
   Chip, LinearProgress} from '@mui/material';
 import { statusAPI, systemAPI, SystemStatus } from '../services/api';
-import { getErrorMessage } from '../services/errors';
 import { useAuth } from '../services/auth';
 
 
@@ -48,9 +47,8 @@ function Dashboard() {
         // 获取网络列表 - 暂时不使用
         // const networksResponse = await networkAPI.getAllNetworks();
         // setNetworks(networksResponse.data);
-      } catch (err) {
+      } catch {
         setError('获取数据失败，请稍后重试');
-        console.error('Dashboard fetch error:', err);
       } finally {
         setLoading(false);
       }
@@ -67,7 +65,6 @@ function Dashboard() {
     const fetchSystemStats = async () => {
       try {
         const response = await systemAPI.getSystemStats();
-        console.log('System stats response:', response.data);
         setSystemStats({
           cpuUsage: response.data.cpuUsage,
           memoryUsage: response.data.memoryUsage,
@@ -77,9 +74,7 @@ function Dashboard() {
           kernelVersion: response.data.kernelVersion,
           error: null
         });
-      } catch (err: unknown) {
-        console.error('Failed to fetch system stats:', err);
-        console.error('Error details:', getErrorMessage(err, '无法获取系统资源统计信息'));
+      } catch {
         setSystemStats(prev => ({
           ...prev,
           error: '无法获取系统资源统计信息'
