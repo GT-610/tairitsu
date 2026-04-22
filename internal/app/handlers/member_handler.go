@@ -13,6 +13,14 @@ type MemberHandler struct {
 	networkService *services.NetworkService
 }
 
+func memberRouteNetworkID(c fiber.Ctx) string {
+	networkID := c.Params("networkId")
+	if networkID == "" {
+		networkID = c.Params("id")
+	}
+	return networkID
+}
+
 // NewMemberHandler 创建成员处理器实例
 func NewMemberHandler(networkService *services.NetworkService) *MemberHandler {
 	return &MemberHandler{
@@ -22,7 +30,7 @@ func NewMemberHandler(networkService *services.NetworkService) *MemberHandler {
 
 // GetMembers 获取网络中的所有成员
 func (h *MemberHandler) GetMembers(c fiber.Ctx) error {
-	networkID := c.Params("networkId")
+	networkID := memberRouteNetworkID(c)
 
 	// Get user ID from context
 	userID := c.Locals("user_id")
@@ -42,7 +50,7 @@ func (h *MemberHandler) GetMembers(c fiber.Ctx) error {
 
 // GetMember 获取网络中的特定成员
 func (h *MemberHandler) GetMember(c fiber.Ctx) error {
-	networkID := c.Params("networkId")
+	networkID := memberRouteNetworkID(c)
 	memberID := c.Params("memberId")
 
 	// Get user ID from context
@@ -68,7 +76,7 @@ func (h *MemberHandler) GetMember(c fiber.Ctx) error {
 
 // UpdateMember 更新网络成员
 func (h *MemberHandler) UpdateMember(c fiber.Ctx) error {
-	networkID := c.Params("networkId")
+	networkID := memberRouteNetworkID(c)
 	memberID := c.Params("memberId")
 
 	var req zerotier.MemberUpdateRequest
@@ -95,7 +103,7 @@ func (h *MemberHandler) UpdateMember(c fiber.Ctx) error {
 
 // DeleteMember 删除网络成员
 func (h *MemberHandler) DeleteMember(c fiber.Ctx) error {
-	networkID := c.Params("networkId")
+	networkID := memberRouteNetworkID(c)
 	memberID := c.Params("memberId")
 
 	// Get user ID from context
