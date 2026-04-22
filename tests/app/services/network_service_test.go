@@ -246,6 +246,28 @@ func TestNetworkServiceGetAllNetworksIncludesMemberStatsFromObjectResponse(t *te
 	assert.Equal(t, 1, summaries[0].PendingMemberCount)
 }
 
+func TestZTClientGetMembersReturnsPreviewOnUnexpectedShape(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		require.NoError(t, json.NewEncoder(w).Encode(map[string]string{
+			"unexpected": "not-a-member-object",
+		}))
+	}))
+	t.Cleanup(server.Close)
+
+	client := &zerotier.Client{
+		BaseURL:    server.URL,
+		Token:      "test-token",
+		HTTPClient: server.Client(),
+	}
+
+	members, err := client.GetMembers("8056c2e21c000009")
+	require.Nil(t, members)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "响应预览")
+	assert.Contains(t, err.Error(), "\"unexpected\"")
+}
+
 func TestNetworkServiceGetAllNetworksFetchesMemberStatsConcurrently(t *testing.T) {
 	db := newTestSQLiteDB(t)
 	now := time.Now()

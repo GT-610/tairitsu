@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/GT-610/tairitsu/internal/app/config"
@@ -18,6 +19,8 @@ type Client struct {
 	Token      string
 	HTTPClient *http.Client
 }
+
+const responsePreviewLimit = 160
 
 // Network 网络结构
 type Network struct {
@@ -277,7 +280,7 @@ func (c *Client) GetStatus() (*Status, error) {
 
 	var status Status
 	if err := json.Unmarshal(respBody, &status); err != nil {
-		return nil, fmt.Errorf("解析状态响应失败: %w", err)
+		return nil, fmt.Errorf("解析状态响应失败: %w; 响应预览: %s", err, responsePreview(respBody))
 	}
 
 	return &status, nil
@@ -313,7 +316,7 @@ func (c *Client) GetNetworkIDs() ([]string, error) {
 
 	var networkIDs []string
 	if err := json.Unmarshal(respBody, &networkIDs); err != nil {
-		return nil, fmt.Errorf("解析网络ID列表失败: %w", err)
+		return nil, fmt.Errorf("解析网络ID列表失败: %w; 响应预览: %s", err, responsePreview(respBody))
 	}
 
 	return networkIDs, nil
@@ -332,7 +335,7 @@ func (c *Client) GetNetworkStatus(networkID string) (string, error) {
 		Status string `json:"status"`
 	}
 	if err := json.Unmarshal(respBody, &status); err != nil {
-		return "", fmt.Errorf("解析网络状态失败: %w", err)
+		return "", fmt.Errorf("解析网络状态失败: %w; 响应预览: %s", err, responsePreview(respBody))
 	}
 
 	return status.Status, nil
@@ -348,7 +351,7 @@ func (c *Client) GetNetwork(networkID string) (*Network, error) {
 
 	var network Network
 	if err := json.Unmarshal(respBody, &network); err != nil {
-		return nil, fmt.Errorf("解析网络详情失败: %w", err)
+		return nil, fmt.Errorf("解析网络详情失败: %w; 响应预览: %s", err, responsePreview(respBody))
 	}
 
 	return &network, nil
@@ -363,7 +366,7 @@ func (c *Client) CreateNetwork(network *Network) (*Network, error) {
 
 	var createdNetwork Network
 	if err := json.Unmarshal(respBody, &createdNetwork); err != nil {
-		return nil, fmt.Errorf("解析创建网络响应失败: %w", err)
+		return nil, fmt.Errorf("解析创建网络响应失败: %w; 响应预览: %s", err, responsePreview(respBody))
 	}
 
 	return &createdNetwork, nil
@@ -379,7 +382,7 @@ func (c *Client) UpdateNetwork(networkID string, network *Network) (*Network, er
 
 	var updatedNetwork Network
 	if err := json.Unmarshal(respBody, &updatedNetwork); err != nil {
-		return nil, fmt.Errorf("解析更新网络响应失败: %w", err)
+		return nil, fmt.Errorf("解析更新网络响应失败: %w; 响应预览: %s", err, responsePreview(respBody))
 	}
 
 	return &updatedNetwork, nil
@@ -395,7 +398,7 @@ func (c *Client) PartialUpdateNetwork(networkID string, updateReq *NetworkUpdate
 
 	var updatedNetwork Network
 	if err := json.Unmarshal(respBody, &updatedNetwork); err != nil {
-		return nil, fmt.Errorf("解析更新网络响应失败: %w", err)
+		return nil, fmt.Errorf("解析更新网络响应失败: %w; 响应预览: %s", err, responsePreview(respBody))
 	}
 
 	return &updatedNetwork, nil
@@ -416,6 +419,49 @@ func (c *Client) GetMembers(networkID string) ([]Member, error) {
 		return nil, err
 	}
 
+	return parseMemberList(respBody)
+}
+
+// GetMember 获取单个成员详情
+func (c *Client) GetMember(networkID, memberID string) (*Member, error) {
+	endpoint := fmt.Sprintf("/controller/network/%s/member/%s", networkID, memberID)
+	respBody, err := c.doRequest("GET", endpoint, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var member Member
+	if err := json.Unmarshal(respBody, &member); err != nil {
+		return nil, fmt.Errorf("解析成员详情失败: %w; 响应预览: %s", err, responsePreview(respBody))
+	}
+
+	return &member, nil
+}
+
+// UpdateMember 更新成员配置
+func (c *Client) UpdateMember(networkID, memberID string, member *Member) (*Member, error) {
+	endpoint := fmt.Sprintf("/controller/network/%s/member/%s", networkID, memberID)
+	respBody, err := c.doRequest("POST", endpoint, member)
+	if err != nil {
+		return nil, err
+	}
+
+	var updatedMember Member
+	if err := json.Unmarshal(respBody, &updatedMember); err != nil {
+		return nil, fmt.Errorf("解析更新成员响应失败: %w; 响应预览: %s", err, responsePreview(respBody))
+	}
+
+	return &updatedMember, nil
+}
+
+// DeleteMember 移除网络成员
+func (c *Client) DeleteMember(networkID, memberID string) error {
+	endpoint := fmt.Sprintf("/controller/network/%s/member/%s", networkID, memberID)
+	_, err := c.doRequest("DELETE", endpoint, nil)
+	return err
+}
+
+func parseMemberList(respBody []byte) ([]Member, error) {
 	var members []Member
 	if err := json.Unmarshal(respBody, &members); err == nil {
 		return members, nil
@@ -423,7 +469,7 @@ func (c *Client) GetMembers(networkID string) ([]Member, error) {
 
 	var memberMap map[string]Member
 	if err := json.Unmarshal(respBody, &memberMap); err != nil {
-		return nil, fmt.Errorf("解析成员列表失败: %w", err)
+		return nil, fmt.Errorf("解析成员列表失败: %w; 响应预览: %s", err, responsePreview(respBody))
 	}
 
 	members = make([]Member, 0, len(memberMap))
@@ -441,41 +487,13 @@ func (c *Client) GetMembers(networkID string) ([]Member, error) {
 	return members, nil
 }
 
-// GetMember 获取单个成员详情
-func (c *Client) GetMember(networkID, memberID string) (*Member, error) {
-	endpoint := fmt.Sprintf("/controller/network/%s/member/%s", networkID, memberID)
-	respBody, err := c.doRequest("GET", endpoint, nil)
-	if err != nil {
-		return nil, err
+func responsePreview(respBody []byte) string {
+	preview := strings.TrimSpace(string(respBody))
+	if preview == "" {
+		return "<empty>"
 	}
-
-	var member Member
-	if err := json.Unmarshal(respBody, &member); err != nil {
-		return nil, fmt.Errorf("解析成员详情失败: %w", err)
+	if len(preview) > responsePreviewLimit {
+		return preview[:responsePreviewLimit] + "..."
 	}
-
-	return &member, nil
-}
-
-// UpdateMember 更新成员配置
-func (c *Client) UpdateMember(networkID, memberID string, member *Member) (*Member, error) {
-	endpoint := fmt.Sprintf("/controller/network/%s/member/%s", networkID, memberID)
-	respBody, err := c.doRequest("POST", endpoint, member)
-	if err != nil {
-		return nil, err
-	}
-
-	var updatedMember Member
-	if err := json.Unmarshal(respBody, &updatedMember); err != nil {
-		return nil, fmt.Errorf("解析更新成员响应失败: %w", err)
-	}
-
-	return &updatedMember, nil
-}
-
-// DeleteMember 移除网络成员
-func (c *Client) DeleteMember(networkID, memberID string) error {
-	endpoint := fmt.Sprintf("/controller/network/%s/member/%s", networkID, memberID)
-	_, err := c.doRequest("DELETE", endpoint, nil)
-	return err
+	return preview
 }
