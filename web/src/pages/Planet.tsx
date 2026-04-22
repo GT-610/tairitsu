@@ -62,7 +62,7 @@ function PlanetGenerator() {
     } catch (error: unknown) {
       setMessage({
         type: 'error',
-        text: getErrorMessage(error, 'Failed to load identity.public')
+        text: getErrorMessage(error, '加载 identity.public 失败')
       });
     } finally {
       setLoading(false);
@@ -88,17 +88,17 @@ function PlanetGenerator() {
   const validateEndpoints = (): string | null => {
     const filledEndpoints = endpoints.filter(ep => ep.value.trim() !== '');
     if (filledEndpoints.length === 0) {
-      return 'At least one endpoint is required';
+      return '至少需要填写一个出口地址';
     }
     for (const ep of filledEndpoints) {
       const value = ep.value.trim();
       if (!value.includes('/')) {
-        return `Invalid endpoint format: ${value}. Expected format: IP/Port`;
+        return `出口地址格式无效：${value}。应为 IP/Port 格式`;
       }
       const parts = value.split('/');
       const port = parseInt(parts[1], 10);
       if (isNaN(port) || port < 1 || port > 65535) {
-        return `Invalid port number: ${parts[1]}`;
+        return `端口号无效：${parts[1]}`;
       }
     }
     return null;
@@ -106,7 +106,7 @@ function PlanetGenerator() {
 
   const handleGenerate = async () => {
     if (!identityPublic) {
-      setMessage({ type: 'error', text: 'identity.public is required' });
+      setMessage({ type: 'error', text: '必须提供 identity.public' });
       return;
     }
 
@@ -135,14 +135,14 @@ function PlanetGenerator() {
           cHeader: response.data.cHeader || '',
           planetData: Array.from(response.data.planetData || [])
         });
-        setMessage({ type: 'success', text: 'Planet file generated successfully!' });
+        setMessage({ type: 'success', text: 'Planet 文件生成成功' });
       } else {
-        setMessage({ type: 'error', text: response.data.message || 'Failed to generate planet' });
+        setMessage({ type: 'error', text: response.data.message || '生成 Planet 失败' });
       }
     } catch (error: unknown) {
       setMessage({
         type: 'error',
-        text: getErrorMessage(error, 'Failed to generate planet')
+        text: getErrorMessage(error, '生成 Planet 失败')
       });
     } finally {
       setGenerating(false);
@@ -166,7 +166,7 @@ function PlanetGenerator() {
   const handleCopyCHeader = () => {
     if (generatedPlanet?.cHeader) {
       void navigator.clipboard.writeText(generatedPlanet.cHeader);
-      setMessage({ type: 'success', text: 'C header copied to clipboard!' });
+      setMessage({ type: 'success', text: 'C 头文件内容已复制到剪贴板' });
     }
     setCopyDialogOpen(false);
   };
@@ -261,7 +261,7 @@ function PlanetGenerator() {
                 value={comments}
                 onChange={(e) => setComments(e.target.value)}
                 sx={{ mb: 2 }}
-                placeholder="例如: My Custom Planet - example.com"
+                placeholder="例如：私有 Planet - example.com"
                 helperText="可选，仅用于标识这个 planet 的用途"
               />
 
@@ -274,11 +274,11 @@ function PlanetGenerator() {
                   <ListItem key={endpoint.id} sx={{ px: 0 }}>
                     <TextField
                       label={`端点 ${index + 1}`}
-                      placeholder="IP/Port 例如: 192.168.1.1/9993"
+                      placeholder="IP/Port 例如：192.168.1.1/9993"
                       value={endpoint.value}
                       onChange={(e) => handleEndpointChange(endpoint.id, e.target.value)}
                       fullWidth
-                      helperText="格式: IP地址/端口号"
+                      helperText="格式：IP地址/端口号"
                     />
                     <ListItemSecondaryAction>
                       {endpoints.length > 1 && (
@@ -304,7 +304,7 @@ function PlanetGenerator() {
               </Button>
 
               <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
-                建议至少添加一个 IPv4 和一个 IPv6 端点。每个端点格式为 IP/Port，例如: 203.0.113.1/9993
+                建议至少添加一个 IPv4 和一个 IPv6 端点。每个端点格式为 IP/Port，例如：203.0.113.1/9993
               </Typography>
             </CardContent>
           </Card>
@@ -352,7 +352,7 @@ function PlanetGenerator() {
                 </Paper>
 
                 <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
-                  提示: 将下载的 planet 文件复制到 ZeroTier 控制器的数据目录 (例如: /var/lib/zerotier-one/planet)，
+                  提示：将下载的 planet 文件复制到 ZeroTier 控制器的数据目录（例如：`/var/lib/zerotier-one/planet`），
                   然后重启 ZeroTier 服务使更改生效。
                 </Typography>
               </CardContent>

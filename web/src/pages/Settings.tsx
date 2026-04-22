@@ -9,6 +9,7 @@ import {
   Select,
   MenuItem,
   FormControl,
+  FormHelperText,
   InputLabel,
   Dialog,
   DialogTitle,
@@ -47,7 +48,7 @@ function Settings() {
 
   // 显示开发中提示
   const showDevelopmentMessage = () => {
-    setInfoMessage('功能正在开发中');
+    setInfoMessage('该能力当前处于冻结整理中，暂不纳入一期正式支持范围');
     setTimeout(() => {
       setInfoMessage('');
     }, 3000);
@@ -125,7 +126,7 @@ function Settings() {
       console.error('修改密码失败:', error);
       setPasswordErrors(prev => ({
         ...prev,
-        oldPassword: '原密码错误或修改失败'
+        oldPassword: '原密码错误或密码修改失败'
       }));
     } finally {
       setChangingPassword(false);
@@ -177,14 +178,15 @@ function Settings() {
                   <InputLabel id="language-select-label">选择语言</InputLabel>
                   <Select
                     labelId="language-select-label"
-                  value={language}
-                  label="选择语言"
-                  onChange={handleLanguageChange}
-                  disabled
+                    value={language}
+                    label="选择语言"
+                    onChange={handleLanguageChange}
+                    disabled
                   >
                     <MenuItem value="zh-CN">简体中文</MenuItem>
                     <MenuItem value="en">English</MenuItem>
                   </Select>
+                  <FormHelperText>语言切换功能当前冻结中</FormHelperText>
                 </FormControl>
               </Box>
 

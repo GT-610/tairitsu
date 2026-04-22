@@ -1,6 +1,6 @@
 # Tairitsu
 
-**注意：此项目仍在开发中。部分功能可能尚未完全实现或可能发生变化。**
+**注意：此项目仍在开发中。当前优先目标是面向单实例自托管部署的 SQLite 优先 MVP。**
 
 Tairitsu 是 ZeroTier 控制器的 Web 管理界面实现，提供友好的 GUI 来管理 ZeroTier 网络、成员和配置，由 Golang 后端（通过官方 API 与 ZeroTier 控制器通信）和 React 前端组成。
 
@@ -10,9 +10,16 @@ Tairitsu 是 ZeroTier 控制器的 Web 管理界面实现，提供友好的 GUI 
 - **成员管理**：管理网络成员、授权设备并分配 IP
 - **配置控制**：配置网络设置，包括 IP 范围、路由和规则
 - **实时状态**：监控网络和成员状态
-- **多数据库支持**：支持 SQLite、MySQL 和 PostgreSQL
+- **SQLite 优先 MVP**：一期仅正式支持 SQLite
 - **安全认证**：基于 JWT 的安全访问认证
 - **响应式设计**：Material Design 现代化响应式界面
+- **实验性工具**：导入网络与 Planet 生成功能目前仅保留为实验性入口
+
+## 一期支持矩阵
+
+- 正式支持：SQLite、单实例自托管 ZeroTier 控制器、小规模管理员场景
+- 实验性 / 冻结中：导入网络、Planet、更完整的设置页
+- 当前不作为一期承诺：MySQL、PostgreSQL
 
 ## 部署
 
@@ -83,11 +90,11 @@ Tairitsu 是 ZeroTier 控制器的 Web 管理界面实现，提供友好的 GUI 
 
 - Go 1.25 或更高版本（需启用 CGO）
 - Bun 1.3 或更高版本
-- 已安装并运行的 ZeroTier 控制器
+- 本地或 Docker 中运行的 ZeroTier 控制器
 
 #### 后端
 ```bash
-CGO_ENABLED=1 go build -o tairitsu ./cmd/tairitsu
+GOCACHE=/tmp/go-build GOMODCACHE=/tmp/go-mod go build -o ./build/tairitsu ./cmd/tairitsu
 ```
 
 #### 前端
@@ -105,6 +112,11 @@ bun run dev
 cd web
 bun run build
 ```
+
+附加内部文档：
+
+- [一期问题地图](../docs/phase1-audit.md)
+- [ZeroTier Docker 手工联调清单](../docs/testing/zerotier-docker-checklist.md)
 
 ## 贡献
 
