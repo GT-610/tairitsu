@@ -109,7 +109,6 @@ export interface ImportableNetworkSummary {
 }
 
 export interface ImportNetworksResponse {
-  message: string;
   imported_ids: string[];
   failed: Array<{
     network_id: string;
@@ -258,7 +257,10 @@ export const networkAPI = {
   // Get importable networks (admin only)
   getImportableNetworks: () => api.get<ImportableNetworkSummary[]>('/admin/networks/importable'),
   // Import specified networks (admin only)
-  importNetworks: (networkIds: string[]) => api.post<ImportNetworksResponse>('/admin/networks/import', { network_ids: networkIds })
+  importNetworks: (networkIds: string[], ownerId: string) => api.post<ImportNetworksResponse>('/admin/networks/import', {
+    network_ids: networkIds,
+    owner_id: ownerId
+  })
 }
 
 // Member related APIs

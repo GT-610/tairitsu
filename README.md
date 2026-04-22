@@ -17,6 +17,13 @@ Tairitsu is a web-based controller interface for ZeroTier, providing a user-frie
 - **Responsive Design**: Modern, responsive Material Design interface
 - **Admin Tools**: Import existing ZeroTier networks and generate custom Planet files when needed
 
+## Access Model
+
+- Each ZeroTier network has exactly one `owner` in Tairitsu.
+- The network owner can view the network, manage its configuration, and approve or remove members.
+- Platform `admin` users manage system setup, user accounts, and importing unowned controller networks into Tairitsu.
+- Platform `admin` does not automatically gain read/write access to every owned network.
+
 ## Phase 1 Support Matrix
 
 - Supported: SQLite, single-instance self-hosted ZeroTier controller, small admin teams

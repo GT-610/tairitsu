@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sort"
 	"time"
 
 	"github.com/GT-610/tairitsu/internal/app/config"
@@ -416,9 +417,26 @@ func (c *Client) GetMembers(networkID string) ([]Member, error) {
 	}
 
 	var members []Member
-	if err := json.Unmarshal(respBody, &members); err != nil {
+	if err := json.Unmarshal(respBody, &members); err == nil {
+		return members, nil
+	}
+
+	var memberMap map[string]Member
+	if err := json.Unmarshal(respBody, &memberMap); err != nil {
 		return nil, fmt.Errorf("解析成员列表失败: %w", err)
 	}
+
+	members = make([]Member, 0, len(memberMap))
+	for memberID, member := range memberMap {
+		if member.ID == "" {
+			member.ID = memberID
+		}
+		members = append(members, member)
+	}
+
+	sort.Slice(members, func(i, j int) bool {
+		return members[i].ID < members[j].ID
+	})
 
 	return members, nil
 }

@@ -16,19 +16,25 @@ import {
   CircularProgress,
   Divider,
   Paper,
-  Stack
+  Stack,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem
 } from '@mui/material';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import { Link as RouterLink } from 'react-router-dom';
-import { ImportableNetworkSummary, networkAPI } from '../services/api';
+import { ImportableNetworkSummary, networkAPI, userAPI, type User } from '../services/api';
 import { getErrorMessage } from '../services/errors';
 
 function ImportNetwork() {
   const [networks, setNetworks] = useState<ImportableNetworkSummary[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [importing, setImporting] = useState(false);
   const [selectedNetworks, setSelectedNetworks] = useState<Set<string>>(new Set());
+  const [selectedOwnerId, setSelectedOwnerId] = useState<string>('');
   const [error, setError] = useState<string>('');
   const [successMessage, setSuccessMessage] = useState<string>('');
   const [importResult, setImportResult] = useState<{
@@ -38,7 +44,20 @@ function ImportNetwork() {
 
   useEffect(() => {
     void fetchImportableNetworks();
+    void fetchUsers();
   }, []);
+
+  const fetchUsers = async () => {
+    try {
+      const response = await userAPI.getAllUsers();
+      const userList = Array.isArray(response.data) ? response.data : [];
+      setUsers(userList);
+      setSelectedOwnerId(prev => prev || userList[0]?.id || '');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, '获取用户列表失败'));
+      setUsers([]);
+    }
+  };
 
   const fetchImportableNetworks = async (options?: { clearError?: boolean }) => {
     const { clearError = true } = options ?? {};
@@ -78,6 +97,10 @@ function ImportNetwork() {
 
   const handleImport = async () => {
     if (selectedNetworks.size === 0) return;
+    if (!selectedOwnerId) {
+      setError('请选择网络所有者');
+      return;
+    }
 
     const importCount = selectedNetworks.size;
     setImporting(true);
@@ -85,7 +108,8 @@ function ImportNetwork() {
     setSuccessMessage('');
     setImportResult(null);
     try {
-      const response = await networkAPI.importNetworks(Array.from(selectedNetworks));
+      const targetOwner = users.find(user => user.id === selectedOwnerId);
+      const response = await networkAPI.importNetworks(Array.from(selectedNetworks), selectedOwnerId);
       const importedIds = Array.isArray(response.data.imported_ids) ? response.data.imported_ids : [];
       const failed = Array.isArray(response.data.failed) ? response.data.failed : [];
 
@@ -96,11 +120,11 @@ function ImportNetwork() {
       });
 
       if (importedIds.length === importCount && failed.length === 0) {
-        setSuccessMessage(`已成功导入 ${importedIds.length} 个网络，列表已刷新。`);
+        setSuccessMessage(`已成功将 ${importedIds.length} 个网络分配给 ${targetOwner?.username || '目标用户'}，列表已刷新。`);
       } else if (importedIds.length > 0) {
-        setSuccessMessage(`已导入 ${importedIds.length} 个网络，另有 ${failed.length} 个网络未完成导入。`);
+        setSuccessMessage(`已将 ${importedIds.length} 个网络分配给 ${targetOwner?.username || '目标用户'}，另有 ${failed.length} 个网络未完成导入。`);
       } else {
-        setError(response.data.message || '未成功导入任何网络');
+        setError('未成功导入任何网络');
       }
 
       await fetchImportableNetworks({ clearError: importedIds.length > 0 });
@@ -184,13 +208,29 @@ function ImportNetwork() {
       )}
 
       <Alert severity="info" sx={{ mb: 3 }}>
-        该页面用于把控制器中已存在、但尚未在 Tairitsu 中登记的网络纳入当前管理员账号。导入前请先确认网络归属关系，避免误接管其他已使用中的网络。
+        该页面用于把控制器中已存在、但尚未在 Tairitsu 中登记的网络绑定给指定 owner。导入前请先确认网络归属关系，避免误分配其他已使用中的网络。
       </Alert>
 
       <Paper elevation={3} sx={{ p: 3, mb: 3 }}>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          以下是 ZeroTier 控制器上存在但尚未在 Tairitsu 中登记或无主的网络。选择要导入的网络，它们将被登记为您（当前管理员）所有。
+          以下是 ZeroTier 控制器上存在、但尚未在 Tairitsu 中登记或尚未分配 owner 的网络。选择要导入的网络，并指定其 owner。
         </Typography>
+
+        <FormControl fullWidth sx={{ mb: 3 }} disabled={loading || importing || users.length === 0}>
+          <InputLabel id="owner-select-label">目标 Owner</InputLabel>
+          <Select
+            labelId="owner-select-label"
+            value={selectedOwnerId}
+            label="目标 Owner"
+            onChange={(event) => setSelectedOwnerId(event.target.value)}
+          >
+            {users.map((user) => (
+              <MenuItem key={user.id} value={user.id}>
+                {user.username} ({user.role})
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
 
         {loading ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
@@ -199,7 +239,7 @@ function ImportNetwork() {
         ) : networks.length === 0 ? (
           <Box sx={{ py: 5, textAlign: 'center' }}>
             <Typography sx={{ color: 'text.secondary', mb: 2 }}>
-              没有找到可导入的网络。所有网络都已在 Tairitsu 中登记且有所有者。
+              没有找到可导入的网络。所有网络都已在 Tairitsu 中登记且已分配所有者。
             </Typography>
             <Button
               variant="outlined"
@@ -310,7 +350,7 @@ function ImportNetwork() {
                 variant="contained"
                 color="primary"
                 onClick={() => { void handleImport(); }}
-                disabled={selectedNetworks.size === 0 || importing}
+                disabled={selectedNetworks.size === 0 || importing || selectedOwnerId === ''}
               >
                 {importing ? (
                   <>
