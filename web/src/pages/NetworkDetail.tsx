@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Box, Typography, Card, CardContent, CircularProgress, Alert, Button, Grid, IconButton, Tabs, Tab, Paper, TextField, Switch, FormControlLabel, FormControl, RadioGroup, Radio, Dialog, DialogTitle, DialogContent, DialogActions, DialogContentText, Snackbar, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Chip, Menu, MenuItem, Stack } from '@mui/material';
-import { ArrowBack, ContentCopy, Add, MoreHoriz } from '@mui/icons-material';
+import { ArrowBack, ContentCopy, MoreHoriz } from '@mui/icons-material';
 import { useParams, Link } from 'react-router-dom';
 import { memberAPI, networkAPI, Network, NetworkConfig, NetworkMetadataUpdateRequest, IpAssignmentPool, Route, type Member as ApiMember } from '../services/api';
 import { getErrorMessage } from '../services/errors';
@@ -34,6 +34,196 @@ interface NetworkMemberDevice {
   lastSeenLabel: string;
   activeBridge: boolean;
   noAutoAssignIps: boolean;
+}
+
+function parseIPv4Address(value: string): number | null {
+  const parts = value.trim().split('.');
+  if (parts.length !== 4) return null;
+
+  let result = 0;
+  for (const part of parts) {
+    if (!/^\d+$/.test(part)) return null;
+    const octet = Number(part);
+    if (octet < 0 || octet > 255) return null;
+    result = (result << 8) + octet;
+  }
+
+  return result >>> 0;
+}
+
+function parseIPv4CIDR(target: string): { network: number; mask: number } | null {
+  const [address, prefixText] = target.trim().split('/');
+  if (!address || !prefixText || !/^\d+$/.test(prefixText)) return null;
+
+  const prefix = Number(prefixText);
+  if (prefix < 0 || prefix > 32) return null;
+
+  const ip = parseIPv4Address(address);
+  if (ip === null) return null;
+
+  const mask = prefix === 0 ? 0 : ((0xffffffff << (32 - prefix)) >>> 0);
+  return {
+    network: ip & mask,
+    mask,
+  };
+}
+
+function formatIPv4Address(value: number): string {
+  return [
+    (value >>> 24) & 255,
+    (value >>> 16) & 255,
+    (value >>> 8) & 255,
+    value & 255,
+  ].join('.');
+}
+
+function normalizeIPv4CIDR(target: string): string | null {
+  const parsed = parseIPv4CIDR(target);
+  if (!parsed) return null;
+
+  const prefix = Number(target.trim().split('/')[1]);
+  return `${formatIPv4Address(parsed.network)}/${prefix}`;
+}
+
+function getCIDRPrefix(target: string): number | null {
+  const prefixText = target.trim().split('/')[1];
+  if (!prefixText || !/^\d+$/.test(prefixText)) return null;
+  const prefix = Number(prefixText);
+  if (prefix < 0 || prefix > 32) return null;
+  return prefix;
+}
+
+function getPrimaryIPv4Subnet(routes: Route[]): string {
+  const primaryRoute = routes.find((route) => !route.via && parseIPv4CIDR(route.target));
+  return primaryRoute?.target ?? '';
+}
+
+function buildAutoAssignPoolFromSubnet(subnet: string): IpAssignmentPool | null {
+  const parsed = parseIPv4CIDR(subnet);
+  const prefix = getCIDRPrefix(subnet);
+  if (!parsed || prefix === null) return null;
+
+  if (prefix >= 31) {
+    return null;
+  }
+
+  const size = 2 ** (32 - prefix);
+  const start = parsed.network + 1;
+  const end = parsed.network + size - 2;
+
+  if (start > end) {
+    return null;
+  }
+
+  return {
+    ipRangeStart: formatIPv4Address(start >>> 0),
+    ipRangeEnd: formatIPv4Address(end >>> 0),
+  };
+}
+
+function isIPv4PoolCoveredByRoutes(pool: IpAssignmentPool, routes: Route[]): boolean {
+  const start = parseIPv4Address(pool.ipRangeStart);
+  const end = parseIPv4Address(pool.ipRangeEnd);
+  if (start === null || end === null || start > end) {
+    return false;
+  }
+
+  return routes.some((route) => {
+    const parsedRoute = parseIPv4CIDR(route.target);
+    if (!parsedRoute) return false;
+    return (start & parsedRoute.mask) === parsedRoute.network && (end & parsedRoute.mask) === parsedRoute.network;
+  });
+}
+
+function isPoolInsideSubnet(pool: IpAssignmentPool, subnet: string): boolean {
+  const route = { target: subnet };
+  return isIPv4PoolCoveredByRoutes(pool, [route]);
+}
+
+function getIPv4RangeIssue(ipv4Subnet: string, ipPool: IpAssignmentPool | null): string | null {
+  const trimmedSubnet = ipv4Subnet.trim();
+  if (trimmedSubnet === '') {
+    return 'IPv4 子网不能为空。';
+  }
+
+  const normalizedSubnet = normalizeIPv4CIDR(trimmedSubnet);
+  if (!normalizedSubnet) {
+    return 'IPv4 子网必须是有效的 CIDR，例如 10.22.2.0/24。';
+  }
+
+  const prefix = getCIDRPrefix(normalizedSubnet);
+  if (prefix === null || prefix > 30) {
+    return 'IPv4 子网前缀需要在 0 到 30 之间，才能用于成员地址分配。';
+  }
+
+  if (!ipPool) {
+    return '必须提供一个有效的 IPv4 地址池范围。';
+  }
+
+  const start = ipPool.ipRangeStart.trim();
+  const end = ipPool.ipRangeEnd.trim();
+
+  if (start === '' || end === '') {
+    return '自动分配地址池需要同时填写起始 IP 和结束 IP。';
+  }
+
+  const parsedStart = parseIPv4Address(start);
+  const parsedEnd = parseIPv4Address(end);
+  if (parsedStart === null || parsedEnd === null) {
+    return '自动分配地址池不是有效的 IPv4 范围。';
+  }
+
+  if (parsedStart > parsedEnd) {
+    return '自动分配地址池的起始 IP 不能大于结束 IP。';
+  }
+
+  if (!isPoolInsideSubnet(ipPool, normalizedSubnet)) {
+    return '自动分配地址池必须完全落在 IPv4 子网内。';
+  }
+
+  return null;
+}
+
+function getIPv4ConfigurationIssues(ipv4Subnet: string, v4AssignMode: boolean, ipPools: IpAssignmentPool[]): string[] {
+  const trimmedSubnet = ipv4Subnet.trim();
+  if (trimmedSubnet === '') {
+    return ['IPv4 子网不能为空。'];
+  }
+
+  const normalizedSubnet = normalizeIPv4CIDR(trimmedSubnet);
+  if (!normalizedSubnet) {
+    return ['IPv4 子网必须是有效的 CIDR，例如 10.22.2.0/24。'];
+  }
+
+  const prefix = getCIDRPrefix(normalizedSubnet);
+  if (prefix === null || prefix > 30) {
+    return ['IPv4 子网前缀需要在 0 到 30 之间，才能用于成员地址分配。'];
+  }
+
+  if (!v4AssignMode) {
+    return [];
+  }
+
+  if (ipPools.length === 0) {
+    return ['开启自动分配后，至少需要配置一个 IPv4 地址池范围。'];
+  }
+
+  return ipPools.flatMap((ipPool, index) => {
+    const issue = getIPv4RangeIssue(ipv4Subnet, ipPool);
+    return issue ? [`地址池 ${index + 1}：${issue}`] : [];
+  });
+}
+
+function areIpPoolsEqual(a: IpAssignmentPool[], b: IpAssignmentPool[]): boolean {
+  if (a.length !== b.length) return false;
+  return a.every((pool, index) =>
+    pool.ipRangeStart === b[index]?.ipRangeStart &&
+    pool.ipRangeEnd === b[index]?.ipRangeEnd
+  );
+}
+
+function generateRandomIPv4Subnet(): string {
+  return `10.${Math.floor(Math.random() * 256)}.${Math.floor(Math.random() * 256)}.0/24`;
 }
 
 function formatNetworkMember(member: ApiMember): NetworkMemberDevice {
@@ -70,7 +260,10 @@ function NetworkDetail() {
   const [v6AssignMode, setV6AssignMode] = useState<V6AssignMode>('none');
   const [multicastLimit, setMulticastLimit] = useState<number>(32);
   const [enableBroadcast, setEnableBroadcast] = useState<boolean>(true);
-  const [ipPools, setIpPools] = useState<IpAssignmentPool[]>([]);
+  const [ipv4Subnet, setIpv4Subnet] = useState<string>('');
+  const [ipv4PoolStartDraft, setIpv4PoolStartDraft] = useState<string>('');
+  const [ipv4PoolEndDraft, setIpv4PoolEndDraft] = useState<string>('');
+  const [ipv4Pools, setIpv4Pools] = useState<IpAssignmentPool[]>([]);
   const [routes, setRoutes] = useState<Route[]>([]);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState<boolean>(false);
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' | 'info' }>({ open: false, message: '', severity: 'success' });
@@ -104,12 +297,12 @@ function NetworkDetail() {
 
   useEffect(() => {
     if (network) {
-      const poolsChanged = JSON.stringify(ipPools) !== JSON.stringify(network.config.ipAssignmentPools || []);
-      const routesChanged = JSON.stringify(routes) !== JSON.stringify(network.config.routes || []);
+      const subnetChanged = ipv4Subnet !== getPrimaryIPv4Subnet(network.config.routes || []);
+      const poolChanged = !areIpPoolsEqual(ipv4Pools, network.config.ipAssignmentPools || []);
       const v4Changed = v4AssignMode !== (network.config.v4AssignMode?.zt ?? false);
-      setIpv4Unsaved(poolsChanged || routesChanged || v4Changed);
+      setIpv4Unsaved(subnetChanged || poolChanged || v4Changed);
     }
-  }, [ipPools, routes, v4AssignMode, network]);
+  }, [ipv4Subnet, ipv4Pools, v4AssignMode, network]);
 
   useEffect(() => {
     if (network) {
@@ -148,8 +341,12 @@ function NetworkDetail() {
         setV6AssignMode(getV6AssignModeFromConfig(networkData.config.v6AssignMode));
         setMulticastLimit(networkData.config.multicastLimit ?? 32);
         setEnableBroadcast(networkData.config.enableBroadcast ?? true);
-        const pools = networkData.config.ipAssignmentPools || [];
-        setIpPools(pools);
+        const primarySubnet = getPrimaryIPv4Subnet(networkData.config.routes || []);
+        setIpv4Subnet(primarySubnet);
+        const loadedPools = networkData.config.ipAssignmentPools || [];
+        setIpv4Pools(loadedPools);
+        setIpv4PoolStartDraft(loadedPools[0]?.ipRangeStart ?? '');
+        setIpv4PoolEndDraft(loadedPools[0]?.ipRangeEnd ?? '');
         setRoutes(networkData.config.routes || []);
         setHidePendingBanner(false);
       }
@@ -175,6 +372,11 @@ function NetworkDetail() {
   const memberDevices = (network?.members || []).map(formatNetworkMember);
   const pendingMembers = memberDevices.filter((member) => !member.authorized);
   const authorizedMembers = memberDevices.filter((member) => member.authorized);
+  const ipv4RangeDraftIssue = getIPv4RangeIssue(ipv4Subnet, {
+    ipRangeStart: ipv4PoolStartDraft,
+    ipRangeEnd: ipv4PoolEndDraft,
+  });
+  const ipv4ConfigurationIssues = getIPv4ConfigurationIssues(ipv4Subnet, v4AssignMode, ipv4Pools);
   const filteredMembers = memberDevices.filter((member) => {
     const query = memberSearchTerm.trim().toLowerCase();
     if (query === '') return true;
@@ -321,11 +523,25 @@ function NetworkDetail() {
 
   const handleSaveIPv4 = async () => {
     if (!id) return;
+    if (ipv4ConfigurationIssues.length > 0) {
+      showSnackbar(ipv4ConfigurationIssues[0], 'error');
+      return;
+    }
     setSaving(true);
     try {
+      const normalizedSubnet = normalizeIPv4CIDR(ipv4Subnet);
+      const updatedRoutes = [
+        { target: normalizedSubnet as string },
+        ...routes.filter((route) => route.via || !parseIPv4CIDR(route.target)),
+      ];
+      const updatedPools = v4AssignMode ? ipv4Pools.map((pool) => ({
+        ipRangeStart: pool.ipRangeStart.trim(),
+        ipRangeEnd: pool.ipRangeEnd.trim(),
+      })) : [];
+
       await networkAPI.updateNetwork(id, {
-        ipAssignmentPools: ipPools,
-        routes: routes,
+        ipAssignmentPools: updatedPools,
+        routes: updatedRoutes,
         v4AssignMode: { zt: v4AssignMode }
       });
       showSnackbar('IPv4配置保存成功');
@@ -373,36 +589,66 @@ function NetworkDetail() {
     }
   };
 
-  const handleAddIpPool = () => {
-    setIpPools([...ipPools, { ipRangeStart: '', ipRangeEnd: '' }]);
+  const handleGenerateSubnetAndRange = () => {
+    const subnet = generateRandomIPv4Subnet();
+    const pool = buildAutoAssignPoolFromSubnet(subnet);
+    setIpv4Subnet(subnet);
+    if (pool) {
+      setIpv4PoolStartDraft(pool.ipRangeStart);
+      setIpv4PoolEndDraft(pool.ipRangeEnd);
+    }
   };
 
-  const handleRemoveIpPool = (index: number) => {
-    const newPools = [...ipPools];
-    newPools.splice(index, 1);
-    setIpPools(newPools);
+  const handleToggleV4AssignMode = (enabled: boolean) => {
+    setV4AssignMode(enabled);
+    if (enabled && ipv4Pools.length === 0 && (!ipv4PoolStartDraft || !ipv4PoolEndDraft)) {
+      const pool = buildAutoAssignPoolFromSubnet(ipv4Subnet);
+      if (pool) {
+        setIpv4PoolStartDraft(pool.ipRangeStart);
+        setIpv4PoolEndDraft(pool.ipRangeEnd);
+      }
+    }
+    if (!enabled) {
+      setIpv4PoolStartDraft('');
+      setIpv4PoolEndDraft('');
+      setIpv4Pools([]);
+    }
   };
 
-  const handleUpdateIpPool = (index: number, field: 'ipRangeStart' | 'ipRangeEnd', value: string) => {
-    const newPools = [...ipPools];
-    newPools[index] = { ...newPools[index], [field]: value };
-    setIpPools(newPools);
+  const handleSubnetChange = (value: string) => {
+    setIpv4Subnet(value);
+    if (v4AssignMode && ipv4Pools.length === 0) {
+      const pool = buildAutoAssignPoolFromSubnet(value);
+      if (pool) {
+        setIpv4PoolStartDraft(pool.ipRangeStart);
+        setIpv4PoolEndDraft(pool.ipRangeEnd);
+      }
+    }
   };
 
-  const handleAddRoute = () => {
-    setRoutes([...routes, { target: '', via: '' }]);
+  const handleSetIPv4Range = () => {
+    const nextPool = {
+      ipRangeStart: ipv4PoolStartDraft.trim(),
+      ipRangeEnd: ipv4PoolEndDraft.trim(),
+    };
+    const issue = getIPv4RangeIssue(ipv4Subnet, nextPool);
+    if (issue) {
+      showSnackbar(issue, 'error');
+      return;
+    }
+
+    if (ipv4Pools.some((pool) => pool.ipRangeStart === nextPool.ipRangeStart && pool.ipRangeEnd === nextPool.ipRangeEnd)) {
+      showSnackbar('该地址池范围已存在', 'info');
+      return;
+    }
+
+    setIpv4Pools((prev) => [...prev, nextPool]);
+    setIpv4PoolStartDraft('');
+    setIpv4PoolEndDraft('');
   };
 
-  const handleRemoveRoute = (index: number) => {
-    const newRoutes = [...routes];
-    newRoutes.splice(index, 1);
-    setRoutes(newRoutes);
-  };
-
-  const handleUpdateRoute = (index: number, field: 'target' | 'via', value: string) => {
-    const newRoutes = [...routes];
-    newRoutes[index] = { ...newRoutes[index], [field]: value };
-    setRoutes(newRoutes);
+  const handleRemoveIPv4Range = (index: number) => {
+    setIpv4Pools((prev) => prev.filter((_, currentIndex) => currentIndex !== index));
   };
 
   const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
@@ -674,145 +920,127 @@ function NetworkDetail() {
                     </Typography>
                   )}
                 </Box>
-                <Box sx={{ mb: 3, p: 2, bgcolor: 'background.paper', borderRadius: 1, border: '1px solid', borderColor: 'divider' }}>
-                  <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                    已分配的IPv4地址段
-                  </Typography>
-                  {ipPools.length > 0 ? (
-                    <Box>
-                      {ipPools.map((pool, index) => (
-                        <Typography key={index} variant="body1">
-                          {pool.ipRangeStart} - {pool.ipRangeEnd}
-                        </Typography>
-                      ))}
-                    </Box>
-                  ) : (
-                    <Typography variant="body1">
-                      未设置
-                    </Typography>
-                  )}
-                </Box>
-                
                 <Box sx={{ mb: 3 }}>
-                  <Typography variant="subtitle1" sx={{ mb: 2 }}>
-                    IPv4地址分配池
+                  <Typography variant="body1" sx={{ mb: 2 }}>
+                    默认会以一个 IPv4 子网作为网络边界。自动分配地址池必须完全落在该子网内。
                   </Typography>
-                  {ipPools.length > 0 ? (
-                    <Box sx={{ mb: 2 }}>
-                      {ipPools.map((pool, index) => (
-                        <Grid container spacing={2} alignItems="center" key={index} sx={{ mb: 2 }}>
-                          <Grid size={{ xs: 5 }}>
-                            <TextField
-                              fullWidth
-                              label="起始IP"
-                              variant="outlined"
-                              size="small"
-                              value={pool.ipRangeStart}
-                              onChange={(e) => handleUpdateIpPool(index, 'ipRangeStart', e.target.value)}
-                            />
-                          </Grid>
-                          <Grid size={{ xs: 5 }}>
-                            <TextField
-                              fullWidth
-                              label="结束IP"
-                              variant="outlined"
-                              size="small"
-                              value={pool.ipRangeEnd}
-                              onChange={(e) => handleUpdateIpPool(index, 'ipRangeEnd', e.target.value)}
-                            />
-                          </Grid>
-                          <Grid size={{ xs: 2 }}>
-                            <Button variant="outlined" color="error" fullWidth size="small" onClick={() => handleRemoveIpPool(index)}>
-                              删除
-                            </Button>
-                          </Grid>
-                        </Grid>
-                      ))}
-                    </Box>
-                  ) : (
-                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                      未设置地址池
-                    </Typography>
-                  )}
-                  <Box sx={{ display: 'flex', gap: 2 }}>
-                    <Button variant="outlined" startIcon={<Add />} size="small" onClick={handleAddIpPool}>
-                      添加地址池
+                  <TextField
+                    fullWidth
+                    label="IPv4 子网"
+                    placeholder="例如 10.22.2.0/24"
+                    value={ipv4Subnet}
+                    onChange={(e) => handleSubnetChange(e.target.value)}
+                    sx={{ mb: 2 }}
+                  />
+                  <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <Button variant="outlined" onClick={handleGenerateSubnetAndRange}>
+                      生成新的子网与范围
                     </Button>
-                    <Button variant="outlined" size="small" onClick={() => {
-                      const randomPool: IpAssignmentPool = {
-                        ipRangeStart: `10.${Math.floor(Math.random() * 256)}.${Math.floor(Math.random() * 256)}.1`,
-                        ipRangeEnd: `10.${Math.floor(Math.random() * 256)}.${Math.floor(Math.random() * 256)}.254`
-                      };
-                      setIpPools([...ipPools, randomPool]);
-                    }}>
-                      随机分配一个地址池
-                    </Button>
-                  </Box>
-                </Box>
-                
-                <Box sx={{ mb: 3 }}>
-                  <Typography variant="subtitle1" sx={{ mb: 2 }}>
-                    IPv4自动分配模式
-                  </Typography>
-                  <FormControlLabel
-                      control={<Switch checked={v4AssignMode} onChange={(e) => setV4AssignMode(e.target.checked)} />}
-                      label="自动分配IPv4地址给新成员设备"
-                    />
-                  <Box sx={{ pl: 4, mt: -1 }}>
                     <Typography variant="body2" color="text.secondary">
-                      每个成员设备将自动获取一个IPv4地址。您可以在上方定义地址池范围。
+                      保存时会自动将该子网同步为网络的主托管路由。
                     </Typography>
                   </Box>
                 </Box>
-                
-                <Box sx={{ mb: 3 }}>
-                  <Typography variant="subtitle1" sx={{ mb: 2 }}>
-                    活跃路由
-                  </Typography>
-                  {routes.length > 0 ? (
-                    <Box sx={{ mb: 2 }}>
-                      {routes.map((route, index) => (
-                        <Grid container spacing={2} alignItems="center" key={index} sx={{ mb: 2 }}>
-                          <Grid size={{ xs: 5 }}>
-                            <TextField
-                              fullWidth
-                              label="目标网络"
-                              variant="outlined"
-                              size="small"
-                              value={route.target}
-                              onChange={(e) => handleUpdateRoute(index, 'target', e.target.value)}
-                            />
-                          </Grid>
-                          <Grid size={{ xs: 5 }}>
-                            <TextField
-                              fullWidth
-                              label="下一跳地址"
-                              variant="outlined"
-                              size="small"
-                              placeholder="可选"
-                              value={route.via || ''}
-                              onChange={(e) => handleUpdateRoute(index, 'via', e.target.value)}
-                            />
-                          </Grid>
-                          <Grid size={{ xs: 2 }}>
-                            <Button variant="outlined" color="error" fullWidth size="small" onClick={() => handleRemoveRoute(index)}>
-                              删除
-                            </Button>
-                          </Grid>
-                        </Grid>
-                      ))}
+
+                <Paper variant="outlined" sx={{ p: 2.5, mb: 3, bgcolor: 'action.hover' }}>
+                  <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 2, mb: v4AssignMode ? 2 : 0, flexWrap: 'wrap' }}>
+                    <Box>
+                      <Typography variant="h6">
+                        自动分配 IPv4 地址给新成员设备
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        关闭后会收起自动分配范围，并在保存时清空 `ipAssignmentPools`。成员手动指定 IP 不受影响。
+                      </Typography>
                     </Box>
-                  ) : (
-                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                      未设置路由
-                    </Typography>
-                  )}
-                  <Box sx={{ display: 'flex', gap: 2 }}>
-                    <Button variant="outlined" startIcon={<Add />} size="small" onClick={handleAddRoute}>
-                      添加路由
-                    </Button>
+                    <Switch checked={v4AssignMode} onChange={(e) => handleToggleV4AssignMode(e.target.checked)} />
                   </Box>
-                </Box>
+
+                  {v4AssignMode && (
+                    <>
+                      <Grid container spacing={2}>
+                        <Grid size={{ xs: 12, md: 6 }}>
+                          <TextField
+                            fullWidth
+                            label="起始 IPv4"
+                            placeholder="例如 10.22.2.1"
+                            value={ipv4PoolStartDraft}
+                            onChange={(e) => setIpv4PoolStartDraft(e.target.value)}
+                            error={Boolean(ipv4PoolStartDraft || ipv4PoolEndDraft) && Boolean(ipv4RangeDraftIssue)}
+                            helperText={ipv4Subnet ? `必须落在 ${ipv4Subnet} 内` : '请先填写 IPv4 子网'}
+                          />
+                        </Grid>
+                        <Grid size={{ xs: 12, md: 6 }}>
+                          <TextField
+                            fullWidth
+                            label="结束 IPv4"
+                            placeholder="例如 10.22.2.254"
+                            value={ipv4PoolEndDraft}
+                            onChange={(e) => setIpv4PoolEndDraft(e.target.value)}
+                            error={Boolean(ipv4PoolStartDraft || ipv4PoolEndDraft) && Boolean(ipv4RangeDraftIssue)}
+                            helperText={ipv4Subnet ? `必须落在 ${ipv4Subnet} 内` : '请先填写 IPv4 子网'}
+                          />
+                        </Grid>
+                      </Grid>
+
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 2, flexWrap: 'wrap', mt: 2 }}>
+                        <Box>
+                          <Typography variant="subtitle1">
+                            Active IPv4 Auto-Assign Range
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            使用 `Set Range` 将当前输入加入自动分配地址池列表。
+                          </Typography>
+                        </Box>
+                        <Button variant="outlined" onClick={handleSetIPv4Range} disabled={Boolean(ipv4RangeDraftIssue)}>
+                          Set Range
+                        </Button>
+                      </Box>
+
+                      {Boolean(ipv4RangeDraftIssue) && Boolean(ipv4PoolStartDraft || ipv4PoolEndDraft) && (
+                        <Alert severity="warning" sx={{ mt: 2 }}>
+                          {ipv4RangeDraftIssue}
+                        </Alert>
+                      )}
+
+                      {ipv4Pools.length > 0 ? (
+                        <TableContainer component={Paper} variant="outlined" sx={{ mt: 2 }}>
+                          <Table size="small">
+                            <TableHead>
+                              <TableRow>
+                                <TableCell>Start</TableCell>
+                                <TableCell>End</TableCell>
+                                <TableCell align="right">Action</TableCell>
+                              </TableRow>
+                            </TableHead>
+                            <TableBody>
+                              {ipv4Pools.map((pool, index) => (
+                                <TableRow key={`${pool.ipRangeStart}-${pool.ipRangeEnd}`}>
+                                  <TableCell>{pool.ipRangeStart}</TableCell>
+                                  <TableCell>{pool.ipRangeEnd}</TableCell>
+                                  <TableCell align="right">
+                                    <Button variant="outlined" color="error" size="small" onClick={() => handleRemoveIPv4Range(index)}>
+                                      删除
+                                    </Button>
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </TableContainer>
+                      ) : (
+                        <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+                          尚未配置自动分配地址池。
+                        </Typography>
+                      )}
+                    </>
+                  )}
+                </Paper>
+
+                {ipv4ConfigurationIssues.length > 0 && (
+                  <Alert severity="warning" sx={{ mb: 3 }}>
+                    {ipv4ConfigurationIssues.join(' ')}
+                  </Alert>
+                )}
                 
                 <Box sx={{ display: 'flex', justifyContent: 'flex-start' }}>
                   <Button variant="contained" color="primary" onClick={() => { void handleSaveIPv4(); }} disabled={saving || !ipv4Unsaved}>
