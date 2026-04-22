@@ -175,8 +175,11 @@ function Networks() {
                 <Typography variant="h6" color="text.secondary" gutterBottom>
                   已认证设备数
                 </Typography>
-                <Typography variant="h4">
-                  -
+                <Typography variant="h5">
+                  暂不可得
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  成员级统计将在后续版本补齐
                 </Typography>
               </CardContent>
             </Card>
@@ -187,8 +190,11 @@ function Networks() {
                 <Typography variant="h6" color="text.secondary" gutterBottom>
                   待认证设备数
                 </Typography>
-                <Typography variant="h4">
-                  -
+                <Typography variant="h5">
+                  暂不可得
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  成员级统计将在后续版本补齐
                 </Typography>
               </CardContent>
             </Card>

@@ -541,6 +541,16 @@ type ImportableNetworkSummary struct {
 	IsImportable bool   `json:"is_importable"`
 }
 
+type ImportNetworkFailure struct {
+	NetworkID string `json:"network_id"`
+	Reason    string `json:"reason"`
+}
+
+type ImportNetworksResult struct {
+	ImportedIDs []string               `json:"imported_ids"`
+	Failed      []ImportNetworkFailure `json:"failed"`
+}
+
 // GetImportableNetworks 获取可导入的网络ID列表（轻量级）
 func (s *NetworkService) GetImportableNetworks(userID string) ([]ImportableNetworkSummary, error) {
 	db := s.getDB()
@@ -604,7 +614,7 @@ func (s *NetworkService) GetImportableNetworks(userID string) ([]ImportableNetwo
 }
 
 // ImportNetworks 导入指定的网络
-func (s *NetworkService) ImportNetworks(networkIDs []string, userID string) ([]string, error) {
+func (s *NetworkService) ImportNetworks(networkIDs []string, userID string) (*ImportNetworksResult, error) {
 	if s.ztClient == nil {
 		logger.Warn("服务层：ZeroTier客户端未初始化")
 		return nil, fmt.Errorf("ZeroTier客户端未初始化")
@@ -641,12 +651,19 @@ func (s *NetworkService) ImportNetworks(networkIDs []string, userID string) ([]s
 		ztNetworkSet[id] = true
 	}
 
-	var importedIDs []string
+	result := &ImportNetworksResult{
+		ImportedIDs: make([]string, 0, len(networkIDs)),
+		Failed:      make([]ImportNetworkFailure, 0),
+	}
 	now := time.Now()
 
 	for _, networkID := range networkIDs {
 		if !ztNetworkSet[networkID] {
 			logger.Warn("服务层：网络不存在于ZeroTier控制器", zap.String("network_id", networkID))
+			result.Failed = append(result.Failed, ImportNetworkFailure{
+				NetworkID: networkID,
+				Reason:    "网络不存在于 ZeroTier 控制器中",
+			})
 			continue
 		}
 
@@ -657,6 +674,10 @@ func (s *NetworkService) ImportNetworks(networkIDs []string, userID string) ([]s
 			ztNet, err := s.ztClient.GetNetwork(networkID)
 			if err != nil {
 				logger.Error("服务层：获取网络详情失败", zap.String("network_id", networkID), zap.Error(err))
+				result.Failed = append(result.Failed, ImportNetworkFailure{
+					NetworkID: networkID,
+					Reason:    "读取 ZeroTier 网络详情失败",
+				})
 				continue
 			}
 
@@ -672,11 +693,15 @@ func (s *NetworkService) ImportNetworks(networkIDs []string, userID string) ([]s
 
 			if err := db.CreateNetwork(newNetwork); err != nil {
 				logger.Error("服务层：创建网络记录失败", zap.String("network_id", networkID), zap.Error(err))
+				result.Failed = append(result.Failed, ImportNetworkFailure{
+					NetworkID: networkID,
+					Reason:    "写入数据库失败",
+				})
 				continue
 			}
 
 			logger.Info("服务层：成功导入网络", zap.String("network_id", networkID), zap.String("network_name", ztNet.Name))
-			importedIDs = append(importedIDs, networkID)
+			result.ImportedIDs = append(result.ImportedIDs, networkID)
 		} else if dbNet.OwnerID == "" {
 			// 网络在数据库中但没有所有者，更新所有者
 			dbNet.OwnerID = userID
@@ -684,18 +709,30 @@ func (s *NetworkService) ImportNetworks(networkIDs []string, userID string) ([]s
 
 			if err := db.UpdateNetwork(dbNet); err != nil {
 				logger.Error("服务层：更新网络所有者失败", zap.String("network_id", networkID), zap.Error(err))
+				result.Failed = append(result.Failed, ImportNetworkFailure{
+					NetworkID: networkID,
+					Reason:    "更新网络所有者失败",
+				})
 				continue
 			}
 
 			logger.Info("服务层：成功认领网络", zap.String("network_id", networkID))
-			importedIDs = append(importedIDs, networkID)
+			result.ImportedIDs = append(result.ImportedIDs, networkID)
 		} else if dbNet.OwnerID != userID {
 			logger.Warn("服务层：网络属于其他用户，无法导入", zap.String("network_id", networkID), zap.String("owner_id", dbNet.OwnerID))
+			result.Failed = append(result.Failed, ImportNetworkFailure{
+				NetworkID: networkID,
+				Reason:    "网络属于其他用户，无法导入",
+			})
 			continue
 		} else {
 			logger.Info("服务层：网络已属于当前用户，跳过", zap.String("network_id", networkID))
+			result.Failed = append(result.Failed, ImportNetworkFailure{
+				NetworkID: networkID,
+				Reason:    "您已拥有该网络，无需重复导入",
+			})
 		}
 	}
 
-	return importedIDs, nil
+	return result, nil
 }

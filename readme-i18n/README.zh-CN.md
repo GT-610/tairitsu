@@ -13,12 +13,12 @@ Tairitsu 是 ZeroTier 控制器的 Web 管理界面实现，提供友好的 GUI 
 - **SQLite 优先 MVP**：一期仅正式支持 SQLite
 - **安全认证**：基于 JWT 的安全访问认证
 - **响应式设计**：Material Design 现代化响应式界面
-- **实验性工具**：导入网络与 Planet 生成功能目前仅保留为实验性入口
+- **管理工具**：支持导入现有 ZeroTier 网络，并在需要时生成自定义 Planet 文件
 
 ## 一期支持矩阵
 
 - 正式支持：SQLite、单实例自托管 ZeroTier 控制器、小规模管理员场景
-- 实验性 / 冻结中：导入网络、Planet、更完整的设置页
+- 开发中：更完整的账户设置与 Planet 工具链
 - 当前不作为一期承诺：MySQL、PostgreSQL
 
 ## 部署

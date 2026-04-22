@@ -15,12 +15,12 @@ Tairitsu is a web-based controller interface for ZeroTier, providing a user-frie
 - **SQLite-first MVP**: SQLite is the only Phase 1 database with formal support
 - **Secure Authentication**: JWT-based authentication for secure access
 - **Responsive Design**: Modern, responsive Material Design interface
-- **Experimental Tools**: Import Network and Planet generation remain available only as experimental surfaces
+- **Admin Tools**: Import existing ZeroTier networks and generate custom Planet files when needed
 
 ## Phase 1 Support Matrix
 
 - Supported: SQLite, single-instance self-hosted ZeroTier controller, small admin teams
-- Experimental / frozen: Import Network, Planet, broader Settings
+- In progress: broader account settings and Planet tooling
 - Not currently supported as a Phase 1 promise: MySQL, PostgreSQL
 
 ## Deployment

@@ -109,6 +109,10 @@ export interface ImportableNetworkSummary {
 export interface ImportNetworksResponse {
   message: string;
   imported_ids: string[];
+  failed: Array<{
+    network_id: string;
+    reason: string;
+  }>;
 }
 
 export interface SystemStatus {

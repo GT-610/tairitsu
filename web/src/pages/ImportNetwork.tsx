@@ -31,6 +31,10 @@ function ImportNetwork() {
   const [selectedNetworks, setSelectedNetworks] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string>('');
   const [successMessage, setSuccessMessage] = useState<string>('');
+  const [importResult, setImportResult] = useState<{
+    importedIds: string[];
+    failed: Array<{ network_id: string; reason: string }>;
+  } | null>(null);
 
   useEffect(() => {
     void fetchImportableNetworks();
@@ -76,10 +80,26 @@ function ImportNetwork() {
     setImporting(true);
     setError('');
     setSuccessMessage('');
+    setImportResult(null);
     try {
-      await networkAPI.importNetworks(Array.from(selectedNetworks));
+      const response = await networkAPI.importNetworks(Array.from(selectedNetworks));
+      const importedIds = Array.isArray(response.data.imported_ids) ? response.data.imported_ids : [];
+      const failed = Array.isArray(response.data.failed) ? response.data.failed : [];
+
       setSelectedNetworks(new Set());
-      setSuccessMessage(`已成功导入 ${importCount} 个网络，列表已刷新。`);
+      setImportResult({
+        importedIds,
+        failed,
+      });
+
+      if (importedIds.length === importCount && failed.length === 0) {
+        setSuccessMessage(`已成功导入 ${importedIds.length} 个网络，列表已刷新。`);
+      } else if (importedIds.length > 0) {
+        setSuccessMessage(`已导入 ${importedIds.length} 个网络，另有 ${failed.length} 个网络未完成导入。`);
+      } else {
+        setError(response.data.message || '未成功导入任何网络');
+      }
+
       await fetchImportableNetworks();
     } catch (err: unknown) {
       setError(getErrorMessage(err, '导入网络失败'));
@@ -134,6 +154,29 @@ function ImportNetwork() {
           )}
         >
           {successMessage}
+        </Alert>
+      )}
+
+      {importResult && importResult.failed.length > 0 && (
+        <Alert severity={importResult.importedIds.length > 0 ? 'warning' : 'error'} sx={{ mb: 3 }}>
+          <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>
+            导入结果摘要
+          </Typography>
+          <Typography variant="body2" sx={{ mb: 1 }}>
+            成功 {importResult.importedIds.length} 个，失败 {importResult.failed.length} 个。
+          </Typography>
+          <List dense sx={{ py: 0 }}>
+            {importResult.failed.map((item) => (
+              <ListItem key={`${item.network_id}-${item.reason}`} disablePadding sx={{ py: 0.25 }}>
+                <ListItemText
+                  primary={item.network_id}
+                  secondary={item.reason}
+                  primaryTypographyProps={{ variant: 'body2' }}
+                  secondaryTypographyProps={{ variant: 'caption' }}
+                />
+              </ListItem>
+            ))}
+          </List>
         </Alert>
       )}
 
@@ -274,6 +317,9 @@ function ImportNetwork() {
                 ) : (
                   `导入所选网络 (${selectedNetworks.size})`
                 )}
+              </Button>
+              <Button component={RouterLink} to="/networks" variant="outlined">
+                返回网络列表
               </Button>
             </Box>
           </>

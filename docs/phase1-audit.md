@@ -50,15 +50,15 @@ Current direction:
 
 ### Settings
 
-- Status: Degraded
+- Status: In progress
 - Supported: password change
-- Frozen: language switching, account deletion, broader settings management
+- In progress: language switching, account deletion, broader account settings management
 
 ### Import Network
 
-- Status: Experimental
-- Not part of Phase 1 acceptance
-- Entry is retained for later cleanup, but should not be treated as a core path
+- Status: In progress
+- Useful for bringing existing controller networks under management
+- Still needs richer feedback and broader validation coverage
 
 ### Planet
 

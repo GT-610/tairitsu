@@ -22,6 +22,7 @@ function Dashboard() {
   const [status, setStatus] = useState<SystemStatus | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string>('');
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
   // 系统统计信息状态
   const [systemStats, setSystemStats] = useState<ExtendedSystemStats>({
     cpuUsage: null,
@@ -43,6 +44,7 @@ function Dashboard() {
     try {
       const statusResponse = await statusAPI.getStatus();
       setStatus(statusResponse.data);
+      setLastUpdatedAt(new Date());
     } catch {
       setError('获取数据失败，请稍后重试');
     } finally {
@@ -62,6 +64,7 @@ function Dashboard() {
         kernelVersion: response.data.kernelVersion,
         error: null
       });
+      setLastUpdatedAt(new Date());
     } catch {
       setSystemStats(prev => ({
         ...prev,
@@ -146,7 +149,10 @@ function Dashboard() {
               </Box>
               <Box>
                 <Typography variant="body2">
-                  运行时长: {status?.uptime ? `${Math.floor(status.uptime)} 秒` : '未知'}
+                  运行时长: {status?.uptime !== undefined ? `${Math.floor(status.uptime)} 秒` : '未知'}
+                </Typography>
+                <Typography variant="body2">
+                  最近更新时间: {lastUpdatedAt ? lastUpdatedAt.toLocaleTimeString() : '尚未获取'}
                 </Typography>
               </Box>
             </Stack>

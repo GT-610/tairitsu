@@ -18,15 +18,18 @@ import {
   TextField,
   CircularProgress,
   Stack,
+  Divider,
   type SelectChangeEvent
 } from '@mui/material';
 import { authAPI } from '../services/api';
 import { getErrorMessage } from '../services/errors';
+import { useAuth } from '../services/auth';
 
 function Settings() {
   const [loading, setLoading] = useState<boolean>(true);
   const [message, setMessage] = useState<{ severity: 'info' | 'success' | 'error'; text: string } | null>(null);
   const [language, setLanguage] = useState<string>('zh-CN');
+  const { user } = useAuth();
   
   // 修改密码对话框相关状态
   const [openChangePasswordDialog, setOpenChangePasswordDialog] = useState<boolean>(false);
@@ -171,8 +174,29 @@ function Settings() {
           <Card sx={{ mb: 3 }}>
             <CardContent>
               <Typography variant="h6" gutterBottom>
-                个人设置
+                账户设置
               </Typography>
+
+              <Stack spacing={2.5} sx={{ mb: 3 }}>
+                <Box>
+                  <Typography variant="body2" color="text.secondary">
+                    当前账号
+                  </Typography>
+                  <Typography variant="body1">
+                    {user?.username || '未知用户'}
+                  </Typography>
+                </Box>
+                <Box>
+                  <Typography variant="body2" color="text.secondary">
+                    当前角色
+                  </Typography>
+                  <Typography variant="body1">
+                    {user?.role === 'admin' ? '管理员' : '普通用户'}
+                  </Typography>
+                </Box>
+              </Stack>
+
+              <Divider sx={{ mb: 3 }} />
 
               <Box sx={{ mb: 3 }}>
                 <Typography variant="body1" sx={{ mb: 1 }}>
@@ -220,7 +244,24 @@ function Settings() {
             </CardContent>
           </Card>
 
-
+          <Card>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                会话与安全
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                更多账户安全能力仍在开发中。后续会补充会话管理、登录设备查看和更完整的账号操作入口。
+              </Typography>
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
+                <Button variant="outlined" disabled fullWidth>
+                  会话管理（开发中）
+                </Button>
+                <Button variant="outlined" disabled fullWidth>
+                  登录设备（开发中）
+                </Button>
+              </Stack>
+            </CardContent>
+          </Card>
         </>
       )}
 
