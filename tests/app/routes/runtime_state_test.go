@@ -33,6 +33,7 @@ func TestRuntimeRoutesDoNotUseSetupOnlyAfterInitialization(t *testing.T) {
 		"/api/system/stats",
 		"/api/users",
 		"/api/admin/networks/importable",
+		"/api/admin/planet/identity",
 	}
 
 	for _, path := range paths {

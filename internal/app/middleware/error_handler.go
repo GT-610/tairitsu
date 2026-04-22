@@ -22,6 +22,14 @@ func ErrorHandler() fiber.Handler {
 		if err != nil {
 			logger.Error("API错误", zap.Error(err))
 
+			if fiberErr, ok := err.(*fiber.Error); ok {
+				return c.Status(fiberErr.Code).JSON(ErrorResponse{
+					Error:   http.StatusText(fiberErr.Code),
+					Message: fiberErr.Message,
+					Code:    fiberErr.Code,
+				})
+			}
+
 			// 响应错误
 			return c.Status(fiber.StatusInternalServerError).JSON(ErrorResponse{
 				Error:   "Internal Server Error",

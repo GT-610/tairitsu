@@ -119,6 +119,7 @@ func SetupRoutes(router *fiber.App, ztClient *zerotier.Client, jwtSecret string,
 		api.Put("/users/:userId/role", runtimeOnly, authMiddleware, adminOnly, userHandler.UpdateUserRole)
 		api.Get("/admin/networks/importable", runtimeOnly, authMiddleware, adminOnly, networkHandler.GetImportableNetworks)
 		api.Post("/admin/networks/import", runtimeOnly, authMiddleware, adminOnly, networkHandler.ImportNetworks)
+		api.Get("/admin/planet/identity", runtimeOnly, authMiddleware, adminOnly, handlers.GetIdentityHandler)
 		api.Post("/admin/planet/generate", runtimeOnly, authMiddleware, adminOnly, handlers.GeneratePlanetHandler)
 		api.Post("/admin/planet/keys", runtimeOnly, authMiddleware, adminOnly, handlers.GenerateSigningKeysHandler)
 	}
