@@ -3,6 +3,7 @@ package database
 import (
 	"sync"
 
+	"github.com/GT-610/tairitsu/internal/app/config"
 	"github.com/GT-610/tairitsu/internal/app/logger"
 	"go.uber.org/zap"
 )
@@ -12,7 +13,9 @@ var (
 	globalDBMu sync.RWMutex
 )
 
-// SetGlobalDB sets the global database instance
+// Deprecated: global database state is retained only as a compatibility layer.
+// New code should pass database dependencies explicitly via assembly/runtime services.
+// SetGlobalDB sets the global database instance.
 func SetGlobalDB(db DBInterface) {
 	globalDBMu.Lock()
 	defer globalDBMu.Unlock()
@@ -24,13 +27,17 @@ func SetGlobalDB(db DBInterface) {
 	logger.Info("全局数据库实例已设置")
 }
 
-// GetGlobalDB returns the global database instance
+// Deprecated: global database state is retained only as a compatibility layer.
+// New code should pass database dependencies explicitly via assembly/runtime services.
+// GetGlobalDB returns the global database instance.
 func GetGlobalDB() DBInterface {
 	globalDBMu.RLock()
 	defer globalDBMu.RUnlock()
 	return globalDB
 }
 
+// Deprecated: global database state is retained only as a compatibility layer.
+// New code should pass database dependencies explicitly via assembly/runtime services.
 // CloseGlobalDB closes and clears the global database instance.
 func CloseGlobalDB() error {
 	globalDBMu.Lock()
@@ -46,18 +53,27 @@ func CloseGlobalDB() error {
 	return err
 }
 
-// InitGlobalDB initializes the global database from config
+// Deprecated: global database initialization is retained only as a compatibility layer.
+// New code should use AppInitializer/RuntimeService with explicit dependencies.
+// InitGlobalDB initializes the global database from the currently loaded app config.
 func InitGlobalDB() error {
+	return InitGlobalDBFromAppConfig(config.AppConfig)
+}
+
+// Deprecated: global database initialization is retained only as a compatibility layer.
+// New code should use AppInitializer/RuntimeService with explicit dependencies.
+// InitGlobalDBFromAppConfig initializes the global database from an explicit app config.
+func InitGlobalDBFromAppConfig(cfg *config.Config) error {
 	globalDBMu.Lock()
 	defer globalDBMu.Unlock()
 
-	config := LoadConfig()
-	if config.Type == "" {
+	dbConfig := LoadConfigFromApp(cfg)
+	if dbConfig.Type == "" {
 		logger.Warn("数据库配置为空，跳过全局数据库初始化")
 		return nil
 	}
 
-	db, err := NewDatabase(config)
+	db, err := NewDatabase(dbConfig)
 	if err != nil {
 		logger.Error("创建数据库实例失败", zap.Error(err))
 		return err
@@ -74,6 +90,6 @@ func InitGlobalDB() error {
 		logger.Info("已关闭旧的数据库连接")
 	}
 	globalDB = db
-	logger.Info("全局数据库初始化成功", zap.String("type", string(config.Type)))
+	logger.Info("全局数据库初始化成功", zap.String("type", string(dbConfig.Type)))
 	return nil
 }

@@ -3,6 +3,7 @@ package initializer
 import (
 	"fmt"
 
+	"github.com/GT-610/tairitsu/internal/app/config"
 	"github.com/GT-610/tairitsu/internal/app/database"
 	"github.com/GT-610/tairitsu/internal/app/logger"
 	"go.uber.org/zap"
@@ -10,18 +11,25 @@ import (
 
 // DatabaseInitializer 数据库初始化器
 type DatabaseInitializer struct {
-	db database.DBInterface
+	db  database.DBInterface
+	cfg *config.Config
 }
 
-// NewDatabaseInitializer 创建新的数据库初始化器
+// Deprecated: use AppInitializer/RuntimeService in new code.
+// NewDatabaseInitializer creates a compatibility database initializer using the globally loaded config.
 func NewDatabaseInitializer() *DatabaseInitializer {
-	return &DatabaseInitializer{}
+	return &DatabaseInitializer{cfg: config.AppConfig}
+}
+
+// Deprecated: use AppInitializer/RuntimeService in new code.
+// NewDatabaseInitializerWithConfig creates a compatibility database initializer using an explicit config.
+func NewDatabaseInitializerWithConfig(cfg *config.Config) *DatabaseInitializer {
+	return &DatabaseInitializer{cfg: cfg}
 }
 
 // Initialize 初始化数据库
 func (di *DatabaseInitializer) Initialize() (database.DBInterface, error) {
-	// 加载数据库配置
-	dbConfig := database.LoadConfig()
+	dbConfig := database.LoadConfigFromApp(di.cfg)
 
 	// 如果未配置数据库类型，跳过初始化
 	if dbConfig.Type == "" {
@@ -67,7 +75,7 @@ func (di *DatabaseInitializer) ResetDatabase() error {
 		di.Close()
 	}
 
-	dbConfig := database.LoadConfig()
+	dbConfig := database.LoadConfigFromApp(di.cfg)
 	if dbConfig.Type == "" {
 		return fmt.Errorf("未配置数据库类型")
 	}

@@ -11,18 +11,30 @@ import (
 // ZeroTierInitializer ZeroTier客户端初始化器
 type ZeroTierInitializer struct {
 	client *zerotier.Client
+	cfg    *config.Config
 }
 
-// NewZeroTierInitializer 创建新的ZeroTier初始化器
+// Deprecated: use AppInitializer/RuntimeService/StateService in new code.
+// NewZeroTierInitializer creates a compatibility ZeroTier initializer using the globally loaded config.
 func NewZeroTierInitializer() *ZeroTierInitializer {
-	return &ZeroTierInitializer{}
+	return &ZeroTierInitializer{cfg: config.AppConfig}
+}
+
+// Deprecated: use AppInitializer/RuntimeService/StateService in new code.
+// NewZeroTierInitializerWithConfig creates a compatibility ZeroTier initializer using an explicit config.
+func NewZeroTierInitializerWithConfig(cfg *config.Config) *ZeroTierInitializer {
+	return &ZeroTierInitializer{cfg: cfg}
 }
 
 // Initialize 初始化ZeroTier客户端
 func (zi *ZeroTierInitializer) Initialize() (*zerotier.Client, error) {
-	cfg, err := config.Current()
-	if err != nil {
-		return nil, err
+	cfg := zi.cfg
+	if cfg == nil {
+		var err error
+		cfg, err = config.Current()
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// 只有在系统已初始化的情况下才自动初始化ZeroTier客户端
@@ -34,7 +46,7 @@ func (zi *ZeroTierInitializer) Initialize() (*zerotier.Client, error) {
 	logger.Info("系统已初始化，开始初始化ZeroTier客户端")
 
 	// 动态创建ZeroTier客户端
-	ztClient, err := zerotier.NewClient()
+	ztClient, err := zerotier.NewClientWithConfig(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("创建ZeroTier客户端失败: %w", err)
 	}
@@ -71,14 +83,19 @@ func (zi *ZeroTierInitializer) TestConnection() error {
 
 // SaveConfig 保存ZeroTier配置
 func (zi *ZeroTierInitializer) SaveConfig(url, token string) error {
-	cfg, err := config.Current()
-	if err != nil {
-		return err
+	cfg := zi.cfg
+	if cfg == nil {
+		var err error
+		cfg, err = config.Current()
+		if err != nil {
+			return err
+		}
 	}
 
 	// 更新配置
 	cfg.ZeroTier.URL = url
 	cfg.ZeroTier.Token = token
+	zi.cfg = cfg
 
 	// 保存配置到文件
 	if err := config.SaveConfig(cfg); err != nil {
