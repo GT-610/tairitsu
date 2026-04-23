@@ -201,6 +201,105 @@ func TestNetworkServiceGetImportableNetworks_MarksOwnedNetworksAsNotImportable(t
 	assert.Equal(t, services.ImportableNetworksSummary{Total: 2, Available: 1, Managed: 1, Blocked: 0}, result.Summary)
 }
 
+func TestNetworkServiceGetImportableNetworks_IncludesUnassignedAndBlockedCandidates(t *testing.T) {
+	db := newTestSQLiteDB(t)
+	createTestUser(t, db, "user-1", "user")
+	now := time.Now()
+	require.NoError(t, db.CreateNetwork(&models.Network{
+		ID:          "8056c2e21c000001",
+		Name:        "unassigned-in-db",
+		Description: "db-description",
+		OwnerID:     "",
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}))
+
+	client := newTestZTClientWithBrokenNetworkRead(t,
+		map[string]zerotier.Network{
+			"8056c2e21c000001": {ID: "8056c2e21c000001", Name: "controller-name", Description: "controller-description", Status: "OK"},
+		},
+		map[string][]zerotier.Member{
+			"8056c2e21c000001": {
+				{ID: "member-1", Config: zerotier.MemberConfig{Authorized: true}},
+				{ID: "member-2", Config: zerotier.MemberConfig{Authorized: false}},
+			},
+		},
+		"8056c2e21c000099",
+	)
+
+	service := services.NewNetworkService(client, db)
+
+	result, err := service.GetImportableNetworks()
+	require.NoError(t, err)
+	require.Len(t, result.Candidates, 2)
+	assert.Contains(t, result.Candidates, services.ImportableNetworkCandidate{
+		NetworkID:        "8056c2e21c000001",
+		Name:             "controller-name",
+		Description:      "controller-description",
+		ControllerStatus: "OK",
+		MemberCount:      intPtr(2),
+		Status:           services.ImportCandidateAvailable,
+		CanImport:        true,
+		ReasonCode:       services.ImportReasonUnassigned,
+		ReasonMessage:    "网络已登记但尚未分配 owner，可继续接管",
+	})
+	assert.Contains(t, result.Candidates, services.ImportableNetworkCandidate{
+		NetworkID:     "8056c2e21c000099",
+		Status:        services.ImportCandidateBlocked,
+		CanImport:     false,
+		ReasonCode:    services.ImportReasonControllerReadFailed,
+		ReasonMessage: "读取控制器网络详情失败，暂时无法导入",
+	})
+	assert.Equal(t, services.ImportableNetworksSummary{Total: 2, Available: 1, Managed: 0, Blocked: 1}, result.Summary)
+}
+
+func TestNetworkServiceGetNetworkByIDRejectsDifferentOwner(t *testing.T) {
+	db := newTestSQLiteDB(t)
+	now := time.Now()
+	require.NoError(t, db.CreateNetwork(&models.Network{
+		ID:          "8056c2e21c000001",
+		Name:        "alpha",
+		Description: "alpha-desc",
+		OwnerID:     "owner-1",
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}))
+
+	service := services.NewNetworkService(newTestZTClient(t, map[string]zerotier.Network{
+		"8056c2e21c000001": {ID: "8056c2e21c000001", Name: "alpha"},
+	}), db)
+
+	detail, err := service.GetNetworkByID("8056c2e21c000001", "owner-2")
+	require.ErrorIs(t, err, services.ErrNetworkAccessDenied)
+	assert.Nil(t, detail)
+}
+
+func TestNetworkServiceGetNetworkMembersRejectsDifferentOwner(t *testing.T) {
+	db := newTestSQLiteDB(t)
+	now := time.Now()
+	require.NoError(t, db.CreateNetwork(&models.Network{
+		ID:          "8056c2e21c000001",
+		Name:        "alpha",
+		Description: "alpha-desc",
+		OwnerID:     "owner-1",
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}))
+
+	service := services.NewNetworkService(newTestZTClientWithMembers(t,
+		map[string]zerotier.Network{
+			"8056c2e21c000001": {ID: "8056c2e21c000001", Name: "alpha"},
+		},
+		map[string][]zerotier.Member{
+			"8056c2e21c000001": {{ID: "member-1"}},
+		},
+	), db)
+
+	members, err := service.GetNetworkMembers("8056c2e21c000001", "owner-2")
+	require.ErrorIs(t, err, services.ErrMemberAccessDenied)
+	assert.Nil(t, members)
+}
+
 func TestNetworkServiceGetAllNetworksIncludesMemberStats(t *testing.T) {
 	db := newTestSQLiteDB(t)
 	now := time.Now()
@@ -514,6 +613,59 @@ func newDelayedMemberZTClient(t *testing.T, delay time.Duration, activeRequests 
 		Token:      "test-token",
 		HTTPClient: server.Client(),
 	}
+}
+
+func newTestZTClientWithBrokenNetworkRead(t *testing.T, networks map[string]zerotier.Network, members map[string][]zerotier.Member, brokenNetworkID string) *zerotier.Client {
+	t.Helper()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		switch r.URL.Path {
+		case "/controller/network":
+			ids := make([]string, 0, len(networks)+1)
+			for id := range networks {
+				ids = append(ids, id)
+			}
+			ids = append(ids, brokenNetworkID)
+			require.NoError(t, json.NewEncoder(w).Encode(ids))
+		default:
+			if len(r.URL.Path) <= len("/controller/network/") {
+				http.NotFound(w, r)
+				return
+			}
+			path := r.URL.Path[len("/controller/network/"):]
+			for networkID, memberList := range members {
+				if path == networkID+"/member" {
+					require.NoError(t, json.NewEncoder(w).Encode(memberList))
+					return
+				}
+			}
+
+			if path == brokenNetworkID {
+				http.Error(w, "broken", http.StatusInternalServerError)
+				return
+			}
+
+			network, ok := networks[path]
+			if !ok {
+				http.NotFound(w, r)
+				return
+			}
+			require.NoError(t, json.NewEncoder(w).Encode(network))
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	return &zerotier.Client{
+		BaseURL:    server.URL,
+		Token:      "test-token",
+		HTTPClient: server.Client(),
+	}
+}
+
+func intPtr(value int) *int {
+	return &value
 }
 
 func newTestZTClientWithMemberObjectResponse(t *testing.T, networks map[string]zerotier.Network, members map[string]map[string]zerotier.Member) *zerotier.Client {

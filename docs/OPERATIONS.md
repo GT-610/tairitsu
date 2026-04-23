@@ -59,6 +59,8 @@ The minimum mainline manual validation is:
 6. import an existing controller network
 7. complete admin user governance flows: create user, reset password, transfer admin, delete user
 
+For the public, repeatable version of that baseline, see [Validation Checklist](VALIDATION.md).
+
 ## Internal vs Public Documentation
 
 - Public docs live under `docs/`

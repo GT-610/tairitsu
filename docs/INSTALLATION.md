@@ -81,3 +81,4 @@ A public deployment should verify at least:
 6. A pending member can be approved or removed.
 
 For product boundaries and operational caveats, see [Operations and Support Boundaries](OPERATIONS.md).
+For the release-minded regression checklist, see [Validation Checklist](VALIDATION.md).

@@ -16,6 +16,7 @@ import {
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import { authAPI, systemAPI } from '../services/api';
 import { getErrorMessage } from '../services/errors';
+import { setupWizardDatabaseStepCopy } from '../utils/setupWizard';
 
 // 管理员账户数据类型
 interface AdminData {
@@ -304,10 +305,10 @@ const SetupWizard = () => {
               配置数据库
             </Typography>
             <Typography variant="body1" paragraph>
-              当前仅支持 SQLite 单实例部署。数据库文件将由程序使用默认路径管理。
+              {setupWizardDatabaseStepCopy.description}
             </Typography>
             <Alert severity="info" sx={{ mb: 2 }}>
-              MySQL 与 PostgreSQL 相关抽象暂时保留，但当前不在支持范围内。
+              {setupWizardDatabaseStepCopy.supportAlert}
             </Alert>
             <form onSubmit={(e) => e.preventDefault()}>
               <TextField
@@ -317,7 +318,7 @@ const SetupWizard = () => {
                 label="数据库类型"
                 value={dbConfig.type}
                 disabled
-                helperText="当前固定为 SQLite"
+                helperText={setupWizardDatabaseStepCopy.databaseTypeHelperText}
               />
               <TextField
                 margin="normal"
@@ -328,7 +329,7 @@ const SetupWizard = () => {
                 value={dbConfig.path}
                 onChange={handleDbPathChange}
                 disabled={loading}
-                helperText="留空则使用默认值 data/tairitsu.db"
+                helperText={setupWizardDatabaseStepCopy.databasePathHelperText}
               />
               {renderMessages()}
             </form>
