@@ -159,7 +159,7 @@ func (s *NetworkService) GetNetworkByID(id string, userID string) (*NetworkDetai
 		return nil, fmt.Errorf("ZeroTier客户端未初始化")
 	}
 
-	ownedNetwork, err := s.getOwnedNetwork(id, userID)
+	ownedNetwork, err := s.authorizeOwnedNetwork(id, userID)
 	if err != nil {
 		logger.Warn("服务层：获取网络失败", zap.String("network_id", id), zap.String("user_id", userID), zap.Error(err))
 		return nil, err
@@ -251,14 +251,13 @@ func (s *NetworkService) UpdateNetwork(id string, updateReq *zerotier.NetworkUpd
 		return nil, fmt.Errorf("数据库未初始化")
 	}
 
-	ownedNetwork, err := s.getOwnedNetwork(id, userID)
+	ownedNetwork, err := s.authorizeOwnedNetwork(id, userID)
 	if err != nil {
 		logger.Warn("服务层：无权限更新网络", zap.String("network_id", id), zap.String("user_id", userID), zap.Error(err))
 		return nil, err
 	}
 
-	// Force network to remain private
-	updateReq.Private = true
+	updateReq = NormalizeNetworkUpdateRequest(updateReq)
 
 	// Update network in ZeroTier using partial update
 	updatedNetwork, err := s.ztClient.PartialUpdateNetwork(id, updateReq)
@@ -295,16 +294,16 @@ func (s *NetworkService) UpdateNetworkMetadata(id string, name string, descripti
 		return nil, fmt.Errorf("数据库未初始化")
 	}
 
-	ownedNetwork, err := s.getOwnedNetwork(id, userID)
+	ownedNetwork, err := s.authorizeOwnedNetwork(id, userID)
 	if err != nil {
 		logger.Warn("服务层：无权限更新网络元数据", zap.String("network_id", id), zap.String("user_id", userID), zap.Error(err))
 		return nil, err
 	}
 
 	// 更新控制器中的网络名称（名称同步更新）
-	updateReq := &zerotier.NetworkUpdateRequest{
+	updateReq := NormalizeNetworkUpdateRequest(&zerotier.NetworkUpdateRequest{
 		Name: name,
-	}
+	})
 	updatedNetwork, err := s.ztClient.PartialUpdateNetwork(id, updateReq)
 	if err != nil {
 		logger.Error("服务层：更新控制器网络名称失败", zap.String("network_id", id), zap.Error(err))
@@ -337,7 +336,7 @@ func (s *NetworkService) DeleteNetwork(networkID string, userID string) error {
 		return fmt.Errorf("数据库未初始化")
 	}
 
-	_, err := s.getOwnedNetwork(networkID, userID)
+	_, err := s.authorizeOwnedNetwork(networkID, userID)
 	if err != nil {
 		logger.Warn("服务层：无权限删除网络", zap.String("network_id", networkID), zap.String("user_id", userID), zap.Error(err))
 		return err
@@ -366,12 +365,9 @@ func (s *NetworkService) GetNetworkMembers(networkID string, userID string) ([]z
 		return nil, fmt.Errorf("ZeroTier客户端未初始化")
 	}
 
-	_, err := s.getOwnedNetwork(networkID, userID)
+	_, err := s.authorizeMemberAccess(networkID, userID)
 	if err != nil {
 		logger.Warn("服务层：无权限访问网络成员", zap.String("network_id", networkID), zap.String("user_id", userID), zap.Error(err))
-		if IsNetworkAccessDenied(err) {
-			return nil, ErrMemberAccessDenied
-		}
 		return nil, err
 	}
 
@@ -391,12 +387,9 @@ func (s *NetworkService) GetNetworkMember(networkID, memberID string, userID str
 		return nil, fmt.Errorf("ZeroTier客户端未初始化")
 	}
 
-	_, err := s.getOwnedNetwork(networkID, userID)
+	_, err := s.authorizeMemberAccess(networkID, userID)
 	if err != nil {
 		logger.Warn("服务层：无权限访问网络成员", zap.String("network_id", networkID), zap.String("user_id", userID), zap.Error(err))
-		if IsNetworkAccessDenied(err) {
-			return nil, ErrMemberAccessDenied
-		}
 		return nil, err
 	}
 
@@ -421,12 +414,9 @@ func (s *NetworkService) UpdateNetworkMember(networkID, memberID string, member 
 		return nil, fmt.Errorf("ZeroTier客户端未初始化")
 	}
 
-	_, err := s.getOwnedNetwork(networkID, userID)
+	_, err := s.authorizeMemberAccess(networkID, userID)
 	if err != nil {
 		logger.Warn("服务层：无权限更新网络成员", zap.String("network_id", networkID), zap.String("user_id", userID), zap.Error(err))
-		if IsNetworkAccessDenied(err) {
-			return nil, ErrMemberAccessDenied
-		}
 		return nil, err
 	}
 
@@ -446,12 +436,9 @@ func (s *NetworkService) RemoveNetworkMember(networkID, memberID string, userID 
 		return fmt.Errorf("ZeroTier客户端未初始化")
 	}
 
-	_, err := s.getOwnedNetwork(networkID, userID)
+	_, err := s.authorizeMemberAccess(networkID, userID)
 	if err != nil {
 		logger.Warn("服务层：无权限移除网络成员", zap.String("network_id", networkID), zap.String("user_id", userID), zap.Error(err))
-		if IsNetworkAccessDenied(err) {
-			return ErrMemberAccessDenied
-		}
 		return err
 	}
 
@@ -562,12 +549,9 @@ func (s *NetworkService) ImportNetworks(networkIDs []string, ownerID string, act
 		logger.Warn("服务层：数据库未初始化")
 		return nil, fmt.Errorf("数据库未初始化")
 	}
-	if actorRole != "admin" {
-		logger.Warn("服务层：非管理员尝试导入网络", zap.String("owner_id", ownerID), zap.String("actor_role", actorRole))
-		return nil, ErrImportAccessDenied
-	}
-	if ownerID == "" {
-		return nil, ErrImportOwnerRequired
+	if err := authorizeImport(actorRole, ownerID); err != nil {
+		logger.Warn("服务层：导入网络权限校验失败", zap.String("owner_id", ownerID), zap.String("actor_role", actorRole), zap.Error(err))
+		return nil, err
 	}
 
 	owner, err := db.GetUserByID(ownerID)

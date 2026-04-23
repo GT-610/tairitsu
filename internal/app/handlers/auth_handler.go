@@ -4,22 +4,23 @@ import (
 	"github.com/GT-610/tairitsu/internal/app/logger"
 	"github.com/GT-610/tairitsu/internal/app/models"
 	"github.com/GT-610/tairitsu/internal/app/services"
-	"github.com/GT-610/tairitsu/internal/zerotier"
 	"github.com/gofiber/fiber/v3"
 	"go.uber.org/zap"
 )
 
 // AuthHandler handles authentication related requests
 type AuthHandler struct {
-	userService *services.UserService
-	jwtService  *services.JWTService
+	userService    *services.UserService
+	jwtService     *services.JWTService
+	runtimeService *services.RuntimeService
 }
 
 // NewAuthHandler creates a new instance of AuthHandler
-func NewAuthHandler(userService *services.UserService, jwtService *services.JWTService) *AuthHandler {
+func NewAuthHandler(userService *services.UserService, jwtService *services.JWTService, runtimeService *services.RuntimeService) *AuthHandler {
 	return &AuthHandler{
-		userService: userService,
-		jwtService:  jwtService,
+		userService:    userService,
+		jwtService:     jwtService,
+		runtimeService: runtimeService,
 	}
 }
 
@@ -53,21 +54,13 @@ func (h *AuthHandler) Register(c fiber.Ctx) error {
 
 	logger.Info("用户注册成功", zap.String("user_id", user.ID), zap.String("username", user.Username), zap.String("role", user.Role))
 
-	// Initialize ZeroTier client after successful registration
-	// This ensures the client is instantiated before any ZeroTier operations
-	logger.Info("初始化ZeroTier客户端")
-	ztClient, err := zerotier.NewClient()
-	if err != nil {
-		// Log error but don't block registration
-		logger.Warn("ZeroTier客户端初始化失败，稍后将再次尝试", zap.Error(err))
-	} else {
-		// Verify connection if client initialized successfully
-		_, err = ztClient.GetStatus()
-		if err != nil {
-			logger.Warn("ZeroTier连接验证失败，稍后将再次尝试", zap.Error(err))
+	// Initialize ZeroTier client after successful registration when runtime dependencies are available.
+	if h.runtimeService != nil {
+		logger.Info("初始化ZeroTier客户端")
+		if _, err := h.runtimeService.InitZTClientFromConfig(); err != nil {
+			logger.Warn("ZeroTier客户端初始化失败，稍后将再次尝试", zap.Error(err))
 		} else {
 			logger.Info("ZeroTier客户端初始化和连接验证成功")
-			// Connection verification only - client will be created on-demand when needed
 		}
 	}
 

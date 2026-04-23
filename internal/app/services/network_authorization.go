@@ -35,6 +35,32 @@ func (s *NetworkService) getOwnedNetwork(networkID, userID string) (*models.Netw
 	return network, nil
 }
 
+func (s *NetworkService) authorizeOwnedNetwork(networkID, userID string) (*models.Network, error) {
+	return s.getOwnedNetwork(networkID, userID)
+}
+
+func (s *NetworkService) authorizeMemberAccess(networkID, userID string) (*models.Network, error) {
+	network, err := s.getOwnedNetwork(networkID, userID)
+	if err != nil {
+		if IsNetworkAccessDenied(err) {
+			return nil, ErrMemberAccessDenied
+		}
+		return nil, err
+	}
+
+	return network, nil
+}
+
+func authorizeImport(actorRole, ownerID string) error {
+	if actorRole != "admin" {
+		return ErrImportAccessDenied
+	}
+	if ownerID == "" {
+		return ErrImportOwnerRequired
+	}
+	return nil
+}
+
 func IsNetworkNotFound(err error) bool {
 	return errors.Is(err, ErrNetworkNotFound)
 }

@@ -23,7 +23,7 @@ func main() {
 
 	// Initialize and start HTTP server
 	serverInitializer := initializer.NewServerInitializer()
-	if _, err := serverInitializer.Initialize(appContext.Database, appContext.ZTClient, appContext.JWTSecret); err != nil {
+	if _, err := serverInitializer.Initialize(appContext.Dependencies); err != nil {
 		logger.Fatal("服务器初始化失败", zap.Error(err))
 	}
 

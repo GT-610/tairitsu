@@ -21,16 +21,21 @@ type SystemHandler struct {
 }
 
 // NewSystemHandler creates a new system handler instance
-func NewSystemHandler(networkService *services.NetworkService, userService *services.UserService) *SystemHandler {
-	stateService := services.NewStateService()
-	runtimeService := services.NewRuntimeService(userService, networkService)
+func NewSystemHandler(
+	networkService *services.NetworkService,
+	userService *services.UserService,
+	stateService *services.StateService,
+	runtimeService *services.RuntimeService,
+	setupService *services.SetupService,
+	systemService *services.SystemService,
+) *SystemHandler {
 	return &SystemHandler{
 		networkService: networkService,
 		userService:    userService,
 		stateService:   stateService,
 		runtimeService: runtimeService,
-		setupService:   services.NewSetupService(runtimeService, stateService),
-		systemService:  services.NewSystemService(),
+		setupService:   setupService,
+		systemService:  systemService,
 	}
 }
 

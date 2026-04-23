@@ -3,21 +3,21 @@ package initializer
 import (
 	"fmt"
 
+	"github.com/GT-610/tairitsu/internal/app/assembly"
 	"github.com/GT-610/tairitsu/internal/app/config"
 	"github.com/GT-610/tairitsu/internal/app/database"
 	"github.com/GT-610/tairitsu/internal/app/logger"
 	"github.com/GT-610/tairitsu/internal/zerotier"
-	"github.com/gofiber/fiber/v3"
 	"go.uber.org/zap"
 )
 
 // AppContext 应用上下文，包含所有全局依赖
 type AppContext struct {
-	Config    *config.Config
-	Database  database.DBInterface
-	ZTClient  *zerotier.Client
-	Router    *fiber.App
-	JWTSecret string
+	Config       *config.Config
+	Database     database.DBInterface
+	ZTClient     *zerotier.Client
+	JWTSecret    string
+	Dependencies *assembly.Dependencies
 }
 
 // AppInitializer 应用初始化器
@@ -62,9 +62,9 @@ func (ai *AppInitializer) Initialize() (*AppContext, error) {
 		logger.Warn("ZeroTier客户端初始化失败，将以未初始化模式继续运行", zap.Error(err))
 	}
 
-	// 5. 初始化HTTP服务器
-	if err := ai.initializeHTTPServer(); err != nil {
-		return nil, fmt.Errorf("初始化HTTP服务器失败: %w", err)
+	// 5. 组装运行时依赖
+	if err := ai.assembleDependencies(); err != nil {
+		return nil, fmt.Errorf("组装应用依赖失败: %w", err)
 	}
 
 	logger.Info("应用初始化完成")
@@ -141,12 +141,13 @@ func (ai *AppInitializer) initializeZeroTierClient() error {
 	return nil
 }
 
-// initializeHTTPServer 初始化HTTP服务器
-func (ai *AppInitializer) initializeHTTPServer() error {
-	// 创建Fiber引擎实例
-	router := fiber.New()
-	ai.context.Router = router
-
+func (ai *AppInitializer) assembleDependencies() error {
+	ai.context.Dependencies = assembly.NewDependencies(
+		ai.context.Config,
+		ai.context.Database,
+		ai.context.ZTClient,
+		ai.context.JWTSecret,
+	)
 	return nil
 }
 
