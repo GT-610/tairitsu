@@ -274,3 +274,59 @@ func (s *UserService) UpdateUserRole(userID, role string) (*models.User, error) 
 
 	return user, nil
 }
+
+func (s *UserService) TransferAdmin(currentAdminID, targetUserID string) (*models.User, error) {
+	db := s.getDB()
+	if db == nil {
+		logger.Error("服务层：转让管理员失败，数据库未初始化")
+		return nil, ErrUserDBUnavailable
+	}
+
+	if currentAdminID == targetUserID {
+		return nil, ErrAdminTransferSelf
+	}
+
+	currentAdmin, err := s.GetUserByID(currentAdminID)
+	if err != nil {
+		return nil, err
+	}
+	if currentAdmin.Role != "admin" {
+		return nil, ErrAdminAccessDenied
+	}
+
+	targetUser, err := s.GetUserByID(targetUserID)
+	if err != nil {
+		return nil, err
+	}
+	if targetUser.Role == "admin" {
+		return nil, ErrTransferTargetAdmin
+	}
+
+	now := time.Now()
+	currentAdmin.Role = "user"
+	currentAdmin.UpdatedAt = now
+	targetUser.Role = "admin"
+	targetUser.UpdatedAt = now
+
+	if err := db.UpdateUser(currentAdmin); err != nil {
+		logger.Error("服务层：转让管理员失败，降级旧管理员时出错", zap.String("user_id", currentAdminID), zap.Error(err))
+		return nil, fmt.Errorf("更新原管理员失败: %w", err)
+	}
+
+	if err := db.UpdateUser(targetUser); err != nil {
+		logger.Error("服务层：转让管理员失败，提升新管理员时出错", zap.String("user_id", targetUserID), zap.Error(err))
+		currentAdmin.Role = "admin"
+		currentAdmin.UpdatedAt = time.Now()
+		if rollbackErr := db.UpdateUser(currentAdmin); rollbackErr != nil {
+			logger.Error("服务层：转让管理员失败，回滚原管理员角色时出错", zap.String("user_id", currentAdminID), zap.Error(rollbackErr))
+		}
+		return nil, fmt.Errorf("更新目标管理员失败: %w", err)
+	}
+
+	logger.Info("服务层：管理员身份转让成功",
+		zap.String("from_user_id", currentAdminID),
+		zap.String("to_user_id", targetUserID),
+		zap.String("to_username", targetUser.Username))
+
+	return targetUser, nil
+}

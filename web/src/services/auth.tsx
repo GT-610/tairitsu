@@ -7,6 +7,7 @@ export interface AuthContextType {
   token: string | null;
   isLoading: boolean;
   login: (userData: User, authToken: string) => { success: boolean; user: User; token: string };
+  refreshUser: (userData: User) => void;
   logout: () => void;
   isAuthenticated: () => boolean;
 }
@@ -57,6 +58,16 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     return { success: true, user: userData, token: authToken };
   };
 
+  const refreshUser = (userData: User) => {
+    setUser(userData);
+
+    if (localStorage.getItem('token')) {
+      localStorage.setItem('user', JSON.stringify(userData));
+    } else if (sessionStorage.getItem('token')) {
+      sessionStorage.setItem('user', JSON.stringify(userData));
+    }
+  };
+
   // 登出函数
   const logout = () => {
     setUser(null);
@@ -78,6 +89,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     token,
     isLoading,
     login,
+    refreshUser,
     logout,
     isAuthenticated
   };

@@ -1,11 +1,21 @@
 import { useState, useEffect } from 'react';
 import { Box, Typography, Button, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, CircularProgress, Alert, Modal, TextField, IconButton, Grid, Card, CardContent, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions, Stack } from '@mui/material';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { Add, Delete, Close, Refresh } from '@mui/icons-material';
 import { networkAPI, NetworkSummary } from '../services/api';
 import { getErrorMessage } from '../services/errors';
 
+function getNavigationMessage(state: unknown): string {
+  if (!state || typeof state !== 'object' || !('message' in state)) {
+    return ''
+  }
+
+  const { message } = state as { message?: unknown }
+  return typeof message === 'string' ? message : ''
+}
+
 function Networks() {
+  const location = useLocation();
   const [networks, setNetworks] = useState<NetworkSummary[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string>('');
@@ -19,6 +29,7 @@ function Networks() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState<boolean>(false);
   const [deletingNetworkId, setDeletingNetworkId] = useState<string | null>(null);
   const [deletingNetworkName, setDeletingNetworkName] = useState<string>('');
+  const navigationMessage = getNavigationMessage(location.state);
 
   const fetchNetworks = async () => {
     setLoading(true);
@@ -154,6 +165,12 @@ function Networks() {
           onClose={() => setError('')}
         >
           {error}
+        </Alert>
+      )}
+
+      {navigationMessage && (
+        <Alert severity="success" sx={{ mb: 3 }}>
+          {navigationMessage}
         </Alert>
       )}
 

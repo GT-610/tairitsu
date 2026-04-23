@@ -13,14 +13,16 @@ type AuthHandler struct {
 	userService    *services.UserService
 	jwtService     *services.JWTService
 	runtimeService *services.RuntimeService
+	stateService   *services.StateService
 }
 
 // NewAuthHandler creates a new instance of AuthHandler
-func NewAuthHandler(userService *services.UserService, jwtService *services.JWTService, runtimeService *services.RuntimeService) *AuthHandler {
+func NewAuthHandler(userService *services.UserService, jwtService *services.JWTService, runtimeService *services.RuntimeService, stateService *services.StateService) *AuthHandler {
 	return &AuthHandler{
 		userService:    userService,
 		jwtService:     jwtService,
 		runtimeService: runtimeService,
+		stateService:   stateService,
 	}
 }
 
@@ -34,16 +36,15 @@ func (h *AuthHandler) Register(c fiber.Ctx) error {
 
 	logger.Info("开始用户注册", zap.String("username", req.Username))
 
-	// Determine user role - first registered user becomes admin
 	role := "user"
-	hasAdmin, err := h.userService.HasAdminUser()
-	if err != nil {
-		// If admin check fails, log warning but continue with default role
-		logger.Warn("检查管理员用户失败，使用默认角色", zap.Error(err))
-	} else if !hasAdmin {
-		// If no admin exists, set current user as admin
-		role = "admin"
-		logger.Info("系统中无管理员用户，将当前用户设为管理员", zap.String("username", req.Username))
+	if h.stateService != nil && !h.stateService.IsInitialized() {
+		hasAdmin, err := h.userService.HasAdminUser()
+		if err != nil {
+			logger.Warn("检查管理员用户失败，使用默认角色", zap.Error(err))
+		} else if !hasAdmin {
+			role = "admin"
+			logger.Info("系统尚未初始化且无管理员用户，将当前用户设为管理员", zap.String("username", req.Username))
+		}
 	}
 
 	user, err := h.userService.Register(&req, role)
