@@ -8,7 +8,7 @@ import (
 )
 
 // AuthMiddleware 认证中间件
-func AuthMiddleware(jwtService *services.JWTService) fiber.Handler {
+func AuthMiddleware(jwtService *services.JWTService, sessionService *services.SessionService) fiber.Handler {
 	return func(c fiber.Ctx) error {
 		// 从请求头获取令牌
 		authHeader := c.Get("Authorization")
@@ -41,6 +41,19 @@ func AuthMiddleware(jwtService *services.JWTService) fiber.Handler {
 		}
 
 		// 将用户信息存储到上下文
+		if sessionService != nil {
+			session, err := sessionService.ValidateSession(claims.UserID, claims.SessionID)
+			if err != nil {
+				return c.Status(fiber.StatusUnauthorized).JSON(ErrorResponse{
+					Error:   "Unauthorized",
+					Message: "无效的认证令牌",
+					Code:    fiber.StatusUnauthorized,
+				})
+			}
+			_ = sessionService.TouchSession(session)
+			c.Locals("session_id", claims.SessionID)
+		}
+
 		c.Locals("user_id", claims.UserID)
 		c.Locals("username", claims.Username)
 		c.Locals("role", claims.Role)

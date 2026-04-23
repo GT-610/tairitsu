@@ -1,14 +1,15 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import api, { User } from './api';
+import api, { authAPI, User, UserSession } from './api';
 
 // 定义Auth上下文类型
 export interface AuthContextType {
   user: User | null;
   token: string | null;
+  session: UserSession | null;
   isLoading: boolean;
-  login: (userData: User, authToken: string) => { success: boolean; user: User; token: string };
+  login: (userData: User, authToken: string, userSession: UserSession) => { success: boolean; user: User; token: string; session: UserSession };
   refreshUser: (userData: User) => void;
-  logout: () => void;
+  logout: () => Promise<void>;
   isAuthenticated: () => boolean;
 }
 
@@ -24,18 +25,22 @@ interface AuthProviderProps {
 export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
+  const [session, setSession] = useState<UserSession | null>(null);
   const [isLoading] = useState<boolean>(false);
 
   // 在应用启动时从存储中恢复认证状态
   useEffect(() => {
     const storedUser = localStorage.getItem('user') || sessionStorage.getItem('user');
     const storedToken = localStorage.getItem('token') || sessionStorage.getItem('token');
+    const storedSession = localStorage.getItem('session') || sessionStorage.getItem('session');
     
     if (storedUser && storedToken) {
       try {
         const userData = JSON.parse(storedUser) as User;
+        const sessionData = storedSession ? JSON.parse(storedSession) as UserSession : null;
         setUser(userData);
         setToken(storedToken);
+        setSession(sessionData);
         // 更新API实例的默认请求头
         api.defaults.headers.common['Authorization'] = `Bearer ${storedToken}`;
       } catch (error) {
@@ -43,19 +48,22 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         // 如果解析失败，清除存储的数据
         localStorage.removeItem('user');
         localStorage.removeItem('token');
+        localStorage.removeItem('session');
         sessionStorage.removeItem('user');
         sessionStorage.removeItem('token');
+        sessionStorage.removeItem('session');
       }
     }
   }, []);
 
   // 登录函数
-  const login = (userData: User, authToken: string) => {
+  const login = (userData: User, authToken: string, userSession: UserSession) => {
     setUser(userData);
     setToken(authToken);
+    setSession(userSession);
     // 更新API实例的默认请求头
     api.defaults.headers.common['Authorization'] = `Bearer ${authToken}`;
-    return { success: true, user: userData, token: authToken };
+    return { success: true, user: userData, token: authToken, session: userSession };
   };
 
   const refreshUser = (userData: User) => {
@@ -69,13 +77,29 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   };
 
   // 登出函数
-  const logout = () => {
+  const clearAuthState = () => {
     setUser(null);
     setToken(null);
+    setSession(null);
     localStorage.removeItem('user');
     localStorage.removeItem('token');
+    localStorage.removeItem('session');
     sessionStorage.removeItem('user');
     sessionStorage.removeItem('token');
+    sessionStorage.removeItem('session');
+    delete api.defaults.headers.common['Authorization'];
+  };
+
+  const logout = async () => {
+    try {
+      if (token) {
+        await authAPI.logout();
+      }
+    } catch {
+      // Ignore logout API failures and still clear local auth state.
+    } finally {
+      clearAuthState();
+    }
   };
 
   // 检查是否已认证
@@ -87,6 +111,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const value: AuthContextType = {
     user,
     token,
+    session,
     isLoading,
     login,
     refreshUser,

@@ -12,13 +12,15 @@ import (
 // RuntimeService coordinates mutable runtime dependencies such as the active DB and ZeroTier client.
 type RuntimeService struct {
 	userService    *UserService
+	sessionService *SessionService
 	networkService *NetworkService
 	stateService   *StateService
 }
 
-func NewRuntimeService(userService *UserService, networkService *NetworkService, stateService *StateService) *RuntimeService {
+func NewRuntimeService(userService *UserService, sessionService *SessionService, networkService *NetworkService, stateService *StateService) *RuntimeService {
 	return &RuntimeService{
 		userService:    userService,
+		sessionService: sessionService,
 		networkService: networkService,
 		stateService:   stateService,
 	}
@@ -44,6 +46,9 @@ func (s *RuntimeService) BindDatabase(db database.DBInterface) {
 	if s.userService != nil {
 		s.userService.SetDB(db)
 	}
+	if s.sessionService != nil {
+		s.sessionService.SetDB(db)
+	}
 	if s.networkService != nil {
 		s.networkService.SetDB(db)
 	}
@@ -61,6 +66,9 @@ func (s *RuntimeService) CloseCurrentDatabase() {
 
 	if s.userService != nil {
 		s.userService.SetDB(nil)
+	}
+	if s.sessionService != nil {
+		s.sessionService.SetDB(nil)
 	}
 	if s.networkService != nil {
 		s.networkService.SetDB(nil)

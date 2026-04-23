@@ -51,13 +51,18 @@ type SecurityConfig struct {
 	SessionSecret string `json:"session_secret"`
 }
 
+type RegistrationConfig struct {
+	AllowPublicRegistration *bool `json:"allow_public_registration,omitempty"`
+}
+
 // Config Application configuration structure
 type Config struct {
-	Initialized bool           `json:"initialized"` // Initialization status flag
-	Database    DatabaseConfig `json:"database"`    // Database configuration
-	ZeroTier    ZeroTierConfig `json:"zerotier"`    // ZeroTier configuration
-	Server      ServerConfig   `json:"server"`      // Server configuration
-	Security    SecurityConfig `json:"security"`    // Security configuration
+	Initialized  bool               `json:"initialized"` // Initialization status flag
+	Database     DatabaseConfig     `json:"database"`    // Database configuration
+	ZeroTier     ZeroTierConfig     `json:"zerotier"`    // ZeroTier configuration
+	Server       ServerConfig       `json:"server"`      // Server configuration
+	Security     SecurityConfig     `json:"security"`    // Security configuration
+	Registration RegistrationConfig `json:"registration"`
 }
 
 // AppConfig Global configuration instance
@@ -156,6 +161,9 @@ func createDefaultConfig() *Config {
 		Security: SecurityConfig{
 			JWTSecret:     "", // Empty initially, force user to generate during first setup
 			SessionSecret: "", // Empty initially, force user to generate during first setup
+		},
+		Registration: RegistrationConfig{
+			AllowPublicRegistration: boolPtr(true),
 		},
 	}
 }
@@ -341,6 +349,27 @@ func IsInitialized() bool {
 		return false
 	}
 	return AppConfig.Initialized
+}
+
+func AllowPublicRegistration(cfg *Config) bool {
+	if cfg == nil || cfg.Registration.AllowPublicRegistration == nil {
+		return true
+	}
+
+	return *cfg.Registration.AllowPublicRegistration
+}
+
+func SetAllowPublicRegistrationOn(cfg *Config, enabled bool) error {
+	if cfg == nil {
+		return fmt.Errorf("configuration not loaded")
+	}
+
+	cfg.Registration.AllowPublicRegistration = boolPtr(enabled)
+	return SaveConfig(cfg)
+}
+
+func boolPtr(value bool) *bool {
+	return &value
 }
 
 // Current returns the currently loaded config instance.

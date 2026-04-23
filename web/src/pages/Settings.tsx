@@ -11,18 +11,24 @@ import {
   DialogContent,
   DialogTitle,
   Divider,
+  FormControlLabel,
   Stack,
+  Switch,
   TextField,
   Typography,
 } from '@mui/material'
-import { authAPI } from '../services/api'
+import { authAPI, type UserSession } from '../services/api'
 import { getErrorMessage } from '../services/errors'
 import { useAuth } from '../services/auth'
+import { useNavigate } from 'react-router-dom'
+import { formatSessionPresentation } from '../utils/sessionPresentation'
 
 function Settings() {
+  const navigate = useNavigate()
+  const { user, logout } = useAuth()
+
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState<{ severity: 'info' | 'success' | 'error'; text: string } | null>(null)
-  const { user } = useAuth()
 
   const [openChangePasswordDialog, setOpenChangePasswordDialog] = useState(false)
   const [passwordForm, setPasswordForm] = useState({
@@ -35,10 +41,29 @@ function Settings() {
     newPassword: '',
     confirmPassword: '',
   })
+  const [logoutOtherSessionsOnPasswordChange, setLogoutOtherSessionsOnPasswordChange] = useState(true)
   const [changingPassword, setChangingPassword] = useState(false)
+  const [sessions, setSessions] = useState<UserSession[]>([])
+  const [loadingSessions, setLoadingSessions] = useState(false)
+  const [revokingSessionId, setRevokingSessionId] = useState('')
+  const [revokingOtherSessions, setRevokingOtherSessions] = useState(false)
 
   useEffect(() => {
-    setLoading(false)
+    const loadSettings = async () => {
+      try {
+        setLoading(true)
+        setLoadingSessions(true)
+        const sessionResponse = await authAPI.getSessions()
+        setSessions(sessionResponse.data.sessions)
+      } catch (error: unknown) {
+        setMessage({ severity: 'error', text: getErrorMessage(error, '加载设置失败') })
+      } finally {
+        setLoadingSessions(false)
+        setLoading(false)
+      }
+    }
+
+    void loadSettings()
   }, [])
 
   const resetPasswordDialog = () => {
@@ -53,6 +78,7 @@ function Settings() {
       newPassword: '',
       confirmPassword: '',
     })
+    setLogoutOtherSessionsOnPasswordChange(true)
   }
 
   const validatePasswordForm = () => {
@@ -96,13 +122,20 @@ function Settings() {
 
     try {
       setChangingPassword(true)
-      await authAPI.updatePassword({
+      const response = await authAPI.updatePassword({
         current_password: passwordForm.oldPassword,
         new_password: passwordForm.newPassword,
         confirm_password: passwordForm.confirmPassword,
+        logout_other_sessions: logoutOtherSessionsOnPasswordChange,
       })
 
-      setMessage({ severity: 'success', text: '密码修改成功' })
+      await reloadSessions()
+      setMessage({
+        severity: 'success',
+        text: response.data.revoked_other_sessions > 0
+          ? `密码修改成功，并已移除其他会话 ${response.data.revoked_other_sessions} 个`
+          : '密码修改成功',
+      })
       resetPasswordDialog()
     } catch (error: unknown) {
       const errorMessage = getErrorMessage(error, '密码修改失败，请稍后重试')
@@ -115,6 +148,48 @@ function Settings() {
       setChangingPassword(false)
     }
   }
+
+  const reloadSessions = async () => {
+    const response = await authAPI.getSessions()
+    setSessions(response.data.sessions)
+  }
+
+  const handleRevokeSession = async (sessionItem: UserSession) => {
+    try {
+      setRevokingSessionId(sessionItem.id)
+      if (sessionItem.current) {
+        await logout()
+        void navigate('/login', {
+          replace: true,
+          state: { message: '当前会话已退出' },
+        })
+        return
+      }
+
+      await authAPI.revokeSession(sessionItem.id)
+      await reloadSessions()
+      setMessage({ severity: 'success', text: '已移除该登录会话' })
+    } catch (error: unknown) {
+      setMessage({ severity: 'error', text: getErrorMessage(error, '移除登录会话失败') })
+    } finally {
+      setRevokingSessionId('')
+    }
+  }
+
+  const handleRevokeOtherSessions = async () => {
+    try {
+      setRevokingOtherSessions(true)
+      const response = await authAPI.revokeOtherSessions()
+      await reloadSessions()
+      setMessage({ severity: 'success', text: response.data.count > 0 ? `已移除其他会话 ${response.data.count} 个` : '没有其他可移除的会话' })
+    } catch (error: unknown) {
+      setMessage({ severity: 'error', text: getErrorMessage(error, '移除其他会话失败') })
+    } finally {
+      setRevokingOtherSessions(false)
+    }
+  }
+
+  const formatSessionTime = (value: string) => new Date(value).toLocaleString()
 
   return (
     <Box sx={{ p: 3 }}>
@@ -130,10 +205,6 @@ function Settings() {
         </Alert>
       )}
 
-      <Alert severity="info" sx={{ mb: 3 }}>
-        当前设置页只保留已经具备完整后端支持的账户能力。语言切换、账号注销、会话管理与登录设备查看等功能暂未进入主线交付，本页仅保留清晰说明，不再展示伪交互入口。
-      </Alert>
-
       {loading ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', mt: 10 }}>
           <CircularProgress />
@@ -143,9 +214,8 @@ function Settings() {
           <Card sx={{ mb: 3 }}>
             <CardContent>
               <Typography variant="h6" gutterBottom>
-                账户设置
+                账户安全
               </Typography>
-
               <Stack spacing={2.5} sx={{ mb: 3 }}>
                 <Box>
                   <Typography variant="body2" color="text.secondary">
@@ -175,8 +245,19 @@ function Settings() {
                 >
                   修改密码
                 </Button>
+                <Stack direction="row" spacing={1.5}>
+                  <Button
+                    variant="outlined"
+                    color="warning"
+                    fullWidth
+                    disabled={loadingSessions || revokingOtherSessions || sessions.filter((sessionItem) => !sessionItem.current && !sessionItem.revokedAt).length === 0}
+                    onClick={() => { void handleRevokeOtherSessions() }}
+                  >
+                    {revokingOtherSessions ? '移除中...' : '退出其他设备'}
+                  </Button>
+                </Stack>
                 <Typography variant="body2" color="text.secondary">
-                  修改密码后，当前会话会继续保持。建议随后在其他设备或新会话中验证新密码是否正常生效。
+                  你可以在这里修改密码，并管理当前账户的登录会话。退出其他设备会吊销同一账户在其他浏览器或机器上的登录状态。
                 </Typography>
               </Stack>
             </CardContent>
@@ -185,15 +266,76 @@ function Settings() {
           <Card sx={{ mb: 3 }}>
             <CardContent>
               <Typography variant="h6" gutterBottom>
-                安全说明
+                登录会话
               </Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                Tairitsu 当前已正式开放的账户安全能力是密码修改。其余安全入口会在具备明确后端支持和验证路径后再开放，不会以占位按钮形式提前暴露。
+                当前页面展示的是服务端登记的登录会话。移除其他会话后，对应设备会在下一次请求时失效。
               </Typography>
-              <Stack spacing={1.5}>
-                <Alert severity="success">已可用：密码修改</Alert>
-                <Alert severity="info">规划中：会话管理、登录设备查看</Alert>
-                <Alert severity="info">规划中：账号注销与更完整的账户安全操作</Alert>
+              <Stack spacing={2}>
+                {sessions.length === 0 && !loadingSessions && (
+                  <Alert severity="info">当前没有可展示的登录会话。</Alert>
+                )}
+                {loadingSessions && (
+                  <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
+                    <CircularProgress size={24} />
+                  </Box>
+                )}
+                {sessions.map((sessionItem) => (
+                  <Card key={sessionItem.id} variant="outlined">
+                    <CardContent>
+                      {(() => {
+                        const presentation = formatSessionPresentation(sessionItem)
+                        const disabledAction = Boolean(sessionItem.revokedAt) || presentation.status.label === '已过期'
+                        return (
+                          <Stack spacing={1.5}>
+                            <Stack direction="row" spacing={1.5} justifyContent="space-between" alignItems="flex-start">
+                              <Box sx={{ flex: 1 }}>
+                                <Typography variant="subtitle1">
+                                  {presentation.title}
+                                </Typography>
+                                <Typography variant="body2" color="text.secondary">
+                                  {presentation.subtitle}
+                                </Typography>
+                              </Box>
+                              <Alert severity={presentation.status.severity} sx={{ py: 0 }}>
+                                {presentation.status.label}
+                              </Alert>
+                            </Stack>
+                        <Typography variant="body2" color="text.secondary">
+                          最近活跃：{formatSessionTime(sessionItem.lastSeenAt)}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          登录时间：{formatSessionTime(sessionItem.createdAt)}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          到期时间：{formatSessionTime(sessionItem.expiresAt)}
+                        </Typography>
+                            {sessionItem.revokedAt && (
+                              <Typography variant="body2" color="text.secondary">
+                                移除时间：{formatSessionTime(sessionItem.revokedAt)}
+                              </Typography>
+                            )}
+                            {presentation.details.map((detail) => (
+                              <Typography key={detail} variant="body2" color="text.secondary">
+                                {detail}
+                              </Typography>
+                            ))}
+                        <Stack direction="row" spacing={1.5}>
+                          <Button
+                            variant="outlined"
+                                color={sessionItem.current ? 'warning' : 'error'}
+                                disabled={disabledAction || revokingSessionId === sessionItem.id}
+                            onClick={() => { void handleRevokeSession(sessionItem) }}
+                          >
+                                {revokingSessionId === sessionItem.id ? '处理中...' : sessionItem.current ? '退出当前会话' : '移除此会话'}
+                          </Button>
+                        </Stack>
+                          </Stack>
+                        )
+                      })()}
+                    </CardContent>
+                  </Card>
+                ))}
               </Stack>
             </CardContent>
           </Card>
@@ -201,15 +343,11 @@ function Settings() {
           <Card>
             <CardContent>
               <Typography variant="h6" gutterBottom>
-                预留项
-              </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                以下能力已明确不在当前阶段主线交付中。后续是否推进，将以实际后端能力和产品优先级为准，而不是先开放空壳入口。
+                基础说明
               </Typography>
               <Stack spacing={1.5}>
-                <Alert severity="info">语言切换：未进入当前交付范围</Alert>
-                <Alert severity="info">账号注销：未进入当前交付范围</Alert>
-                <Alert severity="info">系统级设置中心：暂不在本轮推进范围内</Alert>
+                <Alert severity="info">管理员治理项已迁移到“用户管理”页面统一处理。</Alert>
+                <Alert severity="info">如果你需要调整公开注册或转让管理员身份，请前往“用户管理”。</Alert>
               </Stack>
             </CardContent>
           </Card>
@@ -270,6 +408,19 @@ function Settings() {
               helperText={passwordErrors.confirmPassword}
               disabled={changingPassword}
             />
+            <FormControlLabel
+              control={(
+                <Switch
+                  checked={logoutOtherSessionsOnPasswordChange}
+                  onChange={(event) => setLogoutOtherSessionsOnPasswordChange(event.target.checked)}
+                  disabled={changingPassword}
+                />
+              )}
+              label="修改密码后同时退出其他设备"
+            />
+            <Typography variant="body2" color="text.secondary">
+              建议开启。保存后会保留当前会话，并吊销当前账户在其他浏览器或机器上的登录状态。
+            </Typography>
           </Box>
         </DialogContent>
         <DialogActions>

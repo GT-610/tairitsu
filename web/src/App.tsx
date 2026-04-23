@@ -51,8 +51,10 @@ function AppContent() {
         // Clear authentication information
         localStorage.removeItem('token');
         localStorage.removeItem('user');
+        localStorage.removeItem('session');
         sessionStorage.removeItem('token');
         sessionStorage.removeItem('user');
+        sessionStorage.removeItem('session');
         delete api.defaults.headers.common['Authorization'];
         
         // Redirect to login page (using React Router instead of window.location)

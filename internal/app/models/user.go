@@ -9,15 +9,16 @@ type User struct {
 	ID        string    `json:"id"`
 	Username  string    `json:"username" binding:"required"`
 	Password  string    `json:"-" binding:"required"` // 密码不返回给客户端
-	Role      string    `json:"role"` // admin, user
+	Role      string    `json:"role"`                 // admin, user
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
 // LoginRequest 登录请求
 type LoginRequest struct {
-	Username string `json:"username" binding:"required"`
-	Password string `json:"password" binding:"required"`
+	Username   string `json:"username" binding:"required"`
+	Password   string `json:"password" binding:"required"`
+	RememberMe bool   `json:"remember_me"`
 }
 
 // RegisterRequest 注册请求
@@ -28,11 +29,12 @@ type RegisterRequest struct {
 
 // ChangePasswordRequest 修改密码请求
 type ChangePasswordRequest struct {
-	OldPassword      string `json:"oldPassword" binding:"required"`
-	NewPassword      string `json:"newPassword" binding:"required,min=6"`
-	CurrentPassword  string `json:"current_password" binding:"required"`
-	NewPasswordField string `json:"new_password" binding:"required,min=6"`
-	ConfirmPassword  string `json:"confirm_password" binding:"required"`
+	OldPassword         string `json:"oldPassword" binding:"required"`
+	NewPassword         string `json:"newPassword" binding:"required,min=6"`
+	CurrentPassword     string `json:"current_password" binding:"required"`
+	NewPasswordField    string `json:"new_password" binding:"required,min=6"`
+	ConfirmPassword     string `json:"confirm_password" binding:"required"`
+	LogoutOtherSessions bool   `json:"logout_other_sessions"`
 }
 
 // UserResponse 用户响应

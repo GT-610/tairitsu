@@ -1,7 +1,9 @@
 package services
 
 import (
+	"crypto/rand"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -12,6 +14,8 @@ import (
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
 )
+
+const temporaryPasswordAlphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789"
 
 type UserService struct {
 	db    database.DBInterface
@@ -56,6 +60,14 @@ func NewUserService() *UserService {
 	}
 }
 
+func normalizeUsername(username string) (string, error) {
+	normalized := strings.TrimSpace(username)
+	if normalized == "" {
+		return "", ErrInvalidUsername
+	}
+	return normalized, nil
+}
+
 func (s *UserService) Register(req *models.RegisterRequest, role ...string) (*models.User, error) {
 	db := s.getDB()
 	if db == nil {
@@ -63,15 +75,20 @@ func (s *UserService) Register(req *models.RegisterRequest, role ...string) (*mo
 		return nil, ErrUserDBUnavailable
 	}
 
-	logger.Info("服务层：开始用户注册", zap.String("username", req.Username))
-
-	existingUser, err := db.GetUserByUsername(req.Username)
+	username, err := normalizeUsername(req.Username)
 	if err != nil {
-		logger.Error("服务层：注册失败，检查用户名时出错", zap.String("username", req.Username), zap.Error(err))
+		return nil, err
+	}
+
+	logger.Info("服务层：开始用户注册", zap.String("username", username))
+
+	existingUser, err := db.GetUserByUsername(username)
+	if err != nil {
+		logger.Error("服务层：注册失败，检查用户名时出错", zap.String("username", username), zap.Error(err))
 		return nil, fmt.Errorf("检查用户名失败: %w", err)
 	}
 	if existingUser != nil {
-		logger.Error("服务层：注册失败，用户名已存在", zap.String("username", req.Username))
+		logger.Error("服务层：注册失败，用户名已存在", zap.String("username", username))
 		return nil, ErrUsernameExists
 	}
 
@@ -88,7 +105,7 @@ func (s *UserService) Register(req *models.RegisterRequest, role ...string) (*mo
 
 	user := &models.User{
 		ID:        uuid.New().String(),
-		Username:  req.Username,
+		Username:  username,
 		Password:  string(hashedPassword),
 		Role:      userRole,
 		CreatedAt: time.Now(),
@@ -96,13 +113,49 @@ func (s *UserService) Register(req *models.RegisterRequest, role ...string) (*mo
 	}
 
 	if err := db.CreateUser(user); err != nil {
-		logger.Error("服务层：注册失败，保存用户时出错", zap.String("username", req.Username), zap.Error(err))
+		logger.Error("服务层：注册失败，保存用户时出错", zap.String("username", username), zap.Error(err))
 		return nil, fmt.Errorf("保存用户失败: %w", err)
 	}
 
 	logger.Info("服务层：用户注册成功", zap.String("user_id", user.ID), zap.String("username", user.Username), zap.String("role", userRole))
 
 	return user, nil
+}
+
+func (s *UserService) CreateUserByAdmin(currentAdminID, username string) (*models.User, string, error) {
+	currentAdmin, err := s.GetUserByID(currentAdminID)
+	if err != nil {
+		return nil, "", err
+	}
+	if currentAdmin.Role != "admin" {
+		return nil, "", ErrAdminAccessDenied
+	}
+
+	temporaryPassword, err := generateTemporaryPassword(16)
+	if err != nil {
+		logger.Error("服务层：生成临时密码失败", zap.String("admin_user_id", currentAdminID), zap.Error(err))
+		return nil, "", err
+	}
+
+	normalizedUsername, err := normalizeUsername(username)
+	if err != nil {
+		return nil, "", err
+	}
+
+	user, err := s.Register(&models.RegisterRequest{
+		Username: normalizedUsername,
+		Password: temporaryPassword,
+	}, "user")
+	if err != nil {
+		return nil, "", err
+	}
+
+	logger.Info("服务层：管理员创建用户成功",
+		zap.String("admin_user_id", currentAdminID),
+		zap.String("user_id", user.ID),
+		zap.String("username", user.Username))
+
+	return user, temporaryPassword, nil
 }
 
 func (s *UserService) Login(req *models.LoginRequest) (*models.User, error) {
@@ -112,15 +165,16 @@ func (s *UserService) Login(req *models.LoginRequest) (*models.User, error) {
 		return nil, ErrUserDBUnavailable
 	}
 
-	logger.Info("服务层：开始用户登录", zap.String("username", req.Username))
+	username := strings.TrimSpace(req.Username)
+	logger.Info("服务层：开始用户登录", zap.String("username", username))
 
-	user, err := db.GetUserByUsername(req.Username)
+	user, err := db.GetUserByUsername(username)
 	if err != nil {
-		logger.Error("服务层：登录失败，查询用户时出错", zap.String("username", req.Username), zap.Error(err))
+		logger.Error("服务层：登录失败，查询用户时出错", zap.String("username", username), zap.Error(err))
 		return nil, ErrInvalidCredentials
 	}
 	if user == nil {
-		logger.Error("服务层：登录失败，用户不存在", zap.String("username", req.Username))
+		logger.Error("服务层：登录失败，用户不存在", zap.String("username", username))
 		return nil, ErrInvalidCredentials
 	}
 
@@ -215,10 +269,19 @@ func (s *UserService) UpdateUser(user *models.User) error {
 }
 
 func (s *UserService) ChangePassword(userID, oldPassword, newPassword string) error {
+	_, err := s.changePassword(userID, oldPassword, newPassword, "", false)
+	return err
+}
+
+func (s *UserService) ChangePasswordAndRevokeOtherSessions(userID, oldPassword, newPassword, currentSessionID string) (int, error) {
+	return s.changePassword(userID, oldPassword, newPassword, currentSessionID, true)
+}
+
+func (s *UserService) changePassword(userID, oldPassword, newPassword, currentSessionID string, revokeOtherSessions bool) (int, error) {
 	db := s.getDB()
 	if db == nil {
 		logger.Error("服务层：修改密码失败，数据库未初始化")
-		return ErrUserDBUnavailable
+		return 0, ErrUserDBUnavailable
 	}
 
 	logger.Info("服务层：开始修改密码", zap.String("user_id", userID))
@@ -226,35 +289,64 @@ func (s *UserService) ChangePassword(userID, oldPassword, newPassword string) er
 	user, err := db.GetUserByID(userID)
 	if err != nil {
 		logger.Error("服务层：修改密码失败，获取用户时出错", zap.String("user_id", userID), zap.Error(err))
-		return fmt.Errorf("读取用户失败: %w", err)
+		return 0, fmt.Errorf("读取用户失败: %w", err)
 	}
 
 	if user == nil {
 		logger.Error("服务层：修改密码失败，用户不存在", zap.String("user_id", userID))
-		return ErrUserNotFound
+		return 0, ErrUserNotFound
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(oldPassword)); err != nil {
 		logger.Error("服务层：修改密码失败，原密码错误", zap.String("user_id", userID))
-		return ErrOldPasswordIncorrect
+		return 0, ErrOldPasswordIncorrect
 	}
 
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
 	if err != nil {
 		logger.Error("服务层：修改密码失败，密码加密错误", zap.String("user_id", userID), zap.Error(err))
-		return err
+		return 0, err
 	}
 
-	user.Password = string(hashedPassword)
-	user.UpdatedAt = time.Now()
+	revokedSessions := 0
+	now := time.Now()
+	if err := db.WithTransaction(func(tx database.DBInterface) error {
+		user.Password = string(hashedPassword)
+		user.UpdatedAt = now
 
-	if err := db.UpdateUser(user); err != nil {
-		logger.Error("服务层：修改密码失败，更新用户时出错", zap.String("user_id", userID), zap.Error(err))
-		return fmt.Errorf("更新密码失败: %w", err)
+		if err := tx.UpdateUser(user); err != nil {
+			return fmt.Errorf("更新密码失败: %w", err)
+		}
+
+		if !revokeOtherSessions {
+			return nil
+		}
+
+		sessions, err := tx.GetSessionsByUserID(userID)
+		if err != nil {
+			return fmt.Errorf("读取会话列表失败: %w", err)
+		}
+
+		for _, session := range sessions {
+			if session.ID == currentSessionID || session.RevokedAt != nil {
+				continue
+			}
+			session.RevokedAt = &now
+			session.UpdatedAt = now
+			if err := tx.UpdateSession(session); err != nil {
+				return fmt.Errorf("吊销其他会话失败: %w", err)
+			}
+			revokedSessions++
+		}
+
+		return nil
+	}); err != nil {
+		logger.Error("服务层：修改密码失败，事务执行出错", zap.String("user_id", userID), zap.Error(err))
+		return 0, err
 	}
 
 	logger.Info("服务层：密码修改成功", zap.String("user_id", userID))
-	return nil
+	return revokedSessions, nil
 }
 
 func (s *UserService) UpdateUserRole(userID, role string) (*models.User, error) {
@@ -329,4 +421,178 @@ func (s *UserService) TransferAdmin(currentAdminID, targetUserID string) (*model
 		zap.String("to_username", targetUser.Username))
 
 	return targetUser, nil
+}
+
+func generateTemporaryPassword(length int) (string, error) {
+	password := make([]byte, length)
+	max := byte(len(temporaryPasswordAlphabet))
+	random := make([]byte, length)
+	if _, err := rand.Read(random); err != nil {
+		return "", fmt.Errorf("生成随机密码失败: %w", err)
+	}
+
+	for index, value := range random {
+		password[index] = temporaryPasswordAlphabet[int(value)%int(max)]
+	}
+
+	return string(password), nil
+}
+
+func (s *UserService) ResetPasswordByAdmin(currentAdminID, targetUserID string) (*models.User, string, int, error) {
+	db := s.getDB()
+	if db == nil {
+		logger.Error("服务层：重置密码失败，数据库未初始化")
+		return nil, "", 0, ErrUserDBUnavailable
+	}
+
+	if currentAdminID == targetUserID {
+		return nil, "", 0, ErrAdminResetSelf
+	}
+
+	currentAdmin, err := s.GetUserByID(currentAdminID)
+	if err != nil {
+		return nil, "", 0, err
+	}
+	if currentAdmin.Role != "admin" {
+		return nil, "", 0, ErrAdminAccessDenied
+	}
+
+	targetUser, err := s.GetUserByID(targetUserID)
+	if err != nil {
+		return nil, "", 0, err
+	}
+
+	temporaryPassword, err := generateTemporaryPassword(16)
+	if err != nil {
+		logger.Error("服务层：生成临时密码失败", zap.String("target_user_id", targetUserID), zap.Error(err))
+		return nil, "", 0, err
+	}
+
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(temporaryPassword), bcrypt.DefaultCost)
+	if err != nil {
+		logger.Error("服务层：重置密码失败，密码加密错误", zap.String("target_user_id", targetUserID), zap.Error(err))
+		return nil, "", 0, err
+	}
+
+	revokedSessions := 0
+	now := time.Now()
+	if err := db.WithTransaction(func(tx database.DBInterface) error {
+		targetUser.Password = string(hashedPassword)
+		targetUser.UpdatedAt = now
+		if err := tx.UpdateUser(targetUser); err != nil {
+			return fmt.Errorf("更新密码失败: %w", err)
+		}
+
+		sessions, err := tx.GetSessionsByUserID(targetUserID)
+		if err != nil {
+			return fmt.Errorf("读取会话列表失败: %w", err)
+		}
+
+		for _, session := range sessions {
+			if session.RevokedAt != nil {
+				continue
+			}
+			session.RevokedAt = &now
+			session.UpdatedAt = now
+			if err := tx.UpdateSession(session); err != nil {
+				return fmt.Errorf("吊销用户会话失败: %w", err)
+			}
+			revokedSessions++
+		}
+
+		return nil
+	}); err != nil {
+		logger.Error("服务层：重置密码失败，事务执行出错", zap.String("target_user_id", targetUserID), zap.Error(err))
+		return nil, "", 0, err
+	}
+
+	logger.Info("服务层：管理员重置用户密码成功",
+		zap.String("admin_user_id", currentAdminID),
+		zap.String("target_user_id", targetUserID),
+		zap.String("target_username", targetUser.Username),
+		zap.Int("revoked_sessions", revokedSessions))
+
+	return targetUser, temporaryPassword, revokedSessions, nil
+}
+
+func (s *UserService) DeleteUserByAdmin(currentAdminID, targetUserID string) (*models.User, int, int, error) {
+	db := s.getDB()
+	if db == nil {
+		logger.Error("服务层：删除用户失败，数据库未初始化")
+		return nil, 0, 0, ErrUserDBUnavailable
+	}
+
+	if currentAdminID == targetUserID {
+		return nil, 0, 0, ErrAdminDeleteSelf
+	}
+
+	currentAdmin, err := s.GetUserByID(currentAdminID)
+	if err != nil {
+		return nil, 0, 0, err
+	}
+	if currentAdmin.Role != "admin" {
+		return nil, 0, 0, ErrAdminAccessDenied
+	}
+
+	targetUser, err := s.GetUserByID(targetUserID)
+	if err != nil {
+		return nil, 0, 0, err
+	}
+	if targetUser.Role == "admin" {
+		return nil, 0, 0, ErrAdminDeleteBlocked
+	}
+
+	now := time.Now()
+	transferredNetworks := 0
+	revokedSessions := 0
+	if err := db.WithTransaction(func(tx database.DBInterface) error {
+		networks, err := tx.GetNetworksByOwnerID(targetUserID)
+		if err != nil {
+			return fmt.Errorf("读取用户网络失败: %w", err)
+		}
+
+		for _, network := range networks {
+			network.OwnerID = currentAdminID
+			network.UpdatedAt = now
+			if err := tx.UpdateNetwork(network); err != nil {
+				return fmt.Errorf("转移网络所有权失败: %w", err)
+			}
+			transferredNetworks++
+		}
+
+		sessions, err := tx.GetSessionsByUserID(targetUserID)
+		if err != nil {
+			return fmt.Errorf("读取会话列表失败: %w", err)
+		}
+
+		for _, session := range sessions {
+			if session.RevokedAt != nil {
+				continue
+			}
+			session.RevokedAt = &now
+			session.UpdatedAt = now
+			if err := tx.UpdateSession(session); err != nil {
+				return fmt.Errorf("吊销用户会话失败: %w", err)
+			}
+			revokedSessions++
+		}
+
+		if err := tx.DeleteUser(targetUserID); err != nil {
+			return fmt.Errorf("删除用户失败: %w", err)
+		}
+
+		return nil
+	}); err != nil {
+		logger.Error("服务层：删除用户失败，事务执行出错", zap.String("target_user_id", targetUserID), zap.Error(err))
+		return nil, 0, 0, err
+	}
+
+	logger.Info("服务层：管理员删除用户成功",
+		zap.String("admin_user_id", currentAdminID),
+		zap.String("target_user_id", targetUserID),
+		zap.String("target_username", targetUser.Username),
+		zap.Int("transferred_networks", transferredNetworks),
+		zap.Int("revoked_sessions", revokedSessions))
+
+	return targetUser, transferredNetworks, revokedSessions, nil
 }

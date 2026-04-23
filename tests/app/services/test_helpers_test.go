@@ -1,6 +1,7 @@
 package services
 
 import (
+	"github.com/GT-610/tairitsu/internal/app/database"
 	"github.com/GT-610/tairitsu/internal/app/models"
 )
 
@@ -9,6 +10,9 @@ type stateServiceDBStub struct {
 }
 
 func (s *stateServiceDBStub) Init() error { return nil }
+func (s *stateServiceDBStub) WithTransaction(fn func(database.DBInterface) error) error {
+	return fn(s)
+}
 func (s *stateServiceDBStub) CreateUser(user *models.User) error {
 	s.users = append(s.users, user)
 	return nil
@@ -32,6 +36,16 @@ func (s *stateServiceDBStub) GetUserByUsername(username string) (*models.User, e
 func (s *stateServiceDBStub) GetAllUsers() ([]*models.User, error) { return s.users, nil }
 func (s *stateServiceDBStub) UpdateUser(user *models.User) error   { return nil }
 func (s *stateServiceDBStub) DeleteUser(id string) error           { return nil }
+func (s *stateServiceDBStub) CreateSession(session *models.Session) error {
+	return nil
+}
+func (s *stateServiceDBStub) GetSessionByID(id string) (*models.Session, error) {
+	return nil, nil
+}
+func (s *stateServiceDBStub) GetSessionsByUserID(userID string) ([]*models.Session, error) {
+	return []*models.Session{}, nil
+}
+func (s *stateServiceDBStub) UpdateSession(session *models.Session) error { return nil }
 func (s *stateServiceDBStub) CreateNetwork(network *models.Network) error {
 	return nil
 }

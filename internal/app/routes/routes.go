@@ -66,6 +66,7 @@ func SetupRoutes(router *fiber.App, dependencies *assembly.Dependencies) {
 		{
 			auth.Post("/register", authHandler.Register)
 			auth.Post("/login", runtimeOnly, authHandler.Login)
+			auth.Post("/logout", runtimeOnly, authMiddleware, authHandler.Logout)
 		}
 
 		api.Post("/system/database", setupOnly, systemHandler.ConfigureDatabase)
@@ -78,6 +79,11 @@ func SetupRoutes(router *fiber.App, dependencies *assembly.Dependencies) {
 		api.Get("/profile", runtimeOnly, authMiddleware, authHandler.GetProfile)
 		api.Post("/auth/update-password", runtimeOnly, authMiddleware, authHandler.ChangePassword)
 		api.Put("/profile/password", runtimeOnly, authMiddleware, authHandler.ChangePassword)
+		api.Get("/profile/sessions", runtimeOnly, authMiddleware, authHandler.ListSessions)
+		api.Delete("/profile/sessions/others", runtimeOnly, authMiddleware, authHandler.RevokeOtherSessions)
+		api.Delete("/profile/sessions/:sessionId", runtimeOnly, authMiddleware, authHandler.RevokeSession)
+		api.Get("/system/settings", runtimeOnly, authMiddleware, adminOnly, systemHandler.GetRuntimeSettings)
+		api.Put("/system/settings", runtimeOnly, authMiddleware, adminOnly, systemHandler.UpdateRuntimeSettings)
 
 		api.Get("/status", runtimeOnly, authMiddleware, networkHandler.GetStatus)
 
@@ -96,7 +102,10 @@ func SetupRoutes(router *fiber.App, dependencies *assembly.Dependencies) {
 		// Admin-only routes
 		api.Get("/system/stats", runtimeOnly, authMiddleware, adminOnly, systemHandler.GetSystemStats)
 		api.Get("/users", runtimeOnly, authMiddleware, adminOnly, userHandler.GetAllUsers)
+		api.Post("/users", runtimeOnly, authMiddleware, adminOnly, userHandler.CreateUser)
+		api.Delete("/users/:userId", runtimeOnly, authMiddleware, adminOnly, userHandler.DeleteUser)
 		api.Post("/users/transfer-admin", runtimeOnly, authMiddleware, adminOnly, userHandler.TransferAdmin)
+		api.Post("/users/:userId/reset-password", runtimeOnly, authMiddleware, adminOnly, userHandler.ResetPassword)
 		api.Get("/admin/networks/importable", runtimeOnly, authMiddleware, adminOnly, networkHandler.GetImportableNetworks)
 		api.Post("/admin/networks/import", runtimeOnly, authMiddleware, adminOnly, networkHandler.ImportNetworks)
 		api.Get("/admin/planet/identity", runtimeOnly, authMiddleware, adminOnly, handlers.GetIdentityHandler)

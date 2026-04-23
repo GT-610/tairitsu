@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { 
   Box, 
   Typography, 
@@ -14,8 +14,9 @@ import {
 import { LockOutlined } from '@mui/icons-material';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../services/auth';
-import { authAPI } from '../services/api';
+import { authAPI, systemAPI } from '../services/api';
 import { getErrorMessage, hasStatus } from '../services/errors';
+import { isPublicRegistrationEnabled } from '../utils/publicRegistration';
 
 function getNavigationMessage(state: unknown): string {
   if (!state || typeof state !== 'object' || !('message' in state)) {
@@ -48,6 +49,7 @@ function Login() {
   const [loading, setLoading] = useState<boolean>(false);
   // Global login error message state
   const [loginError, setLoginError] = useState<string>('');
+  const [allowPublicRegistration, setAllowPublicRegistration] = useState(true);
   const location = useLocation();
   const navigationMessage = getNavigationMessage(location.state);
   // Remember me checkbox state
@@ -57,6 +59,19 @@ function Login() {
   const navigate = useNavigate();
   // Auth service hook for login functionality
   const { login } = useAuth();
+
+  useEffect(() => {
+    const loadSetupStatus = async () => {
+      try {
+        const response = await systemAPI.getSetupStatus();
+        setAllowPublicRegistration(response.data.allowPublicRegistration);
+      } catch {
+        setAllowPublicRegistration(true);
+      }
+    };
+
+    void loadSetupStatus();
+  }, []);
 
   // Handle input change
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -99,23 +114,26 @@ function Login() {
       // Call backend login API
       const response = await authAPI.login({
         username: formData.username,
-        password: formData.password
+        password: formData.password,
+        remember_me: rememberMe,
       });
       
       // Extract user data and token from response
-      const { user, token } = response.data;
+      const { user, token, session } = response.data;
       
       // Save to localStorage or sessionStorage
       if (rememberMe) {
         localStorage.setItem('user', JSON.stringify(user));
         localStorage.setItem('token', token);
+        localStorage.setItem('session', JSON.stringify(session));
       } else {
         sessionStorage.setItem('user', JSON.stringify(user));
         sessionStorage.setItem('token', token);
+        sessionStorage.setItem('session', JSON.stringify(session));
       }
       
       // Call login function from auth context
-      login(user, token);
+      login(user, token, session);
       
       // Login successful, redirect to networks
       void navigate('/networks');
@@ -250,34 +268,38 @@ function Login() {
             
             <Grid container spacing={2}>
               <Grid size={6}>
-                <Button 
-                  component={Link} 
-                  to="/forgot-password" 
-                  variant="text" 
-                  fullWidth
-                  sx={{ 
-                    justifyContent: 'flex-start',
-                    textTransform: 'none',
-                    fontWeight: 'normal'
-                  }}
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                  sx={{ textAlign: 'left', display: 'block', mt: 1 }}
                 >
-                  忘记密码?
-                </Button>
+                  忘记密码请联系管理员处理
+                </Typography>
               </Grid>
               <Grid size={6}>
-                <Button
-                  component={Link} 
-                  to="/register"
-                  variant="text"
-                  fullWidth
-                  sx={{
-                    justifyContent: 'flex-end',
-                    textTransform: 'none',
-                    fontWeight: 'normal'
-                  }}
-                >
-                  没有账户? 去注册
-                </Button>
+                {isPublicRegistrationEnabled(allowPublicRegistration) ? (
+                  <Button
+                    component={Link} 
+                    to="/register"
+                    variant="text"
+                    fullWidth
+                    sx={{
+                      justifyContent: 'flex-end',
+                      textTransform: 'none',
+                      fontWeight: 'normal'
+                    }}
+                  >
+                    没有账户? 去注册
+                  </Button>
+                ) : (
+                  <Typography
+                    variant="body2"
+                    color="text.secondary"
+                    sx={{ textAlign: 'right', display: 'block', mt: 1 }}
+                  >
+                    公开注册当前已关闭
+                  </Typography>
+                )}
               </Grid>
             </Grid>
           </Box>

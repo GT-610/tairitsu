@@ -15,7 +15,8 @@ import (
 type SQLiteDB struct {
 	db   *sql.DB
 	path string
-	mu   sync.RWMutex
+	mu   *sync.RWMutex
+	tx   *sql.Tx
 }
 
 // NewSQLiteDB 创建新的SQLite数据库实例
@@ -35,6 +36,7 @@ func NewSQLiteDB(dbPath string) (*SQLiteDB, error) {
 	return &SQLiteDB{
 		db:   db,
 		path: dbPath,
+		mu:   &sync.RWMutex{},
 	}, nil
 }
 
@@ -72,19 +74,79 @@ func (s *SQLiteDB) Init() error {
 		return fmt.Errorf("创建网络表失败: %w", err)
 	}
 
+	createSessionsTable := `
+	CREATE TABLE IF NOT EXISTS sessions (
+		id TEXT PRIMARY KEY,
+		user_id TEXT NOT NULL,
+		user_agent TEXT,
+		ip_address TEXT,
+		remember_me BOOLEAN NOT NULL DEFAULT 0,
+		last_seen_at DATETIME NOT NULL,
+		expires_at DATETIME NOT NULL,
+		revoked_at DATETIME,
+		created_at DATETIME NOT NULL,
+		updated_at DATETIME NOT NULL
+	);`
+
+	_, err = s.db.Exec(createSessionsTable)
+	if err != nil {
+		return fmt.Errorf("创建会话表失败: %w", err)
+	}
+
+	return nil
+}
+
+// WithTransaction 在事务中执行数据库操作
+func (s *SQLiteDB) WithTransaction(fn func(DBInterface) error) error {
+	if s.tx != nil {
+		return fn(s)
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	tx, err := s.db.Begin()
+	if err != nil {
+		return fmt.Errorf("开启事务失败: %w", err)
+	}
+
+	txDB := &SQLiteDB{
+		db:   s.db,
+		path: s.path,
+		mu:   s.mu,
+		tx:   tx,
+	}
+
+	if err := fn(txDB); err != nil {
+		if rollbackErr := tx.Rollback(); rollbackErr != nil {
+			return fmt.Errorf("事务回滚失败: %v; 原始错误: %w", rollbackErr, err)
+		}
+		return err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("提交事务失败: %w", err)
+	}
+
 	return nil
 }
 
 // CreateUser 创建用户
 func (s *SQLiteDB) CreateUser(user *models.User) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	query := `
 	INSERT INTO users (id, username, password, role, created_at, updated_at)
 	VALUES (?, ?, ?, ?, ?, ?)`
 
-	_, err := s.db.Exec(query, user.ID, user.Username, user.Password, user.Role, user.CreatedAt, user.UpdatedAt)
+	var (
+		err error
+	)
+	if s.tx != nil {
+		_, err = s.tx.Exec(query, user.ID, user.Username, user.Password, user.Role, user.CreatedAt, user.UpdatedAt)
+	} else {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		_, err = s.db.Exec(query, user.ID, user.Username, user.Password, user.Role, user.CreatedAt, user.UpdatedAt)
+	}
 	if err != nil {
 		return fmt.Errorf("创建用户失败: %w", err)
 	}
@@ -94,11 +156,15 @@ func (s *SQLiteDB) CreateUser(user *models.User) error {
 
 // GetUserByID 根据ID获取用户
 func (s *SQLiteDB) GetUserByID(id string) (*models.User, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
 	query := `SELECT id, username, password, role, created_at, updated_at FROM users WHERE id = ?`
-	row := s.db.QueryRow(query, id)
+	var row *sql.Row
+	if s.tx != nil {
+		row = s.tx.QueryRow(query, id)
+	} else {
+		s.mu.RLock()
+		defer s.mu.RUnlock()
+		row = s.db.QueryRow(query, id)
+	}
 
 	var user models.User
 	err := row.Scan(&user.ID, &user.Username, &user.Password, &user.Role, &user.CreatedAt, &user.UpdatedAt)
@@ -114,11 +180,15 @@ func (s *SQLiteDB) GetUserByID(id string) (*models.User, error) {
 
 // GetUserByUsername 根据用户名获取用户
 func (s *SQLiteDB) GetUserByUsername(username string) (*models.User, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
 	query := `SELECT id, username, password, role, created_at, updated_at FROM users WHERE username = ?`
-	row := s.db.QueryRow(query, username)
+	var row *sql.Row
+	if s.tx != nil {
+		row = s.tx.QueryRow(query, username)
+	} else {
+		s.mu.RLock()
+		defer s.mu.RUnlock()
+		row = s.db.QueryRow(query, username)
+	}
 
 	var user models.User
 	err := row.Scan(&user.ID, &user.Username, &user.Password, &user.Role, &user.CreatedAt, &user.UpdatedAt)
@@ -134,11 +204,18 @@ func (s *SQLiteDB) GetUserByUsername(username string) (*models.User, error) {
 
 // GetAllUsers 获取所有用户
 func (s *SQLiteDB) GetAllUsers() ([]*models.User, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
 	query := `SELECT id, username, password, role, created_at, updated_at FROM users`
-	rows, err := s.db.Query(query)
+	var (
+		rows *sql.Rows
+		err  error
+	)
+	if s.tx != nil {
+		rows, err = s.tx.Query(query)
+	} else {
+		s.mu.RLock()
+		defer s.mu.RUnlock()
+		rows, err = s.db.Query(query)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("查询所有用户失败: %w", err)
 	}
@@ -159,15 +236,19 @@ func (s *SQLiteDB) GetAllUsers() ([]*models.User, error) {
 
 // UpdateUser 更新用户
 func (s *SQLiteDB) UpdateUser(user *models.User) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	query := `
 	UPDATE users 
 	SET username = ?, password = ?, role = ?, updated_at = ?
 	WHERE id = ?`
 
-	_, err := s.db.Exec(query, user.Username, user.Password, user.Role, user.UpdatedAt, user.ID)
+	var err error
+	if s.tx != nil {
+		_, err = s.tx.Exec(query, user.Username, user.Password, user.Role, user.UpdatedAt, user.ID)
+	} else {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		_, err = s.db.Exec(query, user.Username, user.Password, user.Role, user.UpdatedAt, user.ID)
+	}
 	if err != nil {
 		return fmt.Errorf("更新用户失败: %w", err)
 	}
@@ -177,11 +258,15 @@ func (s *SQLiteDB) UpdateUser(user *models.User) error {
 
 // DeleteUser 删除用户
 func (s *SQLiteDB) DeleteUser(id string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	query := `DELETE FROM users WHERE id = ?`
-	_, err := s.db.Exec(query, id)
+	var err error
+	if s.tx != nil {
+		_, err = s.tx.Exec(query, id)
+	} else {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		_, err = s.db.Exec(query, id)
+	}
 	if err != nil {
 		return fmt.Errorf("删除用户失败: %w", err)
 	}
@@ -189,13 +274,182 @@ func (s *SQLiteDB) DeleteUser(id string) error {
 	return nil
 }
 
+// CreateSession 创建会话
+func (s *SQLiteDB) CreateSession(session *models.Session) error {
+	query := `
+	INSERT INTO sessions (id, user_id, user_agent, ip_address, remember_me, last_seen_at, expires_at, revoked_at, created_at, updated_at)
+	VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+
+	var err error
+	if s.tx != nil {
+		_, err = s.tx.Exec(
+			query,
+			session.ID,
+			session.UserID,
+			session.UserAgent,
+			session.IPAddress,
+			session.RememberMe,
+			session.LastSeenAt,
+			session.ExpiresAt,
+			session.RevokedAt,
+			session.CreatedAt,
+			session.UpdatedAt,
+		)
+	} else {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		_, err = s.db.Exec(
+			query,
+			session.ID,
+			session.UserID,
+			session.UserAgent,
+			session.IPAddress,
+			session.RememberMe,
+			session.LastSeenAt,
+			session.ExpiresAt,
+			session.RevokedAt,
+			session.CreatedAt,
+			session.UpdatedAt,
+		)
+	}
+	if err != nil {
+		return fmt.Errorf("创建会话失败: %w", err)
+	}
+
+	return nil
+}
+
+// GetSessionByID 根据ID获取会话
+func (s *SQLiteDB) GetSessionByID(id string) (*models.Session, error) {
+	query := `SELECT id, user_id, user_agent, ip_address, remember_me, last_seen_at, expires_at, revoked_at, created_at, updated_at FROM sessions WHERE id = ?`
+	var row *sql.Row
+	if s.tx != nil {
+		row = s.tx.QueryRow(query, id)
+	} else {
+		s.mu.RLock()
+		defer s.mu.RUnlock()
+		row = s.db.QueryRow(query, id)
+	}
+
+	var session models.Session
+	err := row.Scan(
+		&session.ID,
+		&session.UserID,
+		&session.UserAgent,
+		&session.IPAddress,
+		&session.RememberMe,
+		&session.LastSeenAt,
+		&session.ExpiresAt,
+		&session.RevokedAt,
+		&session.CreatedAt,
+		&session.UpdatedAt,
+	)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("查询会话失败: %w", err)
+	}
+
+	return &session, nil
+}
+
+// GetSessionsByUserID 获取用户会话列表
+func (s *SQLiteDB) GetSessionsByUserID(userID string) ([]*models.Session, error) {
+	query := `SELECT id, user_id, user_agent, ip_address, remember_me, last_seen_at, expires_at, revoked_at, created_at, updated_at FROM sessions WHERE user_id = ? ORDER BY last_seen_at DESC`
+	var (
+		rows *sql.Rows
+		err  error
+	)
+	if s.tx != nil {
+		rows, err = s.tx.Query(query, userID)
+	} else {
+		s.mu.RLock()
+		defer s.mu.RUnlock()
+		rows, err = s.db.Query(query, userID)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("查询会话列表失败: %w", err)
+	}
+	defer rows.Close()
+
+	var sessions []*models.Session
+	for rows.Next() {
+		var session models.Session
+		err := rows.Scan(
+			&session.ID,
+			&session.UserID,
+			&session.UserAgent,
+			&session.IPAddress,
+			&session.RememberMe,
+			&session.LastSeenAt,
+			&session.ExpiresAt,
+			&session.RevokedAt,
+			&session.CreatedAt,
+			&session.UpdatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("扫描会话数据失败: %w", err)
+		}
+		sessions = append(sessions, &session)
+	}
+
+	return sessions, nil
+}
+
+// UpdateSession 更新会话
+func (s *SQLiteDB) UpdateSession(session *models.Session) error {
+	query := `
+	UPDATE sessions
+	SET user_agent = ?, ip_address = ?, remember_me = ?, last_seen_at = ?, expires_at = ?, revoked_at = ?, updated_at = ?
+	WHERE id = ?`
+
+	var err error
+	if s.tx != nil {
+		_, err = s.tx.Exec(
+			query,
+			session.UserAgent,
+			session.IPAddress,
+			session.RememberMe,
+			session.LastSeenAt,
+			session.ExpiresAt,
+			session.RevokedAt,
+			session.UpdatedAt,
+			session.ID,
+		)
+	} else {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		_, err = s.db.Exec(
+			query,
+			session.UserAgent,
+			session.IPAddress,
+			session.RememberMe,
+			session.LastSeenAt,
+			session.ExpiresAt,
+			session.RevokedAt,
+			session.UpdatedAt,
+			session.ID,
+		)
+	}
+	if err != nil {
+		return fmt.Errorf("更新会话失败: %w", err)
+	}
+
+	return nil
+}
+
 // HasAdminUser 检查是否已存在管理员用户
 func (s *SQLiteDB) HasAdminUser() (bool, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
 	query := `SELECT COUNT(*) FROM users WHERE role = 'admin'`
-	row := s.db.QueryRow(query)
+	var row *sql.Row
+	if s.tx != nil {
+		row = s.tx.QueryRow(query)
+	} else {
+		s.mu.RLock()
+		defer s.mu.RUnlock()
+		row = s.db.QueryRow(query)
+	}
 
 	var count int
 	err := row.Scan(&count)
@@ -208,14 +462,18 @@ func (s *SQLiteDB) HasAdminUser() (bool, error) {
 
 // CreateNetwork 创建网络
 func (s *SQLiteDB) CreateNetwork(network *models.Network) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	query := `
 	INSERT INTO networks (id, name, description, owner_id, created_at, updated_at)
 	VALUES (?, ?, ?, ?, ?, ?)`
 
-	_, err := s.db.Exec(query, network.ID, network.Name, network.Description, network.OwnerID, network.CreatedAt, network.UpdatedAt)
+	var err error
+	if s.tx != nil {
+		_, err = s.tx.Exec(query, network.ID, network.Name, network.Description, network.OwnerID, network.CreatedAt, network.UpdatedAt)
+	} else {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		_, err = s.db.Exec(query, network.ID, network.Name, network.Description, network.OwnerID, network.CreatedAt, network.UpdatedAt)
+	}
 	if err != nil {
 		return fmt.Errorf("创建网络失败: %w", err)
 	}
@@ -225,11 +483,15 @@ func (s *SQLiteDB) CreateNetwork(network *models.Network) error {
 
 // GetNetworkByID 根据ID获取网络
 func (s *SQLiteDB) GetNetworkByID(id string) (*models.Network, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
 	query := `SELECT id, name, description, owner_id, created_at, updated_at FROM networks WHERE id = ?`
-	row := s.db.QueryRow(query, id)
+	var row *sql.Row
+	if s.tx != nil {
+		row = s.tx.QueryRow(query, id)
+	} else {
+		s.mu.RLock()
+		defer s.mu.RUnlock()
+		row = s.db.QueryRow(query, id)
+	}
 
 	var network models.Network
 	err := row.Scan(&network.ID, &network.Name, &network.Description, &network.OwnerID, &network.CreatedAt, &network.UpdatedAt)
@@ -245,11 +507,18 @@ func (s *SQLiteDB) GetNetworkByID(id string) (*models.Network, error) {
 
 // GetNetworksByOwnerID 根据所有者ID获取网络列表
 func (s *SQLiteDB) GetNetworksByOwnerID(ownerID string) ([]*models.Network, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
 	query := `SELECT id, name, description, owner_id, created_at, updated_at FROM networks WHERE owner_id = ?`
-	rows, err := s.db.Query(query, ownerID)
+	var (
+		rows *sql.Rows
+		err  error
+	)
+	if s.tx != nil {
+		rows, err = s.tx.Query(query, ownerID)
+	} else {
+		s.mu.RLock()
+		defer s.mu.RUnlock()
+		rows, err = s.db.Query(query, ownerID)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("查询网络列表失败: %w", err)
 	}
@@ -270,11 +539,18 @@ func (s *SQLiteDB) GetNetworksByOwnerID(ownerID string) ([]*models.Network, erro
 
 // GetAllNetworks 获取所有网络
 func (s *SQLiteDB) GetAllNetworks() ([]*models.Network, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
 	query := `SELECT id, name, description, owner_id, created_at, updated_at FROM networks`
-	rows, err := s.db.Query(query)
+	var (
+		rows *sql.Rows
+		err  error
+	)
+	if s.tx != nil {
+		rows, err = s.tx.Query(query)
+	} else {
+		s.mu.RLock()
+		defer s.mu.RUnlock()
+		rows, err = s.db.Query(query)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("查询所有网络失败: %w", err)
 	}
@@ -295,15 +571,19 @@ func (s *SQLiteDB) GetAllNetworks() ([]*models.Network, error) {
 
 // UpdateNetwork 更新网络
 func (s *SQLiteDB) UpdateNetwork(network *models.Network) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	query := `
 	UPDATE networks 
 	SET name = ?, description = ?, owner_id = ?, updated_at = ?
 	WHERE id = ?`
 
-	_, err := s.db.Exec(query, network.Name, network.Description, network.OwnerID, network.UpdatedAt, network.ID)
+	var err error
+	if s.tx != nil {
+		_, err = s.tx.Exec(query, network.Name, network.Description, network.OwnerID, network.UpdatedAt, network.ID)
+	} else {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		_, err = s.db.Exec(query, network.Name, network.Description, network.OwnerID, network.UpdatedAt, network.ID)
+	}
 	if err != nil {
 		return fmt.Errorf("更新网络失败: %w", err)
 	}
@@ -313,11 +593,15 @@ func (s *SQLiteDB) UpdateNetwork(network *models.Network) error {
 
 // DeleteNetwork 删除网络
 func (s *SQLiteDB) DeleteNetwork(id string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	query := `DELETE FROM networks WHERE id = ?`
-	_, err := s.db.Exec(query, id)
+	var err error
+	if s.tx != nil {
+		_, err = s.tx.Exec(query, id)
+	} else {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		_, err = s.db.Exec(query, id)
+	}
 	if err != nil {
 		return fmt.Errorf("删除网络失败: %w", err)
 	}

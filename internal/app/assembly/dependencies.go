@@ -13,6 +13,7 @@ import (
 type Services struct {
 	Network *services.NetworkService
 	User    *services.UserService
+	Session *services.SessionService
 	JWT     *services.JWTService
 	State   *services.StateService
 	Runtime *services.RuntimeService
@@ -53,9 +54,15 @@ func NewDependencies(cfg *config.Config, db database.DBInterface, ztClient *zero
 	} else {
 		userService = services.NewUserServiceWithoutDB()
 	}
+	var sessionService *services.SessionService
+	if db != nil {
+		sessionService = services.NewSessionServiceWithDB(db)
+	} else {
+		sessionService = services.NewSessionServiceWithoutDB()
+	}
 
 	stateService := services.NewStateServiceWithConfig(cfg)
-	runtimeService := services.NewRuntimeService(userService, networkService, stateService)
+	runtimeService := services.NewRuntimeService(userService, sessionService, networkService, stateService)
 	setupService := services.NewSetupService(runtimeService, stateService, userService, networkService)
 	systemService := services.NewSystemService()
 	jwtSecret := ""
@@ -64,7 +71,7 @@ func NewDependencies(cfg *config.Config, db database.DBInterface, ztClient *zero
 	}
 	jwtService := services.NewJWTService(jwtSecret)
 
-	authHandler := handlers.NewAuthHandler(userService, jwtService, runtimeService, stateService)
+	authHandler := handlers.NewAuthHandler(userService, sessionService, jwtService, runtimeService, stateService)
 
 	return &Dependencies{
 		Config:   cfg,
@@ -73,6 +80,7 @@ func NewDependencies(cfg *config.Config, db database.DBInterface, ztClient *zero
 		Services: Services{
 			Network: networkService,
 			User:    userService,
+			Session: sessionService,
 			JWT:     jwtService,
 			State:   stateService,
 			Runtime: runtimeService,
@@ -87,7 +95,7 @@ func NewDependencies(cfg *config.Config, db database.DBInterface, ztClient *zero
 			System:  handlers.NewSystemHandler(setupService, systemService),
 		},
 		Middleware: Middleware{
-			Auth:        middleware.AuthMiddleware(jwtService),
+			Auth:        middleware.AuthMiddleware(jwtService, sessionService),
 			SetupOnly:   middleware.SetupOnlyWithState(stateService),
 			RuntimeOnly: middleware.InitializedOnlyWithState(stateService),
 			AdminOnly:   middleware.AdminRequiredWithUserService(userService),

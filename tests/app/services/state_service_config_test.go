@@ -124,3 +124,25 @@ func TestStateServiceSaveZeroTierConfigPersistsBoundConfig(t *testing.T) {
 	assert.NotEmpty(t, boundConfig.ZeroTier.Token)
 	assert.Empty(t, config.AppConfig.ZeroTier.URL)
 }
+
+func TestStateServiceSaveRuntimeSettingsPersistsBoundConfig(t *testing.T) {
+	originalConfig := config.AppConfig
+	t.Cleanup(func() {
+		config.AppConfig = originalConfig
+	})
+
+	boundConfig := &config.Config{
+		Security: config.SecurityConfig{
+			JWTSecret: "test-secret",
+		},
+	}
+	config.AppConfig = &config.Config{}
+
+	stateService := appservices.NewStateServiceWithConfig(boundConfig)
+	require.NoError(t, stateService.SaveRuntimeSettings(appservices.RuntimeSettings{
+		AllowPublicRegistration: false,
+	}))
+
+	assert.False(t, config.AllowPublicRegistration(boundConfig))
+	assert.True(t, config.AllowPublicRegistration(config.AppConfig))
+}

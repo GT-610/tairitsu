@@ -20,7 +20,7 @@ import (
 func TestAuthMiddleware_MissingToken(t *testing.T) {
 	// Arrange
 	jwtService := services.NewJWTService("test-secret-key")
-	authMiddleware := middleware.AuthMiddleware(jwtService)
+	authMiddleware := middleware.AuthMiddleware(jwtService, nil)
 
 	// Create a test router with the middleware
 	router := fiber.New()
@@ -46,7 +46,7 @@ func TestAuthMiddleware_MissingToken(t *testing.T) {
 func TestAuthMiddleware_InvalidTokenFormat(t *testing.T) {
 	// Arrange
 	jwtService := services.NewJWTService("test-secret-key")
-	authMiddleware := middleware.AuthMiddleware(jwtService)
+	authMiddleware := middleware.AuthMiddleware(jwtService, nil)
 
 	// Create a test router with the middleware
 	router := fiber.New()
@@ -73,7 +73,7 @@ func TestAuthMiddleware_InvalidTokenFormat(t *testing.T) {
 func TestAuthMiddleware_InvalidToken(t *testing.T) {
 	// Arrange
 	jwtService := services.NewJWTService("test-secret-key")
-	authMiddleware := middleware.AuthMiddleware(jwtService)
+	authMiddleware := middleware.AuthMiddleware(jwtService, nil)
 
 	// Create a test router with the middleware
 	router := fiber.New()
@@ -100,7 +100,7 @@ func TestAuthMiddleware_InvalidToken(t *testing.T) {
 func TestAuthMiddleware_ValidToken(t *testing.T) {
 	// Arrange
 	jwtService := services.NewJWTService("test-secret-key")
-	authMiddleware := middleware.AuthMiddleware(jwtService)
+	authMiddleware := middleware.AuthMiddleware(jwtService, nil)
 
 	// Create a test user and generate a valid token
 	user := &models.User{
@@ -108,7 +108,7 @@ func TestAuthMiddleware_ValidToken(t *testing.T) {
 		Username: "test-user",
 		Role:     "user",
 	}
-	token, _ := jwtService.GenerateToken(user)
+	token, _ := jwtService.GenerateToken(user, "session-1")
 
 	// Create a test router with the middleware
 	router := fiber.New()
@@ -144,7 +144,7 @@ func TestAuthMiddleware_ValidToken(t *testing.T) {
 func TestAdminRequired_NonAdminUser(t *testing.T) {
 	// Arrange
 	jwtService := services.NewJWTService("test-secret-key")
-	authMiddleware := middleware.AuthMiddleware(jwtService)
+	authMiddleware := middleware.AuthMiddleware(jwtService, nil)
 	adminMiddleware := middleware.AdminRequired()
 
 	// Create a test user with non-admin role and generate a valid token
@@ -153,7 +153,7 @@ func TestAdminRequired_NonAdminUser(t *testing.T) {
 		Username: "test-user",
 		Role:     "user",
 	}
-	token, _ := jwtService.GenerateToken(user)
+	token, _ := jwtService.GenerateToken(user, "session-1")
 
 	// Create a test router with both middlewares
 	router := fiber.New()
@@ -181,7 +181,7 @@ func TestAdminRequired_NonAdminUser(t *testing.T) {
 func TestAdminRequired_AdminUser(t *testing.T) {
 	// Arrange
 	jwtService := services.NewJWTService("test-secret-key")
-	authMiddleware := middleware.AuthMiddleware(jwtService)
+	authMiddleware := middleware.AuthMiddleware(jwtService, nil)
 	adminMiddleware := middleware.AdminRequired()
 
 	// Create a test user with admin role and generate a valid token
@@ -190,7 +190,7 @@ func TestAdminRequired_AdminUser(t *testing.T) {
 		Username: "test-admin",
 		Role:     "admin",
 	}
-	token, _ := jwtService.GenerateToken(user)
+	token, _ := jwtService.GenerateToken(user, "session-1")
 
 	// Create a test router with both middlewares
 	router := fiber.New()
@@ -234,14 +234,14 @@ func TestAdminRequiredWithUserService_DeniesStaleAdminTokenAfterTransfer(t *test
 	require.NoError(t, db.CreateUser(currentAdmin))
 
 	jwtService := services.NewJWTService("test-secret-key")
-	authMiddleware := middleware.AuthMiddleware(jwtService)
+	authMiddleware := middleware.AuthMiddleware(jwtService, nil)
 	adminMiddleware := middleware.AdminRequiredWithUserService(services.NewUserServiceWithDB(db))
 
 	token, err := jwtService.GenerateToken(&models.User{
 		ID:       currentAdmin.ID,
 		Username: currentAdmin.Username,
 		Role:     "admin",
-	})
+	}, "session-1")
 	require.NoError(t, err)
 
 	router := fiber.New()
@@ -256,4 +256,53 @@ func TestAdminRequiredWithUserService_DeniesStaleAdminTokenAfterTransfer(t *test
 	resp, err := router.Test(req)
 	require.NoError(t, err)
 	assert.Equal(t, fiber.StatusForbidden, resp.StatusCode)
+}
+
+func TestAuthMiddleware_RejectsRevokedSession(t *testing.T) {
+	db, err := database.NewSQLiteDB(filepath.Join(t.TempDir(), "tairitsu.db"))
+	require.NoError(t, err)
+	require.NoError(t, db.Init())
+	t.Cleanup(func() {
+		require.NoError(t, db.Close())
+	})
+
+	user := &models.User{
+		ID:        "user-1",
+		Username:  "alice",
+		Password:  "hashed-password",
+		Role:      "user",
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+	require.NoError(t, db.CreateUser(user))
+
+	session := &models.Session{
+		ID:         "session-1",
+		UserID:     user.ID,
+		UserAgent:  "test-agent",
+		IPAddress:  "127.0.0.1",
+		LastSeenAt: time.Now(),
+		ExpiresAt:  time.Now().Add(time.Hour),
+		CreatedAt:  time.Now(),
+		UpdatedAt:  time.Now(),
+	}
+	require.NoError(t, db.CreateSession(session))
+
+	sessionService := services.NewSessionServiceWithDB(db)
+	jwtService := services.NewJWTService("test-secret-key")
+	token, err := jwtService.GenerateToken(user, session.ID)
+	require.NoError(t, err)
+	require.NoError(t, sessionService.RevokeSession(user.ID, session.ID))
+
+	router := fiber.New()
+	router.Use(middleware.AuthMiddleware(jwtService, sessionService))
+	router.Get("/test", func(c fiber.Ctx) error {
+		return c.JSON(fiber.Map{"message": "success"})
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	resp, err := router.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, fiber.StatusUnauthorized, resp.StatusCode)
 }

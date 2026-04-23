@@ -21,6 +21,44 @@ export interface TransferAdminResponse {
   user: User;
 }
 
+export interface ResetUserPasswordResponse {
+  message: string;
+  user: User;
+  temporary_password: string;
+  revoked_sessions: number;
+}
+
+export interface CreateUserResponse {
+  message: string;
+  user: User;
+  temporary_password: string;
+}
+
+export interface DeleteUserResponse {
+  message: string;
+  user: User;
+  transferred_networks: number;
+  revoked_sessions: number;
+}
+
+export interface UserSession {
+  id: string;
+  userAgent: string;
+  ipAddress: string;
+  rememberMe: boolean;
+  lastSeenAt: string;
+  expiresAt: string;
+  revokedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  current: boolean;
+}
+
+export interface UpdatePasswordResponse {
+  message: string;
+  revoked_other_sessions: number;
+}
+
 export interface Network {
   id: string;
   name: string;
@@ -204,6 +242,7 @@ export interface SetupStatus {
   initialized: boolean;
   hasDatabase?: boolean;
   hasAdmin?: boolean;
+  allowPublicRegistration: boolean;
   ztStatus?: {
     version: string;
     address: string;
@@ -226,6 +265,10 @@ export interface DatabaseSetupConfig {
 export interface ZeroTierSetupConfig {
   controllerUrl: string;
   tokenPath: string;
+}
+
+export interface RuntimeSettings {
+  allow_public_registration: boolean;
 }
 
 export interface IdentityInfo {
@@ -290,19 +333,33 @@ export const authAPI = {
   // User registration
   register: (data: { username: string; password: string }) => api.post<RegisterResponse>('/auth/register', data),
   // User login
-  login: (data: { username: string; password: string }) => api.post<{ user: User; token: string }>('/auth/login', data),
+  login: (data: { username: string; password: string; remember_me?: boolean }) => api.post<{ user: User; token: string; session: UserSession }>('/auth/login', data),
+  // Logout current session
+  logout: () => api.post<{ message: string }>('/auth/logout'),
   // Get user profile
   getProfile: () => api.get<User>('/profile'),
+  // Get current user's sessions
+  getSessions: () => api.get<{ sessions: UserSession[] }>('/profile/sessions'),
+  // Revoke one session
+  revokeSession: (sessionId: string) => api.delete<{ message: string }>(`/profile/sessions/${sessionId}`),
+  // Revoke all other sessions
+  revokeOtherSessions: () => api.delete<{ message: string; count: number }>('/profile/sessions/others'),
   // Update user password
-  updatePassword: (data: { current_password: string; new_password: string; confirm_password: string }) => api.put<void>('/profile/password', data)
+  updatePassword: (data: { current_password: string; new_password: string; confirm_password: string; logout_other_sessions?: boolean }) => api.put<UpdatePasswordResponse>('/profile/password', data)
 }
 
 // User management APIs
 export const userAPI = {
   // Get all users
   getAllUsers: () => api.get<User[]>('/users'),
+  // Create one user as admin
+  createUser: (data: { username: string }) => api.post<CreateUserResponse>('/users', data),
+  // Delete one user as admin
+  deleteUser: (userId: string) => api.delete<DeleteUserResponse>(`/users/${userId}`),
   // Transfer admin role to another user
-  transferAdmin: (userId: string) => api.post<TransferAdminResponse>('/users/transfer-admin', { user_id: userId })
+  transferAdmin: (userId: string) => api.post<TransferAdminResponse>('/users/transfer-admin', { user_id: userId }),
+  // Reset one user's password as admin
+  resetPassword: (userId: string) => api.post<ResetUserPasswordResponse>(`/users/${userId}/reset-password`)
 }
 
 // ZeroTier network related APIs
@@ -358,6 +415,10 @@ export const systemAPI = {
   setInitialized: (initialized: boolean) => api.post('/system/initialized', { initialized }),
   // Initialize admin account creation step
   initializeAdminCreation: () => api.post('/system/admin/init'),
+  // Get runtime settings (admin only)
+  getRuntimeSettings: () => api.get<RuntimeSettings>('/system/settings'),
+  // Update runtime settings (admin only)
+  updateRuntimeSettings: (settings: RuntimeSettings) => api.put<{ message: string; settings: RuntimeSettings }>('/system/settings', settings),
   // Get system statistics (CPU, memory usage)
   getSystemStats: () => api.get<SystemStats>('/system/stats')
 }
