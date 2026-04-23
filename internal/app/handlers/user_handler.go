@@ -53,26 +53,10 @@ func (h *UserHandler) UpdateUserRole(c fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	// Validate role is either admin or user
-	if req.Role != "admin" && req.Role != "user" {
-		logger.Error("更新用户角色失败，角色值无效", zap.String("user_id", userId), zap.String("role", req.Role))
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "无效的角色值，必须是admin或user"})
-	}
-
-	// Get user by ID
-	user, err := h.userService.GetUserByID(userId)
+	user, err := h.userService.UpdateUserRole(userId, req.Role)
 	if err != nil {
-		logger.Error("更新用户角色失败，获取用户时出错", zap.String("user_id", userId), zap.Error(err))
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": err.Error()})
-	}
-
-	// Update user role
-	user.Role = req.Role
-
-	// Save updated user to database
-	if err := h.userService.UpdateUser(user); err != nil {
-		logger.Error("更新用户角色失败，保存用户时出错", zap.String("user_id", userId), zap.Error(err))
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "更新用户角色失败"})
+		logger.Error("更新用户角色失败", zap.String("user_id", userId), zap.Error(err))
+		return writeUserServiceError(c, err)
 	}
 
 	logger.Info("成功更新用户角色", zap.String("user_id", userId), zap.String("new_role", req.Role))

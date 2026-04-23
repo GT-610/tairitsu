@@ -49,7 +49,7 @@ func (h *AuthHandler) Register(c fiber.Ctx) error {
 	user, err := h.userService.Register(&req, role)
 	if err != nil {
 		logger.Error("用户注册失败", zap.String("username", req.Username), zap.Error(err))
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		return writeUserServiceError(c, err)
 	}
 
 	logger.Info("用户注册成功", zap.String("user_id", user.ID), zap.String("username", user.Username), zap.String("role", user.Role))
@@ -83,7 +83,7 @@ func (h *AuthHandler) Login(c fiber.Ctx) error {
 	user, err := h.userService.Login(&req)
 	if err != nil {
 		logger.Error("用户登录失败", zap.String("username", req.Username), zap.Error(err))
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": err.Error()})
+		return writeUserServiceError(c, err)
 	}
 
 	logger.Info("用户登录成功", zap.String("user_id", user.ID), zap.String("username", user.Username))
@@ -116,7 +116,7 @@ func (h *AuthHandler) GetProfile(c fiber.Ctx) error {
 	user, err := h.userService.GetUserByID(userID.(string))
 	if err != nil {
 		logger.Error("获取用户信息失败", zap.String("user_id", userID.(string)), zap.Error(err))
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": err.Error()})
+		return writeUserServiceError(c, err)
 	}
 
 	logger.Info("获取用户信息成功", zap.String("user_id", user.ID), zap.String("username", user.Username))
@@ -163,7 +163,7 @@ func (h *AuthHandler) ChangePassword(c fiber.Ctx) error {
 	// Call user service to change password
 	if err := h.userService.ChangePassword(userID.(string), oldPassword, newPassword); err != nil {
 		logger.Error("修改密码失败", zap.String("user_id", userID.(string)), zap.Error(err))
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		return writeUserServiceError(c, err)
 	}
 
 	logger.Info("密码修改成功", zap.String("user_id", userID.(string)))

@@ -1,0 +1,54 @@
+package handlers
+
+import (
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+
+	"github.com/GT-610/tairitsu/internal/app/services"
+	"github.com/gofiber/fiber/v3"
+)
+
+func TestWriteUserServiceError_MapsKnownErrors(t *testing.T) {
+	testCases := []struct {
+		name         string
+		err          error
+		expectedCode int
+	}{
+		{name: "db unavailable", err: services.ErrUserDBUnavailable, expectedCode: fiber.StatusServiceUnavailable},
+		{name: "username exists", err: services.ErrUsernameExists, expectedCode: fiber.StatusBadRequest},
+		{name: "invalid credentials", err: services.ErrInvalidCredentials, expectedCode: fiber.StatusUnauthorized},
+		{name: "user not found", err: services.ErrUserNotFound, expectedCode: fiber.StatusNotFound},
+		{name: "old password incorrect", err: services.ErrOldPasswordIncorrect, expectedCode: fiber.StatusBadRequest},
+		{name: "invalid user role", err: services.ErrInvalidUserRole, expectedCode: fiber.StatusBadRequest},
+		{name: "wrapped user not found", err: fmt.Errorf("wrapped: %w", services.ErrUserNotFound), expectedCode: fiber.StatusNotFound},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			app := fiber.New()
+			app.Get("/", func(c fiber.Ctx) error {
+				return writeUserServiceError(c, tc.err)
+			})
+
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
+			resp, err := app.Test(req)
+			if err != nil {
+				t.Fatalf("app.Test() error = %v", err)
+			}
+			if resp.StatusCode != tc.expectedCode {
+				t.Fatalf("status = %d, want %d", resp.StatusCode, tc.expectedCode)
+			}
+
+			var body map[string]string
+			if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+				t.Fatalf("decode response body: %v", err)
+			}
+			if body["error"] == "" {
+				t.Fatalf("expected non-empty error body")
+			}
+		})
+	}
+}

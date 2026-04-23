@@ -12,14 +12,47 @@ type SetupStatus struct {
 	ZTStatus    *zerotier.Status `json:"ztStatus,omitempty"`
 }
 
-type StateService struct{}
+type StateService struct {
+	cfg *config.Config
+}
 
 func NewStateService() *StateService {
 	return &StateService{}
 }
 
+func NewStateServiceWithConfig(cfg *config.Config) *StateService {
+	return &StateService{cfg: cfg}
+}
+
 func (s *StateService) Config() *config.Config {
+	if s.cfg != nil {
+		return s.cfg
+	}
 	return config.AppConfig
+}
+
+func (s *StateService) SaveConfig() error {
+	cfg := s.Config()
+	if cfg == nil {
+		cfg = &config.Config{}
+	}
+	if err := config.SaveConfig(cfg); err != nil {
+		return err
+	}
+	s.cfg = cfg
+	config.AppConfig = cfg
+	return nil
+}
+
+func (s *StateService) SetInitialized(initialized bool) error {
+	cfg := s.Config()
+	if cfg == nil {
+		cfg = &config.Config{}
+	}
+	cfg.Initialized = initialized
+	s.cfg = cfg
+	config.AppConfig = cfg
+	return config.SaveConfig(cfg)
 }
 
 func (s *StateService) IsInitialized() bool {

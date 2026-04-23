@@ -126,12 +126,12 @@ func (s *SetupService) SetInitialized(initialized bool) error {
 			logger.Info("生成新的会话密钥")
 		}
 
-		if err := config.SaveConfig(cfg); err != nil {
+		if err := s.stateService.SaveConfig(); err != nil {
 			return fmt.Errorf("生成安全密钥失败: %w", err)
 		}
 	}
 
-	if err := config.SetInitialized(initialized); err != nil {
+	if err := s.stateService.SetInitialized(initialized); err != nil {
 		return fmt.Errorf("设置初始化状态失败: %w", err)
 	}
 
