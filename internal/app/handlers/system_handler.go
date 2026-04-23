@@ -10,37 +10,25 @@ import (
 
 // SystemHandler handles system-related API endpoints and operations
 type SystemHandler struct {
-	networkService *services.NetworkService
-	userService    *services.UserService
-	stateService   *services.StateService
-	runtimeService *services.RuntimeService
-	setupService   *services.SetupService
-	systemService  *services.SystemService
+	setupService  *services.SetupService
+	systemService *services.SystemService
 	// Database configuration is stored in config file
 }
 
 // NewSystemHandler creates a new system handler instance
 func NewSystemHandler(
-	networkService *services.NetworkService,
-	userService *services.UserService,
-	stateService *services.StateService,
-	runtimeService *services.RuntimeService,
 	setupService *services.SetupService,
 	systemService *services.SystemService,
 ) *SystemHandler {
 	return &SystemHandler{
-		networkService: networkService,
-		userService:    userService,
-		stateService:   stateService,
-		runtimeService: runtimeService,
-		setupService:   setupService,
-		systemService:  systemService,
+		setupService:  setupService,
+		systemService: systemService,
 	}
 }
 
 // GetSystemStatus retrieves the current system status
 func (h *SystemHandler) GetSystemStatus(c fiber.Ctx) error {
-	status := h.stateService.GetSetupStatus(h.userService, h.networkService)
+	status := h.setupService.GetSetupStatus()
 	if status.Initialized && status.ZTStatus != nil && !status.ZTStatus.Online {
 		logger.Debug("[系统状态] ZeroTier状态检查失败或离线")
 	}
@@ -74,18 +62,10 @@ func (h *SystemHandler) ConfigureDatabase(c fiber.Ctx) error {
 
 // TestZeroTierConnection tests connectivity to the ZeroTier controller
 func (h *SystemHandler) TestZeroTierConnection(c fiber.Ctx) error {
-	// Dynamically create ZeroTier client
-	ztClient, err := h.stateService.CreateZTClient()
+	ztStatus, err := h.setupService.TestZeroTierConnection()
 	if err != nil {
-		logger.Error("[ZeroTier] 连接测试失败: 创建客户端失败", zap.Error(err))
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "创建ZeroTier客户端失败: " + err.Error()})
-	}
-
-	// 获取ZeroTier控制器状态
-	ztStatus, err := ztClient.GetStatus()
-	if err != nil {
-		logger.Error("[ZeroTier] 连接测试失败: 获取状态失败", zap.Error(err))
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "无法连接到ZeroTier控制器: " + err.Error()})
+		logger.Error("[ZeroTier] 连接测试失败", zap.Error(err))
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 
 	logger.Info("[ZeroTier] 连接测试成功")
@@ -95,7 +75,7 @@ func (h *SystemHandler) TestZeroTierConnection(c fiber.Ctx) error {
 // InitZeroTierClient initializes the ZeroTier client for the application
 func (h *SystemHandler) InitZeroTierClient(c fiber.Ctx) error {
 
-	status, err := h.runtimeService.InitZTClientFromConfig()
+	status, err := h.setupService.InitZTClientFromConfig()
 	if err != nil {
 		logger.Error("ZeroTier客户端初始化失败", zap.Error(err))
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})

@@ -39,13 +39,12 @@ type Dependencies struct {
 	Config     *config.Config
 	Database   database.DBInterface
 	ZTClient   *zerotier.Client
-	JWTSecret  string
 	Services   Services
 	Handlers   Handlers
 	Middleware Middleware
 }
 
-func NewDependencies(cfg *config.Config, db database.DBInterface, ztClient *zerotier.Client, jwtSecret string) *Dependencies {
+func NewDependencies(cfg *config.Config, db database.DBInterface, ztClient *zerotier.Client) *Dependencies {
 	networkService := services.NewNetworkService(ztClient, db)
 
 	var userService *services.UserService
@@ -57,17 +56,20 @@ func NewDependencies(cfg *config.Config, db database.DBInterface, ztClient *zero
 
 	stateService := services.NewStateServiceWithConfig(cfg)
 	runtimeService := services.NewRuntimeService(userService, networkService, stateService)
-	setupService := services.NewSetupService(runtimeService, stateService)
+	setupService := services.NewSetupService(runtimeService, stateService, userService, networkService)
 	systemService := services.NewSystemService()
+	jwtSecret := ""
+	if cfg != nil {
+		jwtSecret = cfg.Security.JWTSecret
+	}
 	jwtService := services.NewJWTService(jwtSecret)
 
 	authHandler := handlers.NewAuthHandler(userService, jwtService, runtimeService)
 
 	return &Dependencies{
-		Config:    cfg,
-		Database:  db,
-		ZTClient:  ztClient,
-		JWTSecret: jwtSecret,
+		Config:   cfg,
+		Database: db,
+		ZTClient: ztClient,
 		Services: Services{
 			Network: networkService,
 			User:    userService,
@@ -82,7 +84,7 @@ func NewDependencies(cfg *config.Config, db database.DBInterface, ztClient *zero
 			Member:  handlers.NewMemberHandler(networkService),
 			Auth:    authHandler,
 			User:    handlers.NewUserHandler(userService),
-			System:  handlers.NewSystemHandler(networkService, userService, stateService, runtimeService, setupService, systemService),
+			System:  handlers.NewSystemHandler(setupService, systemService),
 		},
 		Middleware: Middleware{
 			Auth:        middleware.AuthMiddleware(jwtService),

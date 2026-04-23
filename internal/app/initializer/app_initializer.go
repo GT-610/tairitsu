@@ -16,7 +16,6 @@ type AppContext struct {
 	Config       *config.Config
 	Database     database.DBInterface
 	ZTClient     *zerotier.Client
-	JWTSecret    string
 	Dependencies *assembly.Dependencies
 }
 
@@ -85,8 +84,6 @@ func (ai *AppInitializer) loadConfiguration() error {
 	}
 
 	ai.context.Config = cfg
-	ai.context.JWTSecret = cfg.Security.JWTSecret
-
 	return nil
 }
 
@@ -146,12 +143,6 @@ func (ai *AppInitializer) assembleDependencies() error {
 		ai.context.Config,
 		ai.context.Database,
 		ai.context.ZTClient,
-		ai.context.JWTSecret,
 	)
 	return nil
-}
-
-// GetContext 获取应用上下文
-func (ai *AppInitializer) GetContext() *AppContext {
-	return ai.context
 }

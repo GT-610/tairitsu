@@ -18,12 +18,16 @@ import (
 type SetupService struct {
 	runtimeService *RuntimeService
 	stateService   *StateService
+	userService    *UserService
+	networkService *NetworkService
 }
 
-func NewSetupService(runtimeService *RuntimeService, stateService *StateService) *SetupService {
+func NewSetupService(runtimeService *RuntimeService, stateService *StateService, userService *UserService, networkService *NetworkService) *SetupService {
 	return &SetupService{
 		runtimeService: runtimeService,
 		stateService:   stateService,
+		userService:    userService,
+		networkService: networkService,
 	}
 }
 
@@ -82,6 +86,28 @@ func (s *SetupService) SaveZeroTierConfig(controllerURL, tokenPath string) (*zer
 
 	s.runtimeService.BindZTClient(ztClient)
 	return status, nil
+}
+
+func (s *SetupService) TestZeroTierConnection() (*zerotier.Status, error) {
+	ztClient, err := s.stateService.CreateZTClient()
+	if err != nil {
+		return nil, fmt.Errorf("创建ZeroTier客户端失败: %w", err)
+	}
+
+	status, err := ztClient.GetStatus()
+	if err != nil {
+		return nil, fmt.Errorf("无法连接到ZeroTier控制器: %w", err)
+	}
+
+	return status, nil
+}
+
+func (s *SetupService) InitZTClientFromConfig() (*zerotier.Status, error) {
+	return s.runtimeService.InitZTClientFromConfig()
+}
+
+func (s *SetupService) GetSetupStatus() SetupStatus {
+	return s.stateService.GetSetupStatus(s.userService, s.networkService)
 }
 
 func (s *SetupService) InitializeAdminCreation() (string, error) {

@@ -28,7 +28,7 @@ func TestLoginRouteDoesNotUseSetupOnlyAfterInitialization(t *testing.T) {
 	}
 
 	app := fiber.New()
-	routes.SetupRoutes(app, assembly.NewDependencies(config.AppConfig, nil, nil, "test-secret"))
+	routes.SetupRoutes(app, assembly.NewDependencies(config.AppConfig, nil, nil))
 
 	req := httptest.NewRequest(http.MethodPost, "/api/auth/login", bytes.NewBufferString(`{"username":"admin","password":"secret123"}`))
 	req.Header.Set("Content-Type", "application/json")
