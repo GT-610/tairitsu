@@ -33,7 +33,7 @@ func NewSetupService(runtimeService *RuntimeService, stateService *StateService,
 
 func (s *SetupService) ConfigureDatabase(dbConfig models.DatabaseConfig) (database.Config, error) {
 	if dbConfig.Type != string(database.SQLite) {
-		return database.Config{}, fmt.Errorf("当前一期版本仅正式支持 SQLite，请使用 SQLite 完成初始化")
+		return database.Config{}, fmt.Errorf("当前仅支持 SQLite，请使用 SQLite 完成初始化")
 	}
 
 	dbCfg := database.Config{
@@ -130,7 +130,7 @@ func (s *SetupService) InitializeAdminCreation() (string, error) {
 		return "", fmt.Errorf("尚未完成数据库配置，请先配置 SQLite 数据库")
 	}
 	if dbConfig.Type != database.SQLite {
-		return "", fmt.Errorf("当前一期版本仅正式支持 SQLite，%s 初始化暂不支持", dbConfig.Type)
+		return "", fmt.Errorf("当前仅支持 SQLite，%s 初始化暂不支持", dbConfig.Type)
 	}
 
 	s.runtimeService.CloseCurrentDatabase()

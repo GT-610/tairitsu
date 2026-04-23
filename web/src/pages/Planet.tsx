@@ -200,7 +200,7 @@ function PlanetGenerator() {
               实验性功能
             </Typography>
             <Typography variant="body2">
-              该能力已在当前阶段冻结，不纳入 SQLite 一期 MVP 支持范围。生成的 planet 文件可能存在兼容性问题，
+              该能力当前保持实验性状态，不纳入主线支持范围。生成的 planet 文件可能存在兼容性问题，
               请仅在隔离环境中实验，并在生产环境使用前自行完成充分验证与备份。
             </Typography>
           </Alert>

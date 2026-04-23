@@ -2,157 +2,79 @@
 
 [**简体中文**](readme-i18n/README.zh-CN.md)
 
-**NOTE: This project is still in development. The current priority is a stable SQLite-first MVP for single-instance self-hosted deployments.**
+Tairitsu is a self-hosted web console for a separately installed ZeroTier controller. It focuses on the day-to-day management path: setup, login and registration, network and member administration, network settings, import takeover, and user governance.
 
-Tairitsu is a web-based controller interface for ZeroTier, providing a user-friendly GUI to manage ZeroTier networks, members, and configurations. It consists of a Golang backend that interfaces with the ZeroTier client API and a React-based web frontend.
+Tairitsu is aimed at **SQLite-backed, single-instance self-hosted deployments**. It is not trying to be a broader multi-tenant platform like `ztnet`, and `Planet` generation remains experimental.
 
-## Features
+## Current Scope
 
-- **Network Management**: Create, edit, and delete ZeroTier networks
-- **Member Administration**: Manage network members, authorize devices, and assign IPs
-- **Configuration Control**: Configure network settings including IP ranges, routes, and rules
-- **Real-time Status**: Monitor network and member status
-- **SQLite-first MVP**: SQLite is the only Phase 1 database with formal support
-- **Secure Authentication**: JWT-based authentication for secure access
-- **Responsive Design**: Modern, responsive Material Design interface
-- **Admin Tools**: Import existing ZeroTier networks and generate custom Planet files when needed
+- Setup wizard for controller connection, SQLite, and initial admin creation
+- User registration, login, password change, session handling, admin transfer, admin-created users, password reset, and user deletion
+- Owner-scoped network management and member approval
+- IPv4, IPv6, managed routes, DNS, and multicast settings
+- Import takeover for controller networks not yet owned in Tairitsu
 
 ## Access Model
 
 - Each ZeroTier network has exactly one `owner` in Tairitsu.
-- The network owner can view the network, manage its configuration, and approve or remove members.
-- Platform `admin` users manage system setup, user accounts, and importing unowned controller networks into Tairitsu.
+- The network owner can manage that network and its members.
+- Platform `admin` users manage setup, user governance, and network import.
 - Platform `admin` does not automatically gain read/write access to every owned network.
-
-## Phase 1 Support Matrix
-
-- Supported: SQLite, single-instance self-hosted ZeroTier controller, small admin teams
-- Mainline-ready in current scope: network/member/settings management and import-network takeover
-- In progress: broader account settings and Planet tooling
-- Not currently supported as a Phase 1 promise: MySQL, PostgreSQL
-
-## Runtime Model
-
-- The backend now uses an explicit dependency assembly path for config, database, ZeroTier client, services, handlers, and middleware.
-- Setup-only routes and runtime routes are separated by application state rather than a late route reload step.
-- Frontend and backend are shipped together for the same release, so internal APIs are cleaned up in place instead of carrying long-term compatibility shims.
 
 ## Deployment
 
-### Docker / Podman
+The main public deployment path is Docker / Podman:
 
-1. Create a `local.conf` file in ZeroTier's home directory (Usually `/var/lib/zerotier-one`). If you already have a `local.conf` file, skip this step.
+- Image: `ghcr.io/gt-610/tairitsu:latest`
+- Published image target: `linux/amd64`
+- Controller requirement: a separately installed ZeroTier controller with API access enabled through `local.conf`
 
-2. Configure `allowManagementFrom` in ZeroTier's `local.conf`:
+Detailed docs:
 
-   ```json
-   {
-      "settings": {
-         "allowManagementFrom": [
-               "0.0.0.0/0",
-               "::/0"
-         ]
-      }
-   }
-   ```
+- [Installation and Deployment](docs/INSTALLATION.md)
+- [Operations and Support Boundaries](docs/OPERATIONS.md)
+- [API documentation](docs/api/Tairitsu_API_Documentation.md)
 
-   This will make ZeroTier controller accessible from any IP address.
+Manual host installation is possible for development, but Docker / Podman is the public deployment path documented today.
 
-   Or for more restrictive access, but make sure this IP can be accessed by Tairitsu container:
+## Development
 
-   ```json
-   {
-      "settings": {
-         "allowManagementFrom": [
-               "<local-ip-cidr>",
-         ]
-      }
-   }
-   ```
-
-   After modifying the configuration, restart the ZeroTier container.
-
-
-3. **Run Tairitsu container**
-
-   ```bash
-   docker run -d \
-       --name tairitsu \
-       -p 3000:3000 \
-       -v /var/lib/zerotier-one:/var/lib/zerotier-one \
-       -v path/to/tairitsu/data:/app/data \
-       ghcr.io/gt-610/tairitsu:latest
-   ```
-
-   Or through Compose:
-
-   ```yaml
-   services:
-     tairitsu:
-       image: ghcr.io/gt-610/tairitsu:latest
-       ports:
-         - 3000:3000
-       volumes:
-         - /var/lib/zerotier-one:/var/lib/zerotier-one
-         - path/to/tairitsu/data:/app/data
-   ```
-
-### Manual Installation
-
-Not ready yet.
-
-### Development
-
-#### Prerequisites
+Prerequisites:
 
 - Go 1.25 or later with CGO enabled
 - Bun 1.3 or later
-- ZeroTier controller running locally or in Docker
+- A local or Dockerized ZeroTier controller
 
-#### Backend
+Build backend:
+
 ```bash
 GOCACHE=/tmp/go-build GOMODCACHE=/tmp/go-mod go build -o ./build/tairitsu ./cmd/tairitsu
 ```
 
-#### Frontend
+Run frontend:
+
 ```bash
 cd web
 bun install
 bun run dev
 ```
 
-The frontend development server will start on port 3000 by default, and will proxy API requests to the backend server.
+Release baseline:
 
-For production builds:
-
-```bash
-cd web
-bun run build
-```
-
-Additional published docs:
-
-- [API documentation](docs/api/Tairitsu_API_Documentation.md)
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit issues, feature requests, or pull requests.
+- `go test ./...`
+- `bun test`
+- `bun run lint`
+- `bun run build`
+- `docker build .`
 
 ## License
 
-[GNU GPL v3](LICENSE).
+[GNU GPL v3](LICENSE)
 
 ## Legal Notice
 
-Since version 1.16.0, ZeroTier's controller component is licensed under a [commercial source-available non-free license](https://github.com/zerotier/ZeroTierOne/blob/main/nonfree/LICENSE.md). Tairitsu does not redistribute any ZeroTier controller code and is fully compliant with ZeroTier's licensing terms.
+Tairitsu does not redistribute any ZeroTier controller code. It talks to a **separately installed** ZeroTier controller through the official API and stays outside ZeroTier's non-free controller codebase.
 
-### ZeroTier License Compliance
-Tairitsu is a standalone management interface for ZeroTier networks. This project **DOES NOT** include, distribute, or modify any ZeroTier source code or binaries.
+The `Generate Planet` feature is modified from [ztnodeid-go](https://github.com/kmahyyg/ztnodeid-go) under GNU GPL v3 License, **not** from ZeroTier itself.
 
-This software communicates with a **separately installed** ZeroTier controller via its official API. Users must deploy their own ZeroTier controller under the terms of its license.
-
-The "Generate Planet" feature is modified from [ztnodeid-go](https://github.com/kmahyyg/ztnodeid-go) under GNU GPL v3 License, **not** from ZeroTier itself.
-
---- 
-
-Tairitsu is **NOT** a ZeroTier product. It is **NOT affiliated with, endorsed by, or supported by ZeroTier, Inc**.
+Tairitsu is **not** a ZeroTier product and is **not affiliated with, endorsed by, or supported by ZeroTier, Inc.**

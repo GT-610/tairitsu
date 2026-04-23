@@ -1,7 +1,9 @@
-FROM node:22-alpine AS frontend-builder
-WORKDIR /app
+FROM oven/bun:1.3.11-alpine AS frontend-builder
+WORKDIR /app/web
+COPY web/package.json web/bun.lock ./
+RUN bun install --frozen-lockfile
 COPY web/ ./
-RUN npm ci && npm run build
+RUN bun run build
 
 FROM golang:1.25-alpine AS backend-builder
 WORKDIR /app
@@ -11,7 +13,7 @@ RUN apk add --no-cache gcc musl-dev libc-dev && \
     CGO_ENABLED=1 go build -o tairitsu ./cmd/tairitsu
 
 FROM nginx:alpine-slim AS production
-COPY --from=frontend-builder /app/dist /usr/share/nginx/html
+COPY --from=frontend-builder /app/web/dist /usr/share/nginx/html
 COPY --from=backend-builder /app/tairitsu /app/
 COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
 WORKDIR /app
