@@ -188,23 +188,22 @@ func loadEnvConfig(cfg *Config) {
 	if tokenPath := viper.GetString("ZT_TOKEN_PATH"); tokenPath != "" {
 		cfg.ZeroTier.TokenPath = tokenPath
 		// Try to read token file
-		_ = LoadTokenFromPath(tokenPath)
+		_ = LoadTokenFromPathInto(cfg, tokenPath)
 	}
 }
 
-// GetZTToken Get ZeroTier token (auto-decrypted)
-func GetZTToken() (string, error) {
-	if AppConfig == nil {
+func GetZTTokenFrom(cfg *Config) (string, error) {
+	if cfg == nil {
 		return "", fmt.Errorf("configuration not loaded")
 	}
 
 	// Decrypt token
-	if AppConfig.ZeroTier.Token != "" {
-		decryptedToken, err := decryptSensitiveData(AppConfig.ZeroTier.Token)
+	if cfg.ZeroTier.Token != "" {
+		decryptedToken, err := decryptSensitiveDataWithConfig(cfg, cfg.ZeroTier.Token)
 		if err != nil {
 			// If decryption fails, it might be unencrypted data, try to return directly
 			// This is for compatibility with possible unencrypted data
-			return AppConfig.ZeroTier.Token, nil
+			return cfg.ZeroTier.Token, nil
 		}
 		return decryptedToken, nil
 	}
@@ -218,47 +217,41 @@ func GetZTToken() (string, error) {
 	return "", fmt.Errorf("ZeroTier token not configured")
 }
 
-// SetZTToken Set ZeroTier token (auto-encrypted)
-func SetZTToken(token string) error {
-	if AppConfig == nil {
+func SetZTTokenOn(cfg *Config, token string) error {
+	if cfg == nil {
 		return fmt.Errorf("configuration not loaded")
 	}
 
-	// Encrypt token
-	encryptedToken, err := encryptSensitiveData(token)
+	encryptedToken, err := encryptSensitiveDataWithConfig(cfg, token)
 	if err != nil {
 		return fmt.Errorf("failed to encrypt token: %w", err)
 	}
 
-	AppConfig.ZeroTier.Token = encryptedToken
+	cfg.ZeroTier.Token = encryptedToken
 	return nil
 }
 
-// SetZTConfig Set ZeroTier configuration
-func SetZTConfig(url, tokenPath string) error {
-	if AppConfig == nil {
+func SetZTConfigOn(cfg *Config, url, tokenPath string) error {
+	if cfg == nil {
 		return fmt.Errorf("configuration not loaded")
 	}
 
-	AppConfig.ZeroTier.URL = url
-	AppConfig.ZeroTier.TokenPath = tokenPath
+	cfg.ZeroTier.URL = url
+	cfg.ZeroTier.TokenPath = tokenPath
 
-	// Try to read token from new tokenPath
-	err := LoadTokenFromPath(tokenPath)
+	err := LoadTokenFromPathInto(cfg, tokenPath)
 	if err != nil {
 		return fmt.Errorf("failed to read token file: %w", err)
 	}
 
-	return SaveConfig(AppConfig)
+	return SaveConfig(cfg)
 }
 
-// LoadTokenFromPath Load ZeroTier token from specified path
-func LoadTokenFromPath(path string) error {
-	if AppConfig == nil {
+func LoadTokenFromPathInto(cfg *Config, path string) error {
+	if cfg == nil {
 		return fmt.Errorf("configuration not loaded")
 	}
 
-	// Try to read token file
 	tokenBytes, err := os.ReadFile(path)
 	if err != nil {
 		return fmt.Errorf("failed to read token file: %w", err)
@@ -270,20 +263,19 @@ func LoadTokenFromPath(path string) error {
 		return fmt.Errorf("token file is empty")
 	}
 
-	return SetZTToken(token)
+	return SetZTTokenOn(cfg, token)
 }
 
-// GetDatabasePassword Get database password (auto-decrypted)
-func GetDatabasePassword() (string, error) {
-	if AppConfig == nil {
+func GetDatabasePasswordFrom(cfg *Config) (string, error) {
+	if cfg == nil {
 		return "", fmt.Errorf("configuration not loaded")
 	}
 
-	if AppConfig.Database.Pass != "" {
-		decryptedPass, err := decryptSensitiveData(AppConfig.Database.Pass)
+	if cfg.Database.Pass != "" {
+		decryptedPass, err := decryptSensitiveDataWithConfig(cfg, cfg.Database.Pass)
 		if err != nil {
 			// If decryption fails, it might be unencrypted data, try to return directly
-			return AppConfig.Database.Pass, nil
+			return cfg.Database.Pass, nil
 		}
 		return decryptedPass, nil
 	}
@@ -291,72 +283,56 @@ func GetDatabasePassword() (string, error) {
 	return "", nil
 }
 
-// SetDatabasePassword Set database password (auto-encrypted)
-func SetDatabasePassword(password string) error {
-	if AppConfig == nil {
+func SetDatabasePasswordOn(cfg *Config, password string) error {
+	if cfg == nil {
 		return fmt.Errorf("configuration not loaded")
 	}
 
-	// Encrypt password
-	encryptedPass, err := encryptSensitiveData(password)
+	encryptedPass, err := encryptSensitiveDataWithConfig(cfg, password)
 	if err != nil {
 		return fmt.Errorf("failed to encrypt password: %w", err)
 	}
 
-	AppConfig.Database.Pass = encryptedPass
+	cfg.Database.Pass = encryptedPass
 	return nil
 }
 
 // encryptSensitiveData Encrypt sensitive data
 func encryptSensitiveData(data string) (string, error) {
-	if AppConfig == nil {
+	return encryptSensitiveDataWithConfig(AppConfig, data)
+}
+
+func encryptSensitiveDataWithConfig(cfg *Config, data string) (string, error) {
+	if cfg == nil {
 		return "", fmt.Errorf("configuration not loaded")
 	}
 
-	// Use JWT secret as encryption key (simplified solution)
-	// In production, it's recommended to use a separate encryption key
-	key := AppConfig.Security.JWTSecret
-
-	// Encrypt data
+	key := cfg.Security.JWTSecret
 	encrypted, err := crypto.Encrypt(data, key)
 	if err != nil {
 		return "", err
 	}
 
-	// Add encryption identifier prefix
 	return "encrypted:" + encrypted, nil
 }
 
 // decryptSensitiveData Decrypt sensitive data
 func decryptSensitiveData(data string) (string, error) {
-	if AppConfig == nil {
+	return decryptSensitiveDataWithConfig(AppConfig, data)
+}
+
+func decryptSensitiveDataWithConfig(cfg *Config, data string) (string, error) {
+	if cfg == nil {
 		return "", fmt.Errorf("configuration not loaded")
 	}
 
-	// Check if it has encryption identifier prefix
 	if !strings.HasPrefix(data, "encrypted:") {
-		// If no encryption identifier, return original data directly
 		return data, nil
 	}
 
-	// Remove encryption identifier prefix
 	encryptedData := strings.TrimPrefix(data, "encrypted:")
-
-	// Use JWT secret as decryption key
-	key := AppConfig.Security.JWTSecret
-
-	// Decrypt data
+	key := cfg.Security.JWTSecret
 	return crypto.Decrypt(encryptedData, key)
-}
-
-// SetInitialized Set initialization status
-func SetInitialized(initialized bool) error {
-	if AppConfig == nil {
-		return fmt.Errorf("configuration not loaded")
-	}
-
-	AppConfig.Initialized = initialized
-	return SaveConfig(AppConfig)
 }
 
 // IsInitialized Check if initialized
@@ -381,7 +357,14 @@ func ServerAddress() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return fmt.Sprintf(":%d", cfg.Server.Port), nil
+	return ServerAddressFrom(cfg), nil
+}
+
+func ServerAddressFrom(cfg *Config) string {
+	if cfg == nil {
+		return ":8080"
+	}
+	return fmt.Sprintf(":%d", cfg.Server.Port)
 }
 
 // ZeroTierSettings returns the currently configured ZeroTier settings.

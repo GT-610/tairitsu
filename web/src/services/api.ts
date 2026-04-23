@@ -295,11 +295,6 @@ export const memberAPI = {
   deleteMember: (networkId: string, memberId: string) => api.delete<void>(`/networks/${networkId}/members/${memberId}`)
 }
 
-// System status API
-export const statusAPI = {
-  getStatus: () => api.get<SystemStatus>('/status')
-}
-
 // System related APIs
 export const systemAPI = {
   // Get system status
@@ -308,16 +303,12 @@ export const systemAPI = {
   getSetupStatus: () => api.get<SetupStatus>('/system/status'),
   // Configure database
   configureDatabase: (config: DatabaseSetupConfig) => api.post('/system/database', config),
-  // Reload routes
-  reloadRoutes: () => api.post('/system/reload'),
   // Initialize ZeroTier client
   initZeroTierClient: () => api.post('/system/zerotier/init'),
   // Test ZeroTier connection
   testZtConnection: () => api.get('/system/zerotier/test'),
   // Save ZeroTier configuration
   saveZtConfig: (config: ZeroTierSetupConfig) => api.post('/system/zerotier/config', config),
-  // Update system settings
-  updateSettings: (settings: Record<string, unknown>) => api.put('/settings', settings),
   // Set system initialization status
   setInitialized: (initialized: boolean) => api.post('/system/initialized', { initialized }),
   // Initialize admin account creation step

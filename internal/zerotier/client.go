@@ -334,27 +334,33 @@ type Status struct {
 
 // NewClient 创建新的ZeroTier客户端
 func NewClient() (*Client, error) {
-	ztConfig, err := config.ZeroTierSettings()
+	cfg, err := config.Current()
 	if err != nil {
 		return nil, err
 	}
 
-	// 尝试从TokenPath加载令牌到配置中
-	err = config.LoadTokenFromPath(ztConfig.TokenPath)
+	return NewClientWithConfig(cfg)
+}
 
-	// 获取令牌（可能是从文件加载的，也可能是已存在于配置中的）
-	token, err := config.GetZTToken()
+func NewClientWithConfig(cfg *config.Config) (*Client, error) {
+	if cfg == nil {
+		return nil, fmt.Errorf("配置未加载")
+	}
+
+	if err := config.LoadTokenFromPathInto(cfg, cfg.ZeroTier.TokenPath); err != nil && strings.TrimSpace(cfg.ZeroTier.Token) == "" {
+		return nil, fmt.Errorf("加载ZeroTier令牌失败: %w", err)
+	}
+
+	token, err := config.GetZTTokenFrom(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("获取ZeroTier令牌失败: %w", err)
 	}
 
-	// 创建HTTP客户端
 	httpClient := &http.Client{
 		Timeout: 10 * time.Second,
 	}
 
-	// 使用配置中的URL创建客户端
-	baseURL := ztConfig.URL
+	baseURL := cfg.ZeroTier.URL
 	if baseURL == "" {
 		baseURL = "http://localhost:9993"
 	}

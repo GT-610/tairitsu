@@ -68,21 +68,19 @@ Current direction:
 
 ## Stability Risks Still Worth Tracking
 
-### 1. Global mutable dependencies still exist
+### 1. A few global config access paths still remain
 
 - `config.AppConfig`
-- global DB instance
-- `services.GlobalZTClient`
 
-These are reduced in impact but not fully eliminated yet. A later stage should keep dependencies explicit across server assembly and request handlers.
+These no longer define the main runtime path. Startup now goes through a single bootstrap entry and request-time services prefer bound config instances, but the remaining global config access paths should keep shrinking in later phases.
 
 ### 2. Setup flow still spans multiple endpoints
 
 The current phase tightened the state model, but setup is still composed of several API calls rather than a single orchestration endpoint. This is acceptable for Phase 1, but a future refactor could consolidate setup into a clearer transaction-like flow.
 
-### 3. Runtime reload hook still exists
+### 3. Setup is still multi-step
 
-`/api/system/reload` remains as an internal compatibility mechanism. It should not be part of the user-facing initialization story and should be removable after the remaining dependency refresh paths are simplified.
+Runtime dependency refresh is now handled inside the running service graph. There is no separate route-reload API in the supported Phase 1 path, but setup is still composed of multiple calls rather than a single orchestration endpoint.
 
 ## Test and Validation Gaps
 

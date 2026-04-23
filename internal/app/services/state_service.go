@@ -2,6 +2,7 @@ package services
 
 import (
 	"github.com/GT-610/tairitsu/internal/app/config"
+	"github.com/GT-610/tairitsu/internal/app/database"
 	"github.com/GT-610/tairitsu/internal/zerotier"
 )
 
@@ -12,14 +13,41 @@ type SetupStatus struct {
 	ZTStatus    *zerotier.Status `json:"ztStatus,omitempty"`
 }
 
-type StateService struct{}
+type StateService struct {
+	cfg          *config.Config
+	globalBacked bool
+}
 
 func NewStateService() *StateService {
-	return &StateService{}
+	return &StateService{globalBacked: true}
+}
+
+func NewStateServiceWithConfig(cfg *config.Config) *StateService {
+	return &StateService{cfg: cfg}
 }
 
 func (s *StateService) Config() *config.Config {
-	return config.AppConfig
+	if s.cfg != nil {
+		return s.cfg
+	}
+	if s.globalBacked {
+		return config.AppConfig
+	}
+	return nil
+}
+
+func (s *StateService) SaveConfig() error {
+	cfg := s.ensureConfig()
+	if err := config.SaveConfig(cfg); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *StateService) SetInitialized(initialized bool) error {
+	cfg := s.ensureConfig()
+	cfg.Initialized = initialized
+	return config.SaveConfig(cfg)
 }
 
 func (s *StateService) IsInitialized() bool {
@@ -30,6 +58,30 @@ func (s *StateService) IsInitialized() bool {
 func (s *StateService) DatabaseConfigured() bool {
 	cfg := s.Config()
 	return cfg != nil && cfg.Database.Type != ""
+}
+
+func (s *StateService) DatabaseConfig() database.Config {
+	return database.LoadConfigFromApp(s.Config())
+}
+
+func (s *StateService) SaveDatabaseConfig(dbCfg database.Config) error {
+	cfg := s.ensureConfig()
+	if err := database.SaveConfigToApp(cfg, dbCfg); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *StateService) SaveZeroTierConfig(url, tokenPath string) error {
+	cfg := s.ensureConfig()
+	if err := config.SetZTConfigOn(cfg, url, tokenPath); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *StateService) CreateZTClient() (*zerotier.Client, error) {
+	return zerotier.NewClientWithConfig(s.Config())
 }
 
 func (s *StateService) GetSetupStatus(userService *UserService, networkService *NetworkService) SetupStatus {
@@ -65,4 +117,16 @@ func (s *StateService) GetSetupStatus(userService *UserService, networkService *
 	}
 
 	return status
+}
+
+func (s *StateService) ensureConfig() *config.Config {
+	cfg := s.Config()
+	if cfg == nil {
+		cfg = &config.Config{}
+	}
+	s.cfg = cfg
+	if s.globalBacked {
+		config.AppConfig = cfg
+	}
+	return cfg
 }

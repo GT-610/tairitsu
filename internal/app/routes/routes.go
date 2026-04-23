@@ -1,17 +1,15 @@
 package routes
 
 import (
-	"github.com/GT-610/tairitsu/internal/app/database"
+	"github.com/GT-610/tairitsu/internal/app/assembly"
 	"github.com/GT-610/tairitsu/internal/app/handlers"
 	"github.com/GT-610/tairitsu/internal/app/middleware"
-	"github.com/GT-610/tairitsu/internal/app/services"
-	"github.com/GT-610/tairitsu/internal/zerotier"
 	"github.com/gofiber/fiber/v3"
 	"github.com/gofiber/fiber/v3/middleware/cors"
 )
 
 // SetupRoutes configures application routes
-func SetupRoutes(router *fiber.App, ztClient *zerotier.Client, jwtSecret string, db database.DBInterface) {
+func SetupRoutes(router *fiber.App, dependencies *assembly.Dependencies) {
 	// Apply middleware
 	router.Use(middleware.Logger())
 	router.Use(cors.New())
@@ -42,29 +40,16 @@ func SetupRoutes(router *fiber.App, ztClient *zerotier.Client, jwtSecret string,
 </html>`)
 	})
 
-	// Create service instances
-	networkService := services.NewNetworkService(ztClient, db)
+	networkHandler := dependencies.Handlers.Network
+	memberHandler := dependencies.Handlers.Member
+	authHandler := dependencies.Handlers.Auth
+	userHandler := dependencies.Handlers.User
+	systemHandler := dependencies.Handlers.System
 
-	// Create user service instance, may use nil database
-	var userService *services.UserService
-	if db != nil {
-		userService = services.NewUserServiceWithDB(db) // Use provided database instance
-	} else {
-		userService = services.NewUserServiceWithoutDB() // Create service instance without database
-	}
-
-	jwtService := services.NewJWTService(jwtSecret)
-
-	// Create handler instances
-	networkHandler := handlers.NewNetworkHandler(networkService)
-	memberHandler := handlers.NewMemberHandler(networkService)
-	authHandler := handlers.NewAuthHandler(userService, jwtService)
-	userHandler := handlers.NewUserHandler(userService)
-	stateService := services.NewStateService()
-	systemHandler := handlers.NewSystemHandler(networkService, userService)
-
-	// Create authentication middleware
-	authMiddleware := middleware.AuthMiddleware(jwtService)
+	authMiddleware := dependencies.Middleware.Auth
+	setupOnly := dependencies.Middleware.SetupOnly
+	runtimeOnly := dependencies.Middleware.RuntimeOnly
+	adminOnly := dependencies.Middleware.AdminOnly
 
 	// API routes group
 	api := router.Group("/api")
@@ -79,13 +64,9 @@ func SetupRoutes(router *fiber.App, ztClient *zerotier.Client, jwtSecret string,
 
 		auth := api.Group("/auth")
 		{
-			auth.Post("/register", middleware.SetupOnlyWithState(stateService), authHandler.Register)
-			auth.Post("/login", middleware.InitializedOnlyWithState(stateService), authHandler.Login)
+			auth.Post("/register", setupOnly, authHandler.Register)
+			auth.Post("/login", runtimeOnly, authHandler.Login)
 		}
-
-		setupOnly := middleware.SetupOnlyWithState(stateService)
-		runtimeOnly := middleware.InitializedOnlyWithState(stateService)
-		adminOnly := middleware.AdminRequired()
 
 		api.Post("/system/database", setupOnly, systemHandler.ConfigureDatabase)
 		api.Get("/system/zerotier/test", setupOnly, systemHandler.TestZeroTierConnection)
@@ -93,7 +74,6 @@ func SetupRoutes(router *fiber.App, ztClient *zerotier.Client, jwtSecret string,
 		api.Post("/system/zerotier/init", setupOnly, systemHandler.InitZeroTierClient)
 		api.Post("/system/initialized", setupOnly, systemHandler.SetInitialized)
 		api.Post("/system/admin/init", setupOnly, systemHandler.InitializeAdminCreation)
-		api.Post("/system/reload", setupOnly, systemHandler.ReloadRoutes)
 
 		api.Get("/profile", runtimeOnly, authMiddleware, authHandler.GetProfile)
 		api.Post("/auth/update-password", runtimeOnly, authMiddleware, authHandler.ChangePassword)

@@ -115,19 +115,13 @@ func NewDatabase(config Config) (DBInterface, error) {
 	}
 }
 
-// LoadConfig 从统一配置管理模块加载数据库配置
-func LoadConfig() Config {
-	// 从统一配置管理模块获取配置
-	cfg := config.AppConfig
+func LoadConfigFromApp(cfg *config.Config) Config {
 	if cfg == nil {
-		// 如果配置未初始化，返回空配置
 		return Config{}
 	}
 
-	// 获取解密后的密码
-	password, _ := config.GetDatabasePassword() // 忽略错误，使用空密码
+	password, _ := config.GetDatabasePasswordFrom(cfg)
 
-	// 从配置中提取数据库相关信息
 	return Config{
 		Type: DatabaseType(cfg.Database.Type),
 		Path: cfg.Database.Path,
@@ -195,10 +189,7 @@ func ensureSQLiteDir(path string) error {
 	return nil
 }
 
-// SaveConfig 保存数据库配置到统一配置管理模块
-func SaveConfig(dbConfig Config) error {
-	// 获取配置实例
-	cfg := config.AppConfig
+func SaveConfigToApp(cfg *config.Config, dbConfig Config) error {
 	if cfg == nil {
 		return fmt.Errorf("配置未初始化")
 	}
@@ -211,11 +202,9 @@ func SaveConfig(dbConfig Config) error {
 	cfg.Database.User = dbConfig.User
 	cfg.Database.Name = dbConfig.Name
 
-	// 使用加密方式保存密码
-	if err := config.SetDatabasePassword(dbConfig.Pass); err != nil {
+	if err := config.SetDatabasePasswordOn(cfg, dbConfig.Pass); err != nil {
 		return fmt.Errorf("保存数据库密码失败: %w", err)
 	}
 
-	// 保存配置到文件
 	return config.SaveConfig(cfg)
 }

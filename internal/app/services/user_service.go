@@ -1,7 +1,7 @@
 package services
 
 import (
-	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -60,7 +60,7 @@ func (s *UserService) Register(req *models.RegisterRequest, role ...string) (*mo
 	db := s.getDB()
 	if db == nil {
 		logger.Error("服务层：注册失败，数据库未初始化")
-		return nil, errors.New("系统尚未配置数据库，请先完成初始设置")
+		return nil, ErrUserDBUnavailable
 	}
 
 	logger.Info("服务层：开始用户注册", zap.String("username", req.Username))
@@ -68,11 +68,11 @@ func (s *UserService) Register(req *models.RegisterRequest, role ...string) (*mo
 	existingUser, err := db.GetUserByUsername(req.Username)
 	if err != nil {
 		logger.Error("服务层：注册失败，检查用户名时出错", zap.String("username", req.Username), zap.Error(err))
-		return nil, err
+		return nil, fmt.Errorf("检查用户名失败: %w", err)
 	}
 	if existingUser != nil {
 		logger.Error("服务层：注册失败，用户名已存在", zap.String("username", req.Username))
-		return nil, errors.New("用户名已存在")
+		return nil, ErrUsernameExists
 	}
 
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
@@ -97,7 +97,7 @@ func (s *UserService) Register(req *models.RegisterRequest, role ...string) (*mo
 
 	if err := db.CreateUser(user); err != nil {
 		logger.Error("服务层：注册失败，保存用户时出错", zap.String("username", req.Username), zap.Error(err))
-		return nil, err
+		return nil, fmt.Errorf("保存用户失败: %w", err)
 	}
 
 	logger.Info("服务层：用户注册成功", zap.String("user_id", user.ID), zap.String("username", user.Username), zap.String("role", userRole))
@@ -109,7 +109,7 @@ func (s *UserService) Login(req *models.LoginRequest) (*models.User, error) {
 	db := s.getDB()
 	if db == nil {
 		logger.Error("服务层：登录失败，数据库未初始化")
-		return nil, errors.New("系统尚未配置数据库，请先完成初始设置")
+		return nil, ErrUserDBUnavailable
 	}
 
 	logger.Info("服务层：开始用户登录", zap.String("username", req.Username))
@@ -117,16 +117,16 @@ func (s *UserService) Login(req *models.LoginRequest) (*models.User, error) {
 	user, err := db.GetUserByUsername(req.Username)
 	if err != nil {
 		logger.Error("服务层：登录失败，查询用户时出错", zap.String("username", req.Username), zap.Error(err))
-		return nil, errors.New("用户名或密码错误")
+		return nil, ErrInvalidCredentials
 	}
 	if user == nil {
 		logger.Error("服务层：登录失败，用户不存在", zap.String("username", req.Username))
-		return nil, errors.New("用户名或密码错误")
+		return nil, ErrInvalidCredentials
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password)); err != nil {
 		logger.Error("服务层：登录失败，密码错误", zap.String("user_id", user.ID))
-		return nil, errors.New("用户名或密码错误")
+		return nil, ErrInvalidCredentials
 	}
 
 	logger.Info("服务层：用户登录成功", zap.String("user_id", user.ID), zap.String("username", user.Username))
@@ -138,7 +138,7 @@ func (s *UserService) GetUserByID(id string) (*models.User, error) {
 	db := s.getDB()
 	if db == nil {
 		logger.Error("服务层：获取用户失败，数据库未初始化")
-		return nil, errors.New("系统尚未配置数据库，请先完成初始设置")
+		return nil, ErrUserDBUnavailable
 	}
 
 	logger.Info("服务层：开始根据ID获取用户", zap.String("user_id", id))
@@ -146,12 +146,12 @@ func (s *UserService) GetUserByID(id string) (*models.User, error) {
 	user, err := db.GetUserByID(id)
 	if err != nil {
 		logger.Error("服务层：根据ID获取用户失败", zap.String("user_id", id), zap.Error(err))
-		return nil, err
+		return nil, fmt.Errorf("读取用户失败: %w", err)
 	}
 
 	if user == nil {
 		logger.Error("服务层：用户不存在", zap.String("user_id", id))
-		return nil, errors.New("用户不存在")
+		return nil, ErrUserNotFound
 	}
 
 	logger.Info("服务层：成功根据ID获取用户", zap.String("user_id", id), zap.String("username", user.Username))
@@ -181,7 +181,7 @@ func (s *UserService) HasAdminUser() (bool, error) {
 	db := s.getDB()
 	if db == nil {
 		logger.Warn("服务层：数据库未初始化，无法检查管理员用户")
-		return false, errors.New("数据库未初始化")
+		return false, ErrUserDBUnavailable
 	}
 
 	logger.Info("服务层：检查是否已存在管理员用户")
@@ -200,14 +200,14 @@ func (s *UserService) UpdateUser(user *models.User) error {
 	db := s.getDB()
 	if db == nil {
 		logger.Error("服务层：更新用户失败，数据库未初始化")
-		return errors.New("系统尚未配置数据库，请先完成初始设置")
+		return ErrUserDBUnavailable
 	}
 
 	logger.Info("服务层：开始更新用户信息", zap.String("user_id", user.ID))
 
 	if err := db.UpdateUser(user); err != nil {
 		logger.Error("服务层：更新用户失败，保存用户时出错", zap.String("user_id", user.ID), zap.Error(err))
-		return err
+		return fmt.Errorf("更新用户失败: %w", err)
 	}
 
 	logger.Info("服务层：用户信息更新成功", zap.String("user_id", user.ID))
@@ -218,7 +218,7 @@ func (s *UserService) ChangePassword(userID, oldPassword, newPassword string) er
 	db := s.getDB()
 	if db == nil {
 		logger.Error("服务层：修改密码失败，数据库未初始化")
-		return errors.New("系统尚未配置数据库，请先完成初始设置")
+		return ErrUserDBUnavailable
 	}
 
 	logger.Info("服务层：开始修改密码", zap.String("user_id", userID))
@@ -226,17 +226,17 @@ func (s *UserService) ChangePassword(userID, oldPassword, newPassword string) er
 	user, err := db.GetUserByID(userID)
 	if err != nil {
 		logger.Error("服务层：修改密码失败，获取用户时出错", zap.String("user_id", userID), zap.Error(err))
-		return err
+		return fmt.Errorf("读取用户失败: %w", err)
 	}
 
 	if user == nil {
 		logger.Error("服务层：修改密码失败，用户不存在", zap.String("user_id", userID))
-		return errors.New("用户不存在")
+		return ErrUserNotFound
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(oldPassword)); err != nil {
 		logger.Error("服务层：修改密码失败，原密码错误", zap.String("user_id", userID))
-		return errors.New("原密码错误")
+		return ErrOldPasswordIncorrect
 	}
 
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
@@ -250,9 +250,27 @@ func (s *UserService) ChangePassword(userID, oldPassword, newPassword string) er
 
 	if err := db.UpdateUser(user); err != nil {
 		logger.Error("服务层：修改密码失败，更新用户时出错", zap.String("user_id", userID), zap.Error(err))
-		return err
+		return fmt.Errorf("更新密码失败: %w", err)
 	}
 
 	logger.Info("服务层：密码修改成功", zap.String("user_id", userID))
 	return nil
+}
+
+func (s *UserService) UpdateUserRole(userID, role string) (*models.User, error) {
+	if role != "admin" && role != "user" {
+		return nil, ErrInvalidUserRole
+	}
+
+	user, err := s.GetUserByID(userID)
+	if err != nil {
+		return nil, err
+	}
+
+	user.Role = role
+	if err := s.UpdateUser(user); err != nil {
+		return nil, err
+	}
+
+	return user, nil
 }

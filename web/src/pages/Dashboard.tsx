@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Box, Typography, Paper, CircularProgress, Alert, 
   Chip, LinearProgress, Button, Stack} from '@mui/material';
 import RefreshIcon from '@mui/icons-material/Refresh';
-import { networkAPI, statusAPI, systemAPI, SystemStatus, type NetworkSummary } from '../services/api';
+import { networkAPI, systemAPI, SystemStatus, type NetworkSummary } from '../services/api';
 import { useAuth } from '../services/auth';
 
 
@@ -70,7 +70,7 @@ function Dashboard() {
     setLoading(true);
     setError('');
     try {
-      const statusResponse = await statusAPI.getStatus();
+      const statusResponse = await systemAPI.getStatus();
       setStatus(statusResponse.data);
       setLastUpdatedAt(new Date());
     } catch {

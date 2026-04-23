@@ -13,12 +13,14 @@ import (
 type RuntimeService struct {
 	userService    *UserService
 	networkService *NetworkService
+	stateService   *StateService
 }
 
-func NewRuntimeService(userService *UserService, networkService *NetworkService) *RuntimeService {
+func NewRuntimeService(userService *UserService, networkService *NetworkService, stateService *StateService) *RuntimeService {
 	return &RuntimeService{
 		userService:    userService,
 		networkService: networkService,
+		stateService:   stateService,
 	}
 }
 
@@ -66,7 +68,7 @@ func (s *RuntimeService) CloseCurrentDatabase() {
 }
 
 func (s *RuntimeService) ReopenConfiguredDatabase() error {
-	dbConfig := database.LoadConfig()
+	dbConfig := s.stateService.DatabaseConfig()
 	if dbConfig.Type == "" {
 		return fmt.Errorf("数据库尚未配置")
 	}
@@ -93,7 +95,7 @@ func (s *RuntimeService) BindZTClient(client *zerotier.Client) {
 }
 
 func (s *RuntimeService) InitZTClientFromConfig() (*zerotier.Status, error) {
-	ztClient, err := zerotier.NewClient()
+	ztClient, err := s.stateService.CreateZTClient()
 	if err != nil {
 		return nil, fmt.Errorf("创建ZeroTier客户端失败: %w", err)
 	}

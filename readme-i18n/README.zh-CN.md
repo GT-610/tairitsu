@@ -21,6 +21,12 @@ Tairitsu 是 ZeroTier 控制器的 Web 管理界面实现，提供友好的 GUI 
 - 开发中：更完整的账户设置与 Planet 工具链
 - 当前不作为一期承诺：MySQL、PostgreSQL
 
+## 当前运行模型
+
+- 后端已经收敛为显式依赖装配路径，统一组装配置、数据库、ZeroTier client、service、handler 与 middleware。
+- setup 阶段路由与运行时路由按应用状态隔离，不再依赖单独的“重载路由”步骤。
+- 前后端按同版本一起分发，因此内部 API 会直接清理无用兼容层，而不是长期保留兼容接口。
+
 ## 部署
 
 ### Docker / Podman

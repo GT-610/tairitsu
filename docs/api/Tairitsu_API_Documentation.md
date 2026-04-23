@@ -181,19 +181,6 @@ Most API endpoints require authentication using JWT (JSON Web Tokens). To authen
   }
   ```
 
-#### Reload Routes
-- **URL**: `/api/system/reload`
-- **Method**: `POST`
-- **Description**: Reloads application routes
-- **Authentication**: Not required (during setup only)
-- **Parameters**: None
-- **Response**:
-  ```json
-  {
-    "message": "路由重新加载成功"
-  }
-  ```
-
 ### Authentication APIs
 
 #### User Registration

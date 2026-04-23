@@ -18,12 +18,16 @@ import (
 type SetupService struct {
 	runtimeService *RuntimeService
 	stateService   *StateService
+	userService    *UserService
+	networkService *NetworkService
 }
 
-func NewSetupService(runtimeService *RuntimeService, stateService *StateService) *SetupService {
+func NewSetupService(runtimeService *RuntimeService, stateService *StateService, userService *UserService, networkService *NetworkService) *SetupService {
 	return &SetupService{
 		runtimeService: runtimeService,
 		stateService:   stateService,
+		userService:    userService,
+		networkService: networkService,
 	}
 }
 
@@ -56,7 +60,7 @@ func (s *SetupService) ConfigureDatabase(dbConfig models.DatabaseConfig) (databa
 		dbCfg.Path = "data/tairitsu.db"
 	}
 
-	if err := database.SaveConfig(dbCfg); err != nil {
+	if err := s.stateService.SaveDatabaseConfig(dbCfg); err != nil {
 		db.Close()
 		return database.Config{}, fmt.Errorf("保存数据库配置失败: %w", err)
 	}
@@ -66,11 +70,11 @@ func (s *SetupService) ConfigureDatabase(dbConfig models.DatabaseConfig) (databa
 }
 
 func (s *SetupService) SaveZeroTierConfig(controllerURL, tokenPath string) (*zerotier.Status, error) {
-	if err := config.SetZTConfig(controllerURL, tokenPath); err != nil {
+	if err := s.stateService.SaveZeroTierConfig(controllerURL, tokenPath); err != nil {
 		return nil, fmt.Errorf("保存ZeroTier配置失败: %w", err)
 	}
 
-	ztClient, err := zerotier.NewClient()
+	ztClient, err := s.stateService.CreateZTClient()
 	if err != nil {
 		return nil, fmt.Errorf("创建ZeroTier客户端失败: %w", err)
 	}
@@ -84,14 +88,36 @@ func (s *SetupService) SaveZeroTierConfig(controllerURL, tokenPath string) (*zer
 	return status, nil
 }
 
+func (s *SetupService) TestZeroTierConnection() (*zerotier.Status, error) {
+	ztClient, err := s.stateService.CreateZTClient()
+	if err != nil {
+		return nil, fmt.Errorf("创建ZeroTier客户端失败: %w", err)
+	}
+
+	status, err := ztClient.GetStatus()
+	if err != nil {
+		return nil, fmt.Errorf("无法连接到ZeroTier控制器: %w", err)
+	}
+
+	return status, nil
+}
+
+func (s *SetupService) InitZTClientFromConfig() (*zerotier.Status, error) {
+	return s.runtimeService.InitZTClientFromConfig()
+}
+
+func (s *SetupService) GetSetupStatus() SetupStatus {
+	return s.stateService.GetSetupStatus(s.userService, s.networkService)
+}
+
 func (s *SetupService) InitializeAdminCreation() (string, error) {
 	resetDoneKey := "admin_creation_reset_done"
 	if config.GetTempSetting(resetDoneKey) == "true" {
-		dbConfig := database.LoadConfig()
+		dbConfig := s.stateService.DatabaseConfig()
 		return string(dbConfig.Type), nil
 	}
 
-	dbConfig := database.LoadConfig()
+	dbConfig := s.stateService.DatabaseConfig()
 	if dbConfig.Type == "" {
 		return "", fmt.Errorf("尚未完成数据库配置，请先配置 SQLite 数据库")
 	}
@@ -126,12 +152,12 @@ func (s *SetupService) SetInitialized(initialized bool) error {
 			logger.Info("生成新的会话密钥")
 		}
 
-		if err := config.SaveConfig(cfg); err != nil {
+		if err := s.stateService.SaveConfig(); err != nil {
 			return fmt.Errorf("生成安全密钥失败: %w", err)
 		}
 	}
 
-	if err := config.SetInitialized(initialized); err != nil {
+	if err := s.stateService.SetInitialized(initialized); err != nil {
 		return fmt.Errorf("设置初始化状态失败: %w", err)
 	}
 

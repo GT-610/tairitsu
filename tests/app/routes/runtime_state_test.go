@@ -5,6 +5,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/GT-610/tairitsu/internal/app/assembly"
 	"github.com/GT-610/tairitsu/internal/app/config"
 	"github.com/GT-610/tairitsu/internal/app/routes"
 	"github.com/gofiber/fiber/v3"
@@ -26,7 +27,7 @@ func TestRuntimeRoutesDoNotUseSetupOnlyAfterInitialization(t *testing.T) {
 	}
 
 	app := fiber.New()
-	routes.SetupRoutes(app, nil, "test-secret", nil)
+	routes.SetupRoutes(app, assembly.NewDependencies(config.AppConfig, nil, nil))
 
 	paths := []string{
 		"/api/networks",
