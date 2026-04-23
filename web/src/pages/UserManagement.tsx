@@ -21,7 +21,7 @@ import {
   TextField
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
-import { User, userAPI, authAPI, type ResetUserPasswordResponse } from '../services/api';
+import { User, userAPI, authAPI, type ResetUserPasswordResponse, type CreateUserResponse } from '../services/api';
 import { getErrorMessage } from '../services/errors';
 import { useAuth } from '../services/auth';
 
@@ -33,6 +33,10 @@ function UserManagement() {
   const [loading, setLoading] = useState<boolean>(true);
   const [updating, setUpdating] = useState<boolean>(false);
   const [message, setMessage] = useState<{ text: string; severity: 'success' | 'error' | 'info' } | null>(null);
+  const [openCreateDialog, setOpenCreateDialog] = useState(false);
+  const [createUsername, setCreateUsername] = useState('');
+  const [createUsernameError, setCreateUsernameError] = useState('');
+  const [createResult, setCreateResult] = useState<CreateUserResponse | null>(null);
   const [resetTarget, setResetTarget] = useState<User | null>(null);
   const [resetResult, setResetResult] = useState<ResetUserPasswordResponse | null>(null);
 
@@ -95,6 +99,31 @@ function UserManagement() {
     }
   };
 
+  const handleCreateUser = async () => {
+    if (!createUsername.trim()) {
+      setCreateUsernameError('请输入用户名');
+      return;
+    }
+
+    try {
+      setUpdating(true);
+      const response = await userAPI.createUser({ username: createUsername.trim() });
+      setUsers((previous) => [...previous, response.data.user]);
+      setOpenCreateDialog(false);
+      setCreateUsername('');
+      setCreateUsernameError('');
+      setCreateResult(response.data);
+      setMessage({
+        text: `已创建用户 ${response.data.user.username}，请立即通过其他方式告知其临时密码`,
+        severity: 'success',
+      });
+    } catch (error: unknown) {
+      setCreateUsernameError(getErrorMessage(error, '创建用户失败'));
+    } finally {
+      setUpdating(false);
+    }
+  };
+
   const handleResetPassword = async () => {
     if (!resetTarget) {
       return;
@@ -138,9 +167,14 @@ function UserManagement() {
         <Typography variant="h4" component="h1">
           用户管理
         </Typography>
-        <Typography variant="body2" color="text.secondary">
-          当前系统仅保留一个管理员。你可以将管理员身份转让给某个普通用户，转让后自己会自动降为普通用户。
-        </Typography>
+        <Stack direction="row" spacing={2} alignItems="center">
+          <Typography variant="body2" color="text.secondary">
+            当前系统仅保留一个管理员。你可以创建普通用户、重置普通用户密码，或将管理员身份转让给某个普通用户。
+          </Typography>
+          <Button variant="contained" onClick={() => setOpenCreateDialog(true)} disabled={updating}>
+            创建用户
+          </Button>
+        </Stack>
       </Box>
 
       {message && (
@@ -232,6 +266,65 @@ function UserManagement() {
           </TableBody>
         </Table>
       </TableContainer>
+
+      <Dialog open={openCreateDialog} onClose={() => !updating && setOpenCreateDialog(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>创建用户</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ mt: 1 }}>
+            <Alert severity="info">
+              新用户会自动创建为普通用户，并生成一个一次性临时密码。
+            </Alert>
+            <TextField
+              label="用户名"
+              value={createUsername}
+              onChange={(event) => {
+                setCreateUsername(event.target.value)
+                if (createUsernameError) {
+                  setCreateUsernameError('')
+                }
+              }}
+              fullWidth
+              error={Boolean(createUsernameError)}
+              helperText={createUsernameError || '建议使用可识别、便于通知的用户名'}
+              disabled={updating}
+            />
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenCreateDialog(false)} disabled={updating}>取消</Button>
+          <Button variant="contained" onClick={() => { void handleCreateUser(); }} disabled={updating}>
+            {updating ? '创建中...' : '确认创建'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={Boolean(createResult)} onClose={() => setCreateResult(null)} maxWidth="sm" fullWidth>
+        <DialogTitle>一次性临时密码</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ mt: 1 }}>
+            <Alert severity="warning">
+              该密码只会展示这一次。关闭后将无法再次查看，请立即通过其他方式安全告知用户。
+            </Alert>
+            <Typography variant="body2" color="text.secondary">
+              新用户：{createResult?.user.username || '未知用户'}
+            </Typography>
+            <TextField
+              label="临时密码"
+              value={createResult?.temporary_password || ''}
+              fullWidth
+              InputProps={{ readOnly: true }}
+            />
+            <Typography variant="body2" color="text.secondary">
+              用户首次收到密码后，应尽快登录并到“设置”中修改为自己的新密码。
+            </Typography>
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button variant="contained" onClick={() => setCreateResult(null)}>
+            我已记录
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       <Dialog open={Boolean(resetTarget)} onClose={() => !updating && setResetTarget(null)} maxWidth="sm" fullWidth>
         <DialogTitle>重置用户密码</DialogTitle>

@@ -41,11 +41,37 @@ type TransferAdminRequest struct {
 	UserID string `json:"user_id"`
 }
 
+type CreateUserRequest struct {
+	Username string `json:"username"`
+}
+
 type ResetPasswordResponse struct {
 	Message           string              `json:"message"`
 	User              models.UserResponse `json:"user"`
 	TemporaryPassword string              `json:"temporary_password"`
 	RevokedSessions   int                 `json:"revoked_sessions"`
+}
+
+func (h *UserHandler) CreateUser(c fiber.Ctx) error {
+	currentUserID, _ := c.Locals("user_id").(string)
+
+	var req CreateUserRequest
+	if err := c.Bind().Body(&req); err != nil {
+		logger.Error("创建用户失败，请求参数绑定失败", zap.String("current_user_id", currentUserID), zap.Error(err))
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	user, temporaryPassword, err := h.userService.CreateUserByAdmin(currentUserID, req.Username)
+	if err != nil {
+		logger.Error("创建用户失败", zap.String("current_user_id", currentUserID), zap.String("username", req.Username), zap.Error(err))
+		return writeUserServiceError(c, err)
+	}
+
+	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
+		"message":            "用户创建成功，请通过其他方式安全告知用户临时密码",
+		"user":               user.ToResponse(),
+		"temporary_password": temporaryPassword,
+	})
 }
 
 func (h *UserHandler) TransferAdmin(c fiber.Ctx) error {

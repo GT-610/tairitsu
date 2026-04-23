@@ -268,19 +268,13 @@ function Login() {
             
             <Grid container spacing={2}>
               <Grid size={6}>
-                <Button 
-                  component={Link} 
-                  to="/forgot-password" 
-                  variant="text" 
-                  fullWidth
-                  sx={{ 
-                    justifyContent: 'flex-start',
-                    textTransform: 'none',
-                    fontWeight: 'normal'
-                  }}
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                  sx={{ textAlign: 'left', display: 'block', mt: 1 }}
                 >
-                  忘记密码?
-                </Button>
+                  忘记密码请联系管理员处理
+                </Typography>
               </Grid>
               <Grid size={6}>
                 {isPublicRegistrationEnabled(allowPublicRegistration) ? (

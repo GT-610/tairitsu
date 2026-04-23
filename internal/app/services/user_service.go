@@ -108,6 +108,37 @@ func (s *UserService) Register(req *models.RegisterRequest, role ...string) (*mo
 	return user, nil
 }
 
+func (s *UserService) CreateUserByAdmin(currentAdminID, username string) (*models.User, string, error) {
+	currentAdmin, err := s.GetUserByID(currentAdminID)
+	if err != nil {
+		return nil, "", err
+	}
+	if currentAdmin.Role != "admin" {
+		return nil, "", ErrAdminAccessDenied
+	}
+
+	temporaryPassword, err := generateTemporaryPassword(16)
+	if err != nil {
+		logger.Error("服务层：生成临时密码失败", zap.String("admin_user_id", currentAdminID), zap.Error(err))
+		return nil, "", err
+	}
+
+	user, err := s.Register(&models.RegisterRequest{
+		Username: username,
+		Password: temporaryPassword,
+	}, "user")
+	if err != nil {
+		return nil, "", err
+	}
+
+	logger.Info("服务层：管理员创建用户成功",
+		zap.String("admin_user_id", currentAdminID),
+		zap.String("user_id", user.ID),
+		zap.String("username", user.Username))
+
+	return user, temporaryPassword, nil
+}
+
 func (s *UserService) Login(req *models.LoginRequest) (*models.User, error) {
 	db := s.getDB()
 	if db == nil {

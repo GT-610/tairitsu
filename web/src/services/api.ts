@@ -28,6 +28,12 @@ export interface ResetUserPasswordResponse {
   revoked_sessions: number;
 }
 
+export interface CreateUserResponse {
+  message: string;
+  user: User;
+  temporary_password: string;
+}
+
 export interface UserSession {
   id: string;
   userAgent: string;
@@ -339,6 +345,8 @@ export const authAPI = {
 export const userAPI = {
   // Get all users
   getAllUsers: () => api.get<User[]>('/users'),
+  // Create one user as admin
+  createUser: (data: { username: string }) => api.post<CreateUserResponse>('/users', data),
   // Transfer admin role to another user
   transferAdmin: (userId: string) => api.post<TransferAdminResponse>('/users/transfer-admin', { user_id: userId }),
   // Reset one user's password as admin

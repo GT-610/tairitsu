@@ -161,3 +161,21 @@ func TestUserServiceResetPasswordByAdminUpdatesPasswordAndRevokesSessions(t *tes
 	require.NoError(t, err)
 	assert.NotNil(t, reloadedSessionB.RevokedAt)
 }
+
+func TestUserServiceCreateUserByAdminCreatesUserWithTemporaryPassword(t *testing.T) {
+	db := newTestSQLiteDB(t)
+	service := appservices.NewUserServiceWithDB(db)
+
+	admin, err := service.Register(&models.RegisterRequest{Username: "admin", Password: "secret123"}, "admin")
+	require.NoError(t, err)
+
+	user, temporaryPassword, err := service.CreateUserByAdmin(admin.ID, "bob")
+	require.NoError(t, err)
+	assert.Equal(t, "bob", user.Username)
+	assert.Equal(t, "user", user.Role)
+	assert.Len(t, temporaryPassword, 16)
+
+	loggedIn, err := service.Login(&models.LoginRequest{Username: "bob", Password: temporaryPassword})
+	require.NoError(t, err)
+	assert.Equal(t, user.ID, loggedIn.ID)
+}
