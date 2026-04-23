@@ -34,6 +34,11 @@ export interface UserSession {
   current: boolean;
 }
 
+export interface UpdatePasswordResponse {
+  message: string;
+  revoked_other_sessions: number;
+}
+
 export interface Network {
   id: string;
   name: string;
@@ -320,7 +325,7 @@ export const authAPI = {
   // Revoke all other sessions
   revokeOtherSessions: () => api.delete<{ message: string; count: number }>('/profile/sessions/others'),
   // Update user password
-  updatePassword: (data: { current_password: string; new_password: string; confirm_password: string }) => api.put<void>('/profile/password', data)
+  updatePassword: (data: { current_password: string; new_password: string; confirm_password: string; logout_other_sessions?: boolean }) => api.put<UpdatePasswordResponse>('/profile/password', data)
 }
 
 // User management APIs

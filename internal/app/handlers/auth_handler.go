@@ -163,6 +163,7 @@ func (h *AuthHandler) ChangePassword(c fiber.Ctx) error {
 	}
 
 	logger.Info("开始处理修改密码请求", zap.String("user_id", userID.(string)))
+	currentSessionID, _ := c.Locals("session_id").(string)
 
 	// Determine which password fields to use (support both old and new formats)
 	oldPassword := req.OldPassword
@@ -190,8 +191,21 @@ func (h *AuthHandler) ChangePassword(c fiber.Ctx) error {
 
 	logger.Info("密码修改成功", zap.String("user_id", userID.(string)))
 
+	revokedCount := 0
+	if req.LogoutOtherSessions {
+		count, err := h.sessionService.RevokeOtherSessions(userID.(string), currentSessionID)
+		if err != nil {
+			logger.Error("修改密码后移除其他会话失败", zap.String("user_id", userID.(string)), zap.Error(err))
+			return writeUserServiceError(c, err)
+		}
+		revokedCount = count
+	}
+
 	// Return success response
-	return c.Status(fiber.StatusOK).JSON(fiber.Map{"message": "密码修改成功"})
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"message":                "密码修改成功",
+		"revoked_other_sessions": revokedCount,
+	})
 }
 
 // ListSessions returns the current user's active and historical sessions.

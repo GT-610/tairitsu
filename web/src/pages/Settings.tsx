@@ -25,6 +25,7 @@ import { authAPI, systemAPI, userAPI, type RuntimeSettings, type User, type User
 import { getErrorMessage } from '../services/errors'
 import { useAuth } from '../services/auth'
 import { useNavigate } from 'react-router-dom'
+import { formatSessionPresentation } from '../utils/sessionPresentation'
 
 function Settings() {
   const navigate = useNavigate()
@@ -45,6 +46,7 @@ function Settings() {
     newPassword: '',
     confirmPassword: '',
   })
+  const [logoutOtherSessionsOnPasswordChange, setLogoutOtherSessionsOnPasswordChange] = useState(true)
   const [changingPassword, setChangingPassword] = useState(false)
   const [sessions, setSessions] = useState<UserSession[]>([])
   const [loadingSessions, setLoadingSessions] = useState(false)
@@ -110,6 +112,7 @@ function Settings() {
       newPassword: '',
       confirmPassword: '',
     })
+    setLogoutOtherSessionsOnPasswordChange(true)
   }
 
   const validatePasswordForm = () => {
@@ -153,13 +156,20 @@ function Settings() {
 
     try {
       setChangingPassword(true)
-      await authAPI.updatePassword({
+      const response = await authAPI.updatePassword({
         current_password: passwordForm.oldPassword,
         new_password: passwordForm.newPassword,
         confirm_password: passwordForm.confirmPassword,
+        logout_other_sessions: logoutOtherSessionsOnPasswordChange,
       })
 
-      setMessage({ severity: 'success', text: '密码修改成功' })
+      await reloadSessions()
+      setMessage({
+        severity: 'success',
+        text: response.data.revoked_other_sessions > 0
+          ? `密码修改成功，并已移除其他会话 ${response.data.revoked_other_sessions} 个`
+          : '密码修改成功',
+      })
       resetPasswordDialog()
     } catch (error: unknown) {
       const errorMessage = getErrorMessage(error, '密码修改失败，请稍后重试')
@@ -249,13 +259,6 @@ function Settings() {
     } finally {
       setRevokingOtherSessions(false)
     }
-  }
-
-  const formatSessionTitle = (sessionItem: UserSession) => {
-    if (!sessionItem.userAgent) {
-      return sessionItem.current ? '当前会话' : '登录会话'
-    }
-    return sessionItem.userAgent
   }
 
   const formatSessionTime = (value: string) => new Date(value).toLocaleString()
@@ -352,20 +355,24 @@ function Settings() {
                 {sessions.map((sessionItem) => (
                   <Card key={sessionItem.id} variant="outlined">
                     <CardContent>
-                      <Stack spacing={1.5}>
-                        <Stack direction="row" spacing={1.5} justifyContent="space-between" alignItems="flex-start">
-                          <Box sx={{ flex: 1 }}>
-                            <Typography variant="subtitle1">
-                              {formatSessionTitle(sessionItem)}
-                            </Typography>
-                            <Typography variant="body2" color="text.secondary">
-                              IP：{sessionItem.ipAddress || '未知'}{sessionItem.rememberMe ? ' · 持久登录' : ' · 会话登录'}
-                            </Typography>
-                          </Box>
-                          <Alert severity={sessionItem.current ? 'success' : 'info'} sx={{ py: 0 }}>
-                            {sessionItem.current ? '当前会话' : '其他会话'}
-                          </Alert>
-                        </Stack>
+                      {(() => {
+                        const presentation = formatSessionPresentation(sessionItem)
+                        const disabledAction = Boolean(sessionItem.revokedAt) || presentation.status.label === '已过期'
+                        return (
+                          <Stack spacing={1.5}>
+                            <Stack direction="row" spacing={1.5} justifyContent="space-between" alignItems="flex-start">
+                              <Box sx={{ flex: 1 }}>
+                                <Typography variant="subtitle1">
+                                  {presentation.title}
+                                </Typography>
+                                <Typography variant="body2" color="text.secondary">
+                                  {presentation.subtitle}
+                                </Typography>
+                              </Box>
+                              <Alert severity={presentation.status.severity} sx={{ py: 0 }}>
+                                {presentation.status.label}
+                              </Alert>
+                            </Stack>
                         <Typography variant="body2" color="text.secondary">
                           最近活跃：{formatSessionTime(sessionItem.lastSeenAt)}
                         </Typography>
@@ -375,17 +382,29 @@ function Settings() {
                         <Typography variant="body2" color="text.secondary">
                           到期时间：{formatSessionTime(sessionItem.expiresAt)}
                         </Typography>
+                            {sessionItem.revokedAt && (
+                              <Typography variant="body2" color="text.secondary">
+                                移除时间：{formatSessionTime(sessionItem.revokedAt)}
+                              </Typography>
+                            )}
+                            {presentation.details.map((detail) => (
+                              <Typography key={detail} variant="body2" color="text.secondary">
+                                {detail}
+                              </Typography>
+                            ))}
                         <Stack direction="row" spacing={1.5}>
                           <Button
                             variant="outlined"
-                            color={sessionItem.current ? 'warning' : 'error'}
-                            disabled={revokingSessionId === sessionItem.id}
+                                color={sessionItem.current ? 'warning' : 'error'}
+                                disabled={disabledAction || revokingSessionId === sessionItem.id}
                             onClick={() => { void handleRevokeSession(sessionItem) }}
                           >
-                            {revokingSessionId === sessionItem.id ? '处理中...' : sessionItem.current ? '退出当前会话' : '移除此会话'}
+                                {revokingSessionId === sessionItem.id ? '处理中...' : sessionItem.current ? '退出当前会话' : '移除此会话'}
                           </Button>
                         </Stack>
-                      </Stack>
+                          </Stack>
+                        )
+                      })()}
                     </CardContent>
                   </Card>
                 ))}
@@ -553,6 +572,19 @@ function Settings() {
               helperText={passwordErrors.confirmPassword}
               disabled={changingPassword}
             />
+            <FormControlLabel
+              control={(
+                <Switch
+                  checked={logoutOtherSessionsOnPasswordChange}
+                  onChange={(event) => setLogoutOtherSessionsOnPasswordChange(event.target.checked)}
+                  disabled={changingPassword}
+                />
+              )}
+              label="修改密码后同时退出其他设备"
+            />
+            <Typography variant="body2" color="text.secondary">
+              建议开启。保存后会保留当前会话，并吊销当前账户在其他浏览器或机器上的登录状态。
+            </Typography>
           </Box>
         </DialogContent>
         <DialogActions>
