@@ -86,6 +86,40 @@ function ImportNetwork() {
     void fetchImportConsole()
   }, [])
 
+  const normalizeImportableResponse = (payload: unknown): ImportableNetworksResponse => {
+    const fallback = {
+      total: 0,
+      available: 0,
+      managed: 0,
+      blocked: 0,
+    }
+
+    if (!payload || typeof payload !== 'object') {
+      return { candidates: [], summary: fallback }
+    }
+
+    const data = payload as Partial<ImportableNetworksResponse>
+    const candidates = Array.isArray(data.candidates) ? data.candidates : []
+    const summary = data.summary && typeof data.summary === 'object'
+      ? {
+          total: typeof data.summary.total === 'number' ? data.summary.total : candidates.length,
+          available: typeof data.summary.available === 'number' ? data.summary.available : candidates.filter((candidate) => candidate.status === 'available').length,
+          managed: typeof data.summary.managed === 'number' ? data.summary.managed : candidates.filter((candidate) => candidate.status === 'managed').length,
+          blocked: typeof data.summary.blocked === 'number' ? data.summary.blocked : candidates.filter((candidate) => candidate.status === 'blocked').length,
+        }
+      : {
+          total: candidates.length,
+          available: candidates.filter((candidate) => candidate.status === 'available').length,
+          managed: candidates.filter((candidate) => candidate.status === 'managed').length,
+          blocked: candidates.filter((candidate) => candidate.status === 'blocked').length,
+        }
+
+    return {
+      candidates,
+      summary,
+    }
+  }
+
   const fetchImportConsole = async (options?: { clearError?: boolean }) => {
     const { clearError = true } = options ?? {}
     setLoading(true)
@@ -99,7 +133,7 @@ function ImportNetwork() {
         userAPI.getAllUsers(),
       ])
 
-      const nextResponse = networkResponse.data
+      const nextResponse = normalizeImportableResponse(networkResponse.data)
       const userList = Array.isArray(userResponse.data) ? userResponse.data : []
       setResponse(nextResponse)
       setUsers(userList)
@@ -233,25 +267,25 @@ function ImportNetwork() {
         <Card>
           <CardContent>
             <Typography variant="body2" color="text.secondary">控制器网络总数</Typography>
-            <Typography variant="h4">{response?.summary.total ?? 0}</Typography>
+            <Typography variant="h4">{response?.summary?.total ?? 0}</Typography>
           </CardContent>
         </Card>
         <Card>
           <CardContent>
             <Typography variant="body2" color="text.secondary">可接管</Typography>
-            <Typography variant="h4">{response?.summary.available ?? 0}</Typography>
+            <Typography variant="h4">{response?.summary?.available ?? 0}</Typography>
           </CardContent>
         </Card>
         <Card>
           <CardContent>
             <Typography variant="body2" color="text.secondary">已接管</Typography>
-            <Typography variant="h4">{response?.summary.managed ?? 0}</Typography>
+            <Typography variant="h4">{response?.summary?.managed ?? 0}</Typography>
           </CardContent>
         </Card>
         <Card>
           <CardContent>
             <Typography variant="body2" color="text.secondary">需人工处理</Typography>
-            <Typography variant="h4">{response?.summary.blocked ?? 0}</Typography>
+            <Typography variant="h4">{response?.summary?.blocked ?? 0}</Typography>
           </CardContent>
         </Card>
       </Box>
