@@ -1,17 +1,9 @@
 package middleware
 
-import (
-	"github.com/GT-610/tairitsu/internal/app/services"
-	"github.com/gofiber/fiber/v3"
-)
+import "github.com/gofiber/fiber/v3"
 
 type initializationState interface {
 	IsInitialized() bool
-}
-
-// SetupOnly blocks requests once the application has completed initialization.
-func SetupOnly() fiber.Handler {
-	return SetupOnlyWithState(services.NewStateService())
 }
 
 // SetupOnlyWithState blocks requests once the application has completed initialization.
@@ -27,11 +19,6 @@ func SetupOnlyWithState(state initializationState) fiber.Handler {
 
 		return c.Next()
 	}
-}
-
-// InitializedOnly blocks runtime routes until the application has completed setup.
-func InitializedOnly() fiber.Handler {
-	return InitializedOnlyWithState(services.NewStateService())
 }
 
 // InitializedOnlyWithState blocks runtime routes until the application has completed setup.

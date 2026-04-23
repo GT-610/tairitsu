@@ -188,13 +188,8 @@ func loadEnvConfig(cfg *Config) {
 	if tokenPath := viper.GetString("ZT_TOKEN_PATH"); tokenPath != "" {
 		cfg.ZeroTier.TokenPath = tokenPath
 		// Try to read token file
-		_ = LoadTokenFromPath(tokenPath)
+		_ = LoadTokenFromPathInto(cfg, tokenPath)
 	}
-}
-
-// GetZTToken Get ZeroTier token (auto-decrypted)
-func GetZTToken() (string, error) {
-	return GetZTTokenFrom(AppConfig)
 }
 
 func GetZTTokenFrom(cfg *Config) (string, error) {
@@ -222,11 +217,6 @@ func GetZTTokenFrom(cfg *Config) (string, error) {
 	return "", fmt.Errorf("ZeroTier token not configured")
 }
 
-// SetZTToken Set ZeroTier token (auto-encrypted)
-func SetZTToken(token string) error {
-	return SetZTTokenOn(AppConfig, token)
-}
-
 func SetZTTokenOn(cfg *Config, token string) error {
 	if cfg == nil {
 		return fmt.Errorf("configuration not loaded")
@@ -239,11 +229,6 @@ func SetZTTokenOn(cfg *Config, token string) error {
 
 	cfg.ZeroTier.Token = encryptedToken
 	return nil
-}
-
-// SetZTConfig Set ZeroTier configuration
-func SetZTConfig(url, tokenPath string) error {
-	return SetZTConfigOn(AppConfig, url, tokenPath)
 }
 
 func SetZTConfigOn(cfg *Config, url, tokenPath string) error {
@@ -260,11 +245,6 @@ func SetZTConfigOn(cfg *Config, url, tokenPath string) error {
 	}
 
 	return SaveConfig(cfg)
-}
-
-// LoadTokenFromPath Load ZeroTier token from specified path
-func LoadTokenFromPath(path string) error {
-	return LoadTokenFromPathInto(AppConfig, path)
 }
 
 func LoadTokenFromPathInto(cfg *Config, path string) error {
@@ -286,11 +266,6 @@ func LoadTokenFromPathInto(cfg *Config, path string) error {
 	return SetZTTokenOn(cfg, token)
 }
 
-// GetDatabasePassword Get database password (auto-decrypted)
-func GetDatabasePassword() (string, error) {
-	return GetDatabasePasswordFrom(AppConfig)
-}
-
 func GetDatabasePasswordFrom(cfg *Config) (string, error) {
 	if cfg == nil {
 		return "", fmt.Errorf("configuration not loaded")
@@ -306,11 +281,6 @@ func GetDatabasePasswordFrom(cfg *Config) (string, error) {
 	}
 
 	return "", nil
-}
-
-// SetDatabasePassword Set database password (auto-encrypted)
-func SetDatabasePassword(password string) error {
-	return SetDatabasePasswordOn(AppConfig, password)
 }
 
 func SetDatabasePasswordOn(cfg *Config, password string) error {
@@ -365,16 +335,6 @@ func decryptSensitiveDataWithConfig(cfg *Config, data string) (string, error) {
 	return crypto.Decrypt(encryptedData, key)
 }
 
-// SetInitialized Set initialization status
-func SetInitialized(initialized bool) error {
-	if AppConfig == nil {
-		return fmt.Errorf("configuration not loaded")
-	}
-
-	AppConfig.Initialized = initialized
-	return SaveConfig(AppConfig)
-}
-
 // IsInitialized Check if initialized
 func IsInitialized() bool {
 	if AppConfig == nil {
@@ -397,7 +357,14 @@ func ServerAddress() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return fmt.Sprintf(":%d", cfg.Server.Port), nil
+	return ServerAddressFrom(cfg), nil
+}
+
+func ServerAddressFrom(cfg *Config) string {
+	if cfg == nil {
+		return ":8080"
+	}
+	return fmt.Sprintf(":%d", cfg.Server.Port)
 }
 
 // ZeroTierSettings returns the currently configured ZeroTier settings.

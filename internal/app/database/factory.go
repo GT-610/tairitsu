@@ -115,11 +115,6 @@ func NewDatabase(config Config) (DBInterface, error) {
 	}
 }
 
-// LoadConfig 从统一配置管理模块加载数据库配置
-func LoadConfig() Config {
-	return LoadConfigFromApp(config.AppConfig)
-}
-
 func LoadConfigFromApp(cfg *config.Config) Config {
 	if cfg == nil {
 		return Config{}
@@ -192,11 +187,6 @@ func ensureSQLiteDir(path string) error {
 	}
 
 	return nil
-}
-
-// SaveConfig 保存数据库配置到统一配置管理模块
-func SaveConfig(dbConfig Config) error {
-	return SaveConfigToApp(config.AppConfig, dbConfig)
 }
 
 func SaveConfigToApp(cfg *config.Config, dbConfig Config) error {

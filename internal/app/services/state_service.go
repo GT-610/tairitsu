@@ -14,11 +14,12 @@ type SetupStatus struct {
 }
 
 type StateService struct {
-	cfg *config.Config
+	cfg          *config.Config
+	globalBacked bool
 }
 
 func NewStateService() *StateService {
-	return &StateService{}
+	return &StateService{globalBacked: true}
 }
 
 func NewStateServiceWithConfig(cfg *config.Config) *StateService {
@@ -29,30 +30,23 @@ func (s *StateService) Config() *config.Config {
 	if s.cfg != nil {
 		return s.cfg
 	}
-	return config.AppConfig
+	if s.globalBacked {
+		return config.AppConfig
+	}
+	return nil
 }
 
 func (s *StateService) SaveConfig() error {
-	cfg := s.Config()
-	if cfg == nil {
-		cfg = &config.Config{}
-	}
+	cfg := s.ensureConfig()
 	if err := config.SaveConfig(cfg); err != nil {
 		return err
 	}
-	s.cfg = cfg
-	config.AppConfig = cfg
 	return nil
 }
 
 func (s *StateService) SetInitialized(initialized bool) error {
-	cfg := s.Config()
-	if cfg == nil {
-		cfg = &config.Config{}
-	}
+	cfg := s.ensureConfig()
 	cfg.Initialized = initialized
-	s.cfg = cfg
-	config.AppConfig = cfg
 	return config.SaveConfig(cfg)
 }
 
@@ -71,28 +65,18 @@ func (s *StateService) DatabaseConfig() database.Config {
 }
 
 func (s *StateService) SaveDatabaseConfig(dbCfg database.Config) error {
-	cfg := s.Config()
-	if cfg == nil {
-		cfg = &config.Config{}
-	}
+	cfg := s.ensureConfig()
 	if err := database.SaveConfigToApp(cfg, dbCfg); err != nil {
 		return err
 	}
-	s.cfg = cfg
-	config.AppConfig = cfg
 	return nil
 }
 
 func (s *StateService) SaveZeroTierConfig(url, tokenPath string) error {
-	cfg := s.Config()
-	if cfg == nil {
-		cfg = &config.Config{}
-	}
+	cfg := s.ensureConfig()
 	if err := config.SetZTConfigOn(cfg, url, tokenPath); err != nil {
 		return err
 	}
-	s.cfg = cfg
-	config.AppConfig = cfg
 	return nil
 }
 
@@ -133,4 +117,16 @@ func (s *StateService) GetSetupStatus(userService *UserService, networkService *
 	}
 
 	return status
+}
+
+func (s *StateService) ensureConfig() *config.Config {
+	cfg := s.Config()
+	if cfg == nil {
+		cfg = &config.Config{}
+	}
+	s.cfg = cfg
+	if s.globalBacked {
+		config.AppConfig = cfg
+	}
+	return cfg
 }

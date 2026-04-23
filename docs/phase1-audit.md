@@ -68,11 +68,11 @@ Current direction:
 
 ## Stability Risks Still Worth Tracking
 
-### 1. A few global compatibility surfaces still remain
+### 1. A few global config access paths still remain
 
 - `config.AppConfig`
 
-These no longer define the main runtime path. The active server flow is assembled through explicit dependencies and runtime services, but the remaining global config surface should keep shrinking in later phases.
+These no longer define the main runtime path. Startup now goes through a single bootstrap entry and request-time services prefer bound config instances, but the remaining global config access paths should keep shrinking in later phases.
 
 ### 2. Setup flow still spans multiple endpoints
 

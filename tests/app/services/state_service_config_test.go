@@ -46,13 +46,13 @@ func TestStateServiceSetInitializedPersistsBoundConfig(t *testing.T) {
 			Path: filepath.Join(t.TempDir(), "persist.db"),
 		},
 	}
-	config.AppConfig = boundConfig
+	config.AppConfig = &config.Config{Initialized: false}
 
 	stateService := appservices.NewStateServiceWithConfig(boundConfig)
 	require.NoError(t, stateService.SetInitialized(true))
 
 	assert.True(t, boundConfig.Initialized)
-	assert.True(t, config.AppConfig.Initialized)
+	assert.False(t, config.AppConfig.Initialized)
 }
 
 func TestStateServiceDatabaseConfigUsesBoundConfig(t *testing.T) {
@@ -87,7 +87,7 @@ func TestStateServiceSaveDatabaseConfigPersistsBoundConfig(t *testing.T) {
 			JWTSecret: "test-secret",
 		},
 	}
-	config.AppConfig = boundConfig
+	config.AppConfig = &config.Config{}
 
 	stateService := appservices.NewStateServiceWithConfig(boundConfig)
 	require.NoError(t, stateService.SaveDatabaseConfig(database.Config{
@@ -97,6 +97,7 @@ func TestStateServiceSaveDatabaseConfigPersistsBoundConfig(t *testing.T) {
 
 	assert.Equal(t, config.SQLite, boundConfig.Database.Type)
 	assert.NotEmpty(t, boundConfig.Database.Path)
+	assert.Empty(t, config.AppConfig.Database.Path)
 }
 
 func TestStateServiceSaveZeroTierConfigPersistsBoundConfig(t *testing.T) {
@@ -113,7 +114,7 @@ func TestStateServiceSaveZeroTierConfigPersistsBoundConfig(t *testing.T) {
 			JWTSecret: "test-secret",
 		},
 	}
-	config.AppConfig = boundConfig
+	config.AppConfig = &config.Config{}
 
 	stateService := appservices.NewStateServiceWithConfig(boundConfig)
 	require.NoError(t, stateService.SaveZeroTierConfig("http://127.0.0.1:9993", tokenPath))
@@ -121,4 +122,5 @@ func TestStateServiceSaveZeroTierConfigPersistsBoundConfig(t *testing.T) {
 	assert.Equal(t, "http://127.0.0.1:9993", boundConfig.ZeroTier.URL)
 	assert.Equal(t, tokenPath, boundConfig.ZeroTier.TokenPath)
 	assert.NotEmpty(t, boundConfig.ZeroTier.Token)
+	assert.Empty(t, config.AppConfig.ZeroTier.URL)
 }
