@@ -21,7 +21,7 @@ func writeUserServiceError(c fiber.Ctx, err error) error {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": err.Error()})
 	case services.IsSessionNotFound(err):
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": err.Error()})
-	case services.IsOldPasswordIncorrect(err), services.IsInvalidUserRole(err), services.IsAdminTransferSelf(err), services.IsAdminResetSelf(err), services.IsTransferTargetAdmin(err):
+	case services.IsOldPasswordIncorrect(err), services.IsInvalidUserRole(err), services.IsAdminTransferSelf(err), services.IsAdminResetSelf(err), services.IsAdminDeleteSelf(err), services.IsAdminDeleteBlocked(err), services.IsTransferTargetAdmin(err):
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	case services.IsAdminAccessDenied(err), services.IsSessionAccessDenied(err):
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": err.Error()})

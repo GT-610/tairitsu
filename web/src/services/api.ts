@@ -34,6 +34,13 @@ export interface CreateUserResponse {
   temporary_password: string;
 }
 
+export interface DeleteUserResponse {
+  message: string;
+  user: User;
+  transferred_networks: number;
+  revoked_sessions: number;
+}
+
 export interface UserSession {
   id: string;
   userAgent: string;
@@ -347,6 +354,8 @@ export const userAPI = {
   getAllUsers: () => api.get<User[]>('/users'),
   // Create one user as admin
   createUser: (data: { username: string }) => api.post<CreateUserResponse>('/users', data),
+  // Delete one user as admin
+  deleteUser: (userId: string) => api.delete<DeleteUserResponse>(`/users/${userId}`),
   // Transfer admin role to another user
   transferAdmin: (userId: string) => api.post<TransferAdminResponse>('/users/transfer-admin', { user_id: userId }),
   // Reset one user's password as admin

@@ -179,3 +179,81 @@ func TestUserServiceCreateUserByAdminCreatesUserWithTemporaryPassword(t *testing
 	require.NoError(t, err)
 	assert.Equal(t, user.ID, loggedIn.ID)
 }
+
+func TestUserServiceDeleteUserByAdminTransfersNetworksAndRevokesSessions(t *testing.T) {
+	db := newTestSQLiteDB(t)
+	service := appservices.NewUserServiceWithDB(db)
+
+	admin, err := service.Register(&models.RegisterRequest{Username: "admin", Password: "secret123"}, "admin")
+	require.NoError(t, err)
+	target, err := service.Register(&models.RegisterRequest{Username: "alice", Password: "secret123"}, "user")
+	require.NoError(t, err)
+
+	now := time.Now()
+	network := &models.Network{
+		ID:          "net-1",
+		Name:        "alice-network",
+		Description: "test network",
+		OwnerID:     target.ID,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+	require.NoError(t, db.CreateNetwork(network))
+
+	session := &models.Session{
+		ID:         "session-1",
+		UserID:     target.ID,
+		UserAgent:  "browser-a",
+		IPAddress:  "127.0.0.1",
+		LastSeenAt: now,
+		ExpiresAt:  now.Add(time.Hour),
+		CreatedAt:  now,
+		UpdatedAt:  now,
+	}
+	require.NoError(t, db.CreateSession(session))
+
+	deletedUser, transferredNetworks, revokedSessions, err := service.DeleteUserByAdmin(admin.ID, target.ID)
+	require.NoError(t, err)
+	assert.Equal(t, target.ID, deletedUser.ID)
+	assert.Equal(t, 1, transferredNetworks)
+	assert.Equal(t, 1, revokedSessions)
+
+	reloadedNetwork, err := db.GetNetworkByID(network.ID)
+	require.NoError(t, err)
+	assert.Equal(t, admin.ID, reloadedNetwork.OwnerID)
+
+	reloadedSession, err := db.GetSessionByID(session.ID)
+	require.NoError(t, err)
+	assert.NotNil(t, reloadedSession.RevokedAt)
+
+	reloadedUser, err := db.GetUserByID(target.ID)
+	require.NoError(t, err)
+	assert.Nil(t, reloadedUser)
+
+	_, err = service.Login(&models.LoginRequest{Username: "alice", Password: "secret123"})
+	require.ErrorIs(t, err, appservices.ErrInvalidCredentials)
+}
+
+func TestUserServiceDeleteUserByAdminRejectsDeletingSelf(t *testing.T) {
+	db := newTestSQLiteDB(t)
+	service := appservices.NewUserServiceWithDB(db)
+
+	admin, err := service.Register(&models.RegisterRequest{Username: "admin", Password: "secret123"}, "admin")
+	require.NoError(t, err)
+
+	_, _, _, err = service.DeleteUserByAdmin(admin.ID, admin.ID)
+	require.ErrorIs(t, err, appservices.ErrAdminDeleteSelf)
+}
+
+func TestUserServiceDeleteUserByAdminRejectsDeletingAdmin(t *testing.T) {
+	db := newTestSQLiteDB(t)
+	service := appservices.NewUserServiceWithDB(db)
+
+	admin, err := service.Register(&models.RegisterRequest{Username: "admin", Password: "secret123"}, "admin")
+	require.NoError(t, err)
+	otherAdmin, err := service.Register(&models.RegisterRequest{Username: "other-admin", Password: "secret123"}, "admin")
+	require.NoError(t, err)
+
+	_, _, _, err = service.DeleteUserByAdmin(admin.ID, otherAdmin.ID)
+	require.ErrorIs(t, err, appservices.ErrAdminDeleteBlocked)
+}

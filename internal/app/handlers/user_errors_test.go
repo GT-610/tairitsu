@@ -24,6 +24,8 @@ func TestWriteUserServiceError_MapsKnownErrors(t *testing.T) {
 		{name: "old password incorrect", err: services.ErrOldPasswordIncorrect, expectedCode: fiber.StatusBadRequest},
 		{name: "invalid user role", err: services.ErrInvalidUserRole, expectedCode: fiber.StatusBadRequest},
 		{name: "transfer to self", err: services.ErrAdminTransferSelf, expectedCode: fiber.StatusBadRequest},
+		{name: "delete self", err: services.ErrAdminDeleteSelf, expectedCode: fiber.StatusBadRequest},
+		{name: "delete current admin blocked", err: services.ErrAdminDeleteBlocked, expectedCode: fiber.StatusBadRequest},
 		{name: "target already admin", err: services.ErrTransferTargetAdmin, expectedCode: fiber.StatusBadRequest},
 		{name: "admin access denied", err: services.ErrAdminAccessDenied, expectedCode: fiber.StatusForbidden},
 		{name: "wrapped user not found", err: fmt.Errorf("wrapped: %w", services.ErrUserNotFound), expectedCode: fiber.StatusNotFound},

@@ -103,6 +103,7 @@ func SetupRoutes(router *fiber.App, dependencies *assembly.Dependencies) {
 		api.Get("/system/stats", runtimeOnly, authMiddleware, adminOnly, systemHandler.GetSystemStats)
 		api.Get("/users", runtimeOnly, authMiddleware, adminOnly, userHandler.GetAllUsers)
 		api.Post("/users", runtimeOnly, authMiddleware, adminOnly, userHandler.CreateUser)
+		api.Delete("/users/:userId", runtimeOnly, authMiddleware, adminOnly, userHandler.DeleteUser)
 		api.Post("/users/transfer-admin", runtimeOnly, authMiddleware, adminOnly, userHandler.TransferAdmin)
 		api.Post("/users/:userId/reset-password", runtimeOnly, authMiddleware, adminOnly, userHandler.ResetPassword)
 		api.Get("/admin/networks/importable", runtimeOnly, authMiddleware, adminOnly, networkHandler.GetImportableNetworks)

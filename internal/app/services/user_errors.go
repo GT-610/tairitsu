@@ -11,6 +11,8 @@ var (
 	ErrInvalidUserRole            = errors.New("无效的角色值，必须是admin或user")
 	ErrAdminTransferSelf          = errors.New("不能将管理员身份转让给自己")
 	ErrAdminResetSelf             = errors.New("不能为自己重置密码，请使用修改密码功能")
+	ErrAdminDeleteSelf            = errors.New("不能删除自己，请先转让管理员身份或使用其他管理员账号")
+	ErrAdminDeleteBlocked         = errors.New("不能删除当前管理员账号，请先完成管理员转让")
 	ErrTransferTargetAdmin        = errors.New("目标用户已经是管理员")
 	ErrAdminAccessDenied          = errors.New("当前用户不是管理员，无法执行该操作")
 	ErrPublicRegistrationDisabled = errors.New("公开注册已关闭，请联系管理员创建账户")
@@ -50,6 +52,14 @@ func IsAdminTransferSelf(err error) bool {
 
 func IsAdminResetSelf(err error) bool {
 	return errors.Is(err, ErrAdminResetSelf)
+}
+
+func IsAdminDeleteSelf(err error) bool {
+	return errors.Is(err, ErrAdminDeleteSelf)
+}
+
+func IsAdminDeleteBlocked(err error) bool {
+	return errors.Is(err, ErrAdminDeleteBlocked)
 }
 
 func IsTransferTargetAdmin(err error) bool {

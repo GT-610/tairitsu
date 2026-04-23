@@ -52,6 +52,13 @@ type ResetPasswordResponse struct {
 	RevokedSessions   int                 `json:"revoked_sessions"`
 }
 
+type DeleteUserResponse struct {
+	Message             string              `json:"message"`
+	User                models.UserResponse `json:"user"`
+	TransferredNetworks int                 `json:"transferred_networks"`
+	RevokedSessions     int                 `json:"revoked_sessions"`
+}
+
 func (h *UserHandler) CreateUser(c fiber.Ctx) error {
 	currentUserID, _ := c.Locals("user_id").(string)
 
@@ -124,5 +131,36 @@ func (h *UserHandler) ResetPassword(c fiber.Ctx) error {
 		User:              user.ToResponse(),
 		TemporaryPassword: temporaryPassword,
 		RevokedSessions:   revokedSessions,
+	})
+}
+
+func (h *UserHandler) DeleteUser(c fiber.Ctx) error {
+	currentUserID, _ := c.Locals("user_id").(string)
+	targetUserID := c.Params("userId")
+
+	logger.Info("开始删除用户",
+		zap.String("current_user_id", currentUserID),
+		zap.String("target_user_id", targetUserID))
+
+	user, transferredNetworks, revokedSessions, err := h.userService.DeleteUserByAdmin(currentUserID, targetUserID)
+	if err != nil {
+		logger.Error("删除用户失败",
+			zap.String("current_user_id", currentUserID),
+			zap.String("target_user_id", targetUserID),
+			zap.Error(err))
+		return writeUserServiceError(c, err)
+	}
+
+	logger.Info("成功删除用户",
+		zap.String("current_user_id", currentUserID),
+		zap.String("target_user_id", targetUserID),
+		zap.Int("transferred_networks", transferredNetworks),
+		zap.Int("revoked_sessions", revokedSessions))
+
+	return c.Status(fiber.StatusOK).JSON(DeleteUserResponse{
+		Message:             "用户已删除，名下网络已转让给当前管理员",
+		User:                user.ToResponse(),
+		TransferredNetworks: transferredNetworks,
+		RevokedSessions:     revokedSessions,
 	})
 }

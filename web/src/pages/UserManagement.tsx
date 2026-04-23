@@ -21,7 +21,7 @@ import {
   TextField
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
-import { User, userAPI, authAPI, type ResetUserPasswordResponse, type CreateUserResponse } from '../services/api';
+import { User, userAPI, authAPI, type ResetUserPasswordResponse, type CreateUserResponse, type DeleteUserResponse } from '../services/api';
 import { getErrorMessage } from '../services/errors';
 import { useAuth } from '../services/auth';
 
@@ -37,6 +37,8 @@ function UserManagement() {
   const [createUsername, setCreateUsername] = useState('');
   const [createUsernameError, setCreateUsernameError] = useState('');
   const [createResult, setCreateResult] = useState<CreateUserResponse | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<User | null>(null);
+  const [deleteResult, setDeleteResult] = useState<DeleteUserResponse | null>(null);
   const [resetTarget, setResetTarget] = useState<User | null>(null);
   const [resetResult, setResetResult] = useState<ResetUserPasswordResponse | null>(null);
 
@@ -148,6 +150,31 @@ function UserManagement() {
     }
   };
 
+  const handleDeleteUser = async () => {
+    if (!deleteTarget) {
+      return;
+    }
+
+    try {
+      setUpdating(true);
+      const response = await userAPI.deleteUser(deleteTarget.id);
+      setUsers((previous) => previous.filter((item) => item.id !== deleteTarget.id));
+      setDeleteTarget(null);
+      setDeleteResult(response.data);
+      setMessage({
+        text: `已删除用户 ${response.data.user.username}，并转移 ${response.data.transferred_networks} 个网络`,
+        severity: 'success',
+      });
+    } catch (error: unknown) {
+      setMessage({
+        text: getErrorMessage(error, '删除用户失败'),
+        severity: 'error',
+      });
+    } finally {
+      setUpdating(false);
+    }
+  };
+
   // 关闭提示消息
   const handleCloseMessage = () => {
     setMessage(null);
@@ -236,6 +263,14 @@ function UserManagement() {
                     <Stack direction="row" spacing={1.5}>
                       <Button
                         variant="outlined"
+                        color="error"
+                        onClick={() => setDeleteTarget(user)}
+                        disabled={updating}
+                      >
+                        删除用户
+                      </Button>
+                      <Button
+                        variant="outlined"
                         color="warning"
                         onClick={() => setResetTarget(user)}
                         disabled={updating}
@@ -322,6 +357,59 @@ function UserManagement() {
         <DialogActions>
           <Button variant="contained" onClick={() => setCreateResult(null)}>
             我已记录
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={Boolean(deleteTarget)} onClose={() => !updating && setDeleteTarget(null)} maxWidth="sm" fullWidth>
+        <DialogTitle>删除用户</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ mt: 1 }}>
+            <Alert severity="error">
+              删除 {deleteTarget?.username || '该用户'} 后，账号将不可恢复。
+            </Alert>
+            <Typography variant="body2" color="text.secondary">
+              该用户拥有的网络将自动转让给当前管理员，ZeroTier 控制器内网络本身不会被删除。
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              该用户当前所有登录会话会立即失效，后续请求会被强制退出。
+            </Typography>
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteTarget(null)} disabled={updating}>取消</Button>
+          <Button
+            variant="contained"
+            color="error"
+            onClick={() => { void handleDeleteUser(); }}
+            disabled={updating}
+          >
+            {updating ? '删除中...' : '确认删除'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={Boolean(deleteResult)} onClose={() => setDeleteResult(null)} maxWidth="sm" fullWidth>
+        <DialogTitle>用户已删除</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ mt: 1 }}>
+            <Alert severity="success">
+              {deleteResult?.user.username || '该用户'} 已被删除。
+            </Alert>
+            <Typography variant="body2" color="text.secondary">
+              转移网络：{deleteResult?.transferred_networks ?? 0} 个
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              吊销会话：{deleteResult?.revoked_sessions ?? 0} 个
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              这些网络现在已归当前管理员所有，可在网络列表中继续管理。
+            </Typography>
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button variant="contained" onClick={() => setDeleteResult(null)}>
+            我知道了
           </Button>
         </DialogActions>
       </Dialog>

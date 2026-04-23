@@ -452,3 +452,89 @@ func (s *UserService) ResetPasswordByAdmin(currentAdminID, targetUserID string) 
 
 	return targetUser, temporaryPassword, revokedSessions, nil
 }
+
+func (s *UserService) DeleteUserByAdmin(currentAdminID, targetUserID string) (*models.User, int, int, error) {
+	db := s.getDB()
+	if db == nil {
+		logger.Error("服务层：删除用户失败，数据库未初始化")
+		return nil, 0, 0, ErrUserDBUnavailable
+	}
+
+	if currentAdminID == targetUserID {
+		return nil, 0, 0, ErrAdminDeleteSelf
+	}
+
+	currentAdmin, err := s.GetUserByID(currentAdminID)
+	if err != nil {
+		return nil, 0, 0, err
+	}
+	if currentAdmin.Role != "admin" {
+		return nil, 0, 0, ErrAdminAccessDenied
+	}
+
+	targetUser, err := s.GetUserByID(targetUserID)
+	if err != nil {
+		return nil, 0, 0, err
+	}
+	if targetUser.Role == "admin" {
+		return nil, 0, 0, ErrAdminDeleteBlocked
+	}
+
+	networks, err := db.GetNetworksByOwnerID(targetUserID)
+	if err != nil {
+		logger.Error("服务层：删除用户失败，读取用户网络时出错", zap.String("target_user_id", targetUserID), zap.Error(err))
+		return nil, 0, 0, fmt.Errorf("读取用户网络失败: %w", err)
+	}
+
+	transferredNetworks := 0
+	now := time.Now()
+	for _, network := range networks {
+		network.OwnerID = currentAdminID
+		network.UpdatedAt = now
+		if err := db.UpdateNetwork(network); err != nil {
+			logger.Error("服务层：删除用户失败，转移网络所有权时出错",
+				zap.String("target_user_id", targetUserID),
+				zap.String("network_id", network.ID),
+				zap.Error(err))
+			return nil, transferredNetworks, 0, fmt.Errorf("转移网络所有权失败: %w", err)
+		}
+		transferredNetworks++
+	}
+
+	sessions, err := db.GetSessionsByUserID(targetUserID)
+	if err != nil {
+		logger.Error("服务层：删除用户失败，读取会话列表时出错", zap.String("target_user_id", targetUserID), zap.Error(err))
+		return nil, transferredNetworks, 0, fmt.Errorf("读取会话列表失败: %w", err)
+	}
+
+	revokedSessions := 0
+	for _, session := range sessions {
+		if session.RevokedAt != nil {
+			continue
+		}
+		session.RevokedAt = &now
+		session.UpdatedAt = now
+		if err := db.UpdateSession(session); err != nil {
+			logger.Error("服务层：删除用户失败，吊销会话时出错",
+				zap.String("target_user_id", targetUserID),
+				zap.String("session_id", session.ID),
+				zap.Error(err))
+			return nil, transferredNetworks, revokedSessions, fmt.Errorf("吊销用户会话失败: %w", err)
+		}
+		revokedSessions++
+	}
+
+	if err := db.DeleteUser(targetUserID); err != nil {
+		logger.Error("服务层：删除用户失败，删除用户记录时出错", zap.String("target_user_id", targetUserID), zap.Error(err))
+		return nil, transferredNetworks, revokedSessions, fmt.Errorf("删除用户失败: %w", err)
+	}
+
+	logger.Info("服务层：管理员删除用户成功",
+		zap.String("admin_user_id", currentAdminID),
+		zap.String("target_user_id", targetUserID),
+		zap.String("target_username", targetUser.Username),
+		zap.Int("transferred_networks", transferredNetworks),
+		zap.Int("revoked_sessions", revokedSessions))
+
+	return targetUser, transferredNetworks, revokedSessions, nil
+}
