@@ -21,6 +21,13 @@ export interface TransferAdminResponse {
   user: User;
 }
 
+export interface ResetUserPasswordResponse {
+  message: string;
+  user: User;
+  temporary_password: string;
+  revoked_sessions: number;
+}
+
 export interface UserSession {
   id: string;
   userAgent: string;
@@ -333,7 +340,9 @@ export const userAPI = {
   // Get all users
   getAllUsers: () => api.get<User[]>('/users'),
   // Transfer admin role to another user
-  transferAdmin: (userId: string) => api.post<TransferAdminResponse>('/users/transfer-admin', { user_id: userId })
+  transferAdmin: (userId: string) => api.post<TransferAdminResponse>('/users/transfer-admin', { user_id: userId }),
+  // Reset one user's password as admin
+  resetPassword: (userId: string) => api.post<ResetUserPasswordResponse>(`/users/${userId}/reset-password`)
 }
 
 // ZeroTier network related APIs

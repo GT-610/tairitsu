@@ -41,6 +41,13 @@ type TransferAdminRequest struct {
 	UserID string `json:"user_id"`
 }
 
+type ResetPasswordResponse struct {
+	Message           string              `json:"message"`
+	User              models.UserResponse `json:"user"`
+	TemporaryPassword string              `json:"temporary_password"`
+	RevokedSessions   int                 `json:"revoked_sessions"`
+}
+
 func (h *UserHandler) TransferAdmin(c fiber.Ctx) error {
 	currentUserID, _ := c.Locals("user_id").(string)
 	logger.Info("开始转让管理员身份", zap.String("current_user_id", currentUserID))
@@ -61,5 +68,35 @@ func (h *UserHandler) TransferAdmin(c fiber.Ctx) error {
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
 		"message": "管理员身份转让成功",
 		"user":    user.ToResponse(),
+	})
+}
+
+func (h *UserHandler) ResetPassword(c fiber.Ctx) error {
+	currentUserID, _ := c.Locals("user_id").(string)
+	targetUserID := c.Params("userId")
+
+	logger.Info("开始重置用户密码",
+		zap.String("current_user_id", currentUserID),
+		zap.String("target_user_id", targetUserID))
+
+	user, temporaryPassword, revokedSessions, err := h.userService.ResetPasswordByAdmin(currentUserID, targetUserID)
+	if err != nil {
+		logger.Error("重置用户密码失败",
+			zap.String("current_user_id", currentUserID),
+			zap.String("target_user_id", targetUserID),
+			zap.Error(err))
+		return writeUserServiceError(c, err)
+	}
+
+	logger.Info("成功重置用户密码",
+		zap.String("current_user_id", currentUserID),
+		zap.String("target_user_id", targetUserID),
+		zap.Int("revoked_sessions", revokedSessions))
+
+	return c.Status(fiber.StatusOK).JSON(ResetPasswordResponse{
+		Message:           "密码已重置，请通过其他方式安全告知用户，并提醒其尽快修改密码",
+		User:              user.ToResponse(),
+		TemporaryPassword: temporaryPassword,
+		RevokedSessions:   revokedSessions,
 	})
 }

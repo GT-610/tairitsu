@@ -1,6 +1,7 @@
 package services
 
 import (
+	"crypto/rand"
 	"fmt"
 	"sync"
 	"time"
@@ -12,6 +13,8 @@ import (
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
 )
+
+const temporaryPasswordAlphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789"
 
 type UserService struct {
 	db    database.DBInterface
@@ -329,4 +332,92 @@ func (s *UserService) TransferAdmin(currentAdminID, targetUserID string) (*model
 		zap.String("to_username", targetUser.Username))
 
 	return targetUser, nil
+}
+
+func generateTemporaryPassword(length int) (string, error) {
+	password := make([]byte, length)
+	max := byte(len(temporaryPasswordAlphabet))
+	random := make([]byte, length)
+	if _, err := rand.Read(random); err != nil {
+		return "", fmt.Errorf("生成随机密码失败: %w", err)
+	}
+
+	for index, value := range random {
+		password[index] = temporaryPasswordAlphabet[int(value)%int(max)]
+	}
+
+	return string(password), nil
+}
+
+func (s *UserService) ResetPasswordByAdmin(currentAdminID, targetUserID string) (*models.User, string, int, error) {
+	db := s.getDB()
+	if db == nil {
+		logger.Error("服务层：重置密码失败，数据库未初始化")
+		return nil, "", 0, ErrUserDBUnavailable
+	}
+
+	if currentAdminID == targetUserID {
+		return nil, "", 0, ErrAdminResetSelf
+	}
+
+	currentAdmin, err := s.GetUserByID(currentAdminID)
+	if err != nil {
+		return nil, "", 0, err
+	}
+	if currentAdmin.Role != "admin" {
+		return nil, "", 0, ErrAdminAccessDenied
+	}
+
+	targetUser, err := s.GetUserByID(targetUserID)
+	if err != nil {
+		return nil, "", 0, err
+	}
+
+	temporaryPassword, err := generateTemporaryPassword(16)
+	if err != nil {
+		logger.Error("服务层：生成临时密码失败", zap.String("target_user_id", targetUserID), zap.Error(err))
+		return nil, "", 0, err
+	}
+
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(temporaryPassword), bcrypt.DefaultCost)
+	if err != nil {
+		logger.Error("服务层：重置密码失败，密码加密错误", zap.String("target_user_id", targetUserID), zap.Error(err))
+		return nil, "", 0, err
+	}
+
+	targetUser.Password = string(hashedPassword)
+	targetUser.UpdatedAt = time.Now()
+	if err := db.UpdateUser(targetUser); err != nil {
+		logger.Error("服务层：重置密码失败，更新用户时出错", zap.String("target_user_id", targetUserID), zap.Error(err))
+		return nil, "", 0, fmt.Errorf("更新密码失败: %w", err)
+	}
+
+	revokedSessions := 0
+	sessions, err := db.GetSessionsByUserID(targetUserID)
+	if err != nil {
+		logger.Error("服务层：重置密码失败，读取会话列表时出错", zap.String("target_user_id", targetUserID), zap.Error(err))
+		return nil, "", 0, fmt.Errorf("读取会话列表失败: %w", err)
+	}
+
+	now := time.Now()
+	for _, session := range sessions {
+		if session.RevokedAt != nil {
+			continue
+		}
+		session.RevokedAt = &now
+		session.UpdatedAt = now
+		if err := db.UpdateSession(session); err != nil {
+			logger.Error("服务层：重置密码失败，吊销会话时出错", zap.String("target_user_id", targetUserID), zap.String("session_id", session.ID), zap.Error(err))
+			return nil, "", revokedSessions, fmt.Errorf("吊销用户会话失败: %w", err)
+		}
+		revokedSessions++
+	}
+
+	logger.Info("服务层：管理员重置用户密码成功",
+		zap.String("admin_user_id", currentAdminID),
+		zap.String("target_user_id", targetUserID),
+		zap.String("target_username", targetUser.Username),
+		zap.Int("revoked_sessions", revokedSessions))
+
+	return targetUser, temporaryPassword, revokedSessions, nil
 }
