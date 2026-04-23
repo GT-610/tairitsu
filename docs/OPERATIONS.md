@@ -1,17 +1,10 @@
 # Operations and Support Boundaries
 
-This document describes what Tairitsu currently covers, what remains experimental, and what operators should verify before calling an instance healthy.
+This document describes what Tairitsu includes, what stays experimental, and which boundaries are important for operators.
 
-## Supported Product Shape
+## Available Capabilities
 
-Tairitsu is intended for:
-
-- SQLite-backed deployments
-- single-instance self-hosted controller management
-- small self-hosted teams
-- day-to-day network and member administration
-
-The current mainline includes:
+Tairitsu includes:
 
 - initialization and first admin creation
 - user registration and login
@@ -35,29 +28,8 @@ The following are **not** supported today:
 
 `Planet` generation remains available for controlled testing, but it is **experimental**:
 
-- it is outside the mainline support claim
-- it should not block a release
+- it should be treated as a separate test surface
 - it should be validated independently before production use
-
-## Release Baseline
-
-The minimum automated baseline for a release-minded change is:
-
-- `go test ./...`
-- `bun test`
-- `bun run lint`
-- `bun run build`
-- `docker build .`
-
-The minimum mainline manual validation is:
-
-1. complete first-run setup
-2. register and log in as a normal user
-3. create a network and confirm owner-scoped visibility
-4. approve or remove a joining member
-5. save IPv4, IPv6, routes, DNS, and multicast settings without cross-overwriting
-6. import an existing controller network
-7. complete admin user governance flows: create user, reset password, transfer admin, delete user
 
 ## Internal vs Public Documentation
 

@@ -36,6 +36,7 @@ import {
   type User,
 } from '../services/api'
 import { getErrorMessage } from '../services/errors'
+import { normalizeImportableNetworksResponse } from '../utils/importNetworkConsole'
 import { buildImportResultAlertPresentation, buildImportResultFeedback, groupImportCandidates } from '../utils/importNetwork'
 
 function statusChipColor(status: ImportableNetworkCandidate['status']) {
@@ -86,40 +87,6 @@ function ImportNetwork() {
     void fetchImportConsole()
   }, [])
 
-  const normalizeImportableResponse = (payload: unknown): ImportableNetworksResponse => {
-    const fallback = {
-      total: 0,
-      available: 0,
-      managed: 0,
-      blocked: 0,
-    }
-
-    if (!payload || typeof payload !== 'object') {
-      return { candidates: [], summary: fallback }
-    }
-
-    const data = payload as Partial<ImportableNetworksResponse>
-    const candidates = Array.isArray(data.candidates) ? data.candidates : []
-    const summary = data.summary && typeof data.summary === 'object'
-      ? {
-          total: typeof data.summary.total === 'number' ? data.summary.total : candidates.length,
-          available: typeof data.summary.available === 'number' ? data.summary.available : candidates.filter((candidate) => candidate.status === 'available').length,
-          managed: typeof data.summary.managed === 'number' ? data.summary.managed : candidates.filter((candidate) => candidate.status === 'managed').length,
-          blocked: typeof data.summary.blocked === 'number' ? data.summary.blocked : candidates.filter((candidate) => candidate.status === 'blocked').length,
-        }
-      : {
-          total: candidates.length,
-          available: candidates.filter((candidate) => candidate.status === 'available').length,
-          managed: candidates.filter((candidate) => candidate.status === 'managed').length,
-          blocked: candidates.filter((candidate) => candidate.status === 'blocked').length,
-        }
-
-    return {
-      candidates,
-      summary,
-    }
-  }
-
   const fetchImportConsole = async (options?: { clearError?: boolean }) => {
     const { clearError = true } = options ?? {}
     setLoading(true)
@@ -133,7 +100,7 @@ function ImportNetwork() {
         userAPI.getAllUsers(),
       ])
 
-      const nextResponse = normalizeImportableResponse(networkResponse.data)
+      const nextResponse = normalizeImportableNetworksResponse(networkResponse.data)
       const userList = Array.isArray(userResponse.data) ? userResponse.data : []
       setResponse(nextResponse)
       setUsers(userList)

@@ -1,39 +1,78 @@
 # Tairitsu
 
-Tairitsu 是一个面向独立安装 ZeroTier 控制器的自托管 Web 控制台，重点覆盖日常主线管理：初始化、登录与注册、网络与成员管理、网络设置、导入接管，以及用户治理。
+Tairitsu 是一个面向独立安装 ZeroTier 控制器的自托管 Web 控制台，提供初始化、用户账户、网络与成员管理、网络设置，以及控制器网络导入等能力。
 
-它当前面向 **SQLite、单实例、自托管** 部署场景，不追求做成像 `ztnet` 那样更厚的平台型系统；`Planet` 生成也仍然保留为实验性能力。
-
-## 当前范围
+## 功能
 
 - 设置向导：控制器连接、SQLite、初始管理员创建
 - 用户能力：注册、登录、修改密码、会话管理、管理员转让、管理员创建用户、重置密码、删除用户
-- 网络 owner 视角下的网络与成员管理
+- 网络创建、详情查看，以及成员授权 / 拒绝 / 移除
 - IPv4、IPv6、Managed Routes、DNS、多播设置
 - 导入尚未被 Tairitsu 接管的控制器网络
+- 实验性的 `Planet` 生成功能
 
-## 访问模型
+## 安装
 
-- 每个 ZeroTier 网络在 Tairitsu 中都恰好有一个 `owner`
-- 网络 `owner` 负责该网络及其成员管理
-- 平台 `admin` 负责初始化、用户治理和网络导入
-- 平台 `admin` 不会自动获得所有已归属网络的读写权限
+前置条件：
 
-## 部署
+- Tairitsu 可访问的 ZeroTier 控制器
+- 控制器 token 文件访问权限
+- 一个持久化的 Tairitsu 数据目录
+- Docker 或 Podman 等容器运行时
 
-当前公开部署主路径是 Docker / Podman：
+先让 ZeroTier 控制器向 Tairitsu 开放本地控制器 API。编辑 `/var/lib/zerotier-one/local.conf`：
 
-- 镜像：`ghcr.io/gt-610/tairitsu:latest`
-- 当前发布镜像目标：`linux/amd64`
-- 控制器要求：独立安装的 ZeroTier 控制器，并通过 `local.conf` 开放 API 访问
+```json
+{
+  "settings": {
+    "allowManagementFrom": [
+      "0.0.0.0/0",
+      "::/0"
+    ]
+  }
+}
+```
 
-详细文档：
+修改后重启 ZeroTier 控制器。
 
-- [安装与部署](../docs/INSTALLATION.md)
+使用 Docker 运行 Tairitsu：
+
+```bash
+docker run -d \
+  --name tairitsu \
+  --restart unless-stopped \
+  -p 3000:3000 \
+  -v /var/lib/zerotier-one:/var/lib/zerotier-one \
+  -v /path/to/tairitsu-data:/app/data \
+  ghcr.io/gt-610/tairitsu:latest
+```
+
+或者使用 Docker Compose：
+
+```yaml
+services:
+  tairitsu:
+    image: ghcr.io/gt-610/tairitsu:latest
+    container_name: tairitsu
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - /var/lib/zerotier-one:/var/lib/zerotier-one
+      - /path/to/tairitsu-data:/app/data
+```
+
+打开 `http://<host>:3000`，按设置向导完成初始化：
+
+1. 填写 ZeroTier 控制器 URL。
+2. 填写 token 文件路径。
+3. 按需设置 SQLite 数据库路径。
+4. 创建初始管理员账户。
+
+## 文档
+
 - [运行维护与支持边界](../docs/OPERATIONS.md)
 - [API 文档](../docs/api/Tairitsu_API_Documentation.md)
-
-手动主机安装可以用于开发，但当前公开文档主路径仍是 Docker / Podman。
 
 ## 开发
 
@@ -56,14 +95,6 @@ cd web
 bun install
 bun run dev
 ```
-
-发布前基线：
-
-- `go test ./...`
-- `bun test`
-- `bun run lint`
-- `bun run build`
-- `docker build .`
 
 ## 许可证
 

@@ -33,6 +33,7 @@ import { useNavigate } from 'react-router-dom';
 import { User, userAPI, authAPI, systemAPI, type ResetUserPasswordResponse, type CreateUserResponse, type DeleteUserResponse, type RuntimeSettings } from '../services/api';
 import { getErrorMessage } from '../services/errors';
 import { useAuth } from '../services/auth';
+import { buildCreateUserSuccessMessage, buildDeleteUserSuccessMessage, buildResetPasswordSuccessMessage } from '../utils/userGovernance';
 
 function UserManagement() {
   const navigate = useNavigate();
@@ -105,7 +106,7 @@ function UserManagement() {
       setCreateUsernameError('');
       setCreateResult(response.data);
       setMessage({
-        text: `已创建用户 ${response.data.user.username}，请立即通过其他方式告知其临时密码`,
+        text: buildCreateUserSuccessMessage(response.data),
         severity: 'success',
       });
     } catch (error: unknown) {
@@ -126,7 +127,7 @@ function UserManagement() {
       setResetTarget(null);
       setResetResult(response.data);
       setMessage({
-        text: `已为 ${response.data.user.username} 生成新的临时密码，并吊销 ${response.data.revoked_sessions} 个现有会话`,
+        text: buildResetPasswordSuccessMessage(response.data),
         severity: 'success',
       });
     } catch (error: unknown) {
@@ -151,7 +152,7 @@ function UserManagement() {
       setDeleteTarget(null);
       setDeleteResult(response.data);
       setMessage({
-        text: `已删除用户 ${response.data.user.username}，并转移 ${response.data.transferred_networks} 个网络`,
+        text: buildDeleteUserSuccessMessage(response.data),
         severity: 'success',
       });
     } catch (error: unknown) {
