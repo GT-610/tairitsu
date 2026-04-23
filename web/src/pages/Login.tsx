@@ -12,10 +12,19 @@ import {
   Container,
   Grid} from '@mui/material';
 import { LockOutlined } from '@mui/icons-material';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../services/auth';
 import { authAPI } from '../services/api';
 import { getErrorMessage, hasStatus } from '../services/errors';
+
+function getNavigationMessage(state: unknown): string {
+  if (!state || typeof state !== 'object' || !('message' in state)) {
+    return ''
+  }
+
+  const { message } = state as { message?: unknown }
+  return typeof message === 'string' ? message : ''
+}
 
 /**
  * Login Component
@@ -39,6 +48,8 @@ function Login() {
   const [loading, setLoading] = useState<boolean>(false);
   // Global login error message state
   const [loginError, setLoginError] = useState<string>('');
+  const location = useLocation();
+  const navigationMessage = getNavigationMessage(location.state);
   // Remember me checkbox state
   const [rememberMe, setRememberMe] = useState<boolean>(false);
   
@@ -163,6 +174,12 @@ function Login() {
             登录到 Tairitsu
           </Typography>
           
+          {navigationMessage && (
+            <Alert severity="success" sx={{ mb: 3 }}>
+              {navigationMessage}
+            </Alert>
+          )}
+
           {loginError && (
             <Alert severity="error" sx={{ mb: 3 }}>
               {loginError}
@@ -250,7 +267,7 @@ function Login() {
               <Grid size={6}>
                 <Button
                   component={Link} 
-                  to="/setup"
+                  to="/register"
                   variant="text"
                   fullWidth
                   sx={{
@@ -259,7 +276,7 @@ function Login() {
                     fontWeight: 'normal'
                   }}
                 >
-                  首次使用? 去设置
+                  没有账户? 去注册
                 </Button>
               </Grid>
             </Grid>

@@ -61,3 +61,36 @@ func TestUserServiceUpdateUserRoleUpdatesStoredUser(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "admin", updated.Role)
 }
+
+func TestUserServiceTransferAdminTransfersSingleAdminRole(t *testing.T) {
+	db := newTestSQLiteDB(t)
+	service := appservices.NewUserServiceWithDB(db)
+
+	currentAdmin, err := service.Register(&models.RegisterRequest{Username: "admin", Password: "secret123"}, "admin")
+	require.NoError(t, err)
+	targetUser, err := service.Register(&models.RegisterRequest{Username: "alice", Password: "secret123"}, "user")
+	require.NoError(t, err)
+
+	updatedTarget, err := service.TransferAdmin(currentAdmin.ID, targetUser.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "admin", updatedTarget.Role)
+
+	reloadedCurrent, err := service.GetUserByID(currentAdmin.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "user", reloadedCurrent.Role)
+
+	reloadedTarget, err := service.GetUserByID(targetUser.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "admin", reloadedTarget.Role)
+}
+
+func TestUserServiceTransferAdminRejectsTransferToSelf(t *testing.T) {
+	db := newTestSQLiteDB(t)
+	service := appservices.NewUserServiceWithDB(db)
+
+	currentAdmin, err := service.Register(&models.RegisterRequest{Username: "admin", Password: "secret123"}, "admin")
+	require.NoError(t, err)
+
+	_, err = service.TransferAdmin(currentAdmin.ID, currentAdmin.ID)
+	require.ErrorIs(t, err, appservices.ErrAdminTransferSelf)
+}

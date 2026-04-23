@@ -14,10 +14,14 @@ import {
   CircularProgress,
   Snackbar
 } from '@mui/material';
+import { useNavigate } from 'react-router-dom';
 import { User, userAPI, authAPI } from '../services/api';
 import { getErrorMessage } from '../services/errors';
+import { useAuth } from '../services/auth';
 
 function UserManagement() {
+  const navigate = useNavigate();
+  const { refreshUser } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -50,27 +54,34 @@ function UserManagement() {
     void fetchData();
   }, []);
 
-  // 处理用户角色更新
-  const handleUpdateUserRole = async (userId: string, currentRole: 'admin' | 'user') => {
+  // 转让管理员身份
+  const handleTransferAdmin = async (user: User) => {
     try {
       setUpdating(true);
-      
-      const newRole = currentRole === 'admin' ? 'user' : 'admin';
-      await userAPI.updateUserRole(userId, newRole);
-      
-      // 更新本地用户列表
-      setUsers(prevUsers => 
-        prevUsers.map(user => 
-          user.id === userId ? { ...user, role: newRole } : user
-        )
+
+      const response = await userAPI.transferAdmin(user.id);
+      const nextAdmin = response.data.user;
+      const refreshedProfile = await authAPI.getProfile();
+
+      setUsers(prevUsers =>
+        prevUsers.map((item) => {
+          if (item.id === currentUser?.id) {
+            return { ...item, role: 'user' };
+          }
+          if (item.id === nextAdmin.id) {
+            return { ...item, role: 'admin' };
+          }
+          return item;
+        })
       );
-      
-      setMessage({
-        text: `成功${newRole === 'admin' ? '赋予' : '撤销'}管理员权限`,
-        severity: 'success'
+      setCurrentUser(refreshedProfile.data);
+      refreshUser(refreshedProfile.data);
+      void navigate('/networks', {
+        replace: true,
+        state: { message: `管理员身份已转让给 ${nextAdmin.username}` },
       });
     } catch (error) {
-      setMessage({ text: getErrorMessage(error, '更新用户角色失败'), severity: 'error' });
+      setMessage({ text: getErrorMessage(error, '转让管理员身份失败'), severity: 'error' });
     } finally {
       setUpdating(false);
     }
@@ -94,6 +105,9 @@ function UserManagement() {
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Typography variant="h4" component="h1">
           用户管理
+        </Typography>
+        <Typography variant="body2" color="text.secondary">
+          当前系统仅保留一个管理员。你可以将管理员身份转让给某个普通用户，转让后自己会自动降为普通用户。
         </Typography>
       </Box>
 
@@ -152,15 +166,23 @@ function UserManagement() {
                 <TableCell>{user.createdAt ? new Date(user.createdAt).toLocaleString() : '未知'}</TableCell>
                 <TableCell>
                   {/* 不能对自己进行操作 */}
-                  {currentUser && user.id !== currentUser.id ? (
+                  {currentUser && user.id !== currentUser.id && user.role !== 'admin' ? (
                     <Button
                       variant="contained"
-                      color={user.role === 'admin' ? 'error' : 'primary'}
-                      onClick={() => { void handleUpdateUserRole(user.id, user.role); }}
+                      color="primary"
+                      onClick={() => { void handleTransferAdmin(user); }}
                       disabled={updating}
                     >
-                      {user.role === 'admin' ? '撤销管理员' : '赋予管理员'}
+                      转让管理员
                     </Button>
+                  ) : currentUser && user.id === currentUser.id ? (
+                    <Typography variant="body2" color="text.secondary">
+                      当前管理员
+                    </Typography>
+                  ) : user.role === 'admin' ? (
+                    <Typography variant="body2" color="text.secondary">
+                      已是管理员
+                    </Typography>
                   ) : null}
                 </TableCell>
               </TableRow>

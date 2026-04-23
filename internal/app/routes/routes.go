@@ -64,7 +64,7 @@ func SetupRoutes(router *fiber.App, dependencies *assembly.Dependencies) {
 
 		auth := api.Group("/auth")
 		{
-			auth.Post("/register", setupOnly, authHandler.Register)
+			auth.Post("/register", authHandler.Register)
 			auth.Post("/login", runtimeOnly, authHandler.Login)
 		}
 
@@ -96,7 +96,7 @@ func SetupRoutes(router *fiber.App, dependencies *assembly.Dependencies) {
 		// Admin-only routes
 		api.Get("/system/stats", runtimeOnly, authMiddleware, adminOnly, systemHandler.GetSystemStats)
 		api.Get("/users", runtimeOnly, authMiddleware, adminOnly, userHandler.GetAllUsers)
-		api.Put("/users/:userId/role", runtimeOnly, authMiddleware, adminOnly, userHandler.UpdateUserRole)
+		api.Post("/users/transfer-admin", runtimeOnly, authMiddleware, adminOnly, userHandler.TransferAdmin)
 		api.Get("/admin/networks/importable", runtimeOnly, authMiddleware, adminOnly, networkHandler.GetImportableNetworks)
 		api.Post("/admin/networks/import", runtimeOnly, authMiddleware, adminOnly, networkHandler.ImportNetworks)
 		api.Get("/admin/planet/identity", runtimeOnly, authMiddleware, adminOnly, handlers.GetIdentityHandler)

@@ -37,28 +37,29 @@ func (h *UserHandler) GetAllUsers(c fiber.Ctx) error {
 	return c.Status(fiber.StatusOK).JSON(userResponses)
 }
 
-// UpdateUserRole updates a user's role
-type UpdateRoleRequest struct {
-	Role string `json:"role"`
+type TransferAdminRequest struct {
+	UserID string `json:"user_id"`
 }
 
-func (h *UserHandler) UpdateUserRole(c fiber.Ctx) error {
-	userId := c.Params("userId")
-	logger.Info("开始更新用户角色", zap.String("user_id", userId))
+func (h *UserHandler) TransferAdmin(c fiber.Ctx) error {
+	currentUserID, _ := c.Locals("user_id").(string)
+	logger.Info("开始转让管理员身份", zap.String("current_user_id", currentUserID))
 
-	// Bind and validate request body
-	var req UpdateRoleRequest
+	var req TransferAdminRequest
 	if err := c.Bind().Body(&req); err != nil {
-		logger.Error("更新用户角色失败，请求参数绑定失败", zap.String("user_id", userId), zap.Error(err))
+		logger.Error("转让管理员失败，请求参数绑定失败", zap.String("current_user_id", currentUserID), zap.Error(err))
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	user, err := h.userService.UpdateUserRole(userId, req.Role)
+	user, err := h.userService.TransferAdmin(currentUserID, req.UserID)
 	if err != nil {
-		logger.Error("更新用户角色失败", zap.String("user_id", userId), zap.Error(err))
+		logger.Error("转让管理员失败", zap.String("current_user_id", currentUserID), zap.String("target_user_id", req.UserID), zap.Error(err))
 		return writeUserServiceError(c, err)
 	}
 
-	logger.Info("成功更新用户角色", zap.String("user_id", userId), zap.String("new_role", req.Role))
-	return c.Status(fiber.StatusOK).JSON(user.ToResponse())
+	logger.Info("成功转让管理员身份", zap.String("current_user_id", currentUserID), zap.String("target_user_id", req.UserID))
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"message": "管理员身份转让成功",
+		"user":    user.ToResponse(),
+	})
 }

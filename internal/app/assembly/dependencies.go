@@ -64,7 +64,7 @@ func NewDependencies(cfg *config.Config, db database.DBInterface, ztClient *zero
 	}
 	jwtService := services.NewJWTService(jwtSecret)
 
-	authHandler := handlers.NewAuthHandler(userService, jwtService, runtimeService)
+	authHandler := handlers.NewAuthHandler(userService, jwtService, runtimeService, stateService)
 
 	return &Dependencies{
 		Config:   cfg,
@@ -90,7 +90,7 @@ func NewDependencies(cfg *config.Config, db database.DBInterface, ztClient *zero
 			Auth:        middleware.AuthMiddleware(jwtService),
 			SetupOnly:   middleware.SetupOnlyWithState(stateService),
 			RuntimeOnly: middleware.InitializedOnlyWithState(stateService),
-			AdminOnly:   middleware.AdminRequired(),
+			AdminOnly:   middleware.AdminRequiredWithUserService(userService),
 		},
 	}
 }

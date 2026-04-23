@@ -4,13 +4,17 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"testing"
+	"time"
 
+	"github.com/GT-610/tairitsu/internal/app/database"
 	"github.com/GT-610/tairitsu/internal/app/middleware"
 	"github.com/GT-610/tairitsu/internal/app/models"
 	"github.com/GT-610/tairitsu/internal/app/services"
 	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestAuthMiddleware_MissingToken(t *testing.T) {
@@ -209,4 +213,47 @@ func TestAdminRequired_AdminUser(t *testing.T) {
 	body, _ := io.ReadAll(resp.Body)
 	resp.Body.Close()
 	assert.Contains(t, string(body), "admin access granted")
+}
+
+func TestAdminRequiredWithUserService_DeniesStaleAdminTokenAfterTransfer(t *testing.T) {
+	db, err := database.NewSQLiteDB(filepath.Join(t.TempDir(), "tairitsu.db"))
+	require.NoError(t, err)
+	require.NoError(t, db.Init())
+	t.Cleanup(func() {
+		require.NoError(t, db.Close())
+	})
+
+	currentAdmin := &models.User{
+		ID:        "admin-1",
+		Username:  "admin",
+		Password:  "hashed-password",
+		Role:      "user",
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+	require.NoError(t, db.CreateUser(currentAdmin))
+
+	jwtService := services.NewJWTService("test-secret-key")
+	authMiddleware := middleware.AuthMiddleware(jwtService)
+	adminMiddleware := middleware.AdminRequiredWithUserService(services.NewUserServiceWithDB(db))
+
+	token, err := jwtService.GenerateToken(&models.User{
+		ID:       currentAdmin.ID,
+		Username: currentAdmin.Username,
+		Role:     "admin",
+	})
+	require.NoError(t, err)
+
+	router := fiber.New()
+	router.Use(authMiddleware)
+	router.Use(adminMiddleware)
+	router.Get("/admin", func(c fiber.Ctx) error {
+		return c.JSON(fiber.Map{"message": "admin access granted"})
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/admin", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	resp, err := router.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, fiber.StatusForbidden, resp.StatusCode)
 }

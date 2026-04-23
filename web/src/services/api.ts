@@ -11,6 +11,16 @@ export interface User {
   updatedAt: string;
 }
 
+export interface RegisterResponse {
+  user: User;
+  message: string;
+}
+
+export interface TransferAdminResponse {
+  message: string;
+  user: User;
+}
+
 export interface Network {
   id: string;
   name: string;
@@ -278,7 +288,7 @@ api.interceptors.response.use(
 // Authentication related APIs
 export const authAPI = {
   // User registration
-  register: (data: { username: string; password: string }) => api.post<{ user: User; token: string }>('/auth/register', data),
+  register: (data: { username: string; password: string }) => api.post<RegisterResponse>('/auth/register', data),
   // User login
   login: (data: { username: string; password: string }) => api.post<{ user: User; token: string }>('/auth/login', data),
   // Get user profile
@@ -291,8 +301,8 @@ export const authAPI = {
 export const userAPI = {
   // Get all users
   getAllUsers: () => api.get<User[]>('/users'),
-  // Update user role
-  updateUserRole: (userId: string, role: 'admin' | 'user') => api.put<User>(`/users/${userId}/role`, { role })
+  // Transfer admin role to another user
+  transferAdmin: (userId: string) => api.post<TransferAdminResponse>('/users/transfer-admin', { user_id: userId })
 }
 
 // ZeroTier network related APIs

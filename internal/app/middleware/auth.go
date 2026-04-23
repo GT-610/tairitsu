@@ -72,3 +72,51 @@ func AdminRequired() fiber.Handler {
 		return c.Next()
 	}
 }
+
+func AdminRequiredWithUserService(userService *services.UserService) fiber.Handler {
+	return func(c fiber.Ctx) error {
+		userID, exists := c.Locals("user_id").(string)
+		if !exists || userID == "" {
+			return c.Status(fiber.StatusForbidden).JSON(ErrorResponse{
+				Error:   "Forbidden",
+				Message: "需要认证",
+				Code:    fiber.StatusForbidden,
+			})
+		}
+
+		if userService == nil {
+			return c.Status(fiber.StatusServiceUnavailable).JSON(ErrorResponse{
+				Error:   "Service Unavailable",
+				Message: "用户服务不可用",
+				Code:    fiber.StatusServiceUnavailable,
+			})
+		}
+
+		user, err := userService.GetUserByID(userID)
+		if err != nil {
+			if services.IsUserDBUnavailable(err) {
+				return c.Status(fiber.StatusServiceUnavailable).JSON(ErrorResponse{
+					Error:   "Service Unavailable",
+					Message: err.Error(),
+					Code:    fiber.StatusServiceUnavailable,
+				})
+			}
+			return c.Status(fiber.StatusForbidden).JSON(ErrorResponse{
+				Error:   "Forbidden",
+				Message: "需要管理员权限",
+				Code:    fiber.StatusForbidden,
+			})
+		}
+
+		if user.Role != "admin" {
+			return c.Status(fiber.StatusForbidden).JSON(ErrorResponse{
+				Error:   "Forbidden",
+				Message: "需要管理员权限",
+				Code:    fiber.StatusForbidden,
+			})
+		}
+
+		c.Locals("role", user.Role)
+		return c.Next()
+	}
+}
