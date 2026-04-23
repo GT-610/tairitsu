@@ -1,5 +1,14 @@
 import type { ImportableNetworkCandidate, ImportNetworksResponse } from '../services/api'
 
+export type ImportResultFeedback = {
+  severity: 'success' | 'warning' | 'error'
+  text: string
+}
+
+export type ImportResultAlertPresentation = ImportResultFeedback & {
+  showSuccessIcon: boolean
+}
+
 export function groupImportCandidates(candidates: ImportableNetworkCandidate[]) {
   return {
     available: candidates.filter((candidate) => candidate.status === 'available'),
@@ -8,7 +17,7 @@ export function groupImportCandidates(candidates: ImportableNetworkCandidate[]) 
   }
 }
 
-export function buildImportResultFeedback(result: ImportNetworksResponse) {
+export function buildImportResultFeedback(result: ImportNetworksResponse): ImportResultFeedback {
   if (result.summary.imported > 0 && result.summary.failed === 0 && result.summary.skipped === 0) {
     return {
       severity: 'success' as const,
@@ -26,5 +35,14 @@ export function buildImportResultFeedback(result: ImportNetworksResponse) {
   return {
     severity: 'error' as const,
     text: `没有成功导入任何网络，失败 ${result.summary.failed} 个，跳过 ${result.summary.skipped} 个。`,
+  }
+}
+
+export function buildImportResultAlertPresentation(result: ImportNetworksResponse): ImportResultAlertPresentation {
+  const feedback = buildImportResultFeedback(result)
+
+  return {
+    ...feedback,
+    showSuccessIcon: feedback.severity !== 'error',
   }
 }

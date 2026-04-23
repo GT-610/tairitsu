@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { buildImportResultFeedback, groupImportCandidates } from './importNetwork'
+import { buildImportResultAlertPresentation, buildImportResultFeedback, groupImportCandidates } from './importNetwork'
 
 describe('importNetwork utils', () => {
   test('groups candidates by status', () => {
@@ -39,5 +39,18 @@ describe('importNetwork utils', () => {
 
     expect(feedback.severity).toBe('error')
     expect(feedback.text).toContain('失败 2 个')
+  })
+
+  test('builds alert presentation for all-failed result without success icon', () => {
+    const presentation = buildImportResultAlertPresentation({
+      target_owner: { id: 'owner-1', username: 'alice' },
+      summary: { requested: 2, imported: 0, failed: 2, skipped: 0 },
+      imported: [],
+      failed: [{ network_id: '1' }, { network_id: '2' }],
+      skipped: [],
+    })
+
+    expect(presentation.severity).toBe('error')
+    expect(presentation.showSuccessIcon).toBe(false)
   })
 })

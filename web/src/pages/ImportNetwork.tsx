@@ -36,7 +36,7 @@ import {
   type User,
 } from '../services/api'
 import { getErrorMessage } from '../services/errors'
-import { buildImportResultFeedback, groupImportCandidates } from '../utils/importNetwork'
+import { buildImportResultAlertPresentation, buildImportResultFeedback, groupImportCandidates } from '../utils/importNetwork'
 
 function statusChipColor(status: ImportableNetworkCandidate['status']) {
   switch (status) {
@@ -215,6 +215,7 @@ function ImportNetwork() {
   }
 
   const firstImportedNetworkId = importResult?.imported[0]?.network_id || ''
+  const importFeedback = importResult ? buildImportResultAlertPresentation(importResult) : null
 
   return (
     <Box sx={{ p: 3 }}>
@@ -241,9 +242,9 @@ function ImportNetwork() {
 
       {successMessage && (
         <Alert
-          severity={importResult && (importResult.summary.failed > 0 || importResult.summary.skipped > 0) ? 'warning' : 'success'}
+          severity={importFeedback?.severity ?? 'success'}
           sx={{ mb: 3 }}
-          icon={<CheckCircleOutlineIcon fontSize="inherit" />}
+          icon={importFeedback?.showSuccessIcon ? <CheckCircleOutlineIcon fontSize="inherit" /> : undefined}
           onClose={() => setSuccessMessage('')}
           action={firstImportedNetworkId ? (
             <Button component={RouterLink} to={`/networks/${firstImportedNetworkId}`} color="inherit" size="small">

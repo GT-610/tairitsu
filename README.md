@@ -27,6 +27,7 @@ Tairitsu is a web-based controller interface for ZeroTier, providing a user-frie
 ## Phase 1 Support Matrix
 
 - Supported: SQLite, single-instance self-hosted ZeroTier controller, small admin teams
+- Mainline-ready in current scope: network/member/settings management and import-network takeover
 - In progress: broader account settings and Planet tooling
 - Not currently supported as a Phase 1 promise: MySQL, PostgreSQL
 
@@ -129,10 +130,9 @@ cd web
 bun run build
 ```
 
-Additional internal docs:
+Additional published docs:
 
-- [Phase 1 audit](docs/phase1-audit.md)
-- [ZeroTier Docker manual checklist](docs/testing/zerotier-docker-checklist.md)
+- [API documentation](docs/api/Tairitsu_API_Documentation.md)
 
 ## Contributing
 
