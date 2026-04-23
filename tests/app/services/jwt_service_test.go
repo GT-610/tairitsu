@@ -30,7 +30,7 @@ func TestJWTService_GenerateToken(t *testing.T) {
 	}
 
 	// Act
-	token, err := jwtService.GenerateToken(user)
+	token, err := jwtService.GenerateToken(user, "session-1")
 
 	// Assert
 	assert.NoError(t, err)
@@ -48,7 +48,7 @@ func TestJWTService_ValidateToken(t *testing.T) {
 	}
 
 	// Generate a valid token
-	token, err := jwtService.GenerateToken(user)
+	token, err := jwtService.GenerateToken(user, "session-1")
 	assert.NoError(t, err)
 
 	// Act
@@ -60,6 +60,7 @@ func TestJWTService_ValidateToken(t *testing.T) {
 	assert.Equal(t, user.ID, claims.UserID)
 	assert.Equal(t, user.Username, claims.Username)
 	assert.Equal(t, user.Role, claims.Role)
+	assert.Equal(t, "session-1", claims.SessionID)
 }
 
 func TestJWTService_ValidateToken_InvalidToken(t *testing.T) {
@@ -86,7 +87,7 @@ func TestJWTService_ValidateToken_WrongSecret(t *testing.T) {
 		Role:     "user",
 	}
 
-	token, err := jwtService1.GenerateToken(user)
+	token, err := jwtService1.GenerateToken(user, "session-1")
 	assert.NoError(t, err)
 
 	// Try to validate with different secret

@@ -114,23 +114,26 @@ function Login() {
       // Call backend login API
       const response = await authAPI.login({
         username: formData.username,
-        password: formData.password
+        password: formData.password,
+        remember_me: rememberMe,
       });
       
       // Extract user data and token from response
-      const { user, token } = response.data;
+      const { user, token, session } = response.data;
       
       // Save to localStorage or sessionStorage
       if (rememberMe) {
         localStorage.setItem('user', JSON.stringify(user));
         localStorage.setItem('token', token);
+        localStorage.setItem('session', JSON.stringify(session));
       } else {
         sessionStorage.setItem('user', JSON.stringify(user));
         sessionStorage.setItem('token', token);
+        sessionStorage.setItem('session', JSON.stringify(session));
       }
       
       // Call login function from auth context
-      login(user, token);
+      login(user, token, session);
       
       // Login successful, redirect to networks
       void navigate('/networks');

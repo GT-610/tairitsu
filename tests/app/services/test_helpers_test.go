@@ -32,6 +32,16 @@ func (s *stateServiceDBStub) GetUserByUsername(username string) (*models.User, e
 func (s *stateServiceDBStub) GetAllUsers() ([]*models.User, error) { return s.users, nil }
 func (s *stateServiceDBStub) UpdateUser(user *models.User) error   { return nil }
 func (s *stateServiceDBStub) DeleteUser(id string) error           { return nil }
+func (s *stateServiceDBStub) CreateSession(session *models.Session) error {
+	return nil
+}
+func (s *stateServiceDBStub) GetSessionByID(id string) (*models.Session, error) {
+	return nil, nil
+}
+func (s *stateServiceDBStub) GetSessionsByUserID(userID string) ([]*models.Session, error) {
+	return []*models.Session{}, nil
+}
+func (s *stateServiceDBStub) UpdateSession(session *models.Session) error { return nil }
 func (s *stateServiceDBStub) CreateNetwork(network *models.Network) error {
 	return nil
 }

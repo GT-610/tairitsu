@@ -15,7 +15,7 @@ type GormDB struct {
 // Init 初始化数据库
 func (g *GormDB) Init() error {
 	// 自动迁移用户模型
-	if err := g.db.AutoMigrate(&models.User{}, &models.Network{}); err != nil {
+	if err := g.db.AutoMigrate(&models.User{}, &models.Network{}, &models.Session{}); err != nil {
 		return fmt.Errorf("自动迁移模型失败: %w", err)
 	}
 	return nil
@@ -72,6 +72,41 @@ func (g *GormDB) UpdateUser(user *models.User) error {
 // DeleteUser 删除用户
 func (g *GormDB) DeleteUser(id string) error {
 	result := g.db.Delete(&models.User{}, "id = ?", id)
+	return result.Error
+}
+
+// CreateSession 创建会话
+func (g *GormDB) CreateSession(session *models.Session) error {
+	result := g.db.Create(session)
+	return result.Error
+}
+
+// GetSessionByID 根据ID获取会话
+func (g *GormDB) GetSessionByID(id string) (*models.Session, error) {
+	var session models.Session
+	result := g.db.First(&session, "id = ?", id)
+	if result.Error != nil {
+		if result.Error == gorm.ErrRecordNotFound {
+			return nil, nil
+		}
+		return nil, result.Error
+	}
+	return &session, nil
+}
+
+// GetSessionsByUserID 获取用户会话列表
+func (g *GormDB) GetSessionsByUserID(userID string) ([]*models.Session, error) {
+	var sessions []*models.Session
+	result := g.db.Where("user_id = ?", userID).Order("last_seen_at desc").Find(&sessions)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	return sessions, nil
+}
+
+// UpdateSession 更新会话
+func (g *GormDB) UpdateSession(session *models.Session) error {
+	result := g.db.Save(session)
 	return result.Error
 }
 

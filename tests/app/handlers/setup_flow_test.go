@@ -46,12 +46,13 @@ func TestSetupFlow_ResetDatabaseThenRegisterAdmin(t *testing.T) {
 	require.NoError(t, db.Init())
 
 	userService := services.NewUserServiceWithDB(db)
+	sessionService := services.NewSessionServiceWithDB(db)
 	networkService := services.NewNetworkService(nil, db)
 	stateService := services.NewStateServiceWithConfig(config.AppConfig)
-	runtimeService := services.NewRuntimeService(userService, networkService, stateService)
+	runtimeService := services.NewRuntimeService(userService, sessionService, networkService, stateService)
 	setupService := services.NewSetupService(runtimeService, stateService, userService, networkService)
 	systemHandler := apphandlers.NewSystemHandler(setupService, services.NewSystemService())
-	authHandler := apphandlers.NewAuthHandler(userService, services.NewJWTService("test-secret"), runtimeService, stateService)
+	authHandler := apphandlers.NewAuthHandler(userService, sessionService, services.NewJWTService("test-secret"), runtimeService, stateService)
 
 	app := fiber.New()
 	app.Post("/system/admin/init", systemHandler.InitializeAdminCreation)

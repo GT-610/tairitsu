@@ -44,6 +44,16 @@ func (s *handlerStateDBStub) GetUserByUsername(username string) (*models.User, e
 func (s *handlerStateDBStub) GetAllUsers() ([]*models.User, error) { return s.users, nil }
 func (s *handlerStateDBStub) UpdateUser(user *models.User) error   { return nil }
 func (s *handlerStateDBStub) DeleteUser(id string) error           { return nil }
+func (s *handlerStateDBStub) CreateSession(session *models.Session) error {
+	return nil
+}
+func (s *handlerStateDBStub) GetSessionByID(id string) (*models.Session, error) {
+	return nil, nil
+}
+func (s *handlerStateDBStub) GetSessionsByUserID(userID string) ([]*models.Session, error) {
+	return []*models.Session{}, nil
+}
+func (s *handlerStateDBStub) UpdateSession(session *models.Session) error { return nil }
 func (s *handlerStateDBStub) CreateNetwork(network *models.Network) error {
 	return nil
 }
@@ -77,9 +87,10 @@ func TestSystemHandler_GetSystemStatus_Uninitialized(t *testing.T) {
 	config.AppConfig = &config.Config{Initialized: false}
 
 	userService := services.NewUserServiceWithoutDB()
+	sessionService := services.NewSessionServiceWithoutDB()
 	networkService := services.NewNetworkService(nil, nil)
 	stateService := services.NewStateServiceWithConfig(config.AppConfig)
-	runtimeService := services.NewRuntimeService(userService, networkService, stateService)
+	runtimeService := services.NewRuntimeService(userService, sessionService, networkService, stateService)
 	handler := apphandlers.NewSystemHandler(services.NewSetupService(runtimeService, stateService, userService, networkService), services.NewSystemService())
 
 	app := fiber.New()
@@ -118,9 +129,14 @@ func TestSystemHandler_GetSystemStatus_Initialized(t *testing.T) {
 			{ID: "1", Username: "admin", Role: "admin"},
 		},
 	})
+	sessionService := services.NewSessionServiceWithDB(&handlerStateDBStub{
+		users: []*models.User{
+			{ID: "1", Username: "admin", Role: "admin"},
+		},
+	})
 	networkService := services.NewNetworkService(nil, nil)
 	stateService := services.NewStateServiceWithConfig(config.AppConfig)
-	runtimeService := services.NewRuntimeService(userService, networkService, stateService)
+	runtimeService := services.NewRuntimeService(userService, sessionService, networkService, stateService)
 	handler := apphandlers.NewSystemHandler(services.NewSetupService(runtimeService, stateService, userService, networkService), services.NewSystemService())
 
 	app := fiber.New()
@@ -136,7 +152,7 @@ func TestSystemHandler_GetSystemStatus_Initialized(t *testing.T) {
 		HasDatabase             bool `json:"hasDatabase"`
 		HasAdmin                bool `json:"hasAdmin"`
 		AllowPublicRegistration bool `json:"allowPublicRegistration"`
-		ZTStatus    struct {
+		ZTStatus                struct {
 			Online  bool   `json:"online"`
 			Version string `json:"version"`
 		} `json:"ztStatus"`
@@ -168,9 +184,10 @@ func TestSystemHandler_RuntimeSettingsReadWrite(t *testing.T) {
 	}
 
 	userService := services.NewUserServiceWithoutDB()
+	sessionService := services.NewSessionServiceWithoutDB()
 	networkService := services.NewNetworkService(nil, nil)
 	stateService := services.NewStateServiceWithConfig(config.AppConfig)
-	runtimeService := services.NewRuntimeService(userService, networkService, stateService)
+	runtimeService := services.NewRuntimeService(userService, sessionService, networkService, stateService)
 	handler := apphandlers.NewSystemHandler(services.NewSetupService(runtimeService, stateService, userService, networkService), services.NewSystemService())
 
 	app := fiber.New()

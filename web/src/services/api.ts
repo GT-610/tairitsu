@@ -21,6 +21,19 @@ export interface TransferAdminResponse {
   user: User;
 }
 
+export interface UserSession {
+  id: string;
+  userAgent: string;
+  ipAddress: string;
+  rememberMe: boolean;
+  lastSeenAt: string;
+  expiresAt: string;
+  revokedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  current: boolean;
+}
+
 export interface Network {
   id: string;
   name: string;
@@ -295,9 +308,17 @@ export const authAPI = {
   // User registration
   register: (data: { username: string; password: string }) => api.post<RegisterResponse>('/auth/register', data),
   // User login
-  login: (data: { username: string; password: string }) => api.post<{ user: User; token: string }>('/auth/login', data),
+  login: (data: { username: string; password: string; remember_me?: boolean }) => api.post<{ user: User; token: string; session: UserSession }>('/auth/login', data),
+  // Logout current session
+  logout: () => api.post<{ message: string }>('/auth/logout'),
   // Get user profile
   getProfile: () => api.get<User>('/profile'),
+  // Get current user's sessions
+  getSessions: () => api.get<{ sessions: UserSession[] }>('/profile/sessions'),
+  // Revoke one session
+  revokeSession: (sessionId: string) => api.delete<{ message: string }>(`/profile/sessions/${sessionId}`),
+  // Revoke all other sessions
+  revokeOtherSessions: () => api.delete<{ message: string; count: number }>('/profile/sessions/others'),
   // Update user password
   updatePassword: (data: { current_password: string; new_password: string; confirm_password: string }) => api.put<void>('/profile/password', data)
 }

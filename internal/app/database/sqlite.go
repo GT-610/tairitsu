@@ -72,6 +72,25 @@ func (s *SQLiteDB) Init() error {
 		return fmt.Errorf("创建网络表失败: %w", err)
 	}
 
+	createSessionsTable := `
+	CREATE TABLE IF NOT EXISTS sessions (
+		id TEXT PRIMARY KEY,
+		user_id TEXT NOT NULL,
+		user_agent TEXT,
+		ip_address TEXT,
+		remember_me BOOLEAN NOT NULL DEFAULT 0,
+		last_seen_at DATETIME NOT NULL,
+		expires_at DATETIME NOT NULL,
+		revoked_at DATETIME,
+		created_at DATETIME NOT NULL,
+		updated_at DATETIME NOT NULL
+	);`
+
+	_, err = s.db.Exec(createSessionsTable)
+	if err != nil {
+		return fmt.Errorf("创建会话表失败: %w", err)
+	}
+
 	return nil
 }
 
@@ -184,6 +203,130 @@ func (s *SQLiteDB) DeleteUser(id string) error {
 	_, err := s.db.Exec(query, id)
 	if err != nil {
 		return fmt.Errorf("删除用户失败: %w", err)
+	}
+
+	return nil
+}
+
+// CreateSession 创建会话
+func (s *SQLiteDB) CreateSession(session *models.Session) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	query := `
+	INSERT INTO sessions (id, user_id, user_agent, ip_address, remember_me, last_seen_at, expires_at, revoked_at, created_at, updated_at)
+	VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+
+	_, err := s.db.Exec(
+		query,
+		session.ID,
+		session.UserID,
+		session.UserAgent,
+		session.IPAddress,
+		session.RememberMe,
+		session.LastSeenAt,
+		session.ExpiresAt,
+		session.RevokedAt,
+		session.CreatedAt,
+		session.UpdatedAt,
+	)
+	if err != nil {
+		return fmt.Errorf("创建会话失败: %w", err)
+	}
+
+	return nil
+}
+
+// GetSessionByID 根据ID获取会话
+func (s *SQLiteDB) GetSessionByID(id string) (*models.Session, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	query := `SELECT id, user_id, user_agent, ip_address, remember_me, last_seen_at, expires_at, revoked_at, created_at, updated_at FROM sessions WHERE id = ?`
+	row := s.db.QueryRow(query, id)
+
+	var session models.Session
+	err := row.Scan(
+		&session.ID,
+		&session.UserID,
+		&session.UserAgent,
+		&session.IPAddress,
+		&session.RememberMe,
+		&session.LastSeenAt,
+		&session.ExpiresAt,
+		&session.RevokedAt,
+		&session.CreatedAt,
+		&session.UpdatedAt,
+	)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("查询会话失败: %w", err)
+	}
+
+	return &session, nil
+}
+
+// GetSessionsByUserID 获取用户会话列表
+func (s *SQLiteDB) GetSessionsByUserID(userID string) ([]*models.Session, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	query := `SELECT id, user_id, user_agent, ip_address, remember_me, last_seen_at, expires_at, revoked_at, created_at, updated_at FROM sessions WHERE user_id = ? ORDER BY last_seen_at DESC`
+	rows, err := s.db.Query(query, userID)
+	if err != nil {
+		return nil, fmt.Errorf("查询会话列表失败: %w", err)
+	}
+	defer rows.Close()
+
+	var sessions []*models.Session
+	for rows.Next() {
+		var session models.Session
+		err := rows.Scan(
+			&session.ID,
+			&session.UserID,
+			&session.UserAgent,
+			&session.IPAddress,
+			&session.RememberMe,
+			&session.LastSeenAt,
+			&session.ExpiresAt,
+			&session.RevokedAt,
+			&session.CreatedAt,
+			&session.UpdatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("扫描会话数据失败: %w", err)
+		}
+		sessions = append(sessions, &session)
+	}
+
+	return sessions, nil
+}
+
+// UpdateSession 更新会话
+func (s *SQLiteDB) UpdateSession(session *models.Session) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	query := `
+	UPDATE sessions
+	SET user_agent = ?, ip_address = ?, remember_me = ?, last_seen_at = ?, expires_at = ?, revoked_at = ?, updated_at = ?
+	WHERE id = ?`
+
+	_, err := s.db.Exec(
+		query,
+		session.UserAgent,
+		session.IPAddress,
+		session.RememberMe,
+		session.LastSeenAt,
+		session.ExpiresAt,
+		session.RevokedAt,
+		session.UpdatedAt,
+		session.ID,
+	)
+	if err != nil {
+		return fmt.Errorf("更新会话失败: %w", err)
 	}
 
 	return nil

@@ -16,6 +16,10 @@ type DBInterface interface {
 	GetAllUsers() ([]*models.User, error)
 	UpdateUser(user *models.User) error
 	DeleteUser(id string) error
+	CreateSession(session *models.Session) error
+	GetSessionByID(id string) (*models.Session, error)
+	GetSessionsByUserID(userID string) ([]*models.Session, error)
+	UpdateSession(session *models.Session) error
 
 	// 网络相关操作
 	CreateNetwork(network *models.Network) error

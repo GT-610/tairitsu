@@ -13,7 +13,7 @@ function Layout({ user }: LayoutProps) {
 
   const handleLogout = () => {
     // 调用auth context中的logout函数
-    logout();
+    void logout();
   };
 
   return (

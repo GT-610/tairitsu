@@ -21,14 +21,14 @@ import {
   TextField,
   Typography,
 } from '@mui/material'
-import { authAPI, systemAPI, userAPI, type RuntimeSettings, type User } from '../services/api'
+import { authAPI, systemAPI, userAPI, type RuntimeSettings, type User, type UserSession } from '../services/api'
 import { getErrorMessage } from '../services/errors'
 import { useAuth } from '../services/auth'
 import { useNavigate } from 'react-router-dom'
 
 function Settings() {
   const navigate = useNavigate()
-  const { user, refreshUser } = useAuth()
+  const { user, refreshUser, logout } = useAuth()
   const isAdmin = user?.role === 'admin'
 
   const [loading, setLoading] = useState(true)
@@ -46,6 +46,10 @@ function Settings() {
     confirmPassword: '',
   })
   const [changingPassword, setChangingPassword] = useState(false)
+  const [sessions, setSessions] = useState<UserSession[]>([])
+  const [loadingSessions, setLoadingSessions] = useState(false)
+  const [revokingSessionId, setRevokingSessionId] = useState('')
+  const [revokingOtherSessions, setRevokingOtherSessions] = useState(false)
 
   const [runtimeSettings, setRuntimeSettings] = useState<RuntimeSettings>({ allow_public_registration: true })
   const [initialRuntimeSettings, setInitialRuntimeSettings] = useState<RuntimeSettings>({ allow_public_registration: true })
@@ -59,20 +63,27 @@ function Settings() {
     const loadSettings = async () => {
       try {
         setLoading(true)
+        setLoadingSessions(true)
 
         if (isAdmin) {
-          const [settingsResponse, usersResponse] = await Promise.all([
+          const [sessionResponse, settingsResponse, usersResponse] = await Promise.all([
+            authAPI.getSessions(),
             systemAPI.getRuntimeSettings(),
             userAPI.getAllUsers(),
           ])
 
+          setSessions(sessionResponse.data.sessions)
           setRuntimeSettings(settingsResponse.data)
           setInitialRuntimeSettings(settingsResponse.data)
           setUsers(usersResponse.data)
+        } else {
+          const sessionResponse = await authAPI.getSessions()
+          setSessions(sessionResponse.data.sessions)
         }
       } catch (error: unknown) {
         setMessage({ severity: 'error', text: getErrorMessage(error, '加载设置失败') })
       } finally {
+        setLoadingSessions(false)
         setLoading(false)
       }
     }
@@ -200,6 +211,55 @@ function Settings() {
     }
   }
 
+  const reloadSessions = async () => {
+    const response = await authAPI.getSessions()
+    setSessions(response.data.sessions)
+  }
+
+  const handleRevokeSession = async (sessionItem: UserSession) => {
+    try {
+      setRevokingSessionId(sessionItem.id)
+      if (sessionItem.current) {
+        await logout()
+        void navigate('/login', {
+          replace: true,
+          state: { message: '当前会话已退出' },
+        })
+        return
+      }
+
+      await authAPI.revokeSession(sessionItem.id)
+      await reloadSessions()
+      setMessage({ severity: 'success', text: '已移除该登录会话' })
+    } catch (error: unknown) {
+      setMessage({ severity: 'error', text: getErrorMessage(error, '移除登录会话失败') })
+    } finally {
+      setRevokingSessionId('')
+    }
+  }
+
+  const handleRevokeOtherSessions = async () => {
+    try {
+      setRevokingOtherSessions(true)
+      const response = await authAPI.revokeOtherSessions()
+      await reloadSessions()
+      setMessage({ severity: 'success', text: response.data.count > 0 ? `已移除其他会话 ${response.data.count} 个` : '没有其他可移除的会话' })
+    } catch (error: unknown) {
+      setMessage({ severity: 'error', text: getErrorMessage(error, '移除其他会话失败') })
+    } finally {
+      setRevokingOtherSessions(false)
+    }
+  }
+
+  const formatSessionTitle = (sessionItem: UserSession) => {
+    if (!sessionItem.userAgent) {
+      return sessionItem.current ? '当前会话' : '登录会话'
+    }
+    return sessionItem.userAgent
+  }
+
+  const formatSessionTime = (value: string) => new Date(value).toLocaleString()
+
   return (
     <Box sx={{ p: 3 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
@@ -254,9 +314,81 @@ function Settings() {
                 >
                   修改密码
                 </Button>
+                <Stack direction="row" spacing={1.5}>
+                  <Button
+                    variant="outlined"
+                    color="warning"
+                    fullWidth
+                    disabled={loadingSessions || revokingOtherSessions || sessions.filter((sessionItem) => !sessionItem.current && !sessionItem.revokedAt).length === 0}
+                    onClick={() => { void handleRevokeOtherSessions() }}
+                  >
+                    {revokingOtherSessions ? '移除中...' : '退出其他设备'}
+                  </Button>
+                </Stack>
                 <Typography variant="body2" color="text.secondary">
-                  当前阶段已正式开放的账户安全能力是密码修改。会话管理、登录设备查看和账号注销将在后续阶段单独推进。
+                  你可以在这里修改密码，并管理当前账户的登录会话。退出其他设备会吊销同一账户在其他浏览器或机器上的登录状态。
                 </Typography>
+              </Stack>
+            </CardContent>
+          </Card>
+
+          <Card sx={{ mb: 3 }}>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                登录会话
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                当前页面展示的是服务端登记的登录会话。移除其他会话后，对应设备会在下一次请求时失效。
+              </Typography>
+              <Stack spacing={2}>
+                {sessions.length === 0 && !loadingSessions && (
+                  <Alert severity="info">当前没有可展示的登录会话。</Alert>
+                )}
+                {loadingSessions && (
+                  <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
+                    <CircularProgress size={24} />
+                  </Box>
+                )}
+                {sessions.map((sessionItem) => (
+                  <Card key={sessionItem.id} variant="outlined">
+                    <CardContent>
+                      <Stack spacing={1.5}>
+                        <Stack direction="row" spacing={1.5} justifyContent="space-between" alignItems="flex-start">
+                          <Box sx={{ flex: 1 }}>
+                            <Typography variant="subtitle1">
+                              {formatSessionTitle(sessionItem)}
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              IP：{sessionItem.ipAddress || '未知'}{sessionItem.rememberMe ? ' · 持久登录' : ' · 会话登录'}
+                            </Typography>
+                          </Box>
+                          <Alert severity={sessionItem.current ? 'success' : 'info'} sx={{ py: 0 }}>
+                            {sessionItem.current ? '当前会话' : '其他会话'}
+                          </Alert>
+                        </Stack>
+                        <Typography variant="body2" color="text.secondary">
+                          最近活跃：{formatSessionTime(sessionItem.lastSeenAt)}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          登录时间：{formatSessionTime(sessionItem.createdAt)}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          到期时间：{formatSessionTime(sessionItem.expiresAt)}
+                        </Typography>
+                        <Stack direction="row" spacing={1.5}>
+                          <Button
+                            variant="outlined"
+                            color={sessionItem.current ? 'warning' : 'error'}
+                            disabled={revokingSessionId === sessionItem.id}
+                            onClick={() => { void handleRevokeSession(sessionItem) }}
+                          >
+                            {revokingSessionId === sessionItem.id ? '处理中...' : sessionItem.current ? '退出当前会话' : '移除此会话'}
+                          </Button>
+                        </Stack>
+                      </Stack>
+                    </CardContent>
+                  </Card>
+                ))}
               </Stack>
             </CardContent>
           </Card>
