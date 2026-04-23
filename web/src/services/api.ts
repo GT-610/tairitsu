@@ -122,18 +122,53 @@ export interface Member {
   vRev?: number;
 }
 
-export interface ImportableNetworkSummary {
+export interface ImportableNetworkCandidate {
   network_id: string;
-  reason: string;
-  is_importable: boolean;
+  name?: string;
+  description?: string;
+  controller_status?: string;
+  member_count?: number;
+  status: 'available' | 'managed' | 'blocked';
+  can_import: boolean;
+  reason_code: string;
+  reason_message: string;
+  owner_id?: string;
+  owner_username?: string;
+}
+
+export interface ImportableNetworksResponse {
+  candidates: ImportableNetworkCandidate[];
+  summary: {
+    total: number;
+    available: number;
+    managed: number;
+    blocked: number;
+  };
+}
+
+export interface ImportNetworkResultItem {
+  network_id: string;
+  name?: string;
+  owner_id?: string;
+  owner_username?: string;
+  reason_code?: string;
+  reason_message?: string;
 }
 
 export interface ImportNetworksResponse {
-  imported_ids: string[];
-  failed: Array<{
-    network_id: string;
-    reason: string;
-  }>;
+  target_owner: {
+    id: string;
+    username: string;
+  };
+  summary: {
+    requested: number;
+    imported: number;
+    failed: number;
+    skipped: number;
+  };
+  imported: ImportNetworkResultItem[];
+  failed: ImportNetworkResultItem[];
+  skipped: ImportNetworkResultItem[];
 }
 
 export interface SystemStatus {
@@ -275,7 +310,7 @@ export const networkAPI = {
   // Delete a network
   deleteNetwork: (networkId: string) => api.delete<void>(`/networks/${networkId}`),
   // Get importable networks (admin only)
-  getImportableNetworks: () => api.get<ImportableNetworkSummary[]>('/admin/networks/importable'),
+  getImportableNetworks: () => api.get<ImportableNetworksResponse>('/admin/networks/importable'),
   // Import specified networks (admin only)
   importNetworks: (networkIds: string[], ownerId: string) => api.post<ImportNetworksResponse>('/admin/networks/import', {
     network_ids: networkIds,

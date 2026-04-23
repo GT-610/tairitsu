@@ -51,20 +51,22 @@ Current direction:
 ### Settings
 
 - Status: In progress
-- Supported: password change
+- Supported: password change, clearer account/security status presentation
 - In progress: language switching, account deletion, broader account settings management
+- Current product stance: unsupported items stay as explicit roadmap notes rather than interactive placeholders
 
 ### Import Network
 
-- Status: In progress
+- Status: Productizing
 - Useful for bringing existing controller networks under management
-- Still needs richer feedback and broader validation coverage
+- Current direction: treat import as a first-class “controller takeover” flow with owner assignment, structured results, and candidate status classification
 
 ### Planet
 
 - Status: Experimental
 - Not part of Phase 1 acceptance
 - Requires isolated validation before any production use
+- Current product stance: remains frozen and intentionally outside the mainline productization track
 
 ## Stability Risks Still Worth Tracking
 
