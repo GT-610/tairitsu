@@ -212,8 +212,7 @@ func (h *NetworkHandler) GetImportableNetworks(c fiber.Ctx) error {
 		return writeNetworkServiceError(c, err, "网络不存在", "无权限获取可导入网络")
 	}
 
-	logger.Info("成功获取可导入网络列表", zap.Int("count", len(importableNetworks)))
-
+	logger.Info("成功获取可导入网络列表", zap.Int("count", len(importableNetworks.Candidates)))
 	return c.Status(fiber.StatusOK).JSON(importableNetworks)
 }
 
@@ -254,20 +253,9 @@ func (h *NetworkHandler) ImportNetworks(c fiber.Ctx) error {
 	}
 
 	logger.Info("导入网络处理完成",
-		zap.Int("imported_count", len(result.ImportedIDs)),
+		zap.Int("imported_count", len(result.Imported)),
+		zap.Int("skipped_count", len(result.Skipped)),
 		zap.Int("failed_count", len(result.Failed)))
 
-	message := "导入成功"
-	switch {
-	case len(result.ImportedIDs) == 0 && len(result.Failed) > 0:
-		message = "未成功导入任何网络"
-	case len(result.ImportedIDs) > 0 && len(result.Failed) > 0:
-		message = "部分网络导入成功"
-	}
-
-	return c.Status(fiber.StatusOK).JSON(fiber.Map{
-		"message":      message,
-		"imported_ids": result.ImportedIDs,
-		"failed":       result.Failed,
-	})
+	return c.Status(fiber.StatusOK).JSON(result)
 }

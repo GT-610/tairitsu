@@ -18,6 +18,7 @@ Tairitsu 是 ZeroTier 控制器的 Web 管理界面实现，提供友好的 GUI 
 ## 一期支持矩阵
 
 - 正式支持：SQLite、单实例自托管 ZeroTier 控制器、小规模管理员场景
+- 当前主线已可用：网络管理、成员管理、网络设置、导入现有控制器网络
 - 开发中：更完整的账户设置与 Planet 工具链
 - 当前不作为一期承诺：MySQL、PostgreSQL
 
@@ -119,10 +120,9 @@ cd web
 bun run build
 ```
 
-附加内部文档：
+附加公开文档：
 
-- [一期问题地图](../docs/phase1-audit.md)
-- [ZeroTier Docker 手工联调清单](../docs/testing/zerotier-docker-checklist.md)
+- [API 文档](../docs/api/Tairitsu_API_Documentation.md)
 
 ## 贡献
 

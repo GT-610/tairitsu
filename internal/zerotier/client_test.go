@@ -5,6 +5,69 @@ import (
 	"testing"
 )
 
+func TestParseNetworkIDsSupportsCommonResponseShapes(t *testing.T) {
+	testCases := []struct {
+		name string
+		data string
+		want []string
+	}{
+		{
+			name: "string array",
+			data: `["f76fd3000b86b177","8056c2e21c000001"]`,
+			want: []string{"8056c2e21c000001", "f76fd3000b86b177"},
+		},
+		{
+			name: "object keyed by network id",
+			data: `{
+				"f76fd3000b86b177":{"id":"f76fd3000b86b177","name":"main-net"},
+				"8056c2e21c000001":{"id":"8056c2e21c000001","name":"lab-net"}
+			}`,
+			want: []string{"8056c2e21c000001", "f76fd3000b86b177"},
+		},
+		{
+			name: "object array",
+			data: `[
+				{"id":"f76fd3000b86b177","name":"main-net"},
+				{"id":"8056c2e21c000001","name":"lab-net"}
+			]`,
+			want: []string{"8056c2e21c000001", "f76fd3000b86b177"},
+		},
+		{
+			name: "nested networks field",
+			data: `{
+				"networks":{
+					"f76fd3000b86b177":{"name":"main-net"},
+					"8056c2e21c000001":{"name":"lab-net"}
+				},
+				"total":2
+			}`,
+			want: []string{"8056c2e21c000001", "f76fd3000b86b177"},
+		},
+		{
+			name: "empty null response",
+			data: `null`,
+			want: []string{},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := parseNetworkIDs([]byte(tc.data))
+			if err != nil {
+				t.Fatalf("parseNetworkIDs() error = %v", err)
+			}
+			if len(got) != len(tc.want) {
+				t.Fatalf("len(got) = %d, want %d; got=%v", len(got), len(tc.want), got)
+			}
+			for i := range got {
+				if got[i] != tc.want[i] {
+					t.Fatalf("got[%d] = %q, want %q; got=%v", i, got[i], tc.want[i], got)
+				}
+			}
+		})
+	}
+}
+
 func TestDNSConfigUnmarshalJSONSupportsArrayNullAndObject(t *testing.T) {
 	testCases := []struct {
 		name string

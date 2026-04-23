@@ -40,7 +40,7 @@ func TestNewNetworkService(t *testing.T) {
 }
 
 func TestImportableNetworkSummariesStartAsEmptySlice(t *testing.T) {
-	summaries := make([]services.ImportableNetworkSummary, 0)
+	summaries := make([]services.ImportableNetworkCandidate, 0)
 
 	assert.NotNil(t, summaries)
 	assert.Len(t, summaries, 0)
@@ -59,8 +59,14 @@ func TestNetworkServiceImportNetworks_AllSuccess(t *testing.T) {
 	result, err := service.ImportNetworks([]string{"8056c2e21c000001", "8056c2e21c000002"}, "user-1", "admin")
 	require.NoError(t, err)
 	require.NotNil(t, result)
-	assert.ElementsMatch(t, []string{"8056c2e21c000001", "8056c2e21c000002"}, result.ImportedIDs)
+	assert.Equal(t, services.ImportTargetOwner{ID: "user-1", Username: "user-1"}, result.TargetOwner)
+	assert.ElementsMatch(t, []services.ImportNetworkResultItem{
+		{NetworkID: "8056c2e21c000001", Name: "alpha", OwnerID: "user-1", OwnerUsername: "user-1"},
+		{NetworkID: "8056c2e21c000002", Name: "beta", OwnerID: "user-1", OwnerUsername: "user-1"},
+	}, result.Imported)
 	assert.Empty(t, result.Failed)
+	assert.Empty(t, result.Skipped)
+	assert.Equal(t, services.ImportNetworksSummary{Requested: 2, Imported: 2, Failed: 0, Skipped: 0}, result.Summary)
 
 	allNetworks, err := db.GetAllNetworks()
 	require.NoError(t, err)
@@ -93,15 +99,23 @@ func TestNetworkServiceImportNetworks_PartialFailures(t *testing.T) {
 	result, err := service.ImportNetworks([]string{"8056c2e21c000001", "8056c2e21c000010", "8056c2e21c000099"}, "user-1", "admin")
 	require.NoError(t, err)
 	require.NotNil(t, result)
-	assert.Equal(t, []string{"8056c2e21c000001"}, result.ImportedIDs)
-	require.Len(t, result.Failed, 2)
-	assert.Contains(t, result.Failed, services.ImportNetworkFailure{
-		NetworkID: "8056c2e21c000010",
-		Reason:    "网络属于其他用户，无法导入",
+	require.Len(t, result.Imported, 1)
+	assert.Equal(t, "8056c2e21c000001", result.Imported[0].NetworkID)
+	require.Len(t, result.Failed, 1)
+	require.Len(t, result.Skipped, 1)
+	assert.Contains(t, result.Failed, services.ImportNetworkResultItem{
+		NetworkID:     "8056c2e21c000099",
+		OwnerID:       "user-1",
+		OwnerUsername: "user-1",
+		ReasonCode:    services.ImportReasonControllerNotFound,
+		ReasonMessage: "网络不存在于 ZeroTier 控制器中",
 	})
-	assert.Contains(t, result.Failed, services.ImportNetworkFailure{
-		NetworkID: "8056c2e21c000099",
-		Reason:    "网络不存在于 ZeroTier 控制器中",
+	assert.Contains(t, result.Skipped, services.ImportNetworkResultItem{
+		NetworkID:     "8056c2e21c000010",
+		Name:          "owned-by-other",
+		OwnerID:       "other-user",
+		ReasonCode:    services.ImportReasonAlreadyManaged,
+		ReasonMessage: "网络已由其他 owner 接管，已跳过",
 	})
 }
 
@@ -114,7 +128,8 @@ func TestNetworkServiceGetImportableNetworks_EmptySliceWhenControllerHasNoNetwor
 	result, err := service.GetImportableNetworks()
 	require.NoError(t, err)
 	assert.NotNil(t, result)
-	assert.Empty(t, result)
+	assert.Empty(t, result.Candidates)
+	assert.Equal(t, services.ImportableNetworksSummary{}, result.Summary)
 }
 
 func TestNetworkServiceImportNetworks_RejectsNonAdmin(t *testing.T) {
@@ -164,17 +179,26 @@ func TestNetworkServiceGetImportableNetworks_MarksOwnedNetworksAsNotImportable(t
 
 	result, err := service.GetImportableNetworks()
 	require.NoError(t, err)
-	require.Len(t, result, 2)
-	assert.Contains(t, result, services.ImportableNetworkSummary{
-		NetworkID:    "8056c2e21c000001",
-		Reason:       "网络已有所有者",
-		IsImportable: false,
+	require.Len(t, result.Candidates, 2)
+	assert.Contains(t, result.Candidates, services.ImportableNetworkCandidate{
+		NetworkID:     "8056c2e21c000001",
+		Name:          "owned",
+		Description:   "owned-desc",
+		Status:        services.ImportCandidateManaged,
+		CanImport:     false,
+		ReasonCode:    services.ImportReasonAlreadyManaged,
+		ReasonMessage: "网络已由其他 owner 接管",
+		OwnerID:       "user-1",
 	})
-	assert.Contains(t, result, services.ImportableNetworkSummary{
-		NetworkID:    "8056c2e21c000002",
-		Reason:       "网络尚未登记到 Tairitsu",
-		IsImportable: true,
+	assert.Contains(t, result.Candidates, services.ImportableNetworkCandidate{
+		NetworkID:     "8056c2e21c000002",
+		Name:          "orphan",
+		Status:        services.ImportCandidateAvailable,
+		CanImport:     true,
+		ReasonCode:    services.ImportReasonUnregistered,
+		ReasonMessage: "网络尚未登记到 Tairitsu，可直接接管",
 	})
+	assert.Equal(t, services.ImportableNetworksSummary{Total: 2, Available: 1, Managed: 1, Blocked: 0}, result.Summary)
 }
 
 func TestNetworkServiceGetAllNetworksIncludesMemberStats(t *testing.T) {

@@ -461,12 +461,111 @@ func (c *Client) GetNetworkIDs() ([]string, error) {
 		return nil, err
 	}
 
-	var networkIDs []string
-	if err := json.Unmarshal(respBody, &networkIDs); err != nil {
+	networkIDs, err := parseNetworkIDs(respBody)
+	if err != nil {
 		return nil, fmt.Errorf("解析网络ID列表失败: %w; 响应预览: %s", err, responsePreview(respBody))
 	}
 
 	return networkIDs, nil
+}
+
+func parseNetworkIDs(data []byte) ([]string, error) {
+	trimmed := strings.TrimSpace(string(data))
+	if trimmed == "" || trimmed == "null" {
+		return []string{}, nil
+	}
+
+	var raw any
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil, err
+	}
+
+	switch value := raw.(type) {
+	case []any:
+		return parseNetworkIDsFromArray(value), nil
+	case map[string]any:
+		return parseNetworkIDsFromObject(value), nil
+	default:
+		return nil, fmt.Errorf("不支持的网络列表格式")
+	}
+}
+
+func parseNetworkIDsFromArray(items []any) []string {
+	networkIDs := make([]string, 0, len(items))
+	seen := make(map[string]struct{}, len(items))
+
+	for _, item := range items {
+		switch value := item.(type) {
+		case string:
+			appendUniqueNetworkID(&networkIDs, seen, value)
+		case map[string]any:
+			appendUniqueNetworkID(&networkIDs, seen, extractNetworkIDFromObject(value))
+		}
+	}
+
+	sort.Strings(networkIDs)
+	return networkIDs
+}
+
+func parseNetworkIDsFromObject(items map[string]any) []string {
+	networkIDs := make([]string, 0, len(items))
+	seen := make(map[string]struct{}, len(items))
+
+	if nested, ok := items["networks"]; ok {
+		switch value := nested.(type) {
+		case []any:
+			return parseNetworkIDsFromArray(value)
+		case map[string]any:
+			return parseNetworkIDsFromObject(value)
+		}
+	}
+
+	for key, value := range items {
+		if looksLikeNetworkID(key) {
+			appendUniqueNetworkID(&networkIDs, seen, key)
+			continue
+		}
+
+		if object, ok := value.(map[string]any); ok {
+			appendUniqueNetworkID(&networkIDs, seen, extractNetworkIDFromObject(object))
+		}
+	}
+
+	sort.Strings(networkIDs)
+	return networkIDs
+}
+
+func extractNetworkIDFromObject(item map[string]any) string {
+	id, _ := item["id"].(string)
+	if looksLikeNetworkID(id) {
+		return id
+	}
+	return ""
+}
+
+func appendUniqueNetworkID(networkIDs *[]string, seen map[string]struct{}, id string) {
+	if !looksLikeNetworkID(id) {
+		return
+	}
+	if _, ok := seen[id]; ok {
+		return
+	}
+	seen[id] = struct{}{}
+	*networkIDs = append(*networkIDs, id)
+}
+
+func looksLikeNetworkID(id string) bool {
+	if len(id) != 16 {
+		return false
+	}
+
+	for _, r := range id {
+		if (r < '0' || r > '9') && (r < 'a' || r > 'f') && (r < 'A' || r > 'F') {
+			return false
+		}
+	}
+
+	return true
 }
 
 // GetNetworkStatus 获取网络状态

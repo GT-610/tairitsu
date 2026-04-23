@@ -461,25 +461,80 @@ func (s *NetworkService) SetZTClient(client *zerotier.Client) {
 	s.ztClient = client
 }
 
-// ImportableNetworkSummary 可导入网络摘要（轻量级，只包含ID）
-type ImportableNetworkSummary struct {
-	NetworkID    string `json:"network_id"`
-	Reason       string `json:"reason"`
-	IsImportable bool   `json:"is_importable"`
+const importCandidateConcurrency = 4
+
+const (
+	ImportCandidateAvailable = "available"
+	ImportCandidateManaged   = "managed"
+	ImportCandidateBlocked   = "blocked"
+
+	ImportReasonUnregistered         = "unregistered"
+	ImportReasonUnassigned           = "unassigned"
+	ImportReasonAlreadyManaged       = "already_managed"
+	ImportReasonControllerReadFailed = "controller_read_failed"
+	ImportReasonControllerNotFound   = "controller_not_found"
+	ImportReasonDatabaseWriteFailed  = "database_write_failed"
+	ImportReasonAlreadyOwnedByTarget = "already_owned_by_target"
+	ImportReasonDuplicateRequest     = "duplicate_request"
+)
+
+type ImportableNetworkCandidate struct {
+	NetworkID        string `json:"network_id"`
+	Name             string `json:"name,omitempty"`
+	Description      string `json:"description,omitempty"`
+	ControllerStatus string `json:"controller_status,omitempty"`
+	MemberCount      *int   `json:"member_count,omitempty"`
+	Status           string `json:"status"`
+	CanImport        bool   `json:"can_import"`
+	ReasonCode       string `json:"reason_code"`
+	ReasonMessage    string `json:"reason_message"`
+	OwnerID          string `json:"owner_id,omitempty"`
+	OwnerUsername    string `json:"owner_username,omitempty"`
 }
 
-type ImportNetworkFailure struct {
-	NetworkID string `json:"network_id"`
-	Reason    string `json:"reason"`
+type ImportableNetworksSummary struct {
+	Total     int `json:"total"`
+	Available int `json:"available"`
+	Managed   int `json:"managed"`
+	Blocked   int `json:"blocked"`
+}
+
+type ImportableNetworksResult struct {
+	Candidates []ImportableNetworkCandidate `json:"candidates"`
+	Summary    ImportableNetworksSummary    `json:"summary"`
+}
+
+type ImportTargetOwner struct {
+	ID       string `json:"id"`
+	Username string `json:"username"`
+}
+
+type ImportNetworkResultItem struct {
+	NetworkID     string `json:"network_id"`
+	Name          string `json:"name,omitempty"`
+	OwnerID       string `json:"owner_id,omitempty"`
+	OwnerUsername string `json:"owner_username,omitempty"`
+	ReasonCode    string `json:"reason_code,omitempty"`
+	ReasonMessage string `json:"reason_message,omitempty"`
+}
+
+type ImportNetworksSummary struct {
+	Requested int `json:"requested"`
+	Imported  int `json:"imported"`
+	Failed    int `json:"failed"`
+	Skipped   int `json:"skipped"`
 }
 
 type ImportNetworksResult struct {
-	ImportedIDs []string               `json:"imported_ids"`
-	Failed      []ImportNetworkFailure `json:"failed"`
+	TargetOwner ImportTargetOwner         `json:"target_owner"`
+	Summary     ImportNetworksSummary     `json:"summary"`
+	Imported    []ImportNetworkResultItem `json:"imported"`
+	Failed      []ImportNetworkResultItem `json:"failed"`
+	Skipped     []ImportNetworkResultItem `json:"skipped"`
 }
 
-// GetImportableNetworks 获取可导入的网络ID列表（轻量级）
-func (s *NetworkService) GetImportableNetworks() ([]ImportableNetworkSummary, error) {
+// GetImportableNetworks 获取控制器接管候选列表
+func (s *NetworkService) GetImportableNetworks() (*ImportableNetworksResult, error) {
 	db := s.getDB()
 	if db == nil {
 		logger.Warn("服务层：数据库未初始化")
@@ -503,38 +558,61 @@ func (s *NetworkService) GetImportableNetworks() ([]ImportableNetworkSummary, er
 		return nil, err
 	}
 
-	// 创建网络ID到数据库记录的映射
 	dbNetworkMap := make(map[string]*models.Network)
 	for _, net := range dbNetworks {
 		dbNetworkMap[net.ID] = net
 	}
 
-	// 筛选可导入的网络
-	importableNetworks := make([]ImportableNetworkSummary, 0, len(ztNetworkIDs))
-	for _, networkID := range ztNetworkIDs {
-		dbNet, exists := dbNetworkMap[networkID]
-
-		importable := ImportableNetworkSummary{
-			NetworkID:    networkID,
-			Reason:       "",
-			IsImportable: false,
-		}
-
-		if !exists {
-			importable.Reason = "网络尚未登记到 Tairitsu"
-			importable.IsImportable = true
-		} else if dbNet.OwnerID == "" {
-			importable.Reason = "网络尚未分配所有者"
-			importable.IsImportable = true
-		} else {
-			importable.Reason = "网络已有所有者"
-			importable.IsImportable = false
-		}
-
-		importableNetworks = append(importableNetworks, importable)
+	allUsers, err := db.GetAllUsers()
+	if err != nil {
+		logger.Error("服务层：获取用户列表失败", zap.Error(err))
+		return nil, err
 	}
 
-	return importableNetworks, nil
+	usernameByID := make(map[string]string, len(allUsers))
+	for _, user := range allUsers {
+		usernameByID[user.ID] = user.Username
+	}
+
+	candidates := make([]ImportableNetworkCandidate, len(ztNetworkIDs))
+	var wg sync.WaitGroup
+	limiter := make(chan struct{}, min(importCandidateConcurrency, len(ztNetworkIDs)))
+
+	for index, networkID := range ztNetworkIDs {
+		wg.Add(1)
+		go func(i int, id string) {
+			defer wg.Done()
+			limiter <- struct{}{}
+			defer func() {
+				<-limiter
+			}()
+
+			dbNet := dbNetworkMap[id]
+			candidates[i] = s.buildImportCandidate(id, dbNet, usernameByID)
+		}(index, networkID)
+	}
+
+	wg.Wait()
+
+	result := &ImportableNetworksResult{
+		Candidates: candidates,
+		Summary: ImportableNetworksSummary{
+			Total: len(candidates),
+		},
+	}
+
+	for _, candidate := range candidates {
+		switch candidate.Status {
+		case ImportCandidateAvailable:
+			result.Summary.Available++
+		case ImportCandidateManaged:
+			result.Summary.Managed++
+		case ImportCandidateBlocked:
+			result.Summary.Blocked++
+		}
+	}
+
+	return result, nil
 }
 
 // ImportNetworks 导入指定的网络
@@ -563,6 +641,16 @@ func (s *NetworkService) ImportNetworks(networkIDs []string, ownerID string, act
 		return nil, ErrImportOwnerNotFound
 	}
 
+	allUsers, err := db.GetAllUsers()
+	if err != nil {
+		logger.Error("服务层：获取用户列表失败", zap.Error(err))
+		return nil, err
+	}
+	usernamesByID := make(map[string]string, len(allUsers))
+	for _, user := range allUsers {
+		usernamesByID[user.ID] = user.Username
+	}
+
 	dbNetworks, err := db.GetAllNetworks()
 	if err != nil {
 		logger.Error("服务层：获取数据库网络列表失败", zap.Error(err))
@@ -589,17 +677,41 @@ func (s *NetworkService) ImportNetworks(networkIDs []string, ownerID string, act
 	}
 
 	result := &ImportNetworksResult{
-		ImportedIDs: make([]string, 0, len(networkIDs)),
-		Failed:      make([]ImportNetworkFailure, 0),
+		TargetOwner: ImportTargetOwner{
+			ID:       owner.ID,
+			Username: owner.Username,
+		},
+		Summary: ImportNetworksSummary{
+			Requested: len(networkIDs),
+		},
+		Imported: make([]ImportNetworkResultItem, 0, len(networkIDs)),
+		Failed:   make([]ImportNetworkResultItem, 0),
+		Skipped:  make([]ImportNetworkResultItem, 0),
 	}
 	now := time.Now()
+	seen := make(map[string]struct{}, len(networkIDs))
 
 	for _, networkID := range networkIDs {
+		if _, duplicated := seen[networkID]; duplicated {
+			result.Skipped = append(result.Skipped, ImportNetworkResultItem{
+				NetworkID:     networkID,
+				OwnerID:       owner.ID,
+				OwnerUsername: owner.Username,
+				ReasonCode:    ImportReasonDuplicateRequest,
+				ReasonMessage: "同一批次中重复提交了该网络，已跳过重复项",
+			})
+			continue
+		}
+		seen[networkID] = struct{}{}
+
 		if !ztNetworkSet[networkID] {
 			logger.Warn("服务层：网络不存在于ZeroTier控制器", zap.String("network_id", networkID))
-			result.Failed = append(result.Failed, ImportNetworkFailure{
-				NetworkID: networkID,
-				Reason:    "网络不存在于 ZeroTier 控制器中",
+			result.Failed = append(result.Failed, ImportNetworkResultItem{
+				NetworkID:     networkID,
+				OwnerID:       owner.ID,
+				OwnerUsername: owner.Username,
+				ReasonCode:    ImportReasonControllerNotFound,
+				ReasonMessage: "网络不存在于 ZeroTier 控制器中",
 			})
 			continue
 		}
@@ -611,9 +723,12 @@ func (s *NetworkService) ImportNetworks(networkIDs []string, ownerID string, act
 			ztNet, err := s.ztClient.GetNetwork(networkID)
 			if err != nil {
 				logger.Error("服务层：获取网络详情失败", zap.String("network_id", networkID), zap.Error(err))
-				result.Failed = append(result.Failed, ImportNetworkFailure{
-					NetworkID: networkID,
-					Reason:    "读取 ZeroTier 网络详情失败",
+				result.Failed = append(result.Failed, ImportNetworkResultItem{
+					NetworkID:     networkID,
+					OwnerID:       owner.ID,
+					OwnerUsername: owner.Username,
+					ReasonCode:    ImportReasonControllerReadFailed,
+					ReasonMessage: "读取 ZeroTier 网络详情失败",
 				})
 				continue
 			}
@@ -630,46 +745,136 @@ func (s *NetworkService) ImportNetworks(networkIDs []string, ownerID string, act
 
 			if err := db.CreateNetwork(newNetwork); err != nil {
 				logger.Error("服务层：创建网络记录失败", zap.String("network_id", networkID), zap.Error(err))
-				result.Failed = append(result.Failed, ImportNetworkFailure{
-					NetworkID: networkID,
-					Reason:    "写入数据库失败",
+				result.Failed = append(result.Failed, ImportNetworkResultItem{
+					NetworkID:     networkID,
+					Name:          ztNet.Name,
+					OwnerID:       owner.ID,
+					OwnerUsername: owner.Username,
+					ReasonCode:    ImportReasonDatabaseWriteFailed,
+					ReasonMessage: "写入数据库失败",
 				})
 				continue
 			}
 
 			logger.Info("服务层：成功导入网络", zap.String("network_id", networkID), zap.String("network_name", ztNet.Name))
-			result.ImportedIDs = append(result.ImportedIDs, networkID)
+			result.Imported = append(result.Imported, ImportNetworkResultItem{
+				NetworkID:     networkID,
+				Name:          ztNet.Name,
+				OwnerID:       owner.ID,
+				OwnerUsername: owner.Username,
+			})
 		} else if dbNet.OwnerID == "" {
-			// 网络在数据库中但没有所有者，更新所有者
 			dbNet.OwnerID = ownerID
 			dbNet.UpdatedAt = now
 
 			if err := db.UpdateNetwork(dbNet); err != nil {
 				logger.Error("服务层：更新网络所有者失败", zap.String("network_id", networkID), zap.Error(err))
-				result.Failed = append(result.Failed, ImportNetworkFailure{
-					NetworkID: networkID,
-					Reason:    "更新网络所有者失败",
+				result.Failed = append(result.Failed, ImportNetworkResultItem{
+					NetworkID:     networkID,
+					Name:          dbNet.Name,
+					OwnerID:       owner.ID,
+					OwnerUsername: owner.Username,
+					ReasonCode:    ImportReasonDatabaseWriteFailed,
+					ReasonMessage: "更新网络所有者失败",
 				})
 				continue
 			}
 
 			logger.Info("服务层：成功认领网络", zap.String("network_id", networkID))
-			result.ImportedIDs = append(result.ImportedIDs, networkID)
+			result.Imported = append(result.Imported, ImportNetworkResultItem{
+				NetworkID:     networkID,
+				Name:          dbNet.Name,
+				OwnerID:       owner.ID,
+				OwnerUsername: owner.Username,
+			})
 		} else if dbNet.OwnerID != ownerID {
 			logger.Warn("服务层：网络属于其他用户，无法导入", zap.String("network_id", networkID), zap.String("owner_id", dbNet.OwnerID))
-			result.Failed = append(result.Failed, ImportNetworkFailure{
-				NetworkID: networkID,
-				Reason:    "网络属于其他用户，无法导入",
+			result.Skipped = append(result.Skipped, ImportNetworkResultItem{
+				NetworkID:     networkID,
+				Name:          dbNet.Name,
+				OwnerID:       dbNet.OwnerID,
+				OwnerUsername: usernamesByID[dbNet.OwnerID],
+				ReasonCode:    ImportReasonAlreadyManaged,
+				ReasonMessage: "网络已由其他 owner 接管，已跳过",
 			})
 			continue
 		} else {
 			logger.Info("服务层：网络已属于目标用户，跳过", zap.String("network_id", networkID), zap.String("owner_id", ownerID))
-			result.Failed = append(result.Failed, ImportNetworkFailure{
-				NetworkID: networkID,
-				Reason:    "目标用户已拥有该网络，无需重复导入",
+			result.Skipped = append(result.Skipped, ImportNetworkResultItem{
+				NetworkID:     networkID,
+				Name:          dbNet.Name,
+				OwnerID:       owner.ID,
+				OwnerUsername: owner.Username,
+				ReasonCode:    ImportReasonAlreadyOwnedByTarget,
+				ReasonMessage: "目标 owner 已拥有该网络，已跳过重复导入",
 			})
 		}
 	}
 
+	result.Summary.Imported = len(result.Imported)
+	result.Summary.Failed = len(result.Failed)
+	result.Summary.Skipped = len(result.Skipped)
+
 	return result, nil
+}
+
+func (s *NetworkService) buildImportCandidate(networkID string, dbNet *models.Network, usernameByUserID map[string]string) ImportableNetworkCandidate {
+	candidate := ImportableNetworkCandidate{
+		NetworkID: networkID,
+	}
+
+	if dbNet != nil {
+		candidate.Name = dbNet.Name
+		candidate.Description = dbNet.Description
+		candidate.OwnerID = dbNet.OwnerID
+		candidate.OwnerUsername = usernameByUserID[dbNet.OwnerID]
+	}
+
+	ztNet, err := s.ztClient.GetNetwork(networkID)
+	if err == nil && ztNet != nil {
+		if ztNet.Name != "" {
+			candidate.Name = ztNet.Name
+		}
+		if ztNet.Description != "" {
+			candidate.Description = ztNet.Description
+		}
+		candidate.ControllerStatus = ztNet.Status
+
+		members, memberErr := s.ztClient.GetMembers(networkID)
+		if memberErr != nil {
+			logger.Warn("服务层：获取导入候选网络成员数失败", zap.String("network_id", networkID), zap.Error(memberErr))
+		} else {
+			memberCount := len(members)
+			candidate.MemberCount = &memberCount
+		}
+	}
+
+	switch {
+	case dbNet == nil && err == nil:
+		candidate.Status = ImportCandidateAvailable
+		candidate.CanImport = true
+		candidate.ReasonCode = ImportReasonUnregistered
+		candidate.ReasonMessage = "网络尚未登记到 Tairitsu，可直接接管"
+	case dbNet != nil && dbNet.OwnerID == "":
+		candidate.Status = ImportCandidateAvailable
+		candidate.CanImport = true
+		candidate.ReasonCode = ImportReasonUnassigned
+		candidate.ReasonMessage = "网络已登记但尚未分配 owner，可继续接管"
+	case dbNet != nil && dbNet.OwnerID != "":
+		candidate.Status = ImportCandidateManaged
+		candidate.CanImport = false
+		candidate.ReasonCode = ImportReasonAlreadyManaged
+		if candidate.OwnerUsername != "" {
+			candidate.ReasonMessage = fmt.Sprintf("网络已由 %s 接管", candidate.OwnerUsername)
+		} else {
+			candidate.ReasonMessage = "网络已由其他 owner 接管"
+		}
+	default:
+		candidate.Status = ImportCandidateBlocked
+		candidate.CanImport = false
+		candidate.ReasonCode = ImportReasonControllerReadFailed
+		candidate.ReasonMessage = "读取控制器网络详情失败，暂时无法导入"
+	}
+
+	return candidate
 }
