@@ -1,148 +1,78 @@
 # Tairitsu
 
-**注意：此项目仍在开发中。当前优先目标是面向单实例自托管部署的 SQLite 优先 MVP。**
+Tairitsu 是一个面向独立安装 ZeroTier 控制器的自托管 Web 控制台，重点覆盖日常主线管理：初始化、登录与注册、网络与成员管理、网络设置、导入接管，以及用户治理。
 
-Tairitsu 是 ZeroTier 控制器的 Web 管理界面实现，提供友好的 GUI 来管理 ZeroTier 网络、成员和配置，由 Golang 后端（通过官方 API 与 ZeroTier 控制器通信）和 React 前端组成。
+它当前面向 **SQLite、单实例、自托管** 部署场景，不追求做成像 `ztnet` 那样更厚的平台型系统；`Planet` 生成也仍然保留为实验性能力。
 
-## 功能特性
+## 当前范围
 
-- **网络管理**：创建、编辑和删除 ZeroTier 网络
-- **成员管理**：管理网络成员、授权设备并分配 IP
-- **配置控制**：配置网络设置，包括 IP 范围、路由和规则
-- **实时状态**：监控网络和成员状态
-- **SQLite 优先 MVP**：一期仅正式支持 SQLite
-- **安全认证**：基于 JWT 的安全访问认证
-- **响应式设计**：Material Design 现代化响应式界面
-- **管理工具**：支持导入现有 ZeroTier 网络，并在需要时生成自定义 Planet 文件
+- 设置向导：控制器连接、SQLite、初始管理员创建
+- 用户能力：注册、登录、修改密码、会话管理、管理员转让、管理员创建用户、重置密码、删除用户
+- 网络 owner 视角下的网络与成员管理
+- IPv4、IPv6、Managed Routes、DNS、多播设置
+- 导入尚未被 Tairitsu 接管的控制器网络
 
-## 一期支持矩阵
+## 访问模型
 
-- 正式支持：SQLite、单实例自托管 ZeroTier 控制器、小规模管理员场景
-- 当前主线已可用：网络管理、成员管理、网络设置、导入现有控制器网络
-- 开发中：更完整的账户设置与 Planet 工具链
-- 当前不作为一期承诺：MySQL、PostgreSQL
-
-## 当前运行模型
-
-- 后端已经收敛为显式依赖装配路径，统一组装配置、数据库、ZeroTier client、service、handler 与 middleware。
-- setup 阶段路由与运行时路由按应用状态隔离，不再依赖单独的“重载路由”步骤。
-- 前后端按同版本一起分发，因此内部 API 会直接清理无用兼容层，而不是长期保留兼容接口。
+- 每个 ZeroTier 网络在 Tairitsu 中都恰好有一个 `owner`
+- 网络 `owner` 负责该网络及其成员管理
+- 平台 `admin` 负责初始化、用户治理和网络导入
+- 平台 `admin` 不会自动获得所有已归属网络的读写权限
 
 ## 部署
 
-### Docker / Podman
+当前公开部署主路径是 Docker / Podman：
 
-1. 在 ZeroTier 主目录中创建 `local.conf` 文件（通常位于 `/var/lib/zerotier-one`）。如果已存在 `local.conf` 文件，请跳过此步骤。
+- 镜像：`ghcr.io/gt-610/tairitsu:latest`
+- 当前发布镜像目标：`linux/amd64`
+- 控制器要求：独立安装的 ZeroTier 控制器，并通过 `local.conf` 开放 API 访问
 
-2. 在 ZeroTier 的 `local.conf` 中配置 `allowManagementFrom`：
+详细文档：
 
-   ```json
-   {
-      "settings": {
-         "allowManagementFrom": [
-               "0.0.0.0/0",
-               "::/0"
-         ]
-      }
-   }
-   ```
+- [安装与部署](../docs/INSTALLATION.md)
+- [运行维护与支持边界](../docs/OPERATIONS.md)
+- [API 文档](../docs/api/Tairitsu_API_Documentation.md)
 
-   这一步会让 ZeroTier 控制器可从任何 IP 地址访问。
+手动主机安装可以用于开发，但当前公开文档主路径仍是 Docker / Podman。
 
-   如果需要更严格的访问控制，也可以这样改，但是需要确保 Tairitsu 容器能够访问该 IP：
+## 开发
 
-   ```json
-   {
-      "settings": {
-         "allowManagementFrom": [
-               "<本地IP网段>",
-         ]
-      }
-   }
-   ```
-
-   修改配置后，重启 ZeroTier 容器。
-
-3. **运行 Tairitsu 容器**
-
-   ```bash
-   docker run -d \
-       --name tairitsu \
-       -p 3000:3000 \
-       -v /var/lib/zerotier-one:/var/lib/zerotier-one \
-       -v path/to/tairitsu/data:/app/data \
-       ghcr.io/gt-610/tairitsu:latest
-   ```
-
-   或使用 Compose：
-
-   ```yaml
-   services:
-     tairitsu:
-       image: ghcr.io/gt-610/tairitsu:latest
-       ports:
-         - 3000:3000
-       volumes:
-         - /var/lib/zerotier-one:/var/lib/zerotier-one
-         - path/to/tairitsu/data:/app/data
-   ```
-
-### 手动安装
-
-还没写完。
-
-### 开发
-
-#### 前置条件
+前置条件：
 
 - Go 1.25 或更高版本（需启用 CGO）
 - Bun 1.3 或更高版本
 - 本地或 Docker 中运行的 ZeroTier 控制器
 
-#### 后端
+构建后端：
+
 ```bash
 GOCACHE=/tmp/go-build GOMODCACHE=/tmp/go-mod go build -o ./build/tairitsu ./cmd/tairitsu
 ```
 
-#### 前端
+运行前端：
+
 ```bash
 cd web
 bun install
 bun run dev
 ```
 
-前端开发服务器默认在 3000 端口启动，并将 API 请求代理到后端服务器。
+发布前基线：
 
-生产构建命令：
-
-```bash
-cd web
-bun run build
-```
-
-附加公开文档：
-
-- [API 文档](../docs/api/Tairitsu_API_Documentation.md)
-
-## 贡献
-
-欢迎贡献！有问题就交 Issue 或发 PR。
+- `go test ./...`
+- `bun test`
+- `bun run lint`
+- `bun run build`
+- `docker build .`
 
 ## 许可证
 
-[GNU GPL v3](LICENSE)。
+[GNU GPL v3](../LICENSE)
 
 ## 法律声明
 
-自 1.16.0 版本起，ZeroTier 的控制器组件采用[商业性的、专有的非开源许可协议](https://github.com/zerotier/ZeroTierOne/blob/main/nonfree/LICENSE.md)。Tairitsu 从未重新分发任何 ZeroTier 控制器代码，完全符合 ZeroTier 的许可条款。
+Tairitsu 不重新分发任何 ZeroTier 控制器代码，而是通过官方 API 与**独立安装**的 ZeroTier 控制器通信，避免落入 ZeroTier 控制器专有代码分发范围。
 
-### ZeroTier 许可证合规性
-Tairitsu 是 ZeroTier 网络的独立管理界面。本项目**不包含、分发或修改**任何 ZeroTier 源代码或二进制文件。
+`Generate Planet` 功能基于 [ztnodeid-go](https://github.com/kmahyyg/ztnodeid-go) 修改，遵循其 GNU GPL v3 许可证，**并非**来自 ZeroTier 本身。
 
-该软件通过官方 API 与**独立安装**的 ZeroTier 控制器通信。用户必须在遵守许可的前提下，部署自己的 ZeroTier 控制器。
-
-“生成 Planet” 功能基于 [ztnodeid-go](https://github.com/kmahyyg/ztnodeid-go) 修改，遵循其 GNU GPL v3 许可证，**并非**来自 ZeroTier 本身。
-
----
-
-Tairitsu **不是** ZeroTier 的产品。它**不隶属于** ZeroTier 公司，也未经其认可或支持。
+Tairitsu **不是** ZeroTier 的产品，也**不隶属于**、**不受认可于**、**不受支持于** ZeroTier, Inc.
