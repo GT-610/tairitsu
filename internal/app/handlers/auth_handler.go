@@ -37,6 +37,10 @@ func (h *AuthHandler) Register(c fiber.Ctx) error {
 	logger.Info("开始用户注册", zap.String("username", req.Username))
 
 	role := "user"
+	if h.stateService != nil && h.stateService.IsInitialized() && !h.stateService.RuntimeSettings().AllowPublicRegistration {
+		logger.Warn("公开注册已关闭，拒绝运行态注册", zap.String("username", req.Username))
+		return writeUserServiceError(c, services.ErrPublicRegistrationDisabled)
+	}
 	if h.stateService != nil && !h.stateService.IsInitialized() {
 		hasAdmin, err := h.userService.HasAdminUser()
 		if err != nil {

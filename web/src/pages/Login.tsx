@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { 
   Box, 
   Typography, 
@@ -14,8 +14,9 @@ import {
 import { LockOutlined } from '@mui/icons-material';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../services/auth';
-import { authAPI } from '../services/api';
+import { authAPI, systemAPI } from '../services/api';
 import { getErrorMessage, hasStatus } from '../services/errors';
+import { isPublicRegistrationEnabled } from '../utils/publicRegistration';
 
 function getNavigationMessage(state: unknown): string {
   if (!state || typeof state !== 'object' || !('message' in state)) {
@@ -48,6 +49,7 @@ function Login() {
   const [loading, setLoading] = useState<boolean>(false);
   // Global login error message state
   const [loginError, setLoginError] = useState<string>('');
+  const [allowPublicRegistration, setAllowPublicRegistration] = useState(true);
   const location = useLocation();
   const navigationMessage = getNavigationMessage(location.state);
   // Remember me checkbox state
@@ -57,6 +59,19 @@ function Login() {
   const navigate = useNavigate();
   // Auth service hook for login functionality
   const { login } = useAuth();
+
+  useEffect(() => {
+    const loadSetupStatus = async () => {
+      try {
+        const response = await systemAPI.getSetupStatus();
+        setAllowPublicRegistration(response.data.allowPublicRegistration);
+      } catch {
+        setAllowPublicRegistration(true);
+      }
+    };
+
+    void loadSetupStatus();
+  }, []);
 
   // Handle input change
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -265,19 +280,29 @@ function Login() {
                 </Button>
               </Grid>
               <Grid size={6}>
-                <Button
-                  component={Link} 
-                  to="/register"
-                  variant="text"
-                  fullWidth
-                  sx={{
-                    justifyContent: 'flex-end',
-                    textTransform: 'none',
-                    fontWeight: 'normal'
-                  }}
-                >
-                  没有账户? 去注册
-                </Button>
+                {isPublicRegistrationEnabled(allowPublicRegistration) ? (
+                  <Button
+                    component={Link} 
+                    to="/register"
+                    variant="text"
+                    fullWidth
+                    sx={{
+                      justifyContent: 'flex-end',
+                      textTransform: 'none',
+                      fontWeight: 'normal'
+                    }}
+                  >
+                    没有账户? 去注册
+                  </Button>
+                ) : (
+                  <Typography
+                    variant="body2"
+                    color="text.secondary"
+                    sx={{ textAlign: 'right', display: 'block', mt: 1 }}
+                  >
+                    公开注册当前已关闭
+                  </Typography>
+                )}
               </Grid>
             </Grid>
           </Box>

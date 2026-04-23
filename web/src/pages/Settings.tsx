@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   Alert,
   Box,
@@ -11,18 +11,28 @@ import {
   DialogContent,
   DialogTitle,
   Divider,
+  FormControl,
+  FormControlLabel,
+  InputLabel,
+  MenuItem,
+  Select,
   Stack,
+  Switch,
   TextField,
   Typography,
 } from '@mui/material'
-import { authAPI } from '../services/api'
+import { authAPI, systemAPI, userAPI, type RuntimeSettings, type User } from '../services/api'
 import { getErrorMessage } from '../services/errors'
 import { useAuth } from '../services/auth'
+import { useNavigate } from 'react-router-dom'
 
 function Settings() {
+  const navigate = useNavigate()
+  const { user, refreshUser } = useAuth()
+  const isAdmin = user?.role === 'admin'
+
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState<{ severity: 'info' | 'success' | 'error'; text: string } | null>(null)
-  const { user } = useAuth()
 
   const [openChangePasswordDialog, setOpenChangePasswordDialog] = useState(false)
   const [passwordForm, setPasswordForm] = useState({
@@ -37,9 +47,45 @@ function Settings() {
   })
   const [changingPassword, setChangingPassword] = useState(false)
 
+  const [runtimeSettings, setRuntimeSettings] = useState<RuntimeSettings>({ allow_public_registration: true })
+  const [initialRuntimeSettings, setInitialRuntimeSettings] = useState<RuntimeSettings>({ allow_public_registration: true })
+  const [savingRuntimeSettings, setSavingRuntimeSettings] = useState(false)
+
+  const [users, setUsers] = useState<User[]>([])
+  const [targetAdminId, setTargetAdminId] = useState('')
+  const [transferringAdmin, setTransferringAdmin] = useState(false)
+
   useEffect(() => {
-    setLoading(false)
-  }, [])
+    const loadSettings = async () => {
+      try {
+        setLoading(true)
+
+        if (isAdmin) {
+          const [settingsResponse, usersResponse] = await Promise.all([
+            systemAPI.getRuntimeSettings(),
+            userAPI.getAllUsers(),
+          ])
+
+          setRuntimeSettings(settingsResponse.data)
+          setInitialRuntimeSettings(settingsResponse.data)
+          setUsers(usersResponse.data)
+        }
+      } catch (error: unknown) {
+        setMessage({ severity: 'error', text: getErrorMessage(error, '加载设置失败') })
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    void loadSettings()
+  }, [isAdmin])
+
+  const transferCandidates = useMemo(
+    () => users.filter((candidate) => candidate.id !== user?.id && candidate.role !== 'admin'),
+    [user?.id, users],
+  )
+
+  const runtimeSettingsUnsaved = runtimeSettings.allow_public_registration !== initialRuntimeSettings.allow_public_registration
 
   const resetPasswordDialog = () => {
     setOpenChangePasswordDialog(false)
@@ -116,6 +162,44 @@ function Settings() {
     }
   }
 
+  const handleSaveRuntimeSettings = async () => {
+    try {
+      setSavingRuntimeSettings(true)
+      const response = await systemAPI.updateRuntimeSettings(runtimeSettings)
+      setRuntimeSettings(response.data.settings)
+      setInitialRuntimeSettings(response.data.settings)
+      setMessage({ severity: 'success', text: '实例治理设置已保存' })
+    } catch (error: unknown) {
+      setMessage({ severity: 'error', text: getErrorMessage(error, '保存实例治理设置失败') })
+    } finally {
+      setSavingRuntimeSettings(false)
+    }
+  }
+
+  const handleTransferAdmin = async () => {
+    if (!targetAdminId) {
+      setMessage({ severity: 'error', text: '请选择新的管理员' })
+      return
+    }
+
+    try {
+      setTransferringAdmin(true)
+      const response = await userAPI.transferAdmin(targetAdminId)
+      const nextAdmin = response.data.user
+      const refreshedProfile = await authAPI.getProfile()
+      refreshUser(refreshedProfile.data)
+      setMessage({ severity: 'success', text: `管理员身份已转让给 ${nextAdmin.username}` })
+      void navigate('/networks', {
+        replace: true,
+        state: { message: `管理员身份已转让给 ${nextAdmin.username}` },
+      })
+    } catch (error: unknown) {
+      setMessage({ severity: 'error', text: getErrorMessage(error, '转让管理员身份失败') })
+    } finally {
+      setTransferringAdmin(false)
+    }
+  }
+
   return (
     <Box sx={{ p: 3 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
@@ -130,10 +214,6 @@ function Settings() {
         </Alert>
       )}
 
-      <Alert severity="info" sx={{ mb: 3 }}>
-        当前设置页只保留已经具备完整后端支持的账户能力。语言切换、账号注销、会话管理与登录设备查看等功能暂未进入主线交付，本页仅保留清晰说明，不再展示伪交互入口。
-      </Alert>
-
       {loading ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', mt: 10 }}>
           <CircularProgress />
@@ -143,9 +223,8 @@ function Settings() {
           <Card sx={{ mb: 3 }}>
             <CardContent>
               <Typography variant="h6" gutterBottom>
-                账户设置
+                账户安全
               </Typography>
-
               <Stack spacing={2.5} sx={{ mb: 3 }}>
                 <Box>
                   <Typography variant="body2" color="text.secondary">
@@ -160,7 +239,7 @@ function Settings() {
                     当前角色
                   </Typography>
                   <Typography variant="body1">
-                    {user?.role === 'admin' ? '管理员' : '普通用户'}
+                    {isAdmin ? '管理员' : '普通用户'}
                   </Typography>
                 </Box>
               </Stack>
@@ -176,43 +255,115 @@ function Settings() {
                   修改密码
                 </Button>
                 <Typography variant="body2" color="text.secondary">
-                  修改密码后，当前会话会继续保持。建议随后在其他设备或新会话中验证新密码是否正常生效。
+                  当前阶段已正式开放的账户安全能力是密码修改。会话管理、登录设备查看和账号注销将在后续阶段单独推进。
                 </Typography>
               </Stack>
             </CardContent>
           </Card>
 
-          <Card sx={{ mb: 3 }}>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                安全说明
-              </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                Tairitsu 当前已正式开放的账户安全能力是密码修改。其余安全入口会在具备明确后端支持和验证路径后再开放，不会以占位按钮形式提前暴露。
-              </Typography>
-              <Stack spacing={1.5}>
-                <Alert severity="success">已可用：密码修改</Alert>
-                <Alert severity="info">规划中：会话管理、登录设备查看</Alert>
-                <Alert severity="info">规划中：账号注销与更完整的账户安全操作</Alert>
-              </Stack>
-            </CardContent>
-          </Card>
+          {isAdmin ? (
+            <>
+              <Card sx={{ mb: 3 }}>
+                <CardContent>
+                  <Typography variant="h6" gutterBottom>
+                    实例治理
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                    这里控制公开发布最关键的实例级边界。当前支持配置公开注册策略，后续更完整的实例治理项会继续收敛到本区块。
+                  </Typography>
 
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                预留项
-              </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                以下能力已明确不在当前阶段主线交付中。后续是否推进，将以实际后端能力和产品优先级为准，而不是先开放空壳入口。
-              </Typography>
-              <Stack spacing={1.5}>
-                <Alert severity="info">语言切换：未进入当前交付范围</Alert>
-                <Alert severity="info">账号注销：未进入当前交付范围</Alert>
-                <Alert severity="info">系统级设置中心：暂不在本轮推进范围内</Alert>
-              </Stack>
-            </CardContent>
-          </Card>
+                  <Stack spacing={2.5}>
+                    <FormControlLabel
+                      control={(
+                        <Switch
+                          checked={runtimeSettings.allow_public_registration}
+                          onChange={(event) => setRuntimeSettings((previous) => ({
+                            ...previous,
+                            allow_public_registration: event.target.checked,
+                          }))}
+                        />
+                      )}
+                      label="允许公开注册"
+                    />
+                    <Typography variant="body2" color="text.secondary">
+                      关闭后，未登录用户将不能继续公开创建账号，但 setup 阶段的首个管理员创建逻辑不受影响。
+                    </Typography>
+                    <Stack direction="row" spacing={1.5}>
+                      <Button
+                        variant="outlined"
+                        disabled={!runtimeSettingsUnsaved || savingRuntimeSettings}
+                        onClick={() => setRuntimeSettings(initialRuntimeSettings)}
+                      >
+                        重置
+                      </Button>
+                      <Button
+                        variant="contained"
+                        disabled={!runtimeSettingsUnsaved || savingRuntimeSettings}
+                        onClick={() => { void handleSaveRuntimeSettings() }}
+                      >
+                        {savingRuntimeSettings ? '保存中...' : '保存'}
+                      </Button>
+                    </Stack>
+                  </Stack>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardContent>
+                  <Typography variant="h6" gutterBottom>
+                    管理员职责
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                    当前系统保持单管理员模型。你可以在这里把管理员身份转让给某个普通用户，转让后自己会自动降为普通用户。
+                  </Typography>
+                  <Stack spacing={2}>
+                    <Alert severity="info">当前管理员：{user?.username || '未知用户'}</Alert>
+                    <FormControl fullWidth>
+                      <InputLabel id="transfer-admin-label">新的管理员</InputLabel>
+                      <Select
+                        labelId="transfer-admin-label"
+                        value={targetAdminId}
+                        label="新的管理员"
+                        onChange={(event) => setTargetAdminId(event.target.value)}
+                      >
+                        {transferCandidates.map((candidate) => (
+                          <MenuItem key={candidate.id} value={candidate.id}>
+                            {candidate.username}
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                    {transferCandidates.length === 0 && (
+                      <Alert severity="warning">
+                        当前没有可接收管理员身份的普通用户。请先创建或保留至少一个普通用户账号。
+                      </Alert>
+                    )}
+                    <Button
+                      variant="contained"
+                      color="warning"
+                      disabled={!targetAdminId || transferringAdmin}
+                      onClick={() => { void handleTransferAdmin() }}
+                    >
+                      {transferringAdmin ? '转让中...' : '转让管理员身份'}
+                    </Button>
+                  </Stack>
+                </CardContent>
+              </Card>
+            </>
+          ) : (
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  基础说明
+                </Typography>
+                <Stack spacing={1.5}>
+                  <Alert severity="info">实例治理设置仅对管理员开放。</Alert>
+                  <Alert severity="info">管理员转让仅能由当前管理员发起。</Alert>
+                  <Alert severity="info">更多账户中心能力将在后续阶段补齐。</Alert>
+                </Stack>
+              </CardContent>
+            </Card>
+          )}
         </>
       )}
 

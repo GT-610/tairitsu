@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { 
   Box, 
   Typography, 
@@ -11,8 +11,9 @@ import {
   Grid} from '@mui/material';
 import { PersonAddOutlined } from '@mui/icons-material';
 import { Link, useNavigate } from 'react-router-dom';
-import { authAPI } from '../services/api';
+import { authAPI, systemAPI } from '../services/api';
 import { getErrorMessage } from '../services/errors';
+import { getRegistrationClosedMessage, isPublicRegistrationEnabled } from '../utils/publicRegistration';
 
 // 表单数据类型定义
 interface FormData {
@@ -36,8 +37,22 @@ function Register() {
   const [registerSuccess, setRegisterSuccess] = useState<string>('');
   // Loading state for submit button
   const [loading, setLoading] = useState<boolean>(false);
+  const [registrationAllowed, setRegistrationAllowed] = useState<boolean | null>(null);
   
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const loadSetupStatus = async () => {
+      try {
+        const response = await systemAPI.getSetupStatus();
+        setRegistrationAllowed(response.data.allowPublicRegistration);
+      } catch {
+        setRegistrationAllowed(true);
+      }
+    };
+
+    void loadSetupStatus();
+  }, []);
 
   // Handle input change
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -80,6 +95,11 @@ function Register() {
 
     // Validate form
     if (!validateForm()) {
+      return;
+    }
+
+    if (!isPublicRegistrationEnabled(registrationAllowed)) {
+      setRegisterError(getRegistrationClosedMessage(registrationAllowed));
       return;
     }
 
@@ -140,6 +160,12 @@ function Register() {
           <Typography variant="h5" component="h1" gutterBottom align="center">
             注册到 Tairitsu
           </Typography>
+
+          {!isPublicRegistrationEnabled(registrationAllowed) && (
+            <Alert severity="warning" sx={{ mb: 3 }}>
+              当前实例已关闭公开注册，请联系管理员创建账户或稍后再试。
+            </Alert>
+          )}
           
           {registerError && (
             <Alert severity="error" sx={{ mb: 3 }}>
@@ -167,7 +193,7 @@ function Register() {
               onChange={handleChange}
               error={!!errors.username}
               helperText={errors.username}
-              disabled={loading}
+              disabled={loading || !isPublicRegistrationEnabled(registrationAllowed)}
             />
             <TextField
               margin="normal"
@@ -182,7 +208,7 @@ function Register() {
               onChange={handleChange}
               error={!!errors.password}
               helperText={errors.password}
-              disabled={loading}
+              disabled={loading || !isPublicRegistrationEnabled(registrationAllowed)}
             />
             <TextField
               margin="normal"
@@ -196,14 +222,14 @@ function Register() {
               onChange={handleChange}
               error={!!errors.confirmPassword}
               helperText={errors.confirmPassword}
-              disabled={loading}
+              disabled={loading || !isPublicRegistrationEnabled(registrationAllowed)}
             />
             <Button
               type="submit"
               fullWidth
               variant="contained"
               sx={{ mt: 3, mb: 2 }}
-              disabled={loading}
+              disabled={loading || !isPublicRegistrationEnabled(registrationAllowed)}
             >
               {loading ? (
                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>

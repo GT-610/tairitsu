@@ -12,6 +12,7 @@ var (
 	ErrAdminTransferSelf    = errors.New("不能将管理员身份转让给自己")
 	ErrTransferTargetAdmin  = errors.New("目标用户已经是管理员")
 	ErrAdminAccessDenied    = errors.New("当前用户不是管理员，无法执行该操作")
+	ErrPublicRegistrationDisabled = errors.New("公开注册已关闭，请联系管理员创建账户")
 )
 
 func IsUserDBUnavailable(err error) bool {
@@ -48,4 +49,8 @@ func IsTransferTargetAdmin(err error) bool {
 
 func IsAdminAccessDenied(err error) bool {
 	return errors.Is(err, ErrAdminAccessDenied)
+}
+
+func IsPublicRegistrationDisabled(err error) bool {
+	return errors.Is(err, ErrPublicRegistrationDisabled)
 }

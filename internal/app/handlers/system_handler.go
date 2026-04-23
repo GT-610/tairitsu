@@ -35,6 +35,29 @@ func (h *SystemHandler) GetSystemStatus(c fiber.Ctx) error {
 	return c.Status(fiber.StatusOK).JSON(status)
 }
 
+func (h *SystemHandler) GetRuntimeSettings(c fiber.Ctx) error {
+	settings := h.setupService.GetRuntimeSettings()
+	return c.Status(fiber.StatusOK).JSON(settings)
+}
+
+func (h *SystemHandler) UpdateRuntimeSettings(c fiber.Ctx) error {
+	var req services.RuntimeSettings
+	if err := c.Bind().Body(&req); err != nil {
+		logger.Error("实例设置参数绑定失败", zap.Error(err))
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	if err := h.setupService.UpdateRuntimeSettings(req); err != nil {
+		logger.Error("更新实例设置失败", zap.Error(err))
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"message":  "实例设置更新成功",
+		"settings": req,
+	})
+}
+
 // ConfigureDatabase configures the database connection settings
 func (h *SystemHandler) ConfigureDatabase(c fiber.Ctx) error {
 	var dbConfig models.DatabaseConfig

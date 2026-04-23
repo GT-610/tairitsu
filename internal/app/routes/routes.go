@@ -78,6 +78,8 @@ func SetupRoutes(router *fiber.App, dependencies *assembly.Dependencies) {
 		api.Get("/profile", runtimeOnly, authMiddleware, authHandler.GetProfile)
 		api.Post("/auth/update-password", runtimeOnly, authMiddleware, authHandler.ChangePassword)
 		api.Put("/profile/password", runtimeOnly, authMiddleware, authHandler.ChangePassword)
+		api.Get("/system/settings", runtimeOnly, authMiddleware, adminOnly, systemHandler.GetRuntimeSettings)
+		api.Put("/system/settings", runtimeOnly, authMiddleware, adminOnly, systemHandler.UpdateRuntimeSettings)
 
 		api.Get("/status", runtimeOnly, authMiddleware, networkHandler.GetStatus)
 

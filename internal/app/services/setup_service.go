@@ -110,6 +110,14 @@ func (s *SetupService) GetSetupStatus() SetupStatus {
 	return s.stateService.GetSetupStatus(s.userService, s.networkService)
 }
 
+func (s *SetupService) GetRuntimeSettings() RuntimeSettings {
+	return s.stateService.RuntimeSettings()
+}
+
+func (s *SetupService) UpdateRuntimeSettings(settings RuntimeSettings) error {
+	return s.stateService.SaveRuntimeSettings(settings)
+}
+
 func (s *SetupService) InitializeAdminCreation() (string, error) {
 	resetDoneKey := "admin_creation_reset_done"
 	if config.GetTempSetting(resetDoneKey) == "true" {

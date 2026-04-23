@@ -204,6 +204,7 @@ export interface SetupStatus {
   initialized: boolean;
   hasDatabase?: boolean;
   hasAdmin?: boolean;
+  allowPublicRegistration: boolean;
   ztStatus?: {
     version: string;
     address: string;
@@ -226,6 +227,10 @@ export interface DatabaseSetupConfig {
 export interface ZeroTierSetupConfig {
   controllerUrl: string;
   tokenPath: string;
+}
+
+export interface RuntimeSettings {
+  allow_public_registration: boolean;
 }
 
 export interface IdentityInfo {
@@ -358,6 +363,10 @@ export const systemAPI = {
   setInitialized: (initialized: boolean) => api.post('/system/initialized', { initialized }),
   // Initialize admin account creation step
   initializeAdminCreation: () => api.post('/system/admin/init'),
+  // Get runtime settings (admin only)
+  getRuntimeSettings: () => api.get<RuntimeSettings>('/system/settings'),
+  // Update runtime settings (admin only)
+  updateRuntimeSettings: (settings: RuntimeSettings) => api.put<{ message: string; settings: RuntimeSettings }>('/system/settings', settings),
   // Get system statistics (CPU, memory usage)
   getSystemStats: () => api.get<SystemStats>('/system/stats')
 }

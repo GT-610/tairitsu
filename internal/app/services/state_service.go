@@ -7,10 +7,15 @@ import (
 )
 
 type SetupStatus struct {
-	Initialized bool             `json:"initialized"`
-	HasDatabase bool             `json:"hasDatabase,omitempty"`
-	HasAdmin    bool             `json:"hasAdmin,omitempty"`
-	ZTStatus    *zerotier.Status `json:"ztStatus,omitempty"`
+	Initialized             bool             `json:"initialized"`
+	HasDatabase             bool             `json:"hasDatabase,omitempty"`
+	HasAdmin                bool             `json:"hasAdmin,omitempty"`
+	AllowPublicRegistration bool             `json:"allowPublicRegistration"`
+	ZTStatus                *zerotier.Status `json:"ztStatus,omitempty"`
+}
+
+type RuntimeSettings struct {
+	AllowPublicRegistration bool `json:"allow_public_registration"`
 }
 
 type StateService struct {
@@ -80,18 +85,33 @@ func (s *StateService) SaveZeroTierConfig(url, tokenPath string) error {
 	return nil
 }
 
+func (s *StateService) RuntimeSettings() RuntimeSettings {
+	return RuntimeSettings{
+		AllowPublicRegistration: config.AllowPublicRegistration(s.Config()),
+	}
+}
+
+func (s *StateService) SaveRuntimeSettings(settings RuntimeSettings) error {
+	cfg := s.ensureConfig()
+	return config.SetAllowPublicRegistrationOn(cfg, settings.AllowPublicRegistration)
+}
+
 func (s *StateService) CreateZTClient() (*zerotier.Client, error) {
 	return zerotier.NewClientWithConfig(s.Config())
 }
 
 func (s *StateService) GetSetupStatus(userService *UserService, networkService *NetworkService) SetupStatus {
 	if !s.IsInitialized() {
-		return SetupStatus{Initialized: false}
+		return SetupStatus{
+			Initialized:             false,
+			AllowPublicRegistration: config.AllowPublicRegistration(s.Config()),
+		}
 	}
 
 	status := SetupStatus{
-		Initialized: true,
-		HasDatabase: s.DatabaseConfigured(),
+		Initialized:             true,
+		HasDatabase:             s.DatabaseConfigured(),
+		AllowPublicRegistration: config.AllowPublicRegistration(s.Config()),
 	}
 
 	if status.HasDatabase && userService != nil {

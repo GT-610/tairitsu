@@ -13,6 +13,8 @@ func writeUserServiceError(c fiber.Ctx, err error) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	case services.IsInvalidCredentials(err):
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": err.Error()})
+	case services.IsPublicRegistrationDisabled(err):
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": err.Error()})
 	case services.IsUserNotFound(err):
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": err.Error()})
 	case services.IsOldPasswordIncorrect(err), services.IsInvalidUserRole(err), services.IsAdminTransferSelf(err), services.IsTransferTargetAdmin(err):
