@@ -93,7 +93,7 @@ func (ai *AppInitializer) loadConfiguration() error {
 // initializeDatabase 初始化数据库
 func (ai *AppInitializer) initializeDatabase() error {
 	// 加载数据库配置
-	dbConfig := database.LoadConfig()
+	dbConfig := database.LoadConfigFromApp(ai.context.Config)
 
 	// 如果未配置数据库类型，跳过初始化
 	if dbConfig.Type == "" {
@@ -126,7 +126,7 @@ func (ai *AppInitializer) initializeZeroTierClient() error {
 	}
 
 	// 动态创建ZeroTier客户端
-	ztClient, err := zerotier.NewClient()
+	ztClient, err := zerotier.NewClientWithConfig(ai.context.Config)
 	if err != nil {
 		return fmt.Errorf("创建ZeroTier客户端失败: %w", err)
 	}

@@ -56,7 +56,7 @@ func (s *SetupService) ConfigureDatabase(dbConfig models.DatabaseConfig) (databa
 		dbCfg.Path = "data/tairitsu.db"
 	}
 
-	if err := database.SaveConfig(dbCfg); err != nil {
+	if err := s.stateService.SaveDatabaseConfig(dbCfg); err != nil {
 		db.Close()
 		return database.Config{}, fmt.Errorf("保存数据库配置失败: %w", err)
 	}
@@ -66,11 +66,11 @@ func (s *SetupService) ConfigureDatabase(dbConfig models.DatabaseConfig) (databa
 }
 
 func (s *SetupService) SaveZeroTierConfig(controllerURL, tokenPath string) (*zerotier.Status, error) {
-	if err := config.SetZTConfig(controllerURL, tokenPath); err != nil {
+	if err := s.stateService.SaveZeroTierConfig(controllerURL, tokenPath); err != nil {
 		return nil, fmt.Errorf("保存ZeroTier配置失败: %w", err)
 	}
 
-	ztClient, err := zerotier.NewClient()
+	ztClient, err := s.stateService.CreateZTClient()
 	if err != nil {
 		return nil, fmt.Errorf("创建ZeroTier客户端失败: %w", err)
 	}
@@ -87,11 +87,11 @@ func (s *SetupService) SaveZeroTierConfig(controllerURL, tokenPath string) (*zer
 func (s *SetupService) InitializeAdminCreation() (string, error) {
 	resetDoneKey := "admin_creation_reset_done"
 	if config.GetTempSetting(resetDoneKey) == "true" {
-		dbConfig := database.LoadConfig()
+		dbConfig := s.stateService.DatabaseConfig()
 		return string(dbConfig.Type), nil
 	}
 
-	dbConfig := database.LoadConfig()
+	dbConfig := s.stateService.DatabaseConfig()
 	if dbConfig.Type == "" {
 		return "", fmt.Errorf("尚未完成数据库配置，请先配置 SQLite 数据库")
 	}

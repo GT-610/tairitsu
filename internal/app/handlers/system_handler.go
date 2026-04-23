@@ -4,7 +4,6 @@ import (
 	"github.com/GT-610/tairitsu/internal/app/logger"
 	"github.com/GT-610/tairitsu/internal/app/models"
 	"github.com/GT-610/tairitsu/internal/app/services"
-	"github.com/GT-610/tairitsu/internal/zerotier"
 	"github.com/gofiber/fiber/v3"
 	"go.uber.org/zap"
 )
@@ -76,7 +75,7 @@ func (h *SystemHandler) ConfigureDatabase(c fiber.Ctx) error {
 // TestZeroTierConnection tests connectivity to the ZeroTier controller
 func (h *SystemHandler) TestZeroTierConnection(c fiber.Ctx) error {
 	// Dynamically create ZeroTier client
-	ztClient, err := zerotier.NewClient()
+	ztClient, err := h.stateService.CreateZTClient()
 	if err != nil {
 		logger.Error("[ZeroTier] 连接测试失败: 创建客户端失败", zap.Error(err))
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "创建ZeroTier客户端失败: " + err.Error()})

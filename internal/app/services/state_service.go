@@ -2,6 +2,7 @@ package services
 
 import (
 	"github.com/GT-610/tairitsu/internal/app/config"
+	"github.com/GT-610/tairitsu/internal/app/database"
 	"github.com/GT-610/tairitsu/internal/zerotier"
 )
 
@@ -63,6 +64,40 @@ func (s *StateService) IsInitialized() bool {
 func (s *StateService) DatabaseConfigured() bool {
 	cfg := s.Config()
 	return cfg != nil && cfg.Database.Type != ""
+}
+
+func (s *StateService) DatabaseConfig() database.Config {
+	return database.LoadConfigFromApp(s.Config())
+}
+
+func (s *StateService) SaveDatabaseConfig(dbCfg database.Config) error {
+	cfg := s.Config()
+	if cfg == nil {
+		cfg = &config.Config{}
+	}
+	if err := database.SaveConfigToApp(cfg, dbCfg); err != nil {
+		return err
+	}
+	s.cfg = cfg
+	config.AppConfig = cfg
+	return nil
+}
+
+func (s *StateService) SaveZeroTierConfig(url, tokenPath string) error {
+	cfg := s.Config()
+	if cfg == nil {
+		cfg = &config.Config{}
+	}
+	if err := config.SetZTConfigOn(cfg, url, tokenPath); err != nil {
+		return err
+	}
+	s.cfg = cfg
+	config.AppConfig = cfg
+	return nil
+}
+
+func (s *StateService) CreateZTClient() (*zerotier.Client, error) {
+	return zerotier.NewClientWithConfig(s.Config())
 }
 
 func (s *StateService) GetSetupStatus(userService *UserService, networkService *NetworkService) SetupStatus {

@@ -56,7 +56,7 @@ func NewDependencies(cfg *config.Config, db database.DBInterface, ztClient *zero
 	}
 
 	stateService := services.NewStateServiceWithConfig(cfg)
-	runtimeService := services.NewRuntimeService(userService, networkService)
+	runtimeService := services.NewRuntimeService(userService, networkService, stateService)
 	setupService := services.NewSetupService(runtimeService, stateService)
 	systemService := services.NewSystemService()
 	jwtService := services.NewJWTService(jwtSecret)

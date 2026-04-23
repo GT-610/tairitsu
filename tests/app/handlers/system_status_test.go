@@ -77,8 +77,8 @@ func TestSystemHandler_GetSystemStatus_Uninitialized(t *testing.T) {
 
 	userService := services.NewUserServiceWithoutDB()
 	networkService := services.NewNetworkService(nil, nil)
-	stateService := services.NewStateService()
-	runtimeService := services.NewRuntimeService(userService, networkService)
+	stateService := services.NewStateServiceWithConfig(config.AppConfig)
+	runtimeService := services.NewRuntimeService(userService, networkService, stateService)
 	handler := apphandlers.NewSystemHandler(networkService, userService, stateService, runtimeService, services.NewSetupService(runtimeService, stateService), services.NewSystemService())
 
 	app := fiber.New()
@@ -114,8 +114,8 @@ func TestSystemHandler_GetSystemStatus_Initialized(t *testing.T) {
 		},
 	})
 	networkService := services.NewNetworkService(nil, nil)
-	stateService := services.NewStateService()
-	runtimeService := services.NewRuntimeService(userService, networkService)
+	stateService := services.NewStateServiceWithConfig(config.AppConfig)
+	runtimeService := services.NewRuntimeService(userService, networkService, stateService)
 	handler := apphandlers.NewSystemHandler(networkService, userService, stateService, runtimeService, services.NewSetupService(runtimeService, stateService), services.NewSystemService())
 
 	app := fiber.New()
