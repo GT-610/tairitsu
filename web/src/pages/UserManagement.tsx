@@ -18,10 +18,19 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
-  TextField
+  TextField,
+  FormControl,
+  FormControlLabel,
+  InputLabel,
+  MenuItem,
+  Select,
+  Switch,
+  Divider,
+  Card,
+  CardContent
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
-import { User, userAPI, authAPI, type ResetUserPasswordResponse, type CreateUserResponse, type DeleteUserResponse } from '../services/api';
+import { User, userAPI, authAPI, systemAPI, type ResetUserPasswordResponse, type CreateUserResponse, type DeleteUserResponse, type RuntimeSettings } from '../services/api';
 import { getErrorMessage } from '../services/errors';
 import { useAuth } from '../services/auth';
 
@@ -33,6 +42,11 @@ function UserManagement() {
   const [loading, setLoading] = useState<boolean>(true);
   const [updating, setUpdating] = useState<boolean>(false);
   const [message, setMessage] = useState<{ text: string; severity: 'success' | 'error' | 'info' } | null>(null);
+  const [runtimeSettings, setRuntimeSettings] = useState<RuntimeSettings>({ allow_public_registration: true });
+  const [initialRuntimeSettings, setInitialRuntimeSettings] = useState<RuntimeSettings>({ allow_public_registration: true });
+  const [savingRuntimeSettings, setSavingRuntimeSettings] = useState(false);
+  const [targetAdminId, setTargetAdminId] = useState('');
+  const [transferringAdmin, setTransferringAdmin] = useState(false);
   const [openCreateDialog, setOpenCreateDialog] = useState(false);
   const [createUsername, setCreateUsername] = useState('');
   const [createUsernameError, setCreateUsernameError] = useState('');
@@ -53,8 +67,13 @@ function UserManagement() {
         setCurrentUser(currentUserResponse.data);
         
         // 获取所有用户
-        const usersResponse = await userAPI.getAllUsers();
+        const [usersResponse, settingsResponse] = await Promise.all([
+          userAPI.getAllUsers(),
+          systemAPI.getRuntimeSettings(),
+        ]);
         setUsers(usersResponse.data);
+        setRuntimeSettings(settingsResponse.data);
+        setInitialRuntimeSettings(settingsResponse.data);
       } catch (error: unknown) {
         setMessage({ 
           text: getErrorMessage(error, '获取用户数据失败'), 
@@ -68,38 +87,8 @@ function UserManagement() {
     void fetchData();
   }, []);
 
-  // 转让管理员身份
-  const handleTransferAdmin = async (user: User) => {
-    try {
-      setUpdating(true);
-
-      const response = await userAPI.transferAdmin(user.id);
-      const nextAdmin = response.data.user;
-      const refreshedProfile = await authAPI.getProfile();
-
-      setUsers(prevUsers =>
-        prevUsers.map((item) => {
-          if (item.id === currentUser?.id) {
-            return { ...item, role: 'user' };
-          }
-          if (item.id === nextAdmin.id) {
-            return { ...item, role: 'admin' };
-          }
-          return item;
-        })
-      );
-      setCurrentUser(refreshedProfile.data);
-      refreshUser(refreshedProfile.data);
-      void navigate('/networks', {
-        replace: true,
-        state: { message: `管理员身份已转让给 ${nextAdmin.username}` },
-      });
-    } catch (error) {
-      setMessage({ text: getErrorMessage(error, '转让管理员身份失败'), severity: 'error' });
-    } finally {
-      setUpdating(false);
-    }
-  };
+  const transferCandidates = users.filter((candidate) => candidate.id !== currentUser?.id && candidate.role !== 'admin');
+  const runtimeSettingsUnsaved = runtimeSettings.allow_public_registration !== initialRuntimeSettings.allow_public_registration;
 
   const handleCreateUser = async () => {
     if (!createUsername.trim()) {
@@ -175,9 +164,60 @@ function UserManagement() {
     }
   };
 
+  const handleSaveRuntimeSettings = async () => {
+    try {
+      setSavingRuntimeSettings(true);
+      const response = await systemAPI.updateRuntimeSettings(runtimeSettings);
+      setRuntimeSettings(response.data.settings);
+      setInitialRuntimeSettings(response.data.settings);
+      setMessage({ text: '实例治理设置已保存', severity: 'success' });
+    } catch (error: unknown) {
+      setMessage({ text: getErrorMessage(error, '保存实例治理设置失败'), severity: 'error' });
+    } finally {
+      setSavingRuntimeSettings(false);
+    }
+  };
+
   // 关闭提示消息
   const handleCloseMessage = () => {
     setMessage(null);
+  };
+
+  const handleTransferAdmin = async (targetUserId?: string) => {
+    const nextTargetUserId = targetUserId || targetAdminId;
+    if (!nextTargetUserId) {
+      setMessage({ text: '请选择新的管理员', severity: 'error' });
+      return;
+    }
+
+    try {
+      setTransferringAdmin(true);
+      const response = await userAPI.transferAdmin(nextTargetUserId);
+      const nextAdmin = response.data.user;
+      const refreshedProfile = await authAPI.getProfile();
+
+      setUsers((prevUsers) =>
+        prevUsers.map((item) => {
+          if (item.id === currentUser?.id) {
+            return { ...item, role: 'user' };
+          }
+          if (item.id === nextAdmin.id) {
+            return { ...item, role: 'admin' };
+          }
+          return item;
+        }),
+      );
+      setCurrentUser(refreshedProfile.data);
+      refreshUser(refreshedProfile.data);
+      void navigate('/networks', {
+        replace: true,
+        state: { message: `管理员身份已转让给 ${nextAdmin.username}` },
+      });
+    } catch (error: unknown) {
+      setMessage({ text: getErrorMessage(error, '转让管理员身份失败'), severity: 'error' });
+    } finally {
+      setTransferringAdmin(false);
+    }
   };
 
   if (loading) {
@@ -220,6 +260,95 @@ function UserManagement() {
           </Alert>
         </Snackbar>
       )}
+
+      <Card sx={{ mb: 3 }}>
+        <CardContent>
+          <Typography variant="h6" gutterBottom>
+            实例治理
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            这里控制实例级账户与发布边界。当前支持公开注册策略配置。
+          </Typography>
+
+          <Stack spacing={2.5}>
+            <FormControlLabel
+              control={(
+                <Switch
+                  checked={runtimeSettings.allow_public_registration}
+                  onChange={(event) => setRuntimeSettings((previous) => ({
+                    ...previous,
+                    allow_public_registration: event.target.checked,
+                  }))}
+                />
+              )}
+              label="允许公开注册"
+            />
+            <Typography variant="body2" color="text.secondary">
+              关闭后，未登录用户将不能继续公开创建账号，但 setup 阶段的首个管理员创建逻辑不受影响。
+            </Typography>
+            <Stack direction="row" spacing={1.5}>
+              <Button
+                variant="outlined"
+                disabled={!runtimeSettingsUnsaved || savingRuntimeSettings}
+                onClick={() => setRuntimeSettings(initialRuntimeSettings)}
+              >
+                重置
+              </Button>
+              <Button
+                variant="contained"
+                disabled={!runtimeSettingsUnsaved || savingRuntimeSettings}
+                onClick={() => { void handleSaveRuntimeSettings(); }}
+              >
+                {savingRuntimeSettings ? '保存中...' : '保存'}
+              </Button>
+            </Stack>
+          </Stack>
+        </CardContent>
+      </Card>
+
+      <Card sx={{ mb: 3 }}>
+        <CardContent>
+          <Typography variant="h6" gutterBottom>
+            管理员职责
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            当前系统保持单管理员模型。你可以在这里把管理员身份转让给某个普通用户，转让后自己会自动降为普通用户。
+          </Typography>
+          <Stack spacing={2}>
+            <Alert severity="info">当前管理员：{currentUser?.username || '未知用户'}</Alert>
+            <FormControl fullWidth>
+              <InputLabel id="transfer-admin-label">新的管理员</InputLabel>
+              <Select
+                labelId="transfer-admin-label"
+                value={targetAdminId}
+                label="新的管理员"
+                onChange={(event) => setTargetAdminId(event.target.value)}
+              >
+                {transferCandidates.map((candidate) => (
+                  <MenuItem key={candidate.id} value={candidate.id}>
+                    {candidate.username}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            {transferCandidates.length === 0 && (
+              <Alert severity="warning">
+                当前没有可接收管理员身份的普通用户。请先创建或保留至少一个普通用户账号。
+              </Alert>
+            )}
+            <Button
+              variant="contained"
+              color="warning"
+              disabled={!targetAdminId || transferringAdmin}
+              onClick={() => { void handleTransferAdmin(); }}
+            >
+              {transferringAdmin ? '转让中...' : '转让管理员身份'}
+            </Button>
+          </Stack>
+        </CardContent>
+      </Card>
+
+      <Divider sx={{ mb: 3 }} />
 
       <TableContainer component={Paper}>
         <Table sx={{ minWidth: 650 }} aria-label="user management table">
@@ -280,8 +409,8 @@ function UserManagement() {
                       <Button
                         variant="contained"
                         color="primary"
-                        onClick={() => { void handleTransferAdmin(user); }}
-                        disabled={updating}
+                        onClick={() => { void handleTransferAdmin(user.id); }}
+                        disabled={updating || transferringAdmin}
                       >
                         转让管理员
                       </Button>
