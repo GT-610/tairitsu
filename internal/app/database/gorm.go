@@ -21,6 +21,13 @@ func (g *GormDB) Init() error {
 	return nil
 }
 
+// WithTransaction 在事务中执行数据库操作
+func (g *GormDB) WithTransaction(fn func(DBInterface) error) error {
+	return g.db.Transaction(func(tx *gorm.DB) error {
+		return fn(&GormDB{db: tx})
+	})
+}
+
 // CreateUser 创建用户
 func (g *GormDB) CreateUser(user *models.User) error {
 	result := g.db.Create(user)

@@ -9,6 +9,9 @@ type DBInterface interface {
 	// 初始化数据库
 	Init() error
 
+	// 在事务中执行数据库操作
+	WithTransaction(fn func(DBInterface) error) error
+
 	// 用户相关操作
 	CreateUser(user *models.User) error
 	GetUserByID(id string) (*models.User, error)

@@ -4,6 +4,7 @@ import "errors"
 
 var (
 	ErrUserDBUnavailable          = errors.New("系统尚未配置数据库，请先完成初始设置")
+	ErrInvalidUsername            = errors.New("用户名不能为空")
 	ErrUsernameExists             = errors.New("用户名已存在")
 	ErrInvalidCredentials         = errors.New("用户名或密码错误")
 	ErrUserNotFound               = errors.New("用户不存在")
@@ -36,6 +37,10 @@ func IsInvalidCredentials(err error) bool {
 
 func IsUsernameExists(err error) bool {
 	return errors.Is(err, ErrUsernameExists)
+}
+
+func IsInvalidUsername(err error) bool {
+	return errors.Is(err, ErrInvalidUsername)
 }
 
 func IsOldPasswordIncorrect(err error) bool {

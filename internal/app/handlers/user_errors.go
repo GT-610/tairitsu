@@ -9,7 +9,7 @@ func writeUserServiceError(c fiber.Ctx, err error) error {
 	switch {
 	case services.IsUserDBUnavailable(err):
 		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{"error": err.Error()})
-	case services.IsUsernameExists(err):
+	case services.IsUsernameExists(err), services.IsInvalidUsername(err):
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	case services.IsInvalidCredentials(err):
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": err.Error()})

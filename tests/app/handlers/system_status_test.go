@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/GT-610/tairitsu/internal/app/config"
+	"github.com/GT-610/tairitsu/internal/app/database"
 	apphandlers "github.com/GT-610/tairitsu/internal/app/handlers"
 	"github.com/GT-610/tairitsu/internal/app/models"
 	"github.com/GT-610/tairitsu/internal/app/services"
@@ -21,6 +22,9 @@ type handlerStateDBStub struct {
 }
 
 func (s *handlerStateDBStub) Init() error { return nil }
+func (s *handlerStateDBStub) WithTransaction(fn func(database.DBInterface) error) error {
+	return fn(s)
+}
 func (s *handlerStateDBStub) CreateUser(user *models.User) error {
 	s.users = append(s.users, user)
 	return nil

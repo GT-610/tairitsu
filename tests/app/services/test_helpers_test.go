@@ -1,6 +1,7 @@
 package services
 
 import (
+	"github.com/GT-610/tairitsu/internal/app/database"
 	"github.com/GT-610/tairitsu/internal/app/models"
 )
 
@@ -9,6 +10,9 @@ type stateServiceDBStub struct {
 }
 
 func (s *stateServiceDBStub) Init() error { return nil }
+func (s *stateServiceDBStub) WithTransaction(fn func(database.DBInterface) error) error {
+	return fn(s)
+}
 func (s *stateServiceDBStub) CreateUser(user *models.User) error {
 	s.users = append(s.users, user)
 	return nil

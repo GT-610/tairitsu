@@ -1,14 +1,81 @@
 package services
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
+	"github.com/GT-610/tairitsu/internal/app/database"
 	"github.com/GT-610/tairitsu/internal/app/models"
 	appservices "github.com/GT-610/tairitsu/internal/app/services"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+type txFailingDB struct {
+	inner                 database.DBInterface
+	failSessionUpdateAt   int
+	failDeleteUser        bool
+	sessionUpdateAttempts int
+}
+
+func (d *txFailingDB) Init() error { return d.inner.Init() }
+func (d *txFailingDB) WithTransaction(fn func(database.DBInterface) error) error {
+	return d.inner.WithTransaction(func(tx database.DBInterface) error {
+		return fn(&txFailingDB{
+			inner:               tx,
+			failSessionUpdateAt: d.failSessionUpdateAt,
+			failDeleteUser:      d.failDeleteUser,
+		})
+	})
+}
+func (d *txFailingDB) CreateUser(user *models.User) error { return d.inner.CreateUser(user) }
+func (d *txFailingDB) GetUserByID(id string) (*models.User, error) {
+	return d.inner.GetUserByID(id)
+}
+func (d *txFailingDB) GetUserByUsername(username string) (*models.User, error) {
+	return d.inner.GetUserByUsername(username)
+}
+func (d *txFailingDB) GetAllUsers() ([]*models.User, error) { return d.inner.GetAllUsers() }
+func (d *txFailingDB) UpdateUser(user *models.User) error   { return d.inner.UpdateUser(user) }
+func (d *txFailingDB) DeleteUser(id string) error {
+	if d.failDeleteUser {
+		return fmt.Errorf("forced delete failure")
+	}
+	return d.inner.DeleteUser(id)
+}
+func (d *txFailingDB) CreateSession(session *models.Session) error {
+	return d.inner.CreateSession(session)
+}
+func (d *txFailingDB) GetSessionByID(id string) (*models.Session, error) {
+	return d.inner.GetSessionByID(id)
+}
+func (d *txFailingDB) GetSessionsByUserID(userID string) ([]*models.Session, error) {
+	return d.inner.GetSessionsByUserID(userID)
+}
+func (d *txFailingDB) UpdateSession(session *models.Session) error {
+	d.sessionUpdateAttempts++
+	if d.failSessionUpdateAt > 0 && d.sessionUpdateAttempts == d.failSessionUpdateAt {
+		return fmt.Errorf("forced session update failure")
+	}
+	return d.inner.UpdateSession(session)
+}
+func (d *txFailingDB) CreateNetwork(network *models.Network) error {
+	return d.inner.CreateNetwork(network)
+}
+func (d *txFailingDB) GetNetworkByID(id string) (*models.Network, error) {
+	return d.inner.GetNetworkByID(id)
+}
+func (d *txFailingDB) GetNetworksByOwnerID(ownerID string) ([]*models.Network, error) {
+	return d.inner.GetNetworksByOwnerID(ownerID)
+}
+func (d *txFailingDB) GetAllNetworks() ([]*models.Network, error) { return d.inner.GetAllNetworks() }
+func (d *txFailingDB) UpdateNetwork(network *models.Network) error {
+	return d.inner.UpdateNetwork(network)
+}
+func (d *txFailingDB) DeleteNetwork(id string) error { return d.inner.DeleteNetwork(id) }
+func (d *txFailingDB) HasAdminUser() (bool, error)   { return d.inner.HasAdminUser() }
+func (d *txFailingDB) Close() error                  { return d.inner.Close() }
 
 func TestUserServiceRegisterReturnsSentinelForDuplicateUsername(t *testing.T) {
 	db := newTestSQLiteDB(t)
@@ -18,6 +85,29 @@ func TestUserServiceRegisterReturnsSentinelForDuplicateUsername(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = service.Register(&models.RegisterRequest{Username: "admin", Password: "secret123"}, "admin")
+	require.ErrorIs(t, err, appservices.ErrUsernameExists)
+}
+
+func TestUserServiceRegisterRejectsEmptyOrWhitespaceUsername(t *testing.T) {
+	db := newTestSQLiteDB(t)
+	service := appservices.NewUserServiceWithDB(db)
+
+	_, err := service.Register(&models.RegisterRequest{Username: "", Password: "secret123"}, "user")
+	require.ErrorIs(t, err, appservices.ErrInvalidUsername)
+
+	_, err = service.Register(&models.RegisterRequest{Username: "   ", Password: "secret123"}, "user")
+	require.ErrorIs(t, err, appservices.ErrInvalidUsername)
+}
+
+func TestUserServiceRegisterNormalizesUsernameBeforeCheckingDuplicates(t *testing.T) {
+	db := newTestSQLiteDB(t)
+	service := appservices.NewUserServiceWithDB(db)
+
+	user, err := service.Register(&models.RegisterRequest{Username: "  alice  ", Password: "secret123"}, "user")
+	require.NoError(t, err)
+	assert.Equal(t, "alice", user.Username)
+
+	_, err = service.Register(&models.RegisterRequest{Username: "alice", Password: "secret123"}, "user")
 	require.ErrorIs(t, err, appservices.ErrUsernameExists)
 }
 
@@ -162,6 +252,43 @@ func TestUserServiceResetPasswordByAdminUpdatesPasswordAndRevokesSessions(t *tes
 	assert.NotNil(t, reloadedSessionB.RevokedAt)
 }
 
+func TestUserServiceResetPasswordByAdminRollsBackOnSessionRevokeFailure(t *testing.T) {
+	db := newTestSQLiteDB(t)
+	service := appservices.NewUserServiceWithDB(&txFailingDB{
+		inner:               db,
+		failSessionUpdateAt: 1,
+	})
+
+	admin, err := service.Register(&models.RegisterRequest{Username: "admin", Password: "secret123"}, "admin")
+	require.NoError(t, err)
+	target, err := service.Register(&models.RegisterRequest{Username: "alice", Password: "secret123"}, "user")
+	require.NoError(t, err)
+
+	now := time.Now()
+	session := &models.Session{
+		ID:         "session-a",
+		UserID:     target.ID,
+		UserAgent:  "browser-a",
+		IPAddress:  "127.0.0.1",
+		LastSeenAt: now,
+		ExpiresAt:  now.Add(time.Hour),
+		CreatedAt:  now,
+		UpdatedAt:  now,
+	}
+	require.NoError(t, db.CreateSession(session))
+
+	_, _, _, err = service.ResetPasswordByAdmin(admin.ID, target.ID)
+	require.Error(t, err)
+
+	reloaded, err := service.Login(&models.LoginRequest{Username: "alice", Password: "secret123"})
+	require.NoError(t, err)
+	assert.Equal(t, target.ID, reloaded.ID)
+
+	reloadedSession, err := db.GetSessionByID(session.ID)
+	require.NoError(t, err)
+	assert.Nil(t, reloadedSession.RevokedAt)
+}
+
 func TestUserServiceCreateUserByAdminCreatesUserWithTemporaryPassword(t *testing.T) {
 	db := newTestSQLiteDB(t)
 	service := appservices.NewUserServiceWithDB(db)
@@ -178,6 +305,17 @@ func TestUserServiceCreateUserByAdminCreatesUserWithTemporaryPassword(t *testing
 	loggedIn, err := service.Login(&models.LoginRequest{Username: "bob", Password: temporaryPassword})
 	require.NoError(t, err)
 	assert.Equal(t, user.ID, loggedIn.ID)
+}
+
+func TestUserServiceCreateUserByAdminRejectsWhitespaceUsername(t *testing.T) {
+	db := newTestSQLiteDB(t)
+	service := appservices.NewUserServiceWithDB(db)
+
+	admin, err := service.Register(&models.RegisterRequest{Username: "admin", Password: "secret123"}, "admin")
+	require.NoError(t, err)
+
+	_, _, err = service.CreateUserByAdmin(admin.ID, "   ")
+	require.ErrorIs(t, err, appservices.ErrInvalidUsername)
 }
 
 func TestUserServiceDeleteUserByAdminTransfersNetworksAndRevokesSessions(t *testing.T) {
@@ -232,6 +370,57 @@ func TestUserServiceDeleteUserByAdminTransfersNetworksAndRevokesSessions(t *test
 
 	_, err = service.Login(&models.LoginRequest{Username: "alice", Password: "secret123"})
 	require.ErrorIs(t, err, appservices.ErrInvalidCredentials)
+}
+
+func TestUserServiceDeleteUserByAdminRollsBackOnDeleteFailure(t *testing.T) {
+	db := newTestSQLiteDB(t)
+	service := appservices.NewUserServiceWithDB(&txFailingDB{
+		inner:          db,
+		failDeleteUser: true,
+	})
+
+	admin, err := service.Register(&models.RegisterRequest{Username: "admin", Password: "secret123"}, "admin")
+	require.NoError(t, err)
+	target, err := service.Register(&models.RegisterRequest{Username: "alice", Password: "secret123"}, "user")
+	require.NoError(t, err)
+
+	now := time.Now()
+	network := &models.Network{
+		ID:          "net-1",
+		Name:        "alice-network",
+		Description: "test network",
+		OwnerID:     target.ID,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+	require.NoError(t, db.CreateNetwork(network))
+
+	session := &models.Session{
+		ID:         "session-1",
+		UserID:     target.ID,
+		UserAgent:  "browser-a",
+		IPAddress:  "127.0.0.1",
+		LastSeenAt: now,
+		ExpiresAt:  now.Add(time.Hour),
+		CreatedAt:  now,
+		UpdatedAt:  now,
+	}
+	require.NoError(t, db.CreateSession(session))
+
+	_, _, _, err = service.DeleteUserByAdmin(admin.ID, target.ID)
+	require.Error(t, err)
+
+	reloadedUser, err := db.GetUserByID(target.ID)
+	require.NoError(t, err)
+	assert.NotNil(t, reloadedUser)
+
+	reloadedNetwork, err := db.GetNetworkByID(network.ID)
+	require.NoError(t, err)
+	assert.Equal(t, target.ID, reloadedNetwork.OwnerID)
+
+	reloadedSession, err := db.GetSessionByID(session.ID)
+	require.NoError(t, err)
+	assert.Nil(t, reloadedSession.RevokedAt)
 }
 
 func TestUserServiceDeleteUserByAdminRejectsDeletingSelf(t *testing.T) {
