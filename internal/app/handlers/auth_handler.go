@@ -55,8 +55,8 @@ func (h *AuthHandler) Register(c fiber.Ctx) error {
 
 	logger.Info("用户注册成功", zap.String("user_id", user.ID), zap.String("username", user.Username), zap.String("role", user.Role))
 
-	// Initialize ZeroTier client after successful registration when runtime dependencies are available.
-	if h.runtimeService != nil {
+	// Only the setup-time admin creation path should trigger ZeroTier client initialization.
+	if h.runtimeService != nil && h.stateService != nil && !h.stateService.IsInitialized() {
 		logger.Info("初始化ZeroTier客户端")
 		if _, err := h.runtimeService.InitZTClientFromConfig(); err != nil {
 			logger.Warn("ZeroTier客户端初始化失败，稍后将再次尝试", zap.Error(err))
