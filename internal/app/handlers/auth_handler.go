@@ -183,23 +183,20 @@ func (h *AuthHandler) ChangePassword(c fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "新密码与确认密码不匹配"})
 	}
 
-	// Call user service to change password
-	if err := h.userService.ChangePassword(userID.(string), oldPassword, newPassword); err != nil {
+	revokedCount := 0
+	if req.LogoutOtherSessions {
+		count, err := h.userService.ChangePasswordAndRevokeOtherSessions(userID.(string), oldPassword, newPassword, currentSessionID)
+		if err != nil {
+			logger.Error("修改密码失败", zap.String("user_id", userID.(string)), zap.Error(err))
+			return writeUserServiceError(c, err)
+		}
+		revokedCount = count
+	} else if err := h.userService.ChangePassword(userID.(string), oldPassword, newPassword); err != nil {
 		logger.Error("修改密码失败", zap.String("user_id", userID.(string)), zap.Error(err))
 		return writeUserServiceError(c, err)
 	}
 
 	logger.Info("密码修改成功", zap.String("user_id", userID.(string)))
-
-	revokedCount := 0
-	if req.LogoutOtherSessions {
-		count, err := h.sessionService.RevokeOtherSessions(userID.(string), currentSessionID)
-		if err != nil {
-			logger.Error("修改密码后移除其他会话失败", zap.String("user_id", userID.(string)), zap.Error(err))
-			return writeUserServiceError(c, err)
-		}
-		revokedCount = count
-	}
 
 	// Return success response
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{

@@ -141,6 +141,54 @@ func TestUserServiceChangePasswordReturnsSentinelForWrongPassword(t *testing.T) 
 	require.ErrorIs(t, err, appservices.ErrOldPasswordIncorrect)
 }
 
+func TestUserServiceChangePasswordAndRevokeOtherSessionsRollsBackOnSessionFailure(t *testing.T) {
+	db := newTestSQLiteDB(t)
+	service := appservices.NewUserServiceWithDB(&txFailingDB{
+		inner:               db,
+		failSessionUpdateAt: 1,
+	})
+
+	user, err := service.Register(&models.RegisterRequest{Username: "alice", Password: "secret123"}, "user")
+	require.NoError(t, err)
+
+	now := time.Now()
+	currentSession := &models.Session{
+		ID:         "session-current",
+		UserID:     user.ID,
+		UserAgent:  "browser-a",
+		IPAddress:  "127.0.0.1",
+		LastSeenAt: now,
+		ExpiresAt:  now.Add(time.Hour),
+		CreatedAt:  now,
+		UpdatedAt:  now,
+	}
+	otherSession := &models.Session{
+		ID:         "session-other",
+		UserID:     user.ID,
+		UserAgent:  "browser-b",
+		IPAddress:  "127.0.0.2",
+		LastSeenAt: now,
+		ExpiresAt:  now.Add(time.Hour),
+		CreatedAt:  now,
+		UpdatedAt:  now,
+	}
+	require.NoError(t, db.CreateSession(currentSession))
+	require.NoError(t, db.CreateSession(otherSession))
+
+	_, err = service.ChangePasswordAndRevokeOtherSessions(user.ID, "secret123", "updated456", currentSession.ID)
+	require.Error(t, err)
+
+	_, err = service.Login(&models.LoginRequest{Username: "alice", Password: "secret123"})
+	require.NoError(t, err)
+
+	_, err = service.Login(&models.LoginRequest{Username: "alice", Password: "updated456"})
+	require.ErrorIs(t, err, appservices.ErrInvalidCredentials)
+
+	reloadedOtherSession, err := db.GetSessionByID(otherSession.ID)
+	require.NoError(t, err)
+	assert.Nil(t, reloadedOtherSession.RevokedAt)
+}
+
 func TestUserServiceUpdateUserRoleUpdatesStoredUser(t *testing.T) {
 	db := newTestSQLiteDB(t)
 	service := appservices.NewUserServiceWithDB(db)

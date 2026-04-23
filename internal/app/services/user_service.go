@@ -269,10 +269,19 @@ func (s *UserService) UpdateUser(user *models.User) error {
 }
 
 func (s *UserService) ChangePassword(userID, oldPassword, newPassword string) error {
+	_, err := s.changePassword(userID, oldPassword, newPassword, "", false)
+	return err
+}
+
+func (s *UserService) ChangePasswordAndRevokeOtherSessions(userID, oldPassword, newPassword, currentSessionID string) (int, error) {
+	return s.changePassword(userID, oldPassword, newPassword, currentSessionID, true)
+}
+
+func (s *UserService) changePassword(userID, oldPassword, newPassword, currentSessionID string, revokeOtherSessions bool) (int, error) {
 	db := s.getDB()
 	if db == nil {
 		logger.Error("服务层：修改密码失败，数据库未初始化")
-		return ErrUserDBUnavailable
+		return 0, ErrUserDBUnavailable
 	}
 
 	logger.Info("服务层：开始修改密码", zap.String("user_id", userID))
@@ -280,35 +289,64 @@ func (s *UserService) ChangePassword(userID, oldPassword, newPassword string) er
 	user, err := db.GetUserByID(userID)
 	if err != nil {
 		logger.Error("服务层：修改密码失败，获取用户时出错", zap.String("user_id", userID), zap.Error(err))
-		return fmt.Errorf("读取用户失败: %w", err)
+		return 0, fmt.Errorf("读取用户失败: %w", err)
 	}
 
 	if user == nil {
 		logger.Error("服务层：修改密码失败，用户不存在", zap.String("user_id", userID))
-		return ErrUserNotFound
+		return 0, ErrUserNotFound
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(oldPassword)); err != nil {
 		logger.Error("服务层：修改密码失败，原密码错误", zap.String("user_id", userID))
-		return ErrOldPasswordIncorrect
+		return 0, ErrOldPasswordIncorrect
 	}
 
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
 	if err != nil {
 		logger.Error("服务层：修改密码失败，密码加密错误", zap.String("user_id", userID), zap.Error(err))
-		return err
+		return 0, err
 	}
 
-	user.Password = string(hashedPassword)
-	user.UpdatedAt = time.Now()
+	revokedSessions := 0
+	now := time.Now()
+	if err := db.WithTransaction(func(tx database.DBInterface) error {
+		user.Password = string(hashedPassword)
+		user.UpdatedAt = now
 
-	if err := db.UpdateUser(user); err != nil {
-		logger.Error("服务层：修改密码失败，更新用户时出错", zap.String("user_id", userID), zap.Error(err))
-		return fmt.Errorf("更新密码失败: %w", err)
+		if err := tx.UpdateUser(user); err != nil {
+			return fmt.Errorf("更新密码失败: %w", err)
+		}
+
+		if !revokeOtherSessions {
+			return nil
+		}
+
+		sessions, err := tx.GetSessionsByUserID(userID)
+		if err != nil {
+			return fmt.Errorf("读取会话列表失败: %w", err)
+		}
+
+		for _, session := range sessions {
+			if session.ID == currentSessionID || session.RevokedAt != nil {
+				continue
+			}
+			session.RevokedAt = &now
+			session.UpdatedAt = now
+			if err := tx.UpdateSession(session); err != nil {
+				return fmt.Errorf("吊销其他会话失败: %w", err)
+			}
+			revokedSessions++
+		}
+
+		return nil
+	}); err != nil {
+		logger.Error("服务层：修改密码失败，事务执行出错", zap.String("user_id", userID), zap.Error(err))
+		return 0, err
 	}
 
 	logger.Info("服务层：密码修改成功", zap.String("user_id", userID))
-	return nil
+	return revokedSessions, nil
 }
 
 func (s *UserService) UpdateUserRole(userID, role string) (*models.User, error) {
@@ -504,16 +542,15 @@ func (s *UserService) DeleteUserByAdmin(currentAdminID, targetUserID string) (*m
 		return nil, 0, 0, ErrAdminDeleteBlocked
 	}
 
-	networks, err := db.GetNetworksByOwnerID(targetUserID)
-	if err != nil {
-		logger.Error("服务层：删除用户失败，读取用户网络时出错", zap.String("target_user_id", targetUserID), zap.Error(err))
-		return nil, 0, 0, fmt.Errorf("读取用户网络失败: %w", err)
-	}
-
 	now := time.Now()
 	transferredNetworks := 0
 	revokedSessions := 0
 	if err := db.WithTransaction(func(tx database.DBInterface) error {
+		networks, err := tx.GetNetworksByOwnerID(targetUserID)
+		if err != nil {
+			return fmt.Errorf("读取用户网络失败: %w", err)
+		}
+
 		for _, network := range networks {
 			network.OwnerID = currentAdminID
 			network.UpdatedAt = now
