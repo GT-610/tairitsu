@@ -304,10 +304,10 @@ const SetupWizard = () => {
               配置数据库
             </Typography>
             <Typography variant="body1" paragraph>
-              当前一期版本仅正式支持 SQLite 单实例部署。数据库文件将由程序使用默认路径管理。
+              当前仅支持 SQLite 单实例部署。数据库文件将由程序使用默认路径管理。
             </Typography>
             <Alert severity="info" sx={{ mb: 2 }}>
-              MySQL 与 PostgreSQL 相关抽象暂时保留，但当前不纳入一期可用范围。
+              MySQL 与 PostgreSQL 相关抽象暂时保留，但当前不在支持范围内。
             </Alert>
             <form onSubmit={(e) => e.preventDefault()}>
               <TextField
@@ -317,7 +317,7 @@ const SetupWizard = () => {
                 label="数据库类型"
                 value={dbConfig.type}
                 disabled
-                helperText="一期固定为 SQLite"
+                helperText="当前固定为 SQLite"
               />
               <TextField
                 margin="normal"

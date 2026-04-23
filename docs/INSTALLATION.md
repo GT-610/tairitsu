@@ -1,6 +1,6 @@
 # Installation and Deployment
 
-Tairitsu Phase 1 is published for **single-instance self-hosted deployments**. The main supported path is Docker / Podman with a separately installed ZeroTier controller.
+Tairitsu is published for **single-instance self-hosted deployments**. The main supported path is Docker / Podman with a separately installed ZeroTier controller.
 
 ## What You Need
 
@@ -67,7 +67,7 @@ After setup completes, Tairitsu switches into runtime mode and `/setup` is no lo
 
 - Back up the Tairitsu data directory before upgrading.
 - Back up the ZeroTier controller data directory separately if the controller and Tairitsu share the same host.
-- Phase 1 upgrades are expected to preserve the SQLite-first runtime model; there is no public migration guide for switching database engines because MySQL and PostgreSQL are not part of the current support promise.
+- Upgrades are expected to preserve the current SQLite-first runtime model; there is no public migration guide for switching database engines because MySQL and PostgreSQL are not supported today.
 
 ## Public Validation Checklist
 

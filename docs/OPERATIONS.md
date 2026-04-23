@@ -1,10 +1,10 @@
 # Operations and Support Boundaries
 
-This document describes what Tairitsu Phase 1 is meant to cover, what remains experimental, and what operators should verify before calling an instance healthy.
+This document describes what Tairitsu currently covers, what remains experimental, and what operators should verify before calling an instance healthy.
 
 ## Supported Product Shape
 
-Tairitsu Phase 1 is intended for:
+Tairitsu is intended for:
 
 - SQLite-backed deployments
 - single-instance self-hosted controller management
@@ -23,7 +23,7 @@ The current mainline includes:
 
 ## Explicit Boundaries
 
-The following are **not** current Phase 1 promises:
+The following are **not** supported today:
 
 - MySQL or PostgreSQL support
 - multi-tenant organizations or broader platform tenancy features
@@ -35,7 +35,7 @@ The following are **not** current Phase 1 promises:
 
 `Planet` generation remains available for controlled testing, but it is **experimental**:
 
-- it is outside the Phase 1 mainline support claim
+- it is outside the mainline support claim
 - it should not block a release
 - it should be validated independently before production use
 
