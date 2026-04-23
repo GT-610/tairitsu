@@ -68,12 +68,11 @@ Current direction:
 
 ## Stability Risks Still Worth Tracking
 
-### 1. Some compatibility wrappers still exist
+### 1. A few global compatibility surfaces still remain
 
 - `config.AppConfig`
-- global DB instance
 
-These are now legacy compatibility paths rather than the main runtime flow. The active server path is assembled through explicit dependencies and runtime services, but a later stage should continue shrinking the remaining wrapper surface.
+These no longer define the main runtime path. The active server flow is assembled through explicit dependencies and runtime services, but the remaining global config surface should keep shrinking in later phases.
 
 ### 2. Setup flow still spans multiple endpoints
 
