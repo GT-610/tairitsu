@@ -74,7 +74,6 @@ func SetupRoutes(router *fiber.App, dependencies *assembly.Dependencies) {
 		api.Post("/system/zerotier/init", setupOnly, systemHandler.InitZeroTierClient)
 		api.Post("/system/initialized", setupOnly, systemHandler.SetInitialized)
 		api.Post("/system/admin/init", setupOnly, systemHandler.InitializeAdminCreation)
-		api.Post("/system/reload", setupOnly, systemHandler.ReloadRoutes)
 
 		api.Get("/profile", runtimeOnly, authMiddleware, authHandler.GetProfile)
 		api.Post("/auth/update-password", runtimeOnly, authMiddleware, authHandler.ChangePassword)

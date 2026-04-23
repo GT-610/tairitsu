@@ -308,8 +308,6 @@ export const systemAPI = {
   getSetupStatus: () => api.get<SetupStatus>('/system/status'),
   // Configure database
   configureDatabase: (config: DatabaseSetupConfig) => api.post('/system/database', config),
-  // Reload routes
-  reloadRoutes: () => api.post('/system/reload'),
   // Initialize ZeroTier client
   initZeroTierClient: () => api.post('/system/zerotier/init'),
   // Test ZeroTier connection

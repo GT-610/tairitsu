@@ -173,14 +173,6 @@ func (h *SystemHandler) SetInitialized(c fiber.Ctx) error {
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{"message": "初始化状态更新成功"})
 }
 
-// ReloadRoutes handles API request to reload application routes
-func (h *SystemHandler) ReloadRoutes(c fiber.Ctx) error {
-	logger.Info("重新加载路由接口已弃用")
-	return c.Status(fiber.StatusOK).JSON(fiber.Map{
-		"message": "重新加载路由接口已弃用；当前版本会在现有服务实例上直接刷新依赖",
-	})
-}
-
 // GetSystemStats retrieves system resource usage statistics
 // This endpoint is only accessible to admin users
 func (h *SystemHandler) GetSystemStats(c fiber.Ctx) error {

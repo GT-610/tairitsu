@@ -30,6 +30,12 @@ Tairitsu is a web-based controller interface for ZeroTier, providing a user-frie
 - In progress: broader account settings and Planet tooling
 - Not currently supported as a Phase 1 promise: MySQL, PostgreSQL
 
+## Runtime Model
+
+- The backend now uses an explicit dependency assembly path for config, database, ZeroTier client, services, handlers, and middleware.
+- Setup-only routes and runtime routes are separated by application state rather than a late route reload step.
+- Frontend and backend are shipped together for the same release, so internal APIs are cleaned up in place instead of carrying long-term compatibility shims.
+
 ## Deployment
 
 ### Docker / Podman
