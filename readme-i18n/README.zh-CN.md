@@ -1,5 +1,7 @@
 # Tairitsu
 
+![Tairitsu banner](../assets/readme-banner.png)
+
 Tairitsu 是一个面向独立安装 ZeroTier 控制器的自托管 Web 控制台，提供初始化、用户账户、网络与成员管理、网络设置，以及控制器网络导入等能力。
 
 ## 功能

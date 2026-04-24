@@ -1,5 +1,7 @@
 # Tairitsu
 
+![Tairitsu banner](assets/readme-banner.png)
+
 [**简体中文**](readme-i18n/README.zh-CN.md)
 
 Tairitsu is a self-hosted web console for a separately installed ZeroTier controller. It provides a web UI for setup, user accounts, network and member management, network settings, and controller network import.
