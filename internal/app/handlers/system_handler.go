@@ -44,12 +44,12 @@ func (h *SystemHandler) UpdateRuntimeSettings(c fiber.Ctx) error {
 	var req services.RuntimeSettings
 	if err := c.Bind().Body(&req); err != nil {
 		logger.Error("实例设置参数绑定失败", zap.Error(err))
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		return writeErrorResponse(c, fiber.StatusBadRequest, err.Error())
 	}
 
 	if err := h.setupService.UpdateRuntimeSettings(req); err != nil {
 		logger.Error("更新实例设置失败", zap.Error(err))
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return writeErrorResponse(c, fiber.StatusInternalServerError, err.Error())
 	}
 
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
@@ -63,7 +63,7 @@ func (h *SystemHandler) ConfigureDatabase(c fiber.Ctx) error {
 	var dbConfig models.DatabaseConfig
 	if err := c.Bind().Body(&dbConfig); err != nil {
 		logger.Error("数据库配置参数绑定失败", zap.Error(err))
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		return writeErrorResponse(c, fiber.StatusBadRequest, err.Error())
 	}
 
 	logger.Info("开始配置数据库", zap.String("type", dbConfig.Type))
@@ -71,7 +71,7 @@ func (h *SystemHandler) ConfigureDatabase(c fiber.Ctx) error {
 	dbCfg, err := h.setupService.ConfigureDatabase(dbConfig)
 	if err != nil {
 		logger.Error("数据库配置失败", zap.Error(err))
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		return writeErrorResponse(c, fiber.StatusBadRequest, err.Error())
 	}
 
 	logger.Info("SQLite数据库路径已设置", zap.String("path", dbCfg.Path))
@@ -91,7 +91,7 @@ func (h *SystemHandler) TestZeroTierConnection(c fiber.Ctx) error {
 	ztStatus, err := h.setupService.TestZeroTierConnection()
 	if err != nil {
 		logger.Error("[ZeroTier] 连接测试失败", zap.Error(err))
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return writeErrorResponse(c, fiber.StatusInternalServerError, err.Error())
 	}
 
 	logger.Info("[ZeroTier] 连接测试成功")
@@ -104,7 +104,7 @@ func (h *SystemHandler) InitZeroTierClient(c fiber.Ctx) error {
 	status, err := h.setupService.InitZTClientFromConfig()
 	if err != nil {
 		logger.Error("ZeroTier客户端初始化失败", zap.Error(err))
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return writeErrorResponse(c, fiber.StatusInternalServerError, err.Error())
 	}
 
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{"message": "ZeroTier客户端初始化成功", "status": status})
@@ -119,7 +119,7 @@ func (h *SystemHandler) SaveZeroTierConfig(c fiber.Ctx) error {
 
 	if err := c.Bind().Body(&req); err != nil {
 		logger.Error("ZeroTier配置参数绑定失败", zap.Error(err))
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		return writeErrorResponse(c, fiber.StatusBadRequest, err.Error())
 	}
 
 	logger.Info("保存ZeroTier配置", zap.String("controllerUrl", req.ControllerURL), zap.String("tokenPath", req.TokenPath))
@@ -127,7 +127,7 @@ func (h *SystemHandler) SaveZeroTierConfig(c fiber.Ctx) error {
 	status, err := h.setupService.SaveZeroTierConfig(req.ControllerURL, req.TokenPath)
 	if err != nil {
 		logger.Error("保存ZeroTier配置失败", zap.Error(err))
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return writeErrorResponse(c, fiber.StatusInternalServerError, err.Error())
 	}
 
 	logger.Info("ZeroTier配置保存并验证成功")
@@ -146,7 +146,7 @@ func (h *SystemHandler) InitializeAdminCreation(c fiber.Ctx) error {
 	databaseType, err := h.setupService.InitializeAdminCreation()
 	if err != nil {
 		logger.Error("初始化管理员账户创建步骤失败", zap.Error(err))
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return writeErrorResponse(c, fiber.StatusInternalServerError, err.Error())
 	}
 
 	logger.Info("SQLite数据库重置成功")
@@ -166,14 +166,14 @@ func (h *SystemHandler) SetInitialized(c fiber.Ctx) error {
 
 	if err := c.Bind().Body(&req); err != nil {
 		logger.Error("设置初始化状态参数绑定失败", zap.Error(err))
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		return writeErrorResponse(c, fiber.StatusBadRequest, err.Error())
 	}
 
 	logger.Info("设置系统初始化状态", zap.Bool("initialized", req.Initialized))
 
 	if err := h.setupService.SetInitialized(req.Initialized); err != nil {
 		logger.Error("设置初始化状态失败", zap.Error(err))
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return writeErrorResponse(c, fiber.StatusInternalServerError, err.Error())
 	}
 
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{"message": "初始化状态更新成功"})

@@ -194,7 +194,11 @@ func (h *AuthHandler) ChangePassword(c fiber.Ctx) error {
 
 // ListSessions returns the current user's active and historical sessions.
 func (h *AuthHandler) ListSessions(c fiber.Ctx) error {
-	userID, _ := c.Locals("user_id").(string)
+	userID, authErr := requiredUserID(c)
+	if authErr != nil {
+		logger.Error("获取会话列表失败：未认证")
+		return authErr
+	}
 	currentSessionID, _ := c.Locals("session_id").(string)
 
 	sessions, err := h.sessionService.GetUserSessions(userID)
@@ -213,7 +217,11 @@ func (h *AuthHandler) ListSessions(c fiber.Ctx) error {
 
 // Logout revokes the current session and clears the server-side login state.
 func (h *AuthHandler) Logout(c fiber.Ctx) error {
-	userID, _ := c.Locals("user_id").(string)
+	userID, authErr := requiredUserID(c)
+	if authErr != nil {
+		logger.Error("退出登录失败：未认证")
+		return authErr
+	}
 	sessionID, _ := c.Locals("session_id").(string)
 
 	if err := h.sessionService.RevokeSession(userID, sessionID); err != nil {
@@ -226,7 +234,11 @@ func (h *AuthHandler) Logout(c fiber.Ctx) error {
 
 // RevokeSession revokes one session owned by the current user.
 func (h *AuthHandler) RevokeSession(c fiber.Ctx) error {
-	userID, _ := c.Locals("user_id").(string)
+	userID, authErr := requiredUserID(c)
+	if authErr != nil {
+		logger.Error("吊销会话失败：未认证")
+		return authErr
+	}
 	sessionID := c.Params("sessionId")
 
 	if err := h.sessionService.RevokeSession(userID, sessionID); err != nil {
@@ -239,7 +251,11 @@ func (h *AuthHandler) RevokeSession(c fiber.Ctx) error {
 
 // RevokeOtherSessions revokes all other sessions of the current user.
 func (h *AuthHandler) RevokeOtherSessions(c fiber.Ctx) error {
-	userID, _ := c.Locals("user_id").(string)
+	userID, authErr := requiredUserID(c)
+	if authErr != nil {
+		logger.Error("移除其他会话失败：未认证")
+		return authErr
+	}
 	currentSessionID, _ := c.Locals("session_id").(string)
 
 	count, err := h.sessionService.RevokeOtherSessions(userID, currentSessionID)

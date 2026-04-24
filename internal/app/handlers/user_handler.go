@@ -60,12 +60,16 @@ type DeleteUserResponse struct {
 }
 
 func (h *UserHandler) CreateUser(c fiber.Ctx) error {
-	currentUserID, _ := c.Locals("user_id").(string)
+	currentUserID, authErr := requiredUserID(c)
+	if authErr != nil {
+		logger.Error("创建用户失败：未认证")
+		return authErr
+	}
 
 	var req CreateUserRequest
 	if err := c.Bind().Body(&req); err != nil {
 		logger.Error("创建用户失败，请求参数绑定失败", zap.String("current_user_id", currentUserID), zap.Error(err))
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		return writeErrorResponse(c, fiber.StatusBadRequest, err.Error())
 	}
 
 	user, temporaryPassword, err := h.userService.CreateUserByAdmin(currentUserID, req.Username)
@@ -82,13 +86,17 @@ func (h *UserHandler) CreateUser(c fiber.Ctx) error {
 }
 
 func (h *UserHandler) TransferAdmin(c fiber.Ctx) error {
-	currentUserID, _ := c.Locals("user_id").(string)
+	currentUserID, authErr := requiredUserID(c)
+	if authErr != nil {
+		logger.Error("转让管理员失败：未认证")
+		return authErr
+	}
 	logger.Info("开始转让管理员身份", zap.String("current_user_id", currentUserID))
 
 	var req TransferAdminRequest
 	if err := c.Bind().Body(&req); err != nil {
 		logger.Error("转让管理员失败，请求参数绑定失败", zap.String("current_user_id", currentUserID), zap.Error(err))
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		return writeErrorResponse(c, fiber.StatusBadRequest, err.Error())
 	}
 
 	user, err := h.userService.TransferAdmin(currentUserID, req.UserID)
@@ -105,7 +113,11 @@ func (h *UserHandler) TransferAdmin(c fiber.Ctx) error {
 }
 
 func (h *UserHandler) ResetPassword(c fiber.Ctx) error {
-	currentUserID, _ := c.Locals("user_id").(string)
+	currentUserID, authErr := requiredUserID(c)
+	if authErr != nil {
+		logger.Error("重置用户密码失败：未认证")
+		return authErr
+	}
 	targetUserID := c.Params("userId")
 
 	logger.Info("开始重置用户密码",
@@ -135,7 +147,11 @@ func (h *UserHandler) ResetPassword(c fiber.Ctx) error {
 }
 
 func (h *UserHandler) DeleteUser(c fiber.Ctx) error {
-	currentUserID, _ := c.Locals("user_id").(string)
+	currentUserID, authErr := requiredUserID(c)
+	if authErr != nil {
+		logger.Error("删除用户失败：未认证")
+		return authErr
+	}
 	targetUserID := c.Params("userId")
 
 	logger.Info("开始删除用户",
