@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Box, Typography, Paper, CircularProgress, Alert, 
-  Chip, LinearProgress, Button, Stack} from '@mui/material';
+  Chip, LinearProgress, Button } from '@mui/material';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import { networkAPI, systemAPI, SystemStatus, type NetworkSummary } from '../services/api';
 import { useAuth } from '../services/auth';
@@ -29,7 +29,6 @@ function Dashboard() {
   const [status, setStatus] = useState<SystemStatus | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string>('');
-  const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
   const [overviewStats, setOverviewStats] = useState<OverviewStats>({
     networkCount: 0,
     memberCount: 0,
@@ -48,9 +47,6 @@ function Dashboard() {
   
   // 根据用户角色判断是否为管理员
   const isAdmin = user?.role === 'admin';
-  
-  // 信息提示状态
-  const [infoMessage] = useState<string>('');
 
   const buildOverviewStats = (networks: NetworkSummary[]): OverviewStats => {
     return networks.reduce<OverviewStats>((summary, network) => ({
@@ -72,7 +68,6 @@ function Dashboard() {
     try {
       const statusResponse = await systemAPI.getStatus();
       setStatus(statusResponse.data);
-      setLastUpdatedAt(new Date());
     } catch {
       setError('获取数据失败，请稍后重试');
     } finally {
@@ -86,7 +81,6 @@ function Dashboard() {
       const response = await networkAPI.getAllNetworks();
       const networks = Array.isArray(response.data) ? response.data : [];
       setOverviewStats(buildOverviewStats(networks));
-      setLastUpdatedAt(new Date());
     } catch {
       setOverviewError('无法获取网络总览统计信息');
     }
@@ -104,7 +98,6 @@ function Dashboard() {
         kernelVersion: response.data.kernelVersion,
         error: null
       });
-      setLastUpdatedAt(new Date());
     } catch {
       setSystemStats(prev => ({
         ...prev,
@@ -167,39 +160,12 @@ function Dashboard() {
           {error}
         </Alert>
       )}
-      {infoMessage && (
-        <Alert severity="info" sx={{ mb: 3 }}>
-          {infoMessage}
-        </Alert>
-      )}
-
       {loading ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', mt: 10 }}>
           <CircularProgress />
         </Box>
       ) : (
         <>
-          <Alert severity="info" sx={{ mb: 3 }}>
-            <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} justifyContent="space-between">
-              <Box>
-                <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                  ZeroTier: {status?.zeroTierStatus || 'unknown'}
-                </Typography>
-                <Typography variant="body2">
-                  数据库: {status?.databaseStatus || 'unknown'}
-                </Typography>
-              </Box>
-              <Box>
-                <Typography variant="body2">
-                  运行时长: {status?.uptime !== undefined ? `${Math.floor(status.uptime)} 秒` : '未知'}
-                </Typography>
-                <Typography variant="body2">
-                  最近更新时间: {lastUpdatedAt ? lastUpdatedAt.toLocaleTimeString() : '尚未获取'}
-                </Typography>
-              </Box>
-            </Stack>
-          </Alert>
-
           <Paper elevation={3} sx={{ p: 3, mb: 4 }}>
             <Typography variant="h6" component="h3" gutterBottom>
               控制器总览

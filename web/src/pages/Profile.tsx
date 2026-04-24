@@ -1,4 +1,4 @@
-import { Box, Typography, Card, CardContent, Avatar, Grid, Divider, Button, Alert }
+import { Box, Typography, Card, CardContent, Avatar, Grid, Divider, Button }
 from '@mui/material';
 import { Link } from 'react-router-dom';
 import { User } from '../services/api';
@@ -24,10 +24,6 @@ function Profile({ user }: ProfileProps) {
       <Typography variant="h4" component="h1" gutterBottom>
         个人信息
       </Typography>
-
-      <Alert severity="info" sx={{ mb: 3 }}>
-        这里显示当前账户的基础信息。密码修改和后续账户偏好设置可在“设置”页面中完成。
-      </Alert>
       
       <Grid container spacing={3}>
         <Grid size={{ xs: 12, md: 4 }}>

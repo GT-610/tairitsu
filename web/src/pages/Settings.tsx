@@ -47,6 +47,7 @@ function Settings() {
   const [loadingSessions, setLoadingSessions] = useState(false)
   const [revokingSessionId, setRevokingSessionId] = useState('')
   const [revokingOtherSessions, setRevokingOtherSessions] = useState(false)
+  const visibleSessions = sessions.filter((sessionItem) => !sessionItem.revokedAt)
 
   useEffect(() => {
     const loadSettings = async () => {
@@ -250,7 +251,7 @@ function Settings() {
                     variant="outlined"
                     color="warning"
                     fullWidth
-                    disabled={loadingSessions || revokingOtherSessions || sessions.filter((sessionItem) => !sessionItem.current && !sessionItem.revokedAt).length === 0}
+                    disabled={loadingSessions || revokingOtherSessions || visibleSessions.filter((sessionItem) => !sessionItem.current).length === 0}
                     onClick={() => { void handleRevokeOtherSessions() }}
                   >
                     {revokingOtherSessions ? '移除中...' : '退出其他设备'}
@@ -272,7 +273,7 @@ function Settings() {
                 当前页面展示的是服务端登记的登录会话。移除其他会话后，对应设备会在下一次请求时失效。
               </Typography>
               <Stack spacing={2}>
-                {sessions.length === 0 && !loadingSessions && (
+                {visibleSessions.length === 0 && !loadingSessions && (
                   <Alert severity="info">当前没有可展示的登录会话。</Alert>
                 )}
                 {loadingSessions && (
@@ -280,12 +281,12 @@ function Settings() {
                     <CircularProgress size={24} />
                   </Box>
                 )}
-                {sessions.map((sessionItem) => (
+                {visibleSessions.map((sessionItem) => (
                   <Card key={sessionItem.id} variant="outlined">
                     <CardContent>
                       {(() => {
                         const presentation = formatSessionPresentation(sessionItem)
-                        const disabledAction = Boolean(sessionItem.revokedAt) || presentation.status.label === '已过期'
+                        const disabledAction = presentation.status.label === '已过期'
                         return (
                           <Stack spacing={1.5}>
                             <Stack direction="row" spacing={1.5} justifyContent="space-between" alignItems="flex-start">
@@ -310,11 +311,6 @@ function Settings() {
                         <Typography variant="body2" color="text.secondary">
                           到期时间：{formatSessionTime(sessionItem.expiresAt)}
                         </Typography>
-                            {sessionItem.revokedAt && (
-                              <Typography variant="body2" color="text.secondary">
-                                移除时间：{formatSessionTime(sessionItem.revokedAt)}
-                              </Typography>
-                            )}
                             {presentation.details.map((detail) => (
                               <Typography key={detail} variant="body2" color="text.secondary">
                                 {detail}
@@ -340,17 +336,6 @@ function Settings() {
             </CardContent>
           </Card>
 
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                基础说明
-              </Typography>
-              <Stack spacing={1.5}>
-                <Alert severity="info">管理员治理项已迁移到“用户管理”页面统一处理。</Alert>
-                <Alert severity="info">如果你需要调整公开注册或转让管理员身份，请前往“用户管理”。</Alert>
-              </Stack>
-            </CardContent>
-          </Card>
         </>
       )}
 
