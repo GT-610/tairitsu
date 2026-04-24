@@ -23,17 +23,29 @@ type PlanetConfig struct {
 	Endpoints []string `json:"endpoints"`
 }
 
+type RootNodeConfig struct {
+	IdentityPublic string   `json:"identity_public"`
+	Comments       string   `json:"comments"`
+	Endpoints      []string `json:"endpoints"`
+}
+
 type GenerateOptions struct {
-	IdentityPublic string
-	Endpoints      []string
-	Comments       string
-	SigningKeyPath string
+	RootNodes       []RootNodeConfig
+	SigningKeyPath  string
+	PlanetID        uint64
+	BirthTime       int64
+	RecommendValues bool
+	DownloadName    string
 }
 
 type GeneratedPlanet struct {
-	PlanetID   uint64
-	BirthTime  int64
-	PlanetData []byte
+	PlanetID              uint64
+	BirthTime             int64
+	PlanetData            []byte
+	DownloadName          string
+	RootNodeCount         int
+	EndpointCount         int
+	UsedRecommendedValues bool
 }
 
 var (
@@ -42,33 +54,11 @@ var (
 )
 
 func GeneratePlanet(opts *GenerateOptions) (*GeneratedPlanet, error) {
-	if opts.IdentityPublic == "" {
-		return nil, ErrIdentityPublicRequired
+	if len(opts.RootNodes) == 0 {
+		return nil, ErrNoRootNodes
 	}
-
-	identity, err := ParseIdentityPublic(opts.IdentityPublic)
-	if err != nil {
-		return nil, err
-	}
-
-	endpointValues := normalizeEndpoints(opts.Endpoints)
-	if len(endpointValues) == 0 {
-		return nil, ErrNoEndpoints
-	}
-
-	endpoints := make([]*ZtNodeInetAddr, 0, len(endpointValues))
-	seenEndpoints := make(map[string]struct{}, len(endpointValues))
-	for _, epStr := range endpointValues {
-		ep := &ZtNodeInetAddr{}
-		if err := ep.FromString(epStr); err != nil {
-			return nil, fmt.Errorf("%w: %s", ErrInvalidEndpoint, epStr)
-		}
-		endpointKey := ep.IP.String() + "/" + fmt.Sprintf("%d", ep.Port)
-		if _, exists := seenEndpoints[endpointKey]; exists {
-			return nil, fmt.Errorf("%w: %s", ErrDuplicateEndpoint, epStr)
-		}
-		seenEndpoints[endpointKey] = struct{}{}
-		endpoints = append(endpoints, ep)
+	if len(opts.RootNodes) > ZT_WORLD_MAX_ROOTS {
+		return nil, ErrMaxRootNodesExceeded
 	}
 
 	prevPub, curPub, prevPriv, _, err := loadSigningKeys(opts.SigningKeyPath)
@@ -76,23 +66,51 @@ func GeneratePlanet(opts *GenerateOptions) (*GeneratedPlanet, error) {
 		return nil, err
 	}
 
-	planetID, err := generatePlanetID()
+	planetID, birthTime, usedRecommendedValues, err := resolvePlanetMetadata(opts)
 	if err != nil {
-		return nil, fmt.Errorf("failed to generate planet id: %w", err)
+		return nil, err
 	}
-	planetBirth := time.Now().UnixMilli()
+
+	nodes := make([]*ZtWorldPlanetNode, 0, len(opts.RootNodes))
+	seenIdentities := make(map[string]struct{}, len(opts.RootNodes))
+	totalEndpoints := 0
+
+	for _, rootNodeConfig := range opts.RootNodes {
+		if strings.TrimSpace(rootNodeConfig.IdentityPublic) == "" {
+			return nil, ErrIdentityPublicRequired
+		}
+
+		identity, err := ParseIdentityPublic(rootNodeConfig.IdentityPublic)
+		if err != nil {
+			return nil, err
+		}
+
+		identityKey := strings.TrimSpace(rootNodeConfig.IdentityPublic)
+		if _, exists := seenIdentities[identityKey]; exists {
+			return nil, fmt.Errorf("%w: %s", ErrDuplicateIdentity, identity.ZtNodeAddressString())
+		}
+		seenIdentities[identityKey] = struct{}{}
+
+		endpoints, err := parseRootNodeEndpoints(rootNodeConfig.Endpoints)
+		if err != nil {
+			return nil, err
+		}
+
+		nodes = append(nodes, &ZtWorldPlanetNode{
+			Identity:  identity,
+			Endpoints: endpoints,
+			Comments:  strings.TrimSpace(rootNodeConfig.Comments),
+		})
+		totalEndpoints += len(endpoints)
+
+	}
 
 	ztW := &ZtWorld{
 		Type:      ZT_WORLD_TYPE_PLANET,
 		ID:        ZtWorldID(planetID),
-		Timestamp: uint64(planetBirth),
+		Timestamp: uint64(birthTime),
+		Nodes:     nodes,
 	}
-
-	rootNode := &ZtWorldPlanetNode{
-		Identity:  identity,
-		Endpoints: endpoints,
-	}
-	ztW.Nodes = []*ZtWorldPlanetNode{rootNode}
 
 	ztW.PublicKeyMustBeSignedByNextTime = curPub
 
@@ -112,10 +130,76 @@ func GeneratePlanet(opts *GenerateOptions) (*GeneratedPlanet, error) {
 	}
 
 	return &GeneratedPlanet{
-		PlanetID:   planetID,
-		BirthTime:  planetBirth,
-		PlanetData: finalData,
+		PlanetID:              planetID,
+		BirthTime:             birthTime,
+		PlanetData:            finalData,
+		DownloadName:          normalizeDownloadName(opts.DownloadName),
+		RootNodeCount:         len(nodes),
+		EndpointCount:         totalEndpoints,
+		UsedRecommendedValues: usedRecommendedValues,
 	}, nil
+}
+
+func parseRootNodeEndpoints(values []string) ([]*ZtNodeInetAddr, error) {
+	endpointValues := normalizeEndpoints(values)
+	if len(endpointValues) == 0 {
+		return nil, ErrNoEndpoints
+	}
+
+	endpoints := make([]*ZtNodeInetAddr, 0, len(endpointValues))
+	seenEndpoints := make(map[string]struct{}, len(endpointValues))
+	for _, epStr := range endpointValues {
+		ep := &ZtNodeInetAddr{}
+		if err := ep.FromString(epStr); err != nil {
+			return nil, fmt.Errorf("%w: %s", ErrInvalidEndpoint, epStr)
+		}
+		endpointKey := ep.IP.String() + "/" + fmt.Sprintf("%d", ep.Port)
+		if _, exists := seenEndpoints[endpointKey]; exists {
+			return nil, fmt.Errorf("%w: %s", ErrDuplicateEndpoint, epStr)
+		}
+		seenEndpoints[endpointKey] = struct{}{}
+		endpoints = append(endpoints, ep)
+	}
+
+	return endpoints, nil
+}
+
+func resolvePlanetMetadata(opts *GenerateOptions) (planetID uint64, birthTime int64, usedRecommendedValues bool, err error) {
+	if opts.RecommendValues {
+		planetID, err = generatePlanetID()
+		if err != nil {
+			err = fmt.Errorf("failed to generate planet id: %w", err)
+			return
+		}
+		birthTime = time.Now().UnixMilli()
+		usedRecommendedValues = true
+		return
+	}
+
+	if opts.PlanetID == 0 {
+		err = ErrReservedPlanetID
+		return
+	}
+	if opts.PlanetID == uint64(ZT_WORLD_ID_EARTH) || opts.PlanetID == uint64(ZT_WORLD_ID_MARS) {
+		err = ErrReservedPlanetID
+		return
+	}
+	if opts.BirthTime <= 1567191349589 {
+		err = ErrInvalidBirthTime
+		return
+	}
+
+	planetID = opts.PlanetID
+	birthTime = opts.BirthTime
+	return
+}
+
+func normalizeDownloadName(value string) string {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return "planet"
+	}
+	return trimmed
 }
 
 func ParseIdentityPublic(s string) (*ZtWorldPlanetNodeIdentity, error) {

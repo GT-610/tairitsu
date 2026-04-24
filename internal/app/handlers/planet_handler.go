@@ -18,18 +18,29 @@ import (
 )
 
 type GeneratePlanetRequest struct {
+	RootNodes       []PlanetRootNodeRequest `json:"root_nodes"`
+	SigningKeyPath  string                  `json:"signing_key_path"`
+	PlanetID        uint64                  `json:"planet_id"`
+	BirthTime       int64                   `json:"birth_time"`
+	RecommendValues bool                    `json:"recommend_values"`
+	DownloadName    string                  `json:"download_name"`
+}
+
+type PlanetRootNodeRequest struct {
 	IdentityPublic string   `json:"identity_public"`
-	Endpoints      []string `json:"endpoints"`
 	Comments       string   `json:"comments"`
-	SigningKeyPath string   `json:"signing_key_path"`
+	Endpoints      []string `json:"endpoints"`
 }
 
 type GeneratePlanetResponse struct {
-	Message      string `json:"message"`
-	PlanetData   []byte `json:"planet_data"`
-	PlanetID     uint64 `json:"planet_id"`
-	BirthTime    int64  `json:"birth_time"`
-	DownloadName string `json:"download_name"`
+	Message               string `json:"message"`
+	PlanetData            []byte `json:"planet_data"`
+	PlanetID              uint64 `json:"planet_id"`
+	BirthTime             int64  `json:"birth_time"`
+	DownloadName          string `json:"download_name"`
+	RootNodeCount         int    `json:"root_node_count"`
+	EndpointCount         int    `json:"endpoint_count"`
+	UsedRecommendedValues bool   `json:"used_recommended_values"`
 }
 
 type IdentityInfoResponse struct {
@@ -69,25 +80,42 @@ func GeneratePlanetHandler(c fiber.Ctx) error {
 		})
 	}
 
-	if req.IdentityPublic == "" {
+	if len(req.RootNodes) == 0 {
 		return c.Status(400).JSON(ErrorResponse{
-			Error: "identity_public is required",
+			Error: "root_nodes is required",
+		})
+	}
+
+	rootNodes := make([]mkworld.RootNodeConfig, 0, len(req.RootNodes))
+	for _, rootNode := range req.RootNodes {
+		rootNodes = append(rootNodes, mkworld.RootNodeConfig{
+			IdentityPublic: strings.TrimSpace(rootNode.IdentityPublic),
+			Comments:       strings.TrimSpace(rootNode.Comments),
+			Endpoints:      rootNode.Endpoints,
 		})
 	}
 
 	generatedPlanet, err := mkworld.GeneratePlanet(&mkworld.GenerateOptions{
-		IdentityPublic: req.IdentityPublic,
-		Endpoints:      req.Endpoints,
-		Comments:       req.Comments,
-		SigningKeyPath: strings.TrimSpace(req.SigningKeyPath),
+		RootNodes:       rootNodes,
+		SigningKeyPath:  strings.TrimSpace(req.SigningKeyPath),
+		PlanetID:        req.PlanetID,
+		BirthTime:       req.BirthTime,
+		RecommendValues: req.RecommendValues,
+		DownloadName:    strings.TrimSpace(req.DownloadName),
 	})
 	if err != nil {
 		switch {
 		case errors.Is(err, mkworld.ErrIdentityPublicRequired),
+			errors.Is(err, mkworld.ErrNoRootNodes),
 			errors.Is(err, mkworld.ErrNoEndpoints),
 			errors.Is(err, mkworld.ErrInvalidIdentity),
 			errors.Is(err, mkworld.ErrInvalidEndpoint),
 			errors.Is(err, mkworld.ErrDuplicateEndpoint),
+			errors.Is(err, mkworld.ErrDuplicateIdentity),
+			errors.Is(err, mkworld.ErrMaxEndpointsExceeded),
+			errors.Is(err, mkworld.ErrMaxRootNodesExceeded),
+			errors.Is(err, mkworld.ErrReservedPlanetID),
+			errors.Is(err, mkworld.ErrInvalidBirthTime),
 			errors.Is(err, mkworld.ErrInvalidSigningKeys):
 			return c.Status(fiber.StatusBadRequest).JSON(ErrorResponse{
 				Error: err.Error(),
@@ -101,11 +129,14 @@ func GeneratePlanetHandler(c fiber.Ctx) error {
 	}
 
 	return c.JSON(GeneratePlanetResponse{
-		Message:      "Planet generated successfully",
-		PlanetData:   generatedPlanet.PlanetData,
-		PlanetID:     generatedPlanet.PlanetID,
-		BirthTime:    generatedPlanet.BirthTime,
-		DownloadName: "planet",
+		Message:               "Planet generated successfully",
+		PlanetData:            generatedPlanet.PlanetData,
+		PlanetID:              generatedPlanet.PlanetID,
+		BirthTime:             generatedPlanet.BirthTime,
+		DownloadName:          generatedPlanet.DownloadName,
+		RootNodeCount:         generatedPlanet.RootNodeCount,
+		EndpointCount:         generatedPlanet.EndpointCount,
+		UsedRecommendedValues: generatedPlanet.UsedRecommendedValues,
 	})
 }
 

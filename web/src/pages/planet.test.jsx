@@ -12,6 +12,7 @@ describe('Planet page', () => {
     expect(html).toContain('Planet 配置')
     expect(html).toContain('高级模式')
     expect(html).toContain('signing keys')
+    expect(html).toContain('Root Nodes')
     expect(html).toContain('读取身份')
     expect(html).not.toContain('读取中...')
   })

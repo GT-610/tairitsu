@@ -8,6 +8,11 @@ export interface PlanetIdentitySummary {
   publicKeyBytes: number;
 }
 
+export interface PlanetRootNodeDraft {
+  identityPublic: string;
+  endpoints: string[];
+}
+
 function isValidIPv4(value: string): boolean {
   const parts = value.split('.')
   if (parts.length !== 4) {
@@ -115,4 +120,32 @@ export function validatePlanetEndpoints(values: string[]): string | null {
 
 export function getPlanetDownloadName(downloadName?: string): string {
   return downloadName?.trim() || 'planet'
+}
+
+export function validatePlanetRootNodes(rootNodes: PlanetRootNodeDraft[]): string | null {
+  if (rootNodes.length === 0) {
+    return '至少需要配置一个 root node'
+  }
+
+  const seenIdentities = new Set<string>()
+  for (const rootNode of rootNodes) {
+    const identity = rootNode.identityPublic.trim()
+    if (!identity) {
+      return '每个 root node 都需要 identity.public'
+    }
+    if (!parsePlanetIdentityPublic(identity)) {
+      return '存在格式无效的 identity.public'
+    }
+    if (seenIdentities.has(identity)) {
+      return 'root node identity 不能重复'
+    }
+    seenIdentities.add(identity)
+
+    const endpointError = validatePlanetEndpoints(rootNode.endpoints)
+    if (endpointError) {
+      return endpointError
+    }
+  }
+
+  return null
 }

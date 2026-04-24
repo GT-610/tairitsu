@@ -75,6 +75,10 @@ type ZtWorldPlanetNodeIdentity struct {
 	PublicKey     [ZT_C25519_PUBLIC_KEY_LEN]byte
 }
 
+func (id *ZtWorldPlanetNodeIdentity) ZtNodeAddressString() string {
+	return hex.EncodeToString(id.ZtNodeAddress[:])
+}
+
 func (id *ZtWorldPlanetNodeIdentity) FromString(data string) error {
 	parts := strings.Split(data, ":")
 	if len(parts) < 2 {
@@ -108,6 +112,7 @@ func (id *ZtWorldPlanetNodeIdentity) Serialize() ([]byte, error) {
 type ZtWorldPlanetNode struct {
 	Identity  *ZtWorldPlanetNodeIdentity
 	Endpoints []*ZtNodeInetAddr
+	Comments  string
 }
 
 func (n *ZtWorldPlanetNode) Serialize() ([]byte, error) {

@@ -506,16 +506,29 @@ Success response:
 
 ### `POST /admin/planet/generate`
 
-Generates an experimental `planet` file using one identity and one or more stable endpoints.
+Generates an experimental `planet` file using one or more root nodes plus optional advanced metadata.
 
 Request:
 
 ```json
 {
-  "identity_public": "f76fd3000b:0:542c89e34a369c2281ed940d05beeffdbaa66930f17b875e9172e43d0ba30b6a39708507f4d64e66cde4a1040d2a995d01209d685ca6c4adb4a5c880af1e9715",
-  "endpoints": ["203.0.113.1/9993", "2001:db8::1/9993"],
-  "comments": "private planet",
-  "signing_key_path": "/var/lib/zerotier-one"
+  "root_nodes": [
+    {
+      "identity_public": "f76fd3000b:0:542c89e34a369c2281ed940d05beeffdbaa66930f17b875e9172e43d0ba30b6a39708507f4d64e66cde4a1040d2a995d01209d685ca6c4adb4a5c880af1e9715",
+      "comments": "primary root",
+      "endpoints": ["203.0.113.1/9993", "2001:db8::1/9993"]
+    },
+    {
+      "identity_public": "6a4d8f1c22:0:4c2b7d5e9f4a3c2281ed940d05beeffdbaa66930f17b875e9172e43d0ba30b6a39708507f4d64e66cde4a1040d2a995d01209d685ca6c4adb4a5c880af1e9726",
+      "comments": "secondary root",
+      "endpoints": ["203.0.113.2/9993"]
+    }
+  ],
+  "signing_key_path": "/var/lib/zerotier-one",
+  "planet_id": 123456789,
+  "birth_time": 1770000000000,
+  "recommend_values": false,
+  "download_name": "planet.custom"
 }
 ```
 
@@ -526,7 +539,10 @@ Success response:
   "message": "Planet generated successfully",
   "planet_id": 123456789,
   "birth_time": 1770000000000,
-  "download_name": "planet",
+  "download_name": "planet.custom",
+  "root_node_count": 2,
+  "endpoint_count": 3,
+  "used_recommended_values": false,
   "planet_data": [127, 127, 127]
 }
 ```

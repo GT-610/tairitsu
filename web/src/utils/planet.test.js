@@ -6,6 +6,7 @@ import {
   parsePlanetIdentityPublic,
   validatePlanetEndpointValue,
   validatePlanetEndpoints,
+  validatePlanetRootNodes,
 } from './planet'
 
 describe('planet utils', () => {
@@ -43,5 +44,25 @@ describe('planet utils', () => {
       publicKeyBytes: 64,
     })
     expect(parsePlanetIdentityPublic('invalid')).toBeNull()
+  })
+
+  test('validates advanced root node configuration', () => {
+    expect(validatePlanetRootNodes([])).toBe('至少需要配置一个 root node')
+    expect(validatePlanetRootNodes([
+      {
+        identityPublic: 'invalid',
+        endpoints: ['203.0.113.1/9993'],
+      },
+    ])).toBe('存在格式无效的 identity.public')
+    expect(validatePlanetRootNodes([
+      {
+        identityPublic: 'f76fd3000b:0:542c89e34a369c2281ed940d05beeffdbaa66930f17b875e9172e43d0ba30b6a39708507f4d64e66cde4a1040d2a995d01209d685ca6c4adb4a5c880af1e9715',
+        endpoints: ['203.0.113.1/9993'],
+      },
+      {
+        identityPublic: 'f76fd3000b:0:542c89e34a369c2281ed940d05beeffdbaa66930f17b875e9172e43d0ba30b6a39708507f4d64e66cde4a1040d2a995d01209d685ca6c4adb4a5c880af1e9715',
+        endpoints: ['203.0.113.2/9993'],
+      },
+    ])).toBe('root node identity 不能重复')
   })
 })

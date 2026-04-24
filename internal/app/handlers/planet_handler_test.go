@@ -74,7 +74,7 @@ func TestGeneratePlanetHandler_ReturnsPlanetDataAndMetadata(t *testing.T) {
 	app := fiber.New()
 	app.Post("/planet", GeneratePlanetHandler)
 
-	body := `{"identity_public":"f76fd3000b:0:542c89e34a369c2281ed940d05beeffdbaa66930f17b875e9172e43d0ba30b6a39708507f4d64e66cde4a1040d2a995d01209d685ca6c4adb4a5c880af1e9715","endpoints":["203.0.113.1/9993"],"comments":"test"}`
+	body := `{"root_nodes":[{"identity_public":"f76fd3000b:0:542c89e34a369c2281ed940d05beeffdbaa66930f17b875e9172e43d0ba30b6a39708507f4d64e66cde4a1040d2a995d01209d685ca6c4adb4a5c880af1e9715","endpoints":["203.0.113.1/9993"],"comments":"test"}],"recommend_values":true,"download_name":"planet.custom"}`
 	req := httptest.NewRequest(http.MethodPost, "/planet", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
@@ -99,8 +99,34 @@ func TestGeneratePlanetHandler_ReturnsPlanetDataAndMetadata(t *testing.T) {
 	if len(result.PlanetData) == 0 {
 		t.Fatalf("planet_data is empty")
 	}
-	if result.DownloadName != "planet" {
-		t.Fatalf("download_name = %q, want planet", result.DownloadName)
+	if result.DownloadName != "planet.custom" {
+		t.Fatalf("download_name = %q, want planet.custom", result.DownloadName)
+	}
+	if result.RootNodeCount != 1 {
+		t.Fatalf("root_node_count = %d, want 1", result.RootNodeCount)
+	}
+	if result.EndpointCount != 1 {
+		t.Fatalf("endpoint_count = %d, want 1", result.EndpointCount)
+	}
+	if !result.UsedRecommendedValues {
+		t.Fatal("used_recommended_values = false, want true")
+	}
+}
+
+func TestGeneratePlanetHandler_RejectsDuplicateRootIdentity(t *testing.T) {
+	app := fiber.New()
+	app.Post("/planet", GeneratePlanetHandler)
+
+	body := `{"root_nodes":[{"identity_public":"f76fd3000b:0:542c89e34a369c2281ed940d05beeffdbaa66930f17b875e9172e43d0ba30b6a39708507f4d64e66cde4a1040d2a995d01209d685ca6c4adb4a5c880af1e9715","endpoints":["203.0.113.1/9993"]},{"identity_public":"f76fd3000b:0:542c89e34a369c2281ed940d05beeffdbaa66930f17b875e9172e43d0ba30b6a39708507f4d64e66cde4a1040d2a995d01209d685ca6c4adb4a5c880af1e9715","endpoints":["203.0.113.2/9993"]}],"recommend_values":true}`
+	req := httptest.NewRequest(http.MethodPost, "/planet", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("app.Test() error = %v", err)
+	}
+	if resp.StatusCode != fiber.StatusBadRequest {
+		t.Fatalf("status = %d, want %d", resp.StatusCode, fiber.StatusBadRequest)
 	}
 }
 

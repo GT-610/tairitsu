@@ -314,19 +314,30 @@ export interface IdentityInfo {
   identity_path: string;
 }
 
+export interface PlanetRootNodeRequest {
+  identity_public: string;
+  comments?: string;
+  endpoints: string[];
+}
+
 export interface GeneratePlanetResponse {
   message: string;
   planet_data: number[];
   planet_id: number;
   birth_time: number;
   download_name: string;
+  root_node_count: number;
+  endpoint_count: number;
+  used_recommended_values: boolean;
 }
 
 export interface GeneratePlanetRequest {
-  identity_public: string;
-  endpoints: string[];
-  comments?: string;
+  root_nodes: PlanetRootNodeRequest[];
   signing_key_path?: string;
+  planet_id?: number;
+  birth_time?: number;
+  recommend_values?: boolean;
+  download_name?: string;
 }
 
 export interface SigningKeysInfoResponse {
