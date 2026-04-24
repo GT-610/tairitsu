@@ -1,179 +1,140 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react'
 import {
+  Alert,
   Box,
-  Typography,
+  Button,
   Card,
   CardContent,
-  Button,
-  Alert,
-  TextField,
   CircularProgress,
+  IconButton,
   List,
   ListItem,
   ListItemSecondaryAction,
-  IconButton,
-  Paper,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions
-} from '@mui/material';
-import AddIcon from '@mui/icons-material/Add';
-import DeleteIcon from '@mui/icons-material/Delete';
-import DownloadIcon from '@mui/icons-material/Download';
-import ContentCopyIcon from '@mui/icons-material/ContentCopy';
-import { planetAPI } from '../services/api';
-import { getErrorMessage } from '../services/errors';
+  TextField,
+  Typography,
+} from '@mui/material'
+import AddIcon from '@mui/icons-material/Add'
+import DeleteIcon from '@mui/icons-material/Delete'
+import DownloadIcon from '@mui/icons-material/Download'
+import { planetAPI, type GeneratePlanetResponse } from '../services/api'
+import { getErrorMessage } from '../services/errors'
+import { getPlanetDownloadName, normalizePlanetEndpoints, validatePlanetEndpoints } from '../utils/planet'
 
-interface Endpoint {
-  id: string;
-  value: string;
+interface EndpointDraft {
+  id: string
+  value: string
 }
 
+interface PlanetResultState extends GeneratePlanetResponse {
+  endpoint_count: number
+}
+
+const defaultIdentityPath = '/var/lib/zerotier-one'
+
 function PlanetGenerator() {
-  const [loading, setLoading] = useState<boolean>(true);
-  const [generating, setGenerating] = useState<boolean>(false);
-  const [identityPublic, setIdentityPublic] = useState<string>('');
-  const [identityPath, setIdentityPath] = useState<string>('/var/lib/zerotier-one');
-  const [comments, setComments] = useState<string>('');
-  const [endpoints, setEndpoints] = useState<Endpoint[]>([
-    { id: '1', value: '' }
-  ]);
-  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-  const [generatedPlanet, setGeneratedPlanet] = useState<{
-    cHeader: string;
-    planetData: number[];
-  } | null>(null);
-  const [copyDialogOpen, setCopyDialogOpen] = useState(false);
+  const [loadingIdentity, setLoadingIdentity] = useState(true)
+  const [generating, setGenerating] = useState(false)
+  const [identityPublic, setIdentityPublic] = useState('')
+  const [identityPath, setIdentityPath] = useState(defaultIdentityPath)
+  const [resolvedIdentityPath, setResolvedIdentityPath] = useState('')
+  const [comments, setComments] = useState('')
+  const [endpoints, setEndpoints] = useState<EndpointDraft[]>([{ id: '1', value: '' }])
+  const [message, setMessage] = useState<{ severity: 'success' | 'error'; text: string } | null>(null)
+  const [generatedPlanet, setGeneratedPlanet] = useState<PlanetResultState | null>(null)
 
   useEffect(() => {
-    void loadIdentity();
-  }, []);
+    void loadIdentity(defaultIdentityPath)
+  }, [])
 
-  const loadIdentity = async () => {
+  const loadIdentity = async (pathOverride?: string) => {
+    const nextPath = pathOverride ?? identityPath
     try {
-      setLoading(true);
-      const response = await planetAPI.getIdentity(identityPath);
-      if (response.data.success) {
-        setIdentityPublic(response.data.identityPublic || '');
-      } else {
-        setMessage({ type: 'error', text: response.data.message });
-      }
+      setLoadingIdentity(true)
+      setMessage(null)
+      const response = await planetAPI.getIdentity(nextPath)
+      setIdentityPublic(response.data.identity_public)
+      setResolvedIdentityPath(response.data.identity_path)
     } catch (error: unknown) {
-      setMessage({
-        type: 'error',
-        text: getErrorMessage(error, '加载 identity.public 失败')
-      });
+      setIdentityPublic('')
+      setResolvedIdentityPath('')
+      setGeneratedPlanet(null)
+      setMessage({ severity: 'error', text: getErrorMessage(error, '加载 identity.public 失败') })
     } finally {
-      setLoading(false);
+      setLoadingIdentity(false)
     }
-  };
+  }
 
   const handleAddEndpoint = () => {
-    setEndpoints([...endpoints, { id: Date.now().toString(), value: '' }]);
-  };
+    setEndpoints((previous) => [...previous, { id: Date.now().toString(), value: '' }])
+  }
 
   const handleRemoveEndpoint = (id: string) => {
-    if (endpoints.length > 1) {
-      setEndpoints(endpoints.filter(ep => ep.id !== id));
-    }
-  };
+    setEndpoints((previous) => (
+      previous.length > 1 ? previous.filter((endpoint) => endpoint.id !== id) : previous
+    ))
+  }
 
   const handleEndpointChange = (id: string, value: string) => {
-    setEndpoints(endpoints.map(ep =>
-      ep.id === id ? { ...ep, value } : ep
-    ));
-  };
-
-  const validateEndpoints = (): string | null => {
-    const filledEndpoints = endpoints.filter(ep => ep.value.trim() !== '');
-    if (filledEndpoints.length === 0) {
-      return '至少需要填写一个出口地址';
-    }
-    for (const ep of filledEndpoints) {
-      const value = ep.value.trim();
-      if (!value.includes('/')) {
-        return `出口地址格式无效：${value}。应为 IP/Port 格式`;
-      }
-      const parts = value.split('/');
-      const port = parseInt(parts[1], 10);
-      if (isNaN(port) || port < 1 || port > 65535) {
-        return `端口号无效：${parts[1]}`;
-      }
-    }
-    return null;
-  };
+    setEndpoints((previous) => previous.map((endpoint) => (
+      endpoint.id === id ? { ...endpoint, value } : endpoint
+    )))
+  }
 
   const handleGenerate = async () => {
-    if (!identityPublic) {
-      setMessage({ type: 'error', text: '必须提供 identity.public' });
-      return;
+    if (!identityPublic.trim()) {
+      setMessage({ severity: 'error', text: '请先成功加载 identity.public' })
+      setGeneratedPlanet(null)
+      return
     }
 
-    const endpointError = validateEndpoints();
+    const endpointValues = endpoints.map((endpoint) => endpoint.value)
+    const endpointError = validatePlanetEndpoints(endpointValues)
     if (endpointError) {
-      setMessage({ type: 'error', text: endpointError });
-      return;
+      setMessage({ severity: 'error', text: endpointError })
+      setGeneratedPlanet(null)
+      return
     }
 
-    const filledEndpoints = endpoints
-      .filter(ep => ep.value.trim() !== '')
-      .map(ep => ep.value.trim());
+    const normalizedEndpoints = normalizePlanetEndpoints(endpointValues)
 
     try {
-      setGenerating(true);
-      setMessage(null);
+      setGenerating(true)
+      setMessage(null)
 
       const response = await planetAPI.generatePlanet({
-        identityPublic,
-        endpoints: filledEndpoints,
-        comments
-      });
+        identity_public: identityPublic.trim(),
+        endpoints: normalizedEndpoints,
+        comments: comments.trim(),
+      })
 
-      if (response.data.success) {
-        setGeneratedPlanet({
-          cHeader: response.data.cHeader || '',
-          planetData: Array.from(response.data.planetData || [])
-        });
-        setMessage({ type: 'success', text: 'Planet 文件生成成功' });
-      } else {
-        setMessage({ type: 'error', text: response.data.message || '生成 Planet 失败' });
-      }
+      setGeneratedPlanet({
+        ...response.data,
+        endpoint_count: normalizedEndpoints.length,
+      })
+      setMessage({ severity: 'success', text: response.data.message })
     } catch (error: unknown) {
-      setMessage({
-        type: 'error',
-        text: getErrorMessage(error, '生成 Planet 失败')
-      });
+      setGeneratedPlanet(null)
+      setMessage({ severity: 'error', text: getErrorMessage(error, '生成 Planet 失败') })
     } finally {
-      setGenerating(false);
+      setGenerating(false)
     }
-  };
+  }
 
   const handleDownloadPlanet = () => {
-    if (!generatedPlanet?.planetData) return;
-
-    const blob = new Blob([new Uint8Array(generatedPlanet.planetData)], { type: 'application/octet-stream' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'planet';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  };
-
-  const handleCopyCHeader = () => {
-    if (generatedPlanet?.cHeader) {
-      void navigator.clipboard.writeText(generatedPlanet.cHeader);
-      setMessage({ type: 'success', text: 'C 头文件内容已复制到剪贴板' });
+    if (!generatedPlanet) {
+      return
     }
-    setCopyDialogOpen(false);
-  };
 
-  const openCHeaderDialog = () => {
-    setCopyDialogOpen(true);
-  };
+    const blob = new Blob([new Uint8Array(generatedPlanet.planet_data)], { type: 'application/octet-stream' })
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = getPlanetDownloadName(generatedPlanet.download_name)
+    document.body.appendChild(anchor)
+    anchor.click()
+    document.body.removeChild(anchor)
+    URL.revokeObjectURL(url)
+  }
 
   return (
     <Box sx={{ p: 3 }}>
@@ -184,201 +145,171 @@ function PlanetGenerator() {
       </Box>
 
       {message && (
-        <Alert severity={message.type} sx={{ mb: 3 }} onClose={() => setMessage(null)}>
+        <Alert severity={message.severity} sx={{ mb: 3 }} onClose={() => setMessage(null)}>
           {message.text}
         </Alert>
       )}
 
-      {loading ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', mt: 10 }}>
-          <CircularProgress />
-        </Box>
-      ) : (
-        <>
-          <Alert severity="warning" sx={{ mb: 3 }}>
-            <Typography variant="subtitle2" gutterBottom>
-              实验性功能
-            </Typography>
-            <Typography variant="body2">
-              该能力当前保持实验性状态，不纳入主线支持范围。生成的 planet 文件可能存在兼容性问题，
-              请仅在隔离环境中实验，并在生产环境使用前自行完成充分验证与备份。
-            </Typography>
-          </Alert>
+      <Alert severity="warning" sx={{ mb: 3 }}>
+        该能力当前保持实验性状态。生成的 planet 文件请仅在隔离环境中验证，并在替换到控制器前自行完成备份。
+      </Alert>
 
-          <Card sx={{ mb: 3 }}>
-            <CardContent>
-              <Alert severity="warning" sx={{ mb: 2 }}>
-                <Typography variant="body2">
-                  生成自定义 planet 会创建一个独立的网络根服务器。替换 planet 文件后，
-                  所有节点需要重新连接到此新根服务器，原有的网络和成员关系不会受影响，
-                  但请确保所有节点使用相同的 planet 文件。
+      <Card sx={{ mb: 3 }}>
+        <CardContent>
+          <Typography variant="h6" gutterBottom>
+            身份加载
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            输入 ZeroTier 数据目录后，系统会读取其中的 `identity.public`，并将其作为当前 Planet 的唯一 root identity。
+          </Typography>
+
+          <TextField
+            label="ZeroTier 数据目录路径"
+            fullWidth
+            value={identityPath}
+            onChange={(event) => setIdentityPath(event.target.value)}
+            sx={{ mb: 2 }}
+            helperText="默认为 /var/lib/zerotier-one"
+            disabled={loadingIdentity || generating}
+          />
+
+          <Button
+            variant="outlined"
+            onClick={() => { void loadIdentity() }}
+            disabled={loadingIdentity || generating}
+            sx={{ mb: 2 }}
+          >
+            {loadingIdentity ? '读取中...' : '读取身份'}
+          </Button>
+
+          {loadingIdentity ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
+              <CircularProgress size={24} />
+            </Box>
+          ) : (
+            <>
+              {resolvedIdentityPath && (
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                  实际读取路径：{resolvedIdentityPath}
                 </Typography>
-              </Alert>
-
-              <Typography variant="h6" gutterBottom>
-                控制器身份信息
-              </Typography>
-
-              <TextField
-                label="ZeroTier 数据目录路径"
-                fullWidth
-                value={identityPath}
-                onChange={(e) => setIdentityPath(e.target.value)}
-                sx={{ mb: 2 }}
-                helperText="默认为 /var/lib/zerotier-one"
-              />
-
-              <Button
-                variant="outlined"
-                onClick={() => { void loadIdentity(); }}
-                sx={{ mb: 2 }}
-              >
-                重新加载身份
-              </Button>
-
+              )}
               <TextField
                 label="identity.public"
                 fullWidth
                 multiline
                 rows={2}
                 value={identityPublic}
-                onChange={(e) => setIdentityPublic(e.target.value)}
-                helperText="从 identity.public 文件读取的节点身份"
-                placeholder="格式: 10hexdigits:0:publicKey"
+                helperText="成功读取后会显示当前 root identity"
+                placeholder="格式：10hexdigits:0:publicKey"
+                InputProps={{ readOnly: true }}
               />
-            </CardContent>
-          </Card>
+            </>
+          )}
+        </CardContent>
+      </Card>
 
-          <Card sx={{ mb: 3 }}>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                Planet 配置
-              </Typography>
+      <Card sx={{ mb: 3 }}>
+        <CardContent>
+          <Typography variant="h6" gutterBottom>
+            Planet 配置
+          </Typography>
 
-              <TextField
-                label="备注 (Comments)"
-                fullWidth
-                value={comments}
-                onChange={(e) => setComments(e.target.value)}
-                sx={{ mb: 2 }}
-                placeholder="例如：私有 Planet - example.com"
-                helperText="可选，仅用于标识这个 planet 的用途"
-              />
+          <TextField
+            label="备注"
+            fullWidth
+            value={comments}
+            onChange={(event) => setComments(event.target.value)}
+            sx={{ mb: 2 }}
+            placeholder="例如：Private Planet - example.com"
+            helperText="可选，仅用于标识这次生成的用途"
+            disabled={generating}
+          />
 
-              <Typography variant="subtitle2" sx={{ mb: 1 }}>
-                端点 (Endpoints)
-              </Typography>
+          <Typography variant="subtitle2" sx={{ mb: 1 }}>
+            端点列表
+          </Typography>
 
-              <List>
-                {endpoints.map((endpoint, index) => (
-                  <ListItem key={endpoint.id} sx={{ px: 0 }}>
-                    <TextField
-                      label={`端点 ${index + 1}`}
-                      placeholder="IP/Port 例如：192.168.1.1/9993"
-                      value={endpoint.value}
-                      onChange={(e) => handleEndpointChange(endpoint.id, e.target.value)}
-                      fullWidth
-                      helperText="格式：IP地址/端口号"
-                    />
-                    <ListItemSecondaryAction>
-                      {endpoints.length > 1 && (
-                        <IconButton
-                          edge="end"
-                          onClick={() => handleRemoveEndpoint(endpoint.id)}
-                          color="error"
-                        >
-                          <DeleteIcon />
-                        </IconButton>
-                      )}
-                    </ListItemSecondaryAction>
-                  </ListItem>
-                ))}
-              </List>
+          <List>
+            {endpoints.map((endpoint, index) => (
+              <ListItem key={endpoint.id} sx={{ px: 0 }}>
+                <TextField
+                  label={`端点 ${index + 1}`}
+                  placeholder="IP/Port，例如：203.0.113.1/9993"
+                  value={endpoint.value}
+                  onChange={(event) => handleEndpointChange(endpoint.id, event.target.value)}
+                  fullWidth
+                  helperText="支持 IPv4 和 IPv6，格式统一为 IP/Port"
+                  disabled={generating}
+                />
+                <ListItemSecondaryAction>
+                  {endpoints.length > 1 && (
+                    <IconButton edge="end" onClick={() => handleRemoveEndpoint(endpoint.id)} color="error" disabled={generating}>
+                      <DeleteIcon />
+                    </IconButton>
+                  )}
+                </ListItemSecondaryAction>
+              </ListItem>
+            ))}
+          </List>
 
-              <Button
-                startIcon={<AddIcon />}
-                onClick={handleAddEndpoint}
-                sx={{ mt: 1 }}
-              >
-                添加端点
-              </Button>
+          <Button startIcon={<AddIcon />} onClick={handleAddEndpoint} sx={{ mt: 1 }} disabled={generating}>
+            添加端点
+          </Button>
+        </CardContent>
+      </Card>
 
-              <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
-                建议至少添加一个 IPv4 和一个 IPv6 端点。每个端点格式为 IP/Port，例如：203.0.113.1/9993
-              </Typography>
-            </CardContent>
-          </Card>
+      <Box sx={{ display: 'flex', gap: 2, mb: 3 }}>
+        <Button
+          variant="contained"
+          onClick={() => { void handleGenerate() }}
+          disabled={loadingIdentity || generating || !identityPublic.trim()}
+          startIcon={generating ? <CircularProgress size={20} color="inherit" /> : undefined}
+        >
+          {generating ? '生成中...' : '生成 Planet'}
+        </Button>
+      </Box>
 
-          <Box sx={{ display: 'flex', gap: 2, mb: 3 }}>
+      {generatedPlanet && (
+        <Card sx={{ mb: 3 }}>
+          <CardContent>
+            <Typography variant="h6" gutterBottom>
+              生成结果
+            </Typography>
+
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(3, 1fr)' }, gap: 2, mb: 3 }}>
+              <Box>
+                <Typography variant="body2" color="text.secondary">
+                  Planet ID
+                </Typography>
+                <Typography variant="body1">{generatedPlanet.planet_id}</Typography>
+              </Box>
+              <Box>
+                <Typography variant="body2" color="text.secondary">
+                  生成时间
+                </Typography>
+                <Typography variant="body1">{new Date(generatedPlanet.birth_time).toLocaleString()}</Typography>
+              </Box>
+              <Box>
+                <Typography variant="body2" color="text.secondary">
+                  端点数量
+                </Typography>
+                <Typography variant="body1">{generatedPlanet.endpoint_count}</Typography>
+              </Box>
+            </Box>
+
             <Button
               variant="contained"
-              onClick={() => { void handleGenerate(); }}
-              disabled={generating || !identityPublic}
-              startIcon={generating ? <CircularProgress size={20} color="inherit" /> : undefined}
+              color="success"
+              startIcon={<DownloadIcon />}
+              onClick={handleDownloadPlanet}
             >
-              {generating ? '生成中...' : '生成 Planet'}
+              下载 Planet
             </Button>
-          </Box>
-
-          {generatedPlanet && (
-            <Card sx={{ mb: 3 }}>
-              <CardContent>
-                <Typography variant="h6" gutterBottom>
-                  生成的 Planet 文件
-                </Typography>
-
-                <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
-                  <Button
-                    variant="contained"
-                    color="success"
-                    startIcon={<DownloadIcon />}
-                    onClick={handleDownloadPlanet}
-                  >
-                    下载 Planet 文件
-                  </Button>
-                  <Button
-                    variant="outlined"
-                    startIcon={<ContentCopyIcon />}
-                    onClick={openCHeaderDialog}
-                  >
-                    复制 C 头文件
-                  </Button>
-                </Box>
-
-                <Paper variant="outlined" sx={{ p: 2, bgcolor: 'grey.50' }}>
-                  <Typography variant="body2" component="pre" sx={{ fontFamily: 'monospace', fontSize: '0.75rem', overflow: 'auto' }}>
-                    {generatedPlanet.cHeader}
-                  </Typography>
-                </Paper>
-
-                <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
-                  提示：将下载的 planet 文件复制到 ZeroTier 控制器的数据目录（例如：`/var/lib/zerotier-one/planet`），
-                  然后重启 ZeroTier 服务使更改生效。
-                </Typography>
-              </CardContent>
-            </Card>
-          )}
-
-          <Dialog open={copyDialogOpen} onClose={() => setCopyDialogOpen(false)} maxWidth="md" fullWidth>
-            <DialogTitle>复制 C 头文件</DialogTitle>
-            <DialogContent>
-              <Paper variant="outlined" sx={{ p: 2, bgcolor: 'grey.50', maxHeight: 400, overflow: 'auto' }}>
-                <Typography component="pre" sx={{ fontFamily: 'monospace', fontSize: '0.75rem', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
-                  {generatedPlanet?.cHeader}
-                </Typography>
-              </Paper>
-            </DialogContent>
-            <DialogActions>
-              <Button onClick={() => setCopyDialogOpen(false)}>关闭</Button>
-              <Button variant="contained" onClick={() => { void handleCopyCHeader(); }}>
-                复制到剪贴板
-              </Button>
-            </DialogActions>
-          </Dialog>
-        </>
+          </CardContent>
+        </Card>
       )}
     </Box>
-  );
+  )
 }
 
-export default PlanetGenerator;
+export default PlanetGenerator

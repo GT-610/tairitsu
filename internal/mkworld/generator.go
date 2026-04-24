@@ -9,10 +9,12 @@ package mkworld
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -25,24 +27,39 @@ type GenerateOptions struct {
 	IdentityPublic string
 	Endpoints      []string
 	Comments       string
-	OutputPath     string
 }
 
-func GeneratePlanet(opts *GenerateOptions) ([]byte, error) {
+type GeneratedPlanet struct {
+	PlanetID   uint64
+	BirthTime  int64
+	PlanetData []byte
+}
+
+var (
+	ErrIdentityPublicRequired = errors.New("identity.public is required")
+	ErrNoEndpoints            = errors.New("at least one endpoint is required")
+)
+
+func GeneratePlanet(opts *GenerateOptions) (*GeneratedPlanet, error) {
 	if opts.IdentityPublic == "" {
-		return nil, fmt.Errorf("identity.public is required")
+		return nil, ErrIdentityPublicRequired
 	}
 
 	identity, err := ParseIdentityPublic(opts.IdentityPublic)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse identity: %w", err)
+		return nil, err
 	}
 
-	endpoints := make([]*ZtNodeInetAddr, 0, len(opts.Endpoints))
-	for _, epStr := range opts.Endpoints {
+	endpointValues := normalizeEndpoints(opts.Endpoints)
+	if len(endpointValues) == 0 {
+		return nil, ErrNoEndpoints
+	}
+
+	endpoints := make([]*ZtNodeInetAddr, 0, len(endpointValues))
+	for _, epStr := range endpointValues {
 		ep := &ZtNodeInetAddr{}
 		if err := ep.FromString(epStr); err != nil {
-			return nil, fmt.Errorf("failed to parse endpoint %s: %w", epStr, err)
+			return nil, fmt.Errorf("%w: %s", ErrInvalidEndpoint, epStr)
 		}
 		endpoints = append(endpoints, ep)
 	}
@@ -50,13 +67,16 @@ func GeneratePlanet(opts *GenerateOptions) ([]byte, error) {
 	prevPub, prevPriv := GenerateSigningKeyPair()
 	curPub := prevPub
 
-	planetID := generatePlanetID()
-	planetBirth := uint64(time.Now().UnixMilli())
+	planetID, err := generatePlanetID()
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate planet id: %w", err)
+	}
+	planetBirth := time.Now().UnixMilli()
 
 	ztW := &ZtWorld{
 		Type:      ZT_WORLD_TYPE_PLANET,
 		ID:        ZtWorldID(planetID),
-		Timestamp: planetBirth,
+		Timestamp: uint64(planetBirth),
 	}
 
 	rootNode := &ZtWorldPlanetNode{
@@ -82,32 +102,34 @@ func GeneratePlanet(opts *GenerateOptions) ([]byte, error) {
 		return nil, fmt.Errorf("failed to serialize final: %w", err)
 	}
 
-	if opts.OutputPath != "" {
-		if err := os.WriteFile(opts.OutputPath, finalData, 0644); err != nil {
-			return nil, fmt.Errorf("failed to write planet file: %w", err)
-		}
-	}
-
-	return finalData, nil
+	return &GeneratedPlanet{
+		PlanetID:   planetID,
+		BirthTime:  planetBirth,
+		PlanetData: finalData,
+	}, nil
 }
 
 func ParseIdentityPublic(s string) (*ZtWorldPlanetNodeIdentity, error) {
 	parts := splitByColon(s)
 	if len(parts) < 3 {
-		return nil, fmt.Errorf("invalid identity format, expected format: address:0:publicKey")
+		return nil, fmt.Errorf("%w: expected format address:0:publicKey", ErrInvalidIdentity)
 	}
 
 	identity := &ZtWorldPlanetNodeIdentity{}
 
 	addrBytes, err := hex.DecodeString(parts[0])
 	if err != nil || len(addrBytes) != 5 {
-		return nil, fmt.Errorf("invalid address (must be 10 hex chars): %w", err)
+		return nil, fmt.Errorf("%w: invalid address", ErrInvalidIdentity)
 	}
 	copy(identity.ZtNodeAddress[:], addrBytes)
 
+	if parts[1] != "0" {
+		return nil, fmt.Errorf("%w: invalid separator field", ErrInvalidIdentity)
+	}
+
 	pubBytes, err := hex.DecodeString(parts[2])
 	if err != nil || len(pubBytes) != 32 {
-		return nil, fmt.Errorf("invalid public key (must be 64 hex chars): %w", err)
+		return nil, fmt.Errorf("%w: invalid public key", ErrInvalidIdentity)
 	}
 	copy(identity.PublicKey[:], pubBytes)
 
@@ -127,10 +149,28 @@ func splitByColon(s string) []string {
 	return parts
 }
 
-func generatePlanetID() uint64 {
+func normalizeEndpoints(values []string) []string {
+	normalized := make([]string, 0, len(values))
+	for _, value := range values {
+		trimmed := strings.TrimSpace(value)
+		if trimmed != "" {
+			normalized = append(normalized, trimmed)
+		}
+	}
+	return normalized
+}
+
+func generatePlanetID() (uint64, error) {
 	b := make([]byte, 4)
-	rand.Read(b)
-	return uint64(uint32(b[0])<<24 | uint32(b[1])<<16 | uint32(b[2])<<8 | uint32(b[3]))
+	for {
+		if _, err := rand.Read(b); err != nil {
+			return 0, err
+		}
+		value := uint64(uint32(b[0])<<24 | uint32(b[1])<<16 | uint32(b[2])<<8 | uint32(b[3]))
+		if value != 0 && value != uint64(ZT_WORLD_ID_EARTH) && value != uint64(ZT_WORLD_ID_MARS) {
+			return value, nil
+		}
+	}
 }
 
 type PlanetFile struct {

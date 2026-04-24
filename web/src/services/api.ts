@@ -309,26 +309,23 @@ export interface RuntimeSettings {
 }
 
 export interface IdentityInfo {
-  success: boolean;
   message: string;
-  identityPublic?: string;
-  identityPath?: string;
+  identity_public: string;
+  identity_path: string;
 }
 
 export interface GeneratePlanetResponse {
-  success: boolean;
   message: string;
-  planetData?: number[];
-  planetId: number;
-  birthTime: number;
-  cHeader?: string;
+  planet_data: number[];
+  planet_id: number;
+  birth_time: number;
+  download_name: string;
 }
 
 export interface GeneratePlanetRequest {
-  identityPublic: string;
+  identity_public: string;
   endpoints: string[];
   comments?: string;
-  outputPath?: string;
 }
 
 // Create axios instance
@@ -464,10 +461,6 @@ export const systemAPI = {
 export const planetAPI = {
   // Get identity.public from ZeroTier data directory
   getIdentity: (ztPath?: string) => api.get<IdentityInfo>('/admin/planet/identity', {
-    params: { path: ztPath || '/var/lib/zerotier-one' }
-  }),
-  // Generate signing keys
-  generateSigningKeys: (ztPath?: string) => api.post<{ success: boolean; message: string; previousKey: string; currentKey: string }>('/admin/planet/keys', null, {
     params: { path: ztPath || '/var/lib/zerotier-one' }
   }),
   // Generate custom planet file

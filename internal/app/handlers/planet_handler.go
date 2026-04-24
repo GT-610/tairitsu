@@ -7,6 +7,7 @@
 package handlers
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -17,26 +18,23 @@ import (
 )
 
 type GeneratePlanetRequest struct {
-	IdentityPublic string   `json:"identityPublic"`
+	IdentityPublic string   `json:"identity_public"`
 	Endpoints      []string `json:"endpoints"`
 	Comments       string   `json:"comments"`
-	OutputPath     string   `json:"outputPath,omitempty"`
 }
 
 type GeneratePlanetResponse struct {
-	Success    bool   `json:"success"`
-	Message    string `json:"message"`
-	PlanetData []byte `json:"planetData,omitempty"`
-	PlanetID   uint64 `json:"planetId"`
-	BirthTime  int64  `json:"birthTime"`
-	CHeader    string `json:"cHeader,omitempty"`
+	Message      string `json:"message"`
+	PlanetData   []byte `json:"planet_data"`
+	PlanetID     uint64 `json:"planet_id"`
+	BirthTime    int64  `json:"birth_time"`
+	DownloadName string `json:"download_name"`
 }
 
 type IdentityInfoResponse struct {
-	Success        bool   `json:"success"`
 	Message        string `json:"message"`
-	IdentityPublic string `json:"identityPublic,omitempty"`
-	IdentityPath   string `json:"identityPath,omitempty"`
+	IdentityPublic string `json:"identity_public"`
+	IdentityPath   string `json:"identity_path"`
 }
 
 type ErrorResponse struct {
@@ -55,38 +53,38 @@ func GeneratePlanetHandler(c fiber.Ctx) error {
 
 	if req.IdentityPublic == "" {
 		return c.Status(400).JSON(ErrorResponse{
-			Error: "identityPublic is required",
+			Error: "identity_public is required",
 		})
 	}
 
-	if len(req.Endpoints) == 0 {
-		return c.Status(400).JSON(ErrorResponse{
-			Error: "at least one endpoint is required",
-		})
-	}
-
-	planetData, err := mkworld.GeneratePlanet(&mkworld.GenerateOptions{
+	generatedPlanet, err := mkworld.GeneratePlanet(&mkworld.GenerateOptions{
 		IdentityPublic: req.IdentityPublic,
 		Endpoints:      req.Endpoints,
 		Comments:       req.Comments,
-		OutputPath:     req.OutputPath,
 	})
 	if err != nil {
-		return c.Status(500).JSON(ErrorResponse{
-			Error:   "Failed to generate planet",
-			Details: err.Error(),
-		})
+		switch {
+		case errors.Is(err, mkworld.ErrIdentityPublicRequired),
+			errors.Is(err, mkworld.ErrNoEndpoints),
+			errors.Is(err, mkworld.ErrInvalidIdentity),
+			errors.Is(err, mkworld.ErrInvalidEndpoint):
+			return c.Status(fiber.StatusBadRequest).JSON(ErrorResponse{
+				Error: err.Error(),
+			})
+		default:
+			return c.Status(500).JSON(ErrorResponse{
+				Error:   "Failed to generate planet",
+				Details: err.Error(),
+			})
+		}
 	}
 
-	cHeader := generateCHeader(planetData)
-
 	return c.JSON(GeneratePlanetResponse{
-		Success:    true,
-		Message:    "Planet generated successfully",
-		PlanetData: planetData,
-		PlanetID:   0,
-		BirthTime:  0,
-		CHeader:    cHeader,
+		Message:      "Planet generated successfully",
+		PlanetData:   generatedPlanet.PlanetData,
+		PlanetID:     generatedPlanet.PlanetID,
+		BirthTime:    generatedPlanet.BirthTime,
+		DownloadName: "planet",
 	})
 }
 
@@ -97,20 +95,19 @@ func GetIdentityHandler(c fiber.Ctx) error {
 	identityPublic, err := os.ReadFile(identityPath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return c.JSON(IdentityInfoResponse{
-				Success:      false,
-				Message:      fmt.Sprintf("identity.public not found at %s", identityPath),
-				IdentityPath: identityPath,
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+				"error":         fmt.Sprintf("identity.public not found at %s", identityPath),
+				"identity_path": identityPath,
 			})
 		}
-		return c.Status(500).JSON(ErrorResponse{
-			Error:   "Failed to read identity.public",
-			Details: err.Error(),
+		return c.Status(500).JSON(fiber.Map{
+			"error":         "Failed to read identity.public",
+			"details":       err.Error(),
+			"identity_path": identityPath,
 		})
 	}
 
 	return c.JSON(IdentityInfoResponse{
-		Success:        true,
 		Message:        "Identity read successfully",
 		IdentityPublic: strings.TrimSpace(string(identityPublic)),
 		IdentityPath:   identityPath,
@@ -136,18 +133,4 @@ func GenerateSigningKeysHandler(c fiber.Ctx) error {
 		"previousKey": prevPath,
 		"currentKey":  curPath,
 	})
-}
-
-func generateCHeader(data []byte) string {
-	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("#define ZT_DEFAULT_WORLD_LENGTH %d\n", len(data)))
-	sb.WriteString("static const unsigned char ZT_DEFAULT_WORLD[ZT_DEFAULT_WORLD_LENGTH] = {")
-	for i, v := range data {
-		if i > 0 {
-			sb.WriteString(",")
-		}
-		sb.WriteString(fmt.Sprintf("0x%02x", v))
-	}
-	sb.WriteString("};\n")
-	return sb.String()
 }

@@ -453,7 +453,46 @@ Response:
 `Planet` endpoints are admin-only and experimental:
 
 - `GET /admin/planet/identity`
-- `POST /admin/planet/keys`
 - `POST /admin/planet/generate`
+
+### `GET /admin/planet/identity`
+
+Reads `identity.public` from a given ZeroTier data directory.
+
+Success response:
+
+```json
+{
+  "message": "Identity read successfully",
+  "identity_public": "992fcf1db7:0:206ed59350b31916f749a1f85dffb3a8787dcbf83b8c6e9448d4e3ea0e336930",
+  "identity_path": "/var/lib/zerotier-one/identity.public"
+}
+```
+
+### `POST /admin/planet/generate`
+
+Generates an experimental `planet` file using one identity and one or more stable endpoints.
+
+Request:
+
+```json
+{
+  "identity_public": "992fcf1db7:0:206ed59350b31916f749a1f85dffb3a8787dcbf83b8c6e9448d4e3ea0e336930",
+  "endpoints": ["203.0.113.1/9993", "2001:db8::1/9993"],
+  "comments": "private planet"
+}
+```
+
+Success response:
+
+```json
+{
+  "message": "Planet generated successfully",
+  "planet_id": 123456789,
+  "birth_time": 1770000000000,
+  "download_name": "planet",
+  "planet_data": [127, 127, 127]
+}
+```
 
 They are intentionally outside the normal mainline validation gate.
