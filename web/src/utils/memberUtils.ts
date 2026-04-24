@@ -9,7 +9,7 @@ export function formatNetworkMember(member: ApiMember): NetworkMemberDevice {
 
   return {
     id: memberID,
-    name: member.name || member.id || '未命名设备',
+    name: member.name || member.id || '',
     description: member.description || '',
     authorized: member.config?.authorized ?? member.authorized ?? false,
     ipAssignments: Array.from(ipAssignments),

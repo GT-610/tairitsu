@@ -17,7 +17,7 @@ var (
 	ErrImportOwnerNotFound = errors.New("指定的网络所有者不存在")
 )
 
-func (s *NetworkService) getOwnedNetwork(networkID, userID string) (*models.Network, error) {
+func (s *NetworkService) getNetwork(networkID string) (*models.Network, error) {
 	db := s.getDB()
 	if db == nil {
 		return nil, errors.New("数据库未初始化")
@@ -29,6 +29,15 @@ func (s *NetworkService) getOwnedNetwork(networkID, userID string) (*models.Netw
 	}
 	if network == nil {
 		return nil, ErrNetworkNotFound
+	}
+
+	return network, nil
+}
+
+func (s *NetworkService) getOwnedNetwork(networkID, userID string) (*models.Network, error) {
+	network, err := s.getNetwork(networkID)
+	if err != nil {
+		return nil, err
 	}
 	if network.OwnerID != userID {
 		return nil, ErrNetworkAccessDenied
@@ -42,22 +51,18 @@ func (s *NetworkService) authorizeOwnedNetwork(networkID, userID string) (*model
 }
 
 func (s *NetworkService) authorizeMemberReadAccess(networkID, userID string) (*models.Network, error) {
-	db := s.getDB()
-	if db == nil {
-		return nil, errors.New("数据库未初始化")
-	}
-
-	network, err := db.GetNetworkByID(networkID)
+	network, err := s.getNetwork(networkID)
 	if err != nil {
 		return nil, err
-	}
-	if network == nil {
-		return nil, ErrNetworkNotFound
 	}
 	if network.OwnerID == userID {
 		return network, nil
 	}
 
+	db := s.getDB()
+	if db == nil {
+		return nil, errors.New("数据库未初始化")
+	}
 	viewer, viewerErr := db.GetNetworkViewer(networkID, userID)
 	if viewerErr != nil {
 		return nil, viewerErr

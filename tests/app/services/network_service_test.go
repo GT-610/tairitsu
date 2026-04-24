@@ -451,6 +451,47 @@ func TestNetworkServiceViewerRevokeRemovesSharedAccess(t *testing.T) {
 	assert.Empty(t, sharedAfterRevoke)
 }
 
+func TestNetworkServiceDeleteNetworkRemovesViewerGrants(t *testing.T) {
+	db := newTestSQLiteDB(t)
+	createTestUser(t, db, "owner-1", "user")
+	createTestUser(t, db, "viewer-1", "user")
+
+	now := time.Now()
+	require.NoError(t, db.CreateNetwork(&models.Network{
+		ID:          "8056c2e21c000024",
+		Name:        "delete-target",
+		Description: "delete-desc",
+		OwnerID:     "owner-1",
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}))
+	require.NoError(t, db.UpsertNetworkViewer(&models.NetworkViewer{
+		NetworkID: "8056c2e21c000024",
+		UserID:    "viewer-1",
+		GrantedBy: "owner-1",
+		CreatedAt: now,
+		UpdatedAt: now,
+	}))
+
+	service := services.NewNetworkService(newTestZTClient(t, map[string]zerotier.Network{
+		"8056c2e21c000024": {ID: "8056c2e21c000024", Name: "delete-target"},
+	}), db)
+
+	require.NoError(t, service.DeleteNetwork("8056c2e21c000024", "owner-1"))
+
+	deletedNetwork, err := db.GetNetworkByID("8056c2e21c000024")
+	require.NoError(t, err)
+	assert.Nil(t, deletedNetwork)
+
+	viewerGrant, err := db.GetNetworkViewer("8056c2e21c000024", "viewer-1")
+	require.NoError(t, err)
+	assert.Nil(t, viewerGrant)
+
+	sharedNetworks, err := service.GetSharedNetworks("viewer-1")
+	require.NoError(t, err)
+	assert.Empty(t, sharedNetworks)
+}
+
 func TestNetworkServiceGetAllNetworksIncludesMemberStats(t *testing.T) {
 	db := newTestSQLiteDB(t)
 	now := time.Now()

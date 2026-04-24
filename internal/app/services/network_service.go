@@ -503,9 +503,22 @@ func (s *NetworkService) DeleteNetwork(networkID string, userID string) error {
 		return err
 	}
 
-	// Delete network from database
-	if err := db.DeleteNetwork(networkID); err != nil {
-		logger.Error("服务层：从数据库删除网络失败", zap.String("network_id", networkID), zap.Error(err))
+	if err := db.WithTransaction(func(tx database.DBInterface) error {
+		viewers, txErr := tx.GetNetworkViewers(networkID)
+		if txErr != nil {
+			return txErr
+		}
+		for _, viewer := range viewers {
+			if viewer == nil {
+				continue
+			}
+			if deleteErr := tx.DeleteNetworkViewer(networkID, viewer.UserID); deleteErr != nil {
+				return deleteErr
+			}
+		}
+		return tx.DeleteNetwork(networkID)
+	}); err != nil {
+		logger.Error("服务层：从数据库删除网络及查看授权失败", zap.String("network_id", networkID), zap.Error(err))
 		// Continue anyway, as ZeroTier deletion was successful
 	}
 

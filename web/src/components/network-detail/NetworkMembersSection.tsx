@@ -138,7 +138,7 @@ function NetworkMembersSection({
                 filteredMembers.map((member) => (
                   <TableRow key={member.id} hover>
                     <TableCell>{member.id}</TableCell>
-                    <TableCell>{member.name}</TableCell>
+                    <TableCell>{member.name || '未命名设备'}</TableCell>
                     <TableCell>
                       <Chip
                         label={member.authorized ? '已授权' : '待授权'}

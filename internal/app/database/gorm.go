@@ -216,6 +216,7 @@ func (g *GormDB) GetSharedNetworksByUserID(userID string) ([]*models.Network, er
 		Select("networks.id, networks.name, networks.description, networks.owner_id, networks.created_at, networks.updated_at").
 		Joins("JOIN network_viewers ON network_viewers.network_id = networks.id").
 		Where("network_viewers.user_id = ?", userID).
+		Order("networks.created_at DESC").
 		Find(&networks)
 	if result.Error != nil {
 		return nil, result.Error
