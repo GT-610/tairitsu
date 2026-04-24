@@ -87,11 +87,16 @@ func SetupRoutes(router *fiber.App, dependencies *assembly.Dependencies) {
 		api.Get("/status", runtimeOnly, authMiddleware, networkHandler.GetStatus)
 
 		api.Get("/networks", runtimeOnly, authMiddleware, networkHandler.GetNetworks)
+		api.Get("/networks/shared", runtimeOnly, authMiddleware, networkHandler.GetSharedNetworks)
 		api.Post("/networks", runtimeOnly, authMiddleware, networkHandler.CreateNetwork)
 		api.Get("/networks/:id", runtimeOnly, authMiddleware, networkHandler.GetNetwork)
 		api.Put("/networks/:id", runtimeOnly, authMiddleware, networkHandler.UpdateNetwork)
 		api.Put("/networks/:id/metadata", runtimeOnly, authMiddleware, networkHandler.UpdateNetworkMetadata)
 		api.Delete("/networks/:id", runtimeOnly, authMiddleware, networkHandler.DeleteNetwork)
+		api.Get("/networks/:id/viewers", runtimeOnly, authMiddleware, networkHandler.GetNetworkViewers)
+		api.Get("/networks/:id/viewers/available", runtimeOnly, authMiddleware, networkHandler.GetNetworkViewerCandidates)
+		api.Post("/networks/:id/viewers", runtimeOnly, authMiddleware, networkHandler.AddNetworkViewer)
+		api.Delete("/networks/:id/viewers/:userId", runtimeOnly, authMiddleware, networkHandler.DeleteNetworkViewer)
 
 		api.Get("/networks/:id/members", runtimeOnly, authMiddleware, memberHandler.GetMembers)
 		api.Get("/networks/:id/members/:memberId", runtimeOnly, authMiddleware, memberHandler.GetMember)

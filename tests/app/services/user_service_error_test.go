@@ -74,6 +74,21 @@ func (d *txFailingDB) UpdateNetwork(network *models.Network) error {
 	return d.inner.UpdateNetwork(network)
 }
 func (d *txFailingDB) DeleteNetwork(id string) error { return d.inner.DeleteNetwork(id) }
+func (d *txFailingDB) UpsertNetworkViewer(viewer *models.NetworkViewer) error {
+	return d.inner.UpsertNetworkViewer(viewer)
+}
+func (d *txFailingDB) GetNetworkViewer(networkID, userID string) (*models.NetworkViewer, error) {
+	return d.inner.GetNetworkViewer(networkID, userID)
+}
+func (d *txFailingDB) GetNetworkViewers(networkID string) ([]*models.NetworkViewer, error) {
+	return d.inner.GetNetworkViewers(networkID)
+}
+func (d *txFailingDB) GetSharedNetworksByUserID(userID string) ([]*models.Network, error) {
+	return d.inner.GetSharedNetworksByUserID(userID)
+}
+func (d *txFailingDB) DeleteNetworkViewer(networkID, userID string) error {
+	return d.inner.DeleteNetworkViewer(networkID, userID)
+}
 func (d *txFailingDB) HasAdminUser() (bool, error)   { return d.inner.HasAdminUser() }
 func (d *txFailingDB) Close() error                  { return d.inner.Close() }
 

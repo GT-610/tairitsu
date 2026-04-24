@@ -15,7 +15,8 @@ interface NetworkMembersSectionProps {
   onHidePendingBanner: () => void;
   onQuickApprove: () => void;
   onQuickReject: () => void;
-  onOpenMemberMenu: (event: MouseEvent<HTMLElement>, member: NetworkMemberDevice) => void;
+  onOpenMemberMenu?: (event: MouseEvent<HTMLElement>, member: NetworkMemberDevice) => void;
+  readOnly?: boolean;
 }
 
 function NetworkMembersSection({
@@ -31,10 +32,11 @@ function NetworkMembersSection({
   onQuickApprove,
   onQuickReject,
   onOpenMemberMenu,
+  readOnly = false,
 }: NetworkMembersSectionProps) {
   return (
     <>
-      {pendingMembers.length > 0 && !hidePendingBanner && (
+      {pendingMembers.length > 0 && !hidePendingBanner && !readOnly && (
         <Alert
           severity="warning"
           sx={{ mb: 3 }}
@@ -119,13 +121,13 @@ function NetworkMembersSection({
                 <TableCell>状态</TableCell>
                 <TableCell>Managed IPs</TableCell>
                 <TableCell>ZT 版本</TableCell>
-                <TableCell align="right">操作</TableCell>
+                {!readOnly && <TableCell align="right">操作</TableCell>}
               </TableRow>
             </TableHead>
             <TableBody>
               {filteredMembers.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} align="center" sx={{ py: 5, color: 'text.secondary' }}>
+                  <TableCell colSpan={readOnly ? 5 : 6} align="center" sx={{ py: 5, color: 'text.secondary' }}>
                     {memberSearchTerm ? '没有找到匹配的成员设备' : '暂无设备连接'}
                   </TableCell>
                 </TableRow>
@@ -144,11 +146,13 @@ function NetworkMembersSection({
                     </TableCell>
                     <TableCell>{member.ipAssignments.length > 0 ? member.ipAssignments.join(', ') : '-'}</TableCell>
                     <TableCell>{member.clientVersion}</TableCell>
-                    <TableCell align="right">
-                      <IconButton onClick={(event) => onOpenMemberMenu(event, member)}>
-                        <MoreHoriz />
-                      </IconButton>
-                    </TableCell>
+                    {!readOnly && onOpenMemberMenu && (
+                      <TableCell align="right">
+                        <IconButton onClick={(event) => onOpenMemberMenu(event, member)}>
+                          <MoreHoriz />
+                        </IconButton>
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))
               )}

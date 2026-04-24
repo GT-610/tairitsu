@@ -60,6 +60,19 @@ func (s *stateServiceDBStub) GetAllNetworks() ([]*models.Network, error) {
 }
 func (s *stateServiceDBStub) UpdateNetwork(network *models.Network) error { return nil }
 func (s *stateServiceDBStub) DeleteNetwork(id string) error               { return nil }
+func (s *stateServiceDBStub) UpsertNetworkViewer(viewer *models.NetworkViewer) error {
+	return nil
+}
+func (s *stateServiceDBStub) GetNetworkViewer(networkID, userID string) (*models.NetworkViewer, error) {
+	return nil, nil
+}
+func (s *stateServiceDBStub) GetNetworkViewers(networkID string) ([]*models.NetworkViewer, error) {
+	return []*models.NetworkViewer{}, nil
+}
+func (s *stateServiceDBStub) GetSharedNetworksByUserID(userID string) ([]*models.Network, error) {
+	return []*models.Network{}, nil
+}
+func (s *stateServiceDBStub) DeleteNetworkViewer(networkID, userID string) error { return nil }
 func (s *stateServiceDBStub) HasAdminUser() (bool, error) {
 	for _, user := range s.users {
 		if user.Role == "admin" {

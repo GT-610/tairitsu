@@ -15,6 +15,7 @@ import {
   Snackbar,
   Tab,
   Tabs,
+  TextField,
   Typography,
 } from '@mui/material'
 import { Alert as MuiAlert } from '@mui/material'
@@ -26,6 +27,7 @@ import {
   type Network,
   type NetworkConfig,
   type NetworkMetadataUpdateRequest,
+  type NetworkViewer,
   type Route,
   memberAPI,
   networkAPI,
@@ -188,6 +190,9 @@ function NetworkDetail() {
   const [memberDialogOpen, setMemberDialogOpen] = useState(false)
   const [memberDeleteDialogOpen, setMemberDeleteDialogOpen] = useState(false)
   const [memberForm, setMemberForm] = useState<MemberFormState>(emptyMemberForm)
+  const [networkViewers, setNetworkViewers] = useState<NetworkViewer[]>([])
+  const [viewerCandidates, setViewerCandidates] = useState<NetworkViewer[]>([])
+  const [selectedViewerCandidateId, setSelectedViewerCandidateId] = useState('')
 
   useEffect(() => {
     void fetchNetworkDetail()
@@ -211,7 +216,11 @@ function NetworkDetail() {
       }
 
       const response = await networkAPI.getNetwork(id)
-      const networkData = response.data
+      const [networkData, viewersResponse, viewerCandidatesResponse] = await Promise.all([
+        Promise.resolve(response.data),
+        networkAPI.getNetworkViewers(id),
+        networkAPI.getNetworkViewerCandidates(id),
+      ]).then(([detail, viewers, candidates]) => [detail, viewers.data, candidates.data] as const)
       if (!networkData) return
 
       networkData.config = { ...defaultNetworkConfig, ...networkData.config }
@@ -243,6 +252,10 @@ function NetworkDetail() {
       setDnsSettings(nextDns)
       setInitialMulticastSettings(nextMulticast)
       setMulticastSettings(nextMulticast)
+      setNetworkViewers(Array.isArray(viewersResponse) ? viewersResponse : [])
+      const nextViewerCandidates = Array.isArray(viewerCandidatesResponse) ? viewerCandidatesResponse : []
+      setViewerCandidates(nextViewerCandidates)
+      setSelectedViewerCandidateId((previous) => previous || nextViewerCandidates[0]?.id || '')
       setHidePendingBanner(false)
       setError('')
     } catch (err: unknown) {
@@ -641,6 +654,34 @@ function NetworkDetail() {
     setSnackbar((prev) => ({ ...prev, open: false }))
   }
 
+  const handleAddViewer = async () => {
+    if (!id || !selectedViewerCandidateId) return
+    setSaving(true)
+    try {
+      await networkAPI.addNetworkViewer(id, selectedViewerCandidateId)
+      showSnackbar('只读查看权限已授予')
+      await fetchNetworkDetail()
+    } catch (err: unknown) {
+      showSnackbar(getErrorMessage(err, '授予只读查看权限失败'), 'error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleRemoveViewer = async (viewerUserID: string) => {
+    if (!id) return
+    setSaving(true)
+    try {
+      await networkAPI.deleteNetworkViewer(id, viewerUserID)
+      showSnackbar('只读查看权限已移除')
+      await fetchNetworkDetail()
+    } catch (err: unknown) {
+      showSnackbar(getErrorMessage(err, '移除只读查看权限失败'), 'error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   if (error || !id) {
     return (
       <Box sx={{ p: 3 }}>
@@ -689,20 +730,92 @@ function NetworkDetail() {
       ) : (
         <>
           {activeTab === 0 && (
-            <NetworkMembersSection
-              memberDevices={memberDevices}
-              pendingMembers={pendingMembers}
-              authorizedMembers={authorizedMembers}
-              filteredMembers={filteredMembers}
-              memberSearchTerm={memberSearchTerm}
-              saving={saving}
-              hidePendingBanner={hidePendingBanner}
-              onMemberSearchTermChange={setMemberSearchTerm}
-              onHidePendingBanner={() => setHidePendingBanner(true)}
-              onQuickApprove={() => { void handleUpdateMemberStatus(pendingMembers[0], true) }}
-              onQuickReject={() => { void handleUpdateMemberStatus(pendingMembers[0], false) }}
-              onOpenMemberMenu={handleOpenMemberMenu}
-            />
+            <>
+              <NetworkMembersSection
+                memberDevices={memberDevices}
+                pendingMembers={pendingMembers}
+                authorizedMembers={authorizedMembers}
+                filteredMembers={filteredMembers}
+                memberSearchTerm={memberSearchTerm}
+                saving={saving}
+                hidePendingBanner={hidePendingBanner}
+                onMemberSearchTermChange={setMemberSearchTerm}
+                onHidePendingBanner={() => setHidePendingBanner(true)}
+                onQuickApprove={() => { void handleUpdateMemberStatus(pendingMembers[0], true) }}
+                onQuickReject={() => { void handleUpdateMemberStatus(pendingMembers[0], false) }}
+                onOpenMemberMenu={handleOpenMemberMenu}
+              />
+
+              <SettingsSectionCard title="只读查看授权">
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                  这里可以授予普通用户只读查看该网络成员设备的权限。被授权用户只能查看设备和元信息，不能修改任何内容。
+                </Typography>
+                <Box sx={{ display: 'flex', gap: 2, mb: 3, flexWrap: 'wrap', alignItems: 'center' }}>
+                  <TextField
+                    select
+                    label="选择用户"
+                    value={selectedViewerCandidateId}
+                    onChange={(event) => setSelectedViewerCandidateId(event.target.value)}
+                    sx={{ minWidth: 260 }}
+                    SelectProps={{ native: false }}
+                    disabled={saving || viewerCandidates.length === 0}
+                  >
+                    {viewerCandidates.map((candidate) => (
+                      <MenuItem key={candidate.id} value={candidate.id}>
+                        {candidate.username}
+                      </MenuItem>
+                    ))}
+                  </TextField>
+                  <Button
+                    variant="contained"
+                    onClick={() => { void handleAddViewer() }}
+                    disabled={saving || !selectedViewerCandidateId}
+                  >
+                    授予只读查看
+                  </Button>
+                </Box>
+
+                {networkViewers.length === 0 ? (
+                  <Typography variant="body2" color="text.secondary">
+                    当前还没有被授予只读查看权限的用户。
+                  </Typography>
+                ) : (
+                  <Box sx={{ display: 'grid', gap: 1.5 }}>
+                    {networkViewers.map((viewer) => (
+                      <Box
+                        key={viewer.id}
+                        sx={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          gap: 2,
+                          p: 2,
+                          border: 1,
+                          borderColor: 'divider',
+                          borderRadius: 1,
+                        }}
+                      >
+                        <Box>
+                          <Typography variant="body1">{viewer.username}</Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            授权时间：{viewer.created_at ? new Date(viewer.created_at).toLocaleString() : '-'}
+                          </Typography>
+                        </Box>
+                        <Button
+                          variant="outlined"
+                          color="error"
+                          size="small"
+                          onClick={() => { void handleRemoveViewer(viewer.id) }}
+                          disabled={saving}
+                        >
+                          移除权限
+                        </Button>
+                      </Box>
+                    ))}
+                  </Box>
+                )}
+              </SettingsSectionCard>
+            </>
           )}
 
           {activeTab === 1 && (

@@ -20,6 +20,7 @@ import AccountCircle from '@mui/icons-material/AccountCircle';
 import ImportExportIcon from '@mui/icons-material/ImportExport';
 import GroupIcon from '@mui/icons-material/Group';
 import PublicIcon from '@mui/icons-material/Public';
+import VisibilityIcon from '@mui/icons-material/Visibility';
 import MenuItem from '@mui/material/MenuItem';
 import Menu from '@mui/material/Menu';
 import MenuList from '@mui/material/MenuList';
@@ -48,6 +49,11 @@ const mainMenuItems: MenuItemType[] = [
     text: '网络',
     path: '/networks',
     icon: <LanguageIcon />
+  },
+  {
+    text: '共享给我',
+    path: '/shared-networks',
+    icon: <VisibilityIcon />
   },
   {
     text: '个人信息',

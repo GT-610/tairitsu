@@ -53,6 +53,22 @@ func (h *NetworkHandler) GetNetworks(c fiber.Ctx) error {
 	return c.Status(fiber.StatusOK).JSON(networks)
 }
 
+func (h *NetworkHandler) GetSharedNetworks(c fiber.Ctx) error {
+	userID, authErr := requiredUserID(c)
+	if authErr != nil {
+		logger.Error("获取用户ID失败")
+		return authErr
+	}
+
+	networks, err := h.networkService.GetSharedNetworks(userID)
+	if err != nil {
+		logger.Error("获取共享网络列表失败", zap.String("user_id", userID), zap.Error(err))
+		return writeErrorResponse(c, fiber.StatusInternalServerError, err.Error())
+	}
+
+	return c.Status(fiber.StatusOK).JSON(networks)
+}
+
 // GetNetwork 获取特定网络
 func (h *NetworkHandler) GetNetwork(c fiber.Ctx) error {
 	id := c.Params("id")
@@ -254,4 +270,73 @@ func (h *NetworkHandler) ImportNetworks(c fiber.Ctx) error {
 		zap.Int("failed_count", len(result.Failed)))
 
 	return c.Status(fiber.StatusOK).JSON(result)
+}
+
+func (h *NetworkHandler) GetNetworkViewers(c fiber.Ctx) error {
+	networkID := c.Params("id")
+	userID, authErr := requiredUserID(c)
+	if authErr != nil {
+		return authErr
+	}
+
+	viewers, err := h.networkService.GetNetworkViewers(networkID, userID)
+	if err != nil {
+		return writeNetworkServiceError(c, err, "网络不存在", "无权限管理网络查看授权")
+	}
+
+	return c.Status(fiber.StatusOK).JSON(viewers)
+}
+
+func (h *NetworkHandler) GetNetworkViewerCandidates(c fiber.Ctx) error {
+	networkID := c.Params("id")
+	userID, authErr := requiredUserID(c)
+	if authErr != nil {
+		return authErr
+	}
+
+	candidates, err := h.networkService.GetNetworkViewerCandidates(networkID, userID)
+	if err != nil {
+		return writeNetworkServiceError(c, err, "网络不存在", "无权限管理网络查看授权")
+	}
+
+	return c.Status(fiber.StatusOK).JSON(candidates)
+}
+
+func (h *NetworkHandler) AddNetworkViewer(c fiber.Ctx) error {
+	networkID := c.Params("id")
+	userID, authErr := requiredUserID(c)
+	if authErr != nil {
+		return authErr
+	}
+
+	var request struct {
+		UserID string `json:"user_id"`
+	}
+	if err := c.Bind().Body(&request); err != nil {
+		return writeErrorResponse(c, fiber.StatusBadRequest, err.Error())
+	}
+	if request.UserID == "" {
+		return writeErrorResponse(c, fiber.StatusBadRequest, "必须指定用户")
+	}
+
+	if err := h.networkService.GrantNetworkViewer(networkID, request.UserID, userID); err != nil {
+		return writeNetworkServiceError(c, err, "网络不存在", "无权限管理网络查看授权")
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{"message": "已授予只读查看权限"})
+}
+
+func (h *NetworkHandler) DeleteNetworkViewer(c fiber.Ctx) error {
+	networkID := c.Params("id")
+	targetUserID := c.Params("userId")
+	userID, authErr := requiredUserID(c)
+	if authErr != nil {
+		return authErr
+	}
+
+	if err := h.networkService.RevokeNetworkViewer(networkID, targetUserID, userID); err != nil {
+		return writeNetworkServiceError(c, err, "网络不存在", "无权限管理网络查看授权")
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{"message": "已移除只读查看权限"})
 }
