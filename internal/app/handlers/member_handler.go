@@ -33,13 +33,13 @@ func (h *MemberHandler) GetMembers(c fiber.Ctx) error {
 	networkID := memberRouteNetworkID(c)
 
 	// Get user ID from context
-	userID := c.Locals("user_id")
-	if userID == nil {
+	userID, authErr := requiredUserID(c)
+	if authErr != nil {
 		logger.Error("获取用户ID失败")
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "未授权访问"})
+		return authErr
 	}
 
-	members, err := h.networkService.GetNetworkMembers(networkID, userID.(string))
+	members, err := h.networkService.GetNetworkMembers(networkID, userID)
 	if err != nil {
 		logger.Error("获取网络成员列表失败", zap.String("network_id", networkID), zap.Error(err))
 		return writeNetworkServiceError(c, err, "网络不存在", "无权限访问网络成员")
@@ -54,13 +54,13 @@ func (h *MemberHandler) GetMember(c fiber.Ctx) error {
 	memberID := c.Params("memberId")
 
 	// Get user ID from context
-	userID := c.Locals("user_id")
-	if userID == nil {
+	userID, authErr := requiredUserID(c)
+	if authErr != nil {
 		logger.Error("获取用户ID失败")
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "未授权访问"})
+		return authErr
 	}
 
-	member, err := h.networkService.GetNetworkMember(networkID, memberID, userID.(string))
+	member, err := h.networkService.GetNetworkMember(networkID, memberID, userID)
 	if err != nil {
 		logger.Error("获取网络成员失败", zap.String("network_id", networkID), zap.String("member_id", memberID), zap.Error(err))
 		return writeNetworkServiceError(c, err, "网络不存在", "无权限访问网络成员")
@@ -68,7 +68,7 @@ func (h *MemberHandler) GetMember(c fiber.Ctx) error {
 
 	if member == nil {
 		logger.Warn("网络成员不存在", zap.String("network_id", networkID), zap.String("member_id", memberID))
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "成员不存在"})
+		return writeErrorResponse(c, fiber.StatusNotFound, "成员不存在")
 	}
 
 	return c.Status(fiber.StatusOK).JSON(member)
@@ -82,17 +82,17 @@ func (h *MemberHandler) UpdateMember(c fiber.Ctx) error {
 	var req zerotier.MemberUpdateRequest
 	if err := c.Bind().Body(&req); err != nil {
 		logger.Error("请求参数绑定失败", zap.String("network_id", networkID), zap.String("member_id", memberID), zap.Error(err))
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		return writeErrorResponse(c, fiber.StatusBadRequest, err.Error())
 	}
 
 	// Get user ID from context
-	userID := c.Locals("user_id")
-	if userID == nil {
+	userID, authErr := requiredUserID(c)
+	if authErr != nil {
 		logger.Error("获取用户ID失败")
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "未授权访问"})
+		return authErr
 	}
 
-	member, err := h.networkService.UpdateNetworkMember(networkID, memberID, &req, userID.(string))
+	member, err := h.networkService.UpdateNetworkMember(networkID, memberID, &req, userID)
 	if err != nil {
 		logger.Error("更新网络成员失败", zap.String("network_id", networkID), zap.String("member_id", memberID), zap.Error(err))
 		return writeNetworkServiceError(c, err, "网络不存在", "无权限更新网络成员")
@@ -107,13 +107,13 @@ func (h *MemberHandler) DeleteMember(c fiber.Ctx) error {
 	memberID := c.Params("memberId")
 
 	// Get user ID from context
-	userID := c.Locals("user_id")
-	if userID == nil {
+	userID, authErr := requiredUserID(c)
+	if authErr != nil {
 		logger.Error("获取用户ID失败")
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "未授权访问"})
+		return authErr
 	}
 
-	err := h.networkService.RemoveNetworkMember(networkID, memberID, userID.(string))
+	err := h.networkService.RemoveNetworkMember(networkID, memberID, userID)
 	if err != nil {
 		logger.Error("删除网络成员失败", zap.String("network_id", networkID), zap.String("member_id", memberID), zap.Error(err))
 		return writeNetworkServiceError(c, err, "网络不存在", "无权限删除网络成员")

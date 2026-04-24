@@ -36,13 +36,13 @@ func (h *NetworkHandler) GetNetworks(c fiber.Ctx) error {
 	logger.Info("开始获取当前用户的所有网络列表")
 
 	// Get user ID from context
-	userID := c.Locals("user_id")
-	if userID == nil {
+	userID, authErr := requiredUserID(c)
+	if authErr != nil {
 		logger.Error("获取用户ID失败")
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "未授权访问"})
+		return authErr
 	}
 
-	networks, err := h.networkService.GetAllNetworks(userID.(string))
+	networks, err := h.networkService.GetAllNetworks(userID)
 	if err != nil {
 		logger.Error("获取网络列表失败", zap.Error(err))
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
@@ -81,22 +81,22 @@ func (h *NetworkHandler) CreateNetwork(c fiber.Ctx) error {
 	var req zerotier.Network
 	if err := c.Bind().Body(&req); err != nil {
 		logger.Error("创建网络请求参数绑定失败", zap.Error(err))
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		return writeErrorResponse(c, fiber.StatusBadRequest, err.Error())
 	}
 
 	logger.Info("开始创建新网络", zap.String("network_name", req.Name))
 
 	// Get user ID from context
-	userID := c.Locals("user_id")
-	if userID == nil {
+	userID, authErr := requiredUserID(c)
+	if authErr != nil {
 		logger.Error("获取用户ID失败")
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "未授权访问"})
+		return authErr
 	}
 
-	network, err := h.networkService.CreateNetwork(&req, userID.(string))
+	network, err := h.networkService.CreateNetwork(&req, userID)
 	if err != nil {
 		logger.Error("创建网络失败", zap.String("network_name", req.Name), zap.Error(err))
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return writeErrorResponse(c, fiber.StatusInternalServerError, err.Error())
 	}
 
 	logger.Info("成功创建网络", zap.String("network_id", network.ID), zap.String("network_name", network.Name))

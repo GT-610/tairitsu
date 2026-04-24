@@ -10,16 +10,16 @@ import (
 func writeNetworkServiceError(c fiber.Ctx, err error, notFoundMessage string, forbiddenMessage string) error {
 	switch {
 	case services.IsNetworkNotFound(err):
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": notFoundMessage})
+		return writeErrorResponse(c, fiber.StatusNotFound, notFoundMessage)
 	case services.IsNetworkAccessDenied(err):
-		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": forbiddenMessage})
+		return writeErrorResponse(c, fiber.StatusForbidden, forbiddenMessage)
 	case errors.Is(err, services.ErrImportAccessDenied):
-		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": err.Error()})
+		return writeErrorResponse(c, fiber.StatusForbidden, err.Error())
 	case errors.Is(err, services.ErrImportOwnerRequired):
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		return writeErrorResponse(c, fiber.StatusBadRequest, err.Error())
 	case errors.Is(err, services.ErrImportOwnerNotFound):
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		return writeErrorResponse(c, fiber.StatusBadRequest, err.Error())
 	default:
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		return writeErrorResponse(c, fiber.StatusInternalServerError, err.Error())
 	}
 }
