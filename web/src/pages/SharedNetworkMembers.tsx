@@ -71,7 +71,7 @@ function SharedNetworkMembers() {
       await navigator.clipboard.writeText(network.id)
       setSnackbar({ open: true, message: '网络 ID 已复制', severity: 'success' })
     } catch {
-      setError('复制网络 ID 失败')
+      setSnackbar({ open: true, message: '复制网络 ID 失败', severity: 'error' })
     }
   }
 

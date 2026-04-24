@@ -151,7 +151,10 @@ function NetworkMembersSection({
                     <TableCell>{member.clientVersion}</TableCell>
                     {showAction && (
                       <TableCell align="right">
-                        <IconButton onClick={(event) => handleOpenMemberMenu?.(event, member)}>
+                        <IconButton
+                          aria-label={`打开成员菜单：${member.name || member.id || '成员设备'}`}
+                          onClick={(event) => handleOpenMemberMenu?.(event, member)}
+                        >
                           <MoreHoriz />
                         </IconButton>
                       </TableCell>

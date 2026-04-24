@@ -565,6 +565,20 @@ func (s *UserService) DeleteUserByAdmin(currentAdminID, targetUserID string) (*m
 			revokedSessions++
 		}
 
+		sharedNetworks, err := tx.GetSharedNetworksByUserID(targetUserID)
+		if err != nil {
+			return fmt.Errorf("读取用户共享网络授权失败: %w", err)
+		}
+
+		for _, network := range sharedNetworks {
+			if network == nil {
+				continue
+			}
+			if err := tx.DeleteNetworkViewer(network.ID, targetUserID); err != nil {
+				return fmt.Errorf("删除用户共享网络授权失败: %w", err)
+			}
+		}
+
 		if err := tx.DeleteUser(targetUserID); err != nil {
 			return fmt.Errorf("删除用户失败: %w", err)
 		}

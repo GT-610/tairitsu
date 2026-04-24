@@ -190,17 +190,18 @@ function NetworkDetail() {
         throw new Error('网络ID不能为空')
       }
 
-      const networkPromise = networkAPI.getNetwork(id)
-      const viewersPromise = networkAPI.getNetworkViewers(id)
-      const viewerCandidatesPromise = networkAPI.getNetworkViewerCandidates(id)
-      const [networkResponse, viewersResponse, viewerCandidatesResponse] = await Promise.all([
-        networkPromise,
-        viewersPromise,
-        viewerCandidatesPromise,
+      const [networkResponse, viewersResult, viewerCandidatesResult] = await Promise.allSettled([
+        networkAPI.getNetwork(id),
+        networkAPI.getNetworkViewers(id),
+        networkAPI.getNetworkViewerCandidates(id),
       ])
-      const networkData = networkResponse.data
-      const viewersData = viewersResponse.data
-      const viewerCandidatesData = viewerCandidatesResponse.data
+      if (networkResponse.status !== 'fulfilled') {
+        throw networkResponse.reason
+      }
+
+      const networkData = networkResponse.value.data
+      const viewersData = viewersResult.status === 'fulfilled' ? viewersResult.value.data : []
+      const viewerCandidatesData = viewerCandidatesResult.status === 'fulfilled' ? viewerCandidatesResult.value.data : []
       if (!networkData) return
 
       networkData.config = { ...defaultNetworkConfig, ...networkData.config }
@@ -240,6 +241,9 @@ function NetworkDetail() {
           ? previous
           : nextViewerCandidates[0]?.id || ''
       ))
+      if (viewersResult.status !== 'fulfilled' || viewerCandidatesResult.status !== 'fulfilled') {
+        showSnackbar('只读授权信息暂时无法加载，其他网络内容仍可正常查看', 'info')
+      }
       setHidePendingBanner(false)
       setError('')
     } catch (err: unknown) {
