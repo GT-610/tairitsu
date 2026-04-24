@@ -15,7 +15,7 @@ import (
 func TestGetIdentityHandler_ReadsIdentityPublic(t *testing.T) {
 	tempDir := t.TempDir()
 	identityPath := filepath.Join(tempDir, "identity.public")
-	if err := os.WriteFile(identityPath, []byte("992fcf1db7:0:206ed59350b31916f749a1f85dffb3a8787dcbf83b8c6e9448d4e3ea0e336930\n"), 0644); err != nil {
+	if err := os.WriteFile(identityPath, []byte("f76fd3000b:0:542c89e34a369c2281ed940d05beeffdbaa66930f17b875e9172e43d0ba30b6a39708507f4d64e66cde4a1040d2a995d01209d685ca6c4adb4a5c880af1e9715\n"), 0644); err != nil {
 		t.Fatalf("write identity.public: %v", err)
 	}
 
@@ -74,7 +74,7 @@ func TestGeneratePlanetHandler_ReturnsPlanetDataAndMetadata(t *testing.T) {
 	app := fiber.New()
 	app.Post("/planet", GeneratePlanetHandler)
 
-	body := `{"identity_public":"992fcf1db7:0:206ed59350b31916f749a1f85dffb3a8787dcbf83b8c6e9448d4e3ea0e336930","endpoints":["203.0.113.1/9993"],"comments":"test"}`
+	body := `{"identity_public":"f76fd3000b:0:542c89e34a369c2281ed940d05beeffdbaa66930f17b875e9172e43d0ba30b6a39708507f4d64e66cde4a1040d2a995d01209d685ca6c4adb4a5c880af1e9715","endpoints":["203.0.113.1/9993"],"comments":"test"}`
 	req := httptest.NewRequest(http.MethodPost, "/planet", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 

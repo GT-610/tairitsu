@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-const validIdentityPublic = "992fcf1db7:0:206ed59350b31916f749a1f85dffb3a8787dcbf83b8c6e9448d4e3ea0e336930"
+const validIdentityPublic = "f76fd3000b:0:542c89e34a369c2281ed940d05beeffdbaa66930f17b875e9172e43d0ba30b6a39708507f4d64e66cde4a1040d2a995d01209d685ca6c4adb4a5c880af1e9715"
 
 func TestGeneratePlanet_RejectsInvalidInput(t *testing.T) {
 	testCases := []struct {

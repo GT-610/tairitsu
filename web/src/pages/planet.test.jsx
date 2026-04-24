@@ -11,5 +11,7 @@ describe('Planet page', () => {
     expect(html).not.toContain('Signing keys')
     expect(html).toContain('身份加载')
     expect(html).toContain('Planet 配置')
+    expect(html).toContain('读取身份')
+    expect(html).not.toContain('读取中...')
   })
 })

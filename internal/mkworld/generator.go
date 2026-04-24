@@ -64,7 +64,7 @@ func GeneratePlanet(opts *GenerateOptions) (*GeneratedPlanet, error) {
 		endpoints = append(endpoints, ep)
 	}
 
-	prevPub, prevPriv := GenerateSigningKeyPair()
+	prevPub, prevPriv := GenerateDualPair()
 	curPub := prevPub
 
 	planetID, err := generatePlanetID()
@@ -87,7 +87,7 @@ func GeneratePlanet(opts *GenerateOptions) (*GeneratedPlanet, error) {
 
 	ztW.PublicKeyMustBeSignedByNextTime = curPub
 
-	toSignData, err := ztW.Serialize(true, [64]byte{})
+	toSignData, err := ztW.Serialize(true, [ZT_C25519_SIGNATURE_LEN]byte{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to serialize for signing: %w", err)
 	}
@@ -128,7 +128,7 @@ func ParseIdentityPublic(s string) (*ZtWorldPlanetNodeIdentity, error) {
 	}
 
 	pubBytes, err := hex.DecodeString(parts[2])
-	if err != nil || len(pubBytes) != 32 {
+	if err != nil || len(pubBytes) != ZT_C25519_PUBLIC_KEY_LEN {
 		return nil, fmt.Errorf("%w: invalid public key", ErrInvalidIdentity)
 	}
 	copy(identity.PublicKey[:], pubBytes)
@@ -194,7 +194,7 @@ func SavePlanetFile(data []byte, path string) error {
 }
 
 func CreateSigningKeys(prevPath, curPath string) error {
-	prevPub, prevPriv := GenerateSigningKeyPair()
+	prevPub, prevPriv := GenerateDualPair()
 
 	if err := writeKeyFile(prevPath, prevPub, prevPriv); err != nil {
 		return fmt.Errorf("failed to write previous key: %w", err)
@@ -206,7 +206,7 @@ func CreateSigningKeys(prevPath, curPath string) error {
 	return nil
 }
 
-func writeKeyFile(path string, pub [32]byte, priv [32]byte) error {
+func writeKeyFile(path string, pub [ZT_C25519_PUBLIC_KEY_LEN]byte, priv [ZT_C25519_PRIVATE_KEY_LEN]byte) error {
 	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0640)
 	if err != nil {
 		return err
@@ -233,15 +233,15 @@ func ReadSigningKeys(prevPath, curPath string) (prevPub, curPub [32]byte, prevPr
 		return
 	}
 
-	if len(prevData) != 64 || len(curData) != 64 {
+	if len(prevData) != ZT_C25519_PUBLIC_KEY_LEN+ZT_C25519_PRIVATE_KEY_LEN || len(curData) != ZT_C25519_PUBLIC_KEY_LEN+ZT_C25519_PRIVATE_KEY_LEN {
 		err = fmt.Errorf("invalid key file length")
 		return
 	}
 
-	copy(prevPub[:], prevData[:32])
-	copy(prevPriv[:], prevData[32:64])
-	copy(curPub[:], curData[:32])
-	copy(curPriv[:], curData[32:64])
+	copy(prevPub[:], prevData[:ZT_C25519_PUBLIC_KEY_LEN])
+	copy(prevPriv[:], prevData[ZT_C25519_PUBLIC_KEY_LEN:ZT_C25519_PUBLIC_KEY_LEN+ZT_C25519_PRIVATE_KEY_LEN])
+	copy(curPub[:], curData[:ZT_C25519_PUBLIC_KEY_LEN])
+	copy(curPriv[:], curData[ZT_C25519_PUBLIC_KEY_LEN:ZT_C25519_PUBLIC_KEY_LEN+ZT_C25519_PRIVATE_KEY_LEN])
 
 	return
 }

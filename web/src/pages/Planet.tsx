@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import {
   Alert,
   Box,
@@ -32,7 +32,7 @@ interface PlanetResultState extends GeneratePlanetResponse {
 const defaultIdentityPath = '/var/lib/zerotier-one'
 
 function PlanetGenerator() {
-  const [loadingIdentity, setLoadingIdentity] = useState(true)
+  const [loadingIdentity, setLoadingIdentity] = useState(false)
   const [generating, setGenerating] = useState(false)
   const [identityPublic, setIdentityPublic] = useState('')
   const [identityPath, setIdentityPath] = useState(defaultIdentityPath)
@@ -40,25 +40,23 @@ function PlanetGenerator() {
   const [comments, setComments] = useState('')
   const [endpoints, setEndpoints] = useState<EndpointDraft[]>([{ id: '1', value: '' }])
   const [message, setMessage] = useState<{ severity: 'success' | 'error'; text: string } | null>(null)
+  const [identityMessage, setIdentityMessage] = useState<{ severity: 'success' | 'error'; text: string } | null>(null)
   const [generatedPlanet, setGeneratedPlanet] = useState<PlanetResultState | null>(null)
-
-  useEffect(() => {
-    void loadIdentity(defaultIdentityPath)
-  }, [])
 
   const loadIdentity = async (pathOverride?: string) => {
     const nextPath = pathOverride ?? identityPath
     try {
       setLoadingIdentity(true)
-      setMessage(null)
+      setIdentityMessage(null)
       const response = await planetAPI.getIdentity(nextPath)
       setIdentityPublic(response.data.identity_public)
       setResolvedIdentityPath(response.data.identity_path)
+      setIdentityMessage({ severity: 'success', text: 'identity.public 读取成功' })
     } catch (error: unknown) {
       setIdentityPublic('')
       setResolvedIdentityPath('')
       setGeneratedPlanet(null)
-      setMessage({ severity: 'error', text: getErrorMessage(error, '加载 identity.public 失败') })
+      setIdentityMessage({ severity: 'error', text: getErrorMessage(error, '加载 identity.public 失败') })
     } finally {
       setLoadingIdentity(false)
     }
@@ -162,6 +160,12 @@ function PlanetGenerator() {
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
             输入 ZeroTier 数据目录后，系统会读取其中的 `identity.public`，并将其作为当前 Planet 的唯一 root identity。
           </Typography>
+
+          {identityMessage && (
+            <Alert severity={identityMessage.severity} sx={{ mb: 2 }} onClose={() => setIdentityMessage(null)}>
+              {identityMessage.text}
+            </Alert>
+          )}
 
           <TextField
             label="ZeroTier 数据目录路径"

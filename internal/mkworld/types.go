@@ -72,7 +72,7 @@ func (a *ZtNodeInetAddr) Serialize() ([]byte, error) {
 
 type ZtWorldPlanetNodeIdentity struct {
 	ZtNodeAddress [5]byte
-	PublicKey     [32]byte
+	PublicKey     [ZT_C25519_PUBLIC_KEY_LEN]byte
 }
 
 func (id *ZtWorldPlanetNodeIdentity) FromString(data string) error {
@@ -88,7 +88,7 @@ func (id *ZtWorldPlanetNodeIdentity) FromString(data string) error {
 	copy(id.ZtNodeAddress[:], addrBytes)
 
 	pubBytes, err := hex.DecodeString(parts[2])
-	if err != nil || len(pubBytes) != 32 {
+	if err != nil || len(pubBytes) != ZT_C25519_PUBLIC_KEY_LEN {
 		return ErrInvalidIdentity
 	}
 	copy(id.PublicKey[:], pubBytes)
@@ -140,11 +140,11 @@ type ZtWorld struct {
 	Type                            ZtWorldType
 	ID                              ZtWorldID
 	Timestamp                       uint64
-	PublicKeyMustBeSignedByNextTime [32]byte
+	PublicKeyMustBeSignedByNextTime [ZT_C25519_PUBLIC_KEY_LEN]byte
 	Nodes                           []*ZtWorldPlanetNode
 }
 
-func (w *ZtWorld) Serialize(forSign bool, c25519sig [64]byte) ([]byte, error) {
+func (w *ZtWorld) Serialize(forSign bool, c25519sig [ZT_C25519_SIGNATURE_LEN]byte) ([]byte, error) {
 	var buf []byte
 
 	if forSign {
@@ -156,7 +156,7 @@ func (w *ZtWorld) Serialize(forSign bool, c25519sig [64]byte) ([]byte, error) {
 	buf = binary.BigEndian.AppendUint64(buf, w.Timestamp)
 	buf = append(buf, w.PublicKeyMustBeSignedByNextTime[:]...)
 
-	if !forSign && c25519sig != [64]byte{} {
+	if !forSign && c25519sig != [ZT_C25519_SIGNATURE_LEN]byte{} {
 		buf = append(buf, c25519sig[:]...)
 	}
 
