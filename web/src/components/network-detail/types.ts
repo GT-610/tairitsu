@@ -1,3 +1,4 @@
+import type { MemberTag } from '../../services/api'
 import type { IpAssignmentPool, Route } from '../../services/api'
 
 export interface NetworkMemberDevice {
@@ -7,6 +8,16 @@ export interface NetworkMemberDevice {
   authorized: boolean;
   ipAssignments: string[];
   clientVersion: string;
+  address: string;
+  identity: string;
+  online: boolean;
+  creationTime?: string | number;
+  tags: MemberTag[];
+  capabilities: number[];
+  peerVersion: string;
+  peerRole: string;
+  peerLatency?: number;
+  preferredPath: string;
   activeBridge: boolean;
   noAutoAssignIps: boolean;
 }

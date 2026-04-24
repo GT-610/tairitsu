@@ -12,6 +12,42 @@ interface EditMemberDialogProps {
   onSave: () => void;
 }
 
+function formatMemberCreationTime(value?: string | number): string {
+  if (value === undefined || value === null || value === '') {
+    return '未知'
+  }
+
+  const date = typeof value === 'number'
+    ? new Date(value < 1_000_000_000_000 ? value * 1000 : value)
+    : new Date(value)
+
+  return Number.isNaN(date.getTime()) ? '未知' : date.toLocaleString()
+}
+
+function formatMemberTags(member: NetworkMemberDevice | null): string {
+  if (!member || member.tags.length === 0) {
+    return '无'
+  }
+
+  return member.tags.map((tag) => `${tag.id}:${tag.value}`).join(', ')
+}
+
+function formatMemberCapabilities(member: NetworkMemberDevice | null): string {
+  if (!member || member.capabilities.length === 0) {
+    return '无'
+  }
+
+  return member.capabilities.join(', ')
+}
+
+function formatPeerLatency(value?: number): string {
+  if (value === undefined || value === null || value < 0) {
+    return '未知'
+  }
+
+  return `${value} ms`
+}
+
 function EditMemberDialog({
   open,
   saving,
@@ -61,9 +97,57 @@ function EditMemberDialog({
               成员元信息
             </Typography>
             <Grid container spacing={2}>
+              <Grid size={{ xs: 12, sm: 6 }}>
+                <Typography variant="body2" color="text.secondary">节点地址</Typography>
+                <Typography variant="body1">{selectedMember?.address || '未知'}</Typography>
+              </Grid>
+              <Grid size={{ xs: 12, sm: 6 }}>
+                <Typography variant="body2" color="text.secondary">在线状态</Typography>
+                <Typography variant="body1">{selectedMember ? (selectedMember.online ? '在线' : '离线') : '未知'}</Typography>
+              </Grid>
               <Grid size={{ xs: 12 }}>
+                <Typography variant="body2" color="text.secondary">身份标识</Typography>
+                <Typography variant="body1" sx={{ wordBreak: 'break-all' }}>{selectedMember?.identity || '未知'}</Typography>
+              </Grid>
+              <Grid size={{ xs: 12, sm: 6 }}>
+                <Typography variant="body2" color="text.secondary">加入时间</Typography>
+                <Typography variant="body1">{formatMemberCreationTime(selectedMember?.creationTime)}</Typography>
+              </Grid>
+              <Grid size={{ xs: 12, sm: 6 }}>
                 <Typography variant="body2" color="text.secondary">ZeroTier 版本</Typography>
                 <Typography variant="body1">{selectedMember?.clientVersion || 'unknown'}</Typography>
+              </Grid>
+              <Grid size={{ xs: 12, sm: 6 }}>
+                <Typography variant="body2" color="text.secondary">桥接模式</Typography>
+                <Typography variant="body1">{selectedMember ? (selectedMember.activeBridge ? '已启用' : '未启用') : '未知'}</Typography>
+              </Grid>
+              <Grid size={{ xs: 12, sm: 6 }}>
+                <Typography variant="body2" color="text.secondary">自动分配 IP</Typography>
+                <Typography variant="body1">{selectedMember ? (selectedMember.noAutoAssignIps ? '已禁止' : '允许') : '未知'}</Typography>
+              </Grid>
+              <Grid size={{ xs: 12 }}>
+                <Typography variant="body2" color="text.secondary">能力</Typography>
+                <Typography variant="body1">{formatMemberCapabilities(selectedMember)}</Typography>
+              </Grid>
+              <Grid size={{ xs: 12 }}>
+                <Typography variant="body2" color="text.secondary">标签</Typography>
+                <Typography variant="body1">{formatMemberTags(selectedMember)}</Typography>
+              </Grid>
+              <Grid size={{ xs: 12, sm: 6 }}>
+                <Typography variant="body2" color="text.secondary">Peer 版本</Typography>
+                <Typography variant="body1">{selectedMember?.peerVersion || '未知'}</Typography>
+              </Grid>
+              <Grid size={{ xs: 12, sm: 6 }}>
+                <Typography variant="body2" color="text.secondary">Peer 角色</Typography>
+                <Typography variant="body1">{selectedMember?.peerRole || '未知'}</Typography>
+              </Grid>
+              <Grid size={{ xs: 12, sm: 6 }}>
+                <Typography variant="body2" color="text.secondary">当前路径</Typography>
+                <Typography variant="body1" sx={{ wordBreak: 'break-all' }}>{selectedMember?.preferredPath || '未知'}</Typography>
+              </Grid>
+              <Grid size={{ xs: 12, sm: 6 }}>
+                <Typography variant="body2" color="text.secondary">延迟</Typography>
+                <Typography variant="body1">{formatPeerLatency(selectedMember?.peerLatency)}</Typography>
               </Grid>
             </Grid>
           </Paper>

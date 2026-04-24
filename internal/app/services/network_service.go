@@ -237,6 +237,8 @@ func (s *NetworkService) GetNetworkByID(id string, userID string) (*NetworkDetai
 		return nil, err
 	}
 
+	s.enrichMembersWithPeerMetadata(members)
+
 	logger.Info("服务层：获取网络详情成功",
 		zap.String("network_id", id),
 		zap.Any("ipAssignmentPools", network.Config.IpAssignmentPools),
@@ -431,6 +433,8 @@ func (s *NetworkService) GetNetworkMembers(networkID string, userID string) ([]z
 		return nil, err
 	}
 
+	s.enrichMembersWithPeerMetadata(members)
+
 	return members, nil
 }
 
@@ -458,6 +462,8 @@ func (s *NetworkService) GetNetworkMember(networkID, memberID string, userID str
 		return nil, nil
 	}
 
+	s.enrichMemberWithPeerMetadata(member)
+
 	return member, nil
 }
 
@@ -480,7 +486,78 @@ func (s *NetworkService) UpdateNetworkMember(networkID, memberID string, member 
 		return nil, err
 	}
 
+	s.enrichMemberWithPeerMetadata(updatedMember)
+
 	return updatedMember, nil
+}
+
+func (s *NetworkService) enrichMembersWithPeerMetadata(members []zerotier.Member) {
+	if s.ztClient == nil || len(members) == 0 {
+		return
+	}
+
+	peers, err := s.ztClient.GetPeers()
+	if err != nil {
+		logger.Warn("服务层：获取 peer 列表失败，成员元信息将不包含 peer 衍生字段", zap.Error(err))
+		return
+	}
+
+	peerByAddress := make(map[string]zerotier.Peer, len(peers))
+	for _, peer := range peers {
+		if peer.Address == "" {
+			continue
+		}
+		peerByAddress[peer.Address] = peer
+	}
+
+	for index := range members {
+		enrichMemberPeerFields(&members[index], peerByAddress[members[index].Address])
+	}
+}
+
+func (s *NetworkService) enrichMemberWithPeerMetadata(member *zerotier.Member) {
+	if s.ztClient == nil || member == nil || member.Address == "" {
+		return
+	}
+
+	peers, err := s.ztClient.GetPeers()
+	if err != nil {
+		logger.Warn("服务层：获取 peer 列表失败，单成员元信息将不包含 peer 衍生字段", zap.Error(err))
+		return
+	}
+
+	for _, peer := range peers {
+		if peer.Address == member.Address {
+			enrichMemberPeerFields(member, peer)
+			return
+		}
+	}
+}
+
+func enrichMemberPeerFields(member *zerotier.Member, peer zerotier.Peer) {
+	if member == nil || peer.Address == "" {
+		return
+	}
+
+	member.PeerRole = peer.Role
+	member.PeerLatency = peer.Latency
+	member.PeerVersion = peer.Version
+
+	if member.PeerVersion == "" && (peer.VersionMajor > 0 || peer.VersionMinor > 0 || peer.VersionRev > 0) {
+		member.PeerVersion = fmt.Sprintf("%d.%d.%d", peer.VersionMajor, peer.VersionMinor, peer.VersionRev)
+	}
+
+	if peer.PreferredPath.Address != "" {
+		member.PreferredPath = peer.PreferredPath.Address
+		return
+	}
+
+	for _, path := range peer.Paths {
+		if path.Preferred || path.Active {
+			member.PreferredPath = path.Address
+			return
+		}
+	}
 }
 
 // RemoveNetworkMember 从网络中移除成员 with ownership check

@@ -167,6 +167,10 @@ export interface Member {
   creationTime?: string | number;
   tags?: MemberTag[];
   capabilities?: number[];
+  peerVersion?: string;
+  peerLatency?: number;
+  peerRole?: string;
+  preferredPath?: string;
   config?: {
     authorized?: boolean;
     activeBridge?: boolean;
