@@ -34,6 +34,7 @@ import { User, userAPI, authAPI, systemAPI, type ResetUserPasswordResponse, type
 import { getErrorMessage } from '../services/errors';
 import { useAuth } from '../services/auth';
 import UserRoleBadge from '../components/UserRoleBadge';
+import OneTimePasswordDialog from '../components/user-management/OneTimePasswordDialog';
 import { buildCreateUserSuccessMessage, buildDeleteUserSuccessMessage, buildResetPasswordSuccessMessage } from '../utils/userGovernance';
 import { formatUserTime } from '../utils/userPresentation';
 
@@ -454,33 +455,14 @@ function UserManagement() {
         </DialogActions>
       </Dialog>
 
-      <Dialog open={Boolean(createResult)} onClose={() => setCreateResult(null)} maxWidth="sm" fullWidth>
-        <DialogTitle>一次性临时密码</DialogTitle>
-        <DialogContent>
-          <Stack spacing={2} sx={{ mt: 1 }}>
-            <Alert severity="warning">
-              该密码只会展示这一次。关闭后将无法再次查看，请立即通过其他方式安全告知用户。
-            </Alert>
-            <Typography variant="body2" color="text.secondary">
-              新用户：{createResult?.user.username || '未知用户'}
-            </Typography>
-            <TextField
-              label="临时密码"
-              value={createResult?.temporary_password || ''}
-              fullWidth
-              InputProps={{ readOnly: true }}
-            />
-            <Typography variant="body2" color="text.secondary">
-              用户首次收到密码后，应尽快登录并到“设置”中修改为自己的新密码。
-            </Typography>
-          </Stack>
-        </DialogContent>
-        <DialogActions>
-          <Button variant="contained" onClick={() => setCreateResult(null)}>
-            我已记录
-          </Button>
-        </DialogActions>
-      </Dialog>
+      <OneTimePasswordDialog
+        open={Boolean(createResult)}
+        username={createResult?.user.username || ''}
+        password={createResult?.temporary_password || ''}
+        subjectLabel="新用户"
+        footerText="用户首次收到密码后，应尽快登录并到“设置”中修改为自己的新密码。"
+        onClose={() => setCreateResult(null)}
+      />
 
       <Dialog open={Boolean(deleteTarget)} onClose={() => !updating && setDeleteTarget(null)} maxWidth="sm" fullWidth>
         <DialogTitle>删除用户</DialogTitle>
@@ -560,33 +542,14 @@ function UserManagement() {
         </DialogActions>
       </Dialog>
 
-      <Dialog open={Boolean(resetResult)} onClose={() => setResetResult(null)} maxWidth="sm" fullWidth>
-        <DialogTitle>一次性临时密码</DialogTitle>
-        <DialogContent>
-          <Stack spacing={2} sx={{ mt: 1 }}>
-            <Alert severity="warning">
-              该密码只会展示这一次。关闭后将无法再次查看，请立即通过其他方式安全告知用户。
-            </Alert>
-            <Typography variant="body2" color="text.secondary">
-              目标用户：{resetResult?.user.username || '未知用户'}
-            </Typography>
-            <TextField
-              label="临时密码"
-              value={resetResult?.temporary_password || ''}
-              fullWidth
-              InputProps={{ readOnly: true }}
-            />
-            <Typography variant="body2" color="text.secondary">
-              已吊销会话：{resetResult?.revoked_sessions ?? 0} 个。用户收到密码后应尽快登录并修改为自己的新密码。
-            </Typography>
-          </Stack>
-        </DialogContent>
-        <DialogActions>
-          <Button variant="contained" onClick={() => setResetResult(null)}>
-            我已记录
-          </Button>
-        </DialogActions>
-      </Dialog>
+      <OneTimePasswordDialog
+        open={Boolean(resetResult)}
+        username={resetResult?.user.username || ''}
+        password={resetResult?.temporary_password || ''}
+        subjectLabel="目标用户"
+        footerText={`已吊销会话：${resetResult?.revoked_sessions ?? 0} 个。用户收到密码后应尽快登录并修改为自己的新密码。`}
+        onClose={() => setResetResult(null)}
+      />
     </Box>
   );
 }
