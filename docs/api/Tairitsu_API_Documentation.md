@@ -100,7 +100,7 @@ Response:
 
 ```json
 {
-  "message": "实例设置已更新",
+  "message": "实例设置更新成功",
   "settings": {
     "allow_public_registration": true
   }
@@ -182,6 +182,24 @@ Revokes the current session.
 ### `GET /profile`
 
 Returns the authenticated user's profile.
+
+### `GET /status`
+
+Returns runtime controller and database status used by the dashboard.
+
+Example:
+
+```json
+{
+  "version": "1.14.2",
+  "address": "8789af2692",
+  "online": true,
+  "tcpFallbackAvailable": true,
+  "apiReady": true,
+  "zeroTierStatus": "online",
+  "databaseStatus": "connected"
+}
+```
 
 ### `PUT /profile/password`
 

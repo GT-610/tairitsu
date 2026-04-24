@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { formatUserTime, getUserRoleLabel } from './userPresentation'
+import { formatUserTime, getUserRoleLabel, hasDisplayableUserTime } from './userPresentation'
 
 describe('userPresentation', () => {
   test('formats role labels consistently', () => {
@@ -8,6 +8,7 @@ describe('userPresentation', () => {
   })
 
   test('hides zero-value timestamps', () => {
+    expect(hasDisplayableUserTime('0001-01-01T00:00:00Z')).toBe(false)
     expect(formatUserTime('0001-01-01T00:00:00Z')).toBe('未知')
   })
 })

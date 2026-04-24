@@ -130,12 +130,6 @@ function generateRandomIPv4Subnet(): string {
 
 function formatNetworkMember(member: ApiMember): NetworkMemberDevice {
   const memberID = member.id || ''
-  const clientVersion = member.clientVersion || (
-    member.vMajor !== undefined && member.vMinor !== undefined && member.vRev !== undefined &&
-    member.vMajor >= 0 && member.vMinor >= 0 && member.vRev >= 0
-      ? `${member.vMajor}.${member.vMinor}.${member.vRev}`
-      : 'unknown'
-  )
 
   return {
     id: memberID,
@@ -143,7 +137,7 @@ function formatNetworkMember(member: ApiMember): NetworkMemberDevice {
     description: member.description || '',
     authorized: member.config?.authorized ?? member.authorized ?? false,
     ipAssignments: member.config?.ipAssignments ?? member.ipAssignments ?? [],
-    clientVersion,
+    clientVersion: member.clientVersion || 'unknown',
     address: member.address || '',
     identity: member.identity || '',
     online: member.online ?? false,

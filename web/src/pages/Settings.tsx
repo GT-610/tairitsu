@@ -21,7 +21,7 @@ import { authAPI, type UserSession } from '../services/api'
 import { getErrorMessage } from '../services/errors'
 import { useAuth } from '../services/auth'
 import { useNavigate } from 'react-router-dom'
-import { formatSessionPresentation, formatSessionTime } from '../utils/sessionPresentation'
+import { formatSessionPresentation, formatSessionTime, hasDisplayableSessionTime } from '../utils/sessionPresentation'
 import { getUserRoleLabel } from '../utils/userPresentation'
 
 function Settings() {
@@ -301,15 +301,21 @@ function Settings() {
                                 {presentation.status.label}
                               </Alert>
                             </Stack>
-                        <Typography variant="body2" color="text.secondary">
-                          最近活跃：{formatSessionTime(sessionItem.lastSeenAt)}
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary">
-                          登录时间：{formatSessionTime(sessionItem.createdAt)}
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary">
-                          到期时间：{formatSessionTime(sessionItem.expiresAt)}
-                        </Typography>
+                            {hasDisplayableSessionTime(sessionItem.lastSeenAt) && (
+                              <Typography variant="body2" color="text.secondary">
+                                最近活跃：{formatSessionTime(sessionItem.lastSeenAt)}
+                              </Typography>
+                            )}
+                            {hasDisplayableSessionTime(sessionItem.createdAt) && (
+                              <Typography variant="body2" color="text.secondary">
+                                登录时间：{formatSessionTime(sessionItem.createdAt)}
+                              </Typography>
+                            )}
+                            {hasDisplayableSessionTime(sessionItem.expiresAt) && (
+                              <Typography variant="body2" color="text.secondary">
+                                到期时间：{formatSessionTime(sessionItem.expiresAt)}
+                              </Typography>
+                            )}
                             {presentation.details.map((detail) => (
                               <Typography key={detail} variant="body2" color="text.secondary">
                                 {detail}

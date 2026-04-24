@@ -25,7 +25,11 @@ function formatMemberCreationTime(value?: string | number): string {
     ? new Date(normalizedValue < 1_000_000_000_000 ? normalizedValue * 1000 : normalizedValue)
     : new Date(normalizedValue)
 
-  return Number.isNaN(date.getTime()) ? '未知' : date.toLocaleString()
+  if (Number.isNaN(date.getTime()) || date.getFullYear() <= 1) {
+    return '未知'
+  }
+
+  return date.toLocaleString()
 }
 
 function formatMemberTags(member: NetworkMemberDevice | null): string {

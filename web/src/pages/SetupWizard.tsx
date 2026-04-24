@@ -27,11 +27,6 @@ const setupCompletedEvent = 'tairitsu-setup-complete';
 const defaultDbConfig: DatabaseSetupConfig = {
   type: 'sqlite',
   path: '',
-  host: '',
-  port: 0,
-  user: '',
-  pass: '',
-  name: '',
 };
 
 const defaultZtConfig: ZeroTierSetupConfig = {

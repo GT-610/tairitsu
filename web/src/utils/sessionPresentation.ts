@@ -10,9 +10,21 @@ export interface SessionPresentation {
   details: string[]
 }
 
-export function formatSessionTime(value: string): string {
+export function hasDisplayableSessionTime(value?: string | null): boolean {
+  if (!value) {
+    return false
+  }
+
   const date = new Date(value)
-  return Number.isNaN(date.getTime()) ? '未知' : date.toLocaleString()
+  return !Number.isNaN(date.getTime()) && date.getFullYear() > 1
+}
+
+export function formatSessionTime(value: string): string {
+  if (!hasDisplayableSessionTime(value)) {
+    return '未知'
+  }
+
+  return new Date(value).toLocaleString()
 }
 
 function detectBrowser(userAgent: string): string {

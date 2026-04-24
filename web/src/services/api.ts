@@ -159,7 +159,7 @@ export interface Member {
   online?: boolean;
   address?: string;
   identity?: string;
-  creationTime?: string | number;
+  creationTime?: number;
   tags?: MemberTag[];
   capabilities?: number[];
   peerVersion?: string;
@@ -173,9 +173,6 @@ export interface Member {
     noAutoAssignIps?: boolean;
   };
   noAutoAssignIps?: boolean;
-  vMajor?: number;
-  vMinor?: number;
-  vRev?: number;
 }
 
 export interface ImportableNetworkCandidate {
@@ -227,7 +224,7 @@ export interface ImportNetworksResponse {
   skipped: ImportNetworkResultItem[];
 }
 
-export interface SystemStatus {
+export interface RuntimeStatus {
   version: string;
   address: string;
   online: boolean;
@@ -279,11 +276,6 @@ export interface SetupStatus {
 export interface DatabaseSetupConfig {
   type: 'sqlite';
   path?: string;
-  host?: string;
-  port?: number;
-  user?: string;
-  pass?: string;
-  name?: string;
 }
 
 export interface ZeroTierSetupConfig {
@@ -445,7 +437,7 @@ export const memberAPI = {
 // System related APIs
 export const systemAPI = {
   // Get system status
-  getStatus: () => api.get<SystemStatus>('/status'),
+  getStatus: () => api.get<RuntimeStatus>('/status'),
   // Get system setup status (used to check if it's first run)
   getSetupStatus: () => api.get<SetupStatus>('/system/status'),
   // Configure database

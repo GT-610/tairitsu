@@ -4,15 +4,19 @@ export function getUserRoleLabel(role?: User['role']): string {
   return role === 'admin' ? '管理员' : '普通用户'
 }
 
-export function formatUserTime(value?: string): string {
+export function hasDisplayableUserTime(value?: string): boolean {
   if (!value) {
-    return '未知'
+    return false
   }
 
   const date = new Date(value)
-  if (Number.isNaN(date.getTime()) || date.getFullYear() <= 1) {
+  return !Number.isNaN(date.getTime()) && date.getFullYear() > 1
+}
+
+export function formatUserTime(value?: string): string {
+  if (!hasDisplayableUserTime(value)) {
     return '未知'
   }
 
-  return date.toLocaleString()
+  return new Date(value as string).toLocaleString()
 }
