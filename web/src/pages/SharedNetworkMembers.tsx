@@ -23,10 +23,16 @@ function SharedNetworkMembers() {
   })
 
   useEffect(() => {
-    void fetchSharedNetwork()
+    let active = true
+    void fetchSharedNetwork(active)
+
+    return () => {
+      active = false
+    }
   }, [id])
 
-  const fetchSharedNetwork = async () => {
+  const fetchSharedNetwork = async (active: boolean) => {
+    if (!active) return
     setLoading(true)
     try {
       if (!id) {
@@ -44,15 +50,19 @@ function SharedNetworkMembers() {
         throw new Error('共享网络不存在或已失去访问权限')
       }
 
+      if (!active) return
       setNetwork(currentNetwork)
       setMembers((Array.isArray(membersResponse.data) ? membersResponse.data : []).map(formatNetworkMember))
       setError('')
     } catch (err: unknown) {
+      if (!active) return
       setError(getErrorMessage(err, '获取共享网络成员失败'))
       setNetwork(null)
       setMembers([])
     } finally {
-      setLoading(false)
+      if (active) {
+        setLoading(false)
+      }
     }
   }
 
@@ -92,7 +102,7 @@ function SharedNetworkMembers() {
     <Box sx={{ p: 3 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-          <IconButton component={Link} to="/networks" size="large">
+          <IconButton aria-label="返回网络列表" component={Link} to="/networks" size="large">
             <ArrowBack />
           </IconButton>
           <Box>
@@ -108,7 +118,7 @@ function SharedNetworkMembers() {
           <Typography variant="body1" color="text.secondary">
             网络ID: {network?.id}
           </Typography>
-          <IconButton size="small" onClick={() => { void handleCopyNetworkID() }}>
+          <IconButton aria-label="复制网络 ID" size="small" onClick={() => { void handleCopyNetworkID() }}>
             <ContentCopy />
           </IconButton>
         </Box>

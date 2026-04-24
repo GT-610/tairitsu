@@ -49,13 +49,19 @@ function Networks() {
   const fetchNetworks = async () => {
     setLoading(true);
     try {
-      const [ownedResponse, sharedResponse] = await Promise.all([
+      const [ownedResult, sharedResult] = await Promise.allSettled([
         networkAPI.getAllNetworks(),
         networkAPI.getSharedNetworks(),
       ])
 
-      const ownedNetworks = Array.isArray(ownedResponse.data) ? ownedResponse.data : []
-      const sharedNetworks = Array.isArray(sharedResponse.data) ? sharedResponse.data : []
+      if (ownedResult.status !== 'fulfilled') {
+        throw ownedResult.reason
+      }
+
+      const ownedNetworks = Array.isArray(ownedResult.value.data) ? ownedResult.value.data : []
+      const sharedNetworks = sharedResult.status === 'fulfilled' && Array.isArray(sharedResult.value.data)
+        ? sharedResult.value.data
+        : []
 
       setNetworks([
         ...ownedNetworks.map((network: NetworkSummary): DisplayNetwork => ({
@@ -69,7 +75,11 @@ function Networks() {
           detailPath: `/networks/shared/${network.id}`,
         })),
       ])
-      setError('')
+      if (sharedResult.status !== 'fulfilled') {
+        setError('共享给我的网络暂时无法加载，当前仅显示您拥有的网络')
+      } else {
+        setError('')
+      }
     } catch (err: unknown) {
       setError(getErrorMessage(err, '获取网络列表失败'))
       setNetworks([])
