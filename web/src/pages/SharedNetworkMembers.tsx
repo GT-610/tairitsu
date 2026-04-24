@@ -96,8 +96,8 @@ function SharedNetworkMembers() {
         <Alert severity="error" sx={{ mb: 3 }}>
           {error || '共享网络不存在'}
         </Alert>
-        <Button variant="contained" component={Link} to="/shared-networks">
-          返回共享给我
+        <Button variant="contained" component={Link} to="/networks">
+          返回网络列表
         </Button>
       </Box>
     )
@@ -107,7 +107,7 @@ function SharedNetworkMembers() {
     <Box sx={{ p: 3 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-          <IconButton component={Link} to="/shared-networks" size="large">
+          <IconButton component={Link} to="/networks" size="large">
             <ArrowBack />
           </IconButton>
           <Box>
