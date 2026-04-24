@@ -26,9 +26,9 @@ func TestUserHandler_DeleteUser_AdminOnlyAndResponseShape(t *testing.T) {
 		require.NoError(t, db.Close())
 	})
 
-	userService := services.NewUserServiceWithDB(db)
+	userService := services.NewUserService(db)
 	jwtService := services.NewJWTService("test-secret")
-	sessionService := services.NewSessionServiceWithDB(db)
+	sessionService := services.NewSessionService(db)
 	userHandler := apphandlers.NewUserHandler(userService)
 
 	admin, err := userService.Register(&models.RegisterRequest{Username: "admin", Password: "secret123"}, "admin")

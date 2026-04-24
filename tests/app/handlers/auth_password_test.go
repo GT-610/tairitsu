@@ -27,8 +27,8 @@ func TestAuthHandler_ChangePasswordRevokesOtherSessionsWhenRequested(t *testing.
 		require.NoError(t, db.Close())
 	})
 
-	userService := services.NewUserServiceWithDB(db)
-	sessionService := services.NewSessionServiceWithDB(db)
+	userService := services.NewUserService(db)
+	sessionService := services.NewSessionService(db)
 	jwtService := services.NewJWTService("test-secret")
 	authHandler := apphandlers.NewAuthHandler(userService, sessionService, jwtService, nil, nil)
 

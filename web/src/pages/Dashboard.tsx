@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Box, Typography, Paper, CircularProgress, Alert, 
   Chip, LinearProgress, Button } from '@mui/material';
 import RefreshIcon from '@mui/icons-material/Refresh';
-import { networkAPI, systemAPI, SystemStatus, type NetworkSummary } from '../services/api';
+import { networkAPI, systemAPI, type NetworkSummary, type RuntimeStatus } from '../services/api';
 import { useAuth } from '../services/auth';
 
 
@@ -25,7 +25,7 @@ interface OverviewStats {
   pendingMemberCount: number;
 }
 
-function zeroTierStatusLabel(status?: SystemStatus['zeroTierStatus']) {
+function zeroTierStatusLabel(status?: RuntimeStatus['zeroTierStatus']) {
   switch (status) {
     case 'online':
       return '在线'
@@ -38,7 +38,7 @@ function zeroTierStatusLabel(status?: SystemStatus['zeroTierStatus']) {
   }
 }
 
-function databaseStatusLabel(status?: SystemStatus['databaseStatus']) {
+function databaseStatusLabel(status?: RuntimeStatus['databaseStatus']) {
   switch (status) {
     case 'connected':
       return '已连接'
@@ -52,7 +52,7 @@ function databaseStatusLabel(status?: SystemStatus['databaseStatus']) {
 }
 
 function Dashboard() {
-  const [status, setStatus] = useState<SystemStatus | null>(null);
+  const [status, setStatus] = useState<RuntimeStatus | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string>('');
   const [overviewStats, setOverviewStats] = useState<OverviewStats>({

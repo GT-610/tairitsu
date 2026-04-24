@@ -150,21 +150,16 @@ export interface MemberTag {
 
 export interface Member {
   id: string;
-  networkId?: string;
-  nodeId?: string;
   name?: string;
   description?: string;
   authorized?: boolean;
   activeBridge?: boolean;
   ipAssignments?: string[];
-  lastSeen?: string | number;
-  createdAt?: string | number;
-  updatedAt?: string | number;
   clientVersion?: string;
   online?: boolean;
   address?: string;
   identity?: string;
-  creationTime?: string | number;
+  creationTime?: number;
   tags?: MemberTag[];
   capabilities?: number[];
   peerVersion?: string;
@@ -178,9 +173,6 @@ export interface Member {
     noAutoAssignIps?: boolean;
   };
   noAutoAssignIps?: boolean;
-  vMajor?: number;
-  vMinor?: number;
-  vRev?: number;
 }
 
 export interface ImportableNetworkCandidate {
@@ -232,7 +224,7 @@ export interface ImportNetworksResponse {
   skipped: ImportNetworkResultItem[];
 }
 
-export interface SystemStatus {
+export interface RuntimeStatus {
   version: string;
   address: string;
   online: boolean;
@@ -284,11 +276,6 @@ export interface SetupStatus {
 export interface DatabaseSetupConfig {
   type: 'sqlite';
   path?: string;
-  host?: string;
-  port?: number;
-  user?: string;
-  pass?: string;
-  name?: string;
 }
 
 export interface ZeroTierSetupConfig {
@@ -322,26 +309,52 @@ export interface RuntimeSettings {
 }
 
 export interface IdentityInfo {
-  success: boolean;
   message: string;
-  identityPublic?: string;
-  identityPath?: string;
+  identity_public: string;
+  identity_path: string;
+}
+
+export interface PlanetRootNodeRequest {
+  identity_public: string;
+  comments?: string;
+  endpoints: string[];
 }
 
 export interface GeneratePlanetResponse {
-  success: boolean;
   message: string;
-  planetData?: number[];
-  planetId: number;
-  birthTime: number;
-  cHeader?: string;
+  planet_data: number[];
+  planet_id: number;
+  birth_time: number;
+  download_name: string;
+  root_node_count: number;
+  endpoint_count: number;
+  used_recommended_values: boolean;
 }
 
 export interface GeneratePlanetRequest {
-  identityPublic: string;
-  endpoints: string[];
-  comments?: string;
-  outputPath?: string;
+  root_nodes: PlanetRootNodeRequest[];
+  signing_key_path?: string;
+  planet_id?: number;
+  birth_time?: number;
+  recommend_values?: boolean;
+  download_name?: string;
+}
+
+export interface SigningKeysInfoResponse {
+  message: string;
+  signing_key_path: string;
+  previous_key_path: string;
+  current_key_path: string;
+  previous_exists: boolean;
+  current_exists: boolean;
+  ready: boolean;
+}
+
+export interface GenerateSigningKeysResponse {
+  message: string;
+  signing_key_path: string;
+  previous_key_path: string;
+  current_key_path: string;
 }
 
 // Create axios instance
@@ -450,7 +463,7 @@ export const memberAPI = {
 // System related APIs
 export const systemAPI = {
   // Get system status
-  getStatus: () => api.get<SystemStatus>('/status'),
+  getStatus: () => api.get<RuntimeStatus>('/status'),
   // Get system setup status (used to check if it's first run)
   getSetupStatus: () => api.get<SetupStatus>('/system/status'),
   // Configure database
@@ -479,8 +492,12 @@ export const planetAPI = {
   getIdentity: (ztPath?: string) => api.get<IdentityInfo>('/admin/planet/identity', {
     params: { path: ztPath || '/var/lib/zerotier-one' }
   }),
-  // Generate signing keys
-  generateSigningKeys: (ztPath?: string) => api.post<{ success: boolean; message: string; previousKey: string; currentKey: string }>('/admin/planet/keys', null, {
+  // Inspect signing key files from a directory
+  getSigningKeysInfo: (ztPath?: string) => api.get<SigningKeysInfoResponse>('/admin/planet/signing-keys', {
+    params: { path: ztPath || '/var/lib/zerotier-one' }
+  }),
+  // Generate signing key files in a directory
+  generateSigningKeys: (ztPath?: string) => api.post<GenerateSigningKeysResponse>('/admin/planet/keys', null, {
     params: { path: ztPath || '/var/lib/zerotier-one' }
   }),
   // Generate custom planet file

@@ -36,7 +36,6 @@ import {
   type User,
 } from '../services/api'
 import { getErrorMessage } from '../services/errors'
-import { normalizeImportableNetworksResponse } from '../utils/importNetworkConsole'
 import { buildImportResultAlertPresentation, buildImportResultFeedback, groupImportCandidates } from '../utils/importNetwork'
 
 function statusChipColor(status: ImportableNetworkCandidate['status']) {
@@ -100,7 +99,7 @@ function ImportNetwork() {
         userAPI.getAllUsers(),
       ])
 
-      const nextResponse = normalizeImportableNetworksResponse(networkResponse.data)
+      const nextResponse = networkResponse.data
       const userList = Array.isArray(userResponse.data) ? userResponse.data : []
       setResponse(nextResponse)
       setUsers(userList)

@@ -19,14 +19,8 @@ import (
 
 var ErrSigningFailed = errors.New("failed to sign message")
 
-func GenerateSigningKeyPair() (pub [32]byte, priv [32]byte) {
-	rand.Read(priv[:])
-	curve25519.ScalarBaseMult(&pub, &priv)
-	return
-}
-
-func SignMessage(pub [32]byte, priv [32]byte, msg []byte) ([64]byte, error) {
-	var sigBuf [96]byte
+func SignMessage(pub [ZT_C25519_PUBLIC_KEY_LEN]byte, priv [ZT_C25519_PRIVATE_KEY_LEN]byte, msg []byte) ([ZT_C25519_SIGNATURE_LEN]byte, error) {
+	var sigBuf [ZT_C25519_SIGNATURE_LEN]byte
 
 	h := sha512.New()
 	h.Write(msg)
@@ -34,14 +28,13 @@ func SignMessage(pub [32]byte, priv [32]byte, msg []byte) ([64]byte, error) {
 	copy(sigBuf[64:], s512[:32])
 
 	goPrivK := make([]byte, 64)
-	copy(goPrivK[:32], priv[:])
-	copy(goPrivK[32:], pub[:])
+	copy(goPrivK[:32], priv[32:64])
+	copy(goPrivK[32:], pub[32:64])
 	sigData := ed25519.Sign(goPrivK, s512[:32])
 	copy(sigBuf[:64], sigData)
 
-	var finalSig [64]byte
-	copy(finalSig[:], sigBuf[0:64])
-	copy(finalSig[64:], sigBuf[64:96])
+	var finalSig [ZT_C25519_SIGNATURE_LEN]byte
+	copy(finalSig[:], sigBuf[:])
 
 	return finalSig, nil
 }

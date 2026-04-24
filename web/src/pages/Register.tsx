@@ -115,7 +115,6 @@ function Register() {
         void navigate('/login');
       }, 3000);
     } catch (err: unknown) {
-      console.error('注册错误:', err);
       setRegisterError(getErrorMessage(err, '注册失败，请稍后重试'));
     } finally {
       setLoading(false);

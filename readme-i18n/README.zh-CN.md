@@ -71,7 +71,7 @@ services:
 
 ## 文档
 
-- [运行维护与支持边界](../docs/OPERATIONS.md)
+- [运行维护说明](../docs/OPERATIONS.md)
 - [API 文档](../docs/api/Tairitsu_API_Documentation.md)
 
 ## 开发

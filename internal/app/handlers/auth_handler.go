@@ -35,7 +35,7 @@ func (h *AuthHandler) Register(c fiber.Ctx) error {
 	var req models.RegisterRequest
 	if err := c.Bind().Body(&req); err != nil {
 		logger.Error("注册请求参数绑定失败", zap.Error(err))
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		return writeErrorResponse(c, fiber.StatusBadRequest, err.Error())
 	}
 
 	logger.Info("开始用户注册", zap.String("username", req.Username))
@@ -84,7 +84,7 @@ func (h *AuthHandler) Login(c fiber.Ctx) error {
 	var req models.LoginRequest
 	if err := c.Bind().Body(&req); err != nil {
 		logger.Error("登录请求参数绑定失败", zap.Error(err))
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		return writeErrorResponse(c, fiber.StatusBadRequest, err.Error())
 	}
 
 	logger.Info("用户尝试登录", zap.String("username", req.Username))
@@ -113,7 +113,7 @@ func (h *AuthHandler) Login(c fiber.Ctx) error {
 	token, err := h.jwtService.GenerateToken(user, session.ID)
 	if err != nil {
 		logger.Error("生成JWT令牌失败", zap.String("user_id", user.ID), zap.Error(err))
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "生成令牌失败"})
+		return writeErrorResponse(c, fiber.StatusInternalServerError, "生成令牌失败")
 	}
 
 	logger.Info("JWT令牌生成成功", zap.String("user_id", user.ID))
@@ -127,17 +127,17 @@ func (h *AuthHandler) Login(c fiber.Ctx) error {
 
 // GetProfile retrieves the authenticated user's profile information
 func (h *AuthHandler) GetProfile(c fiber.Ctx) error {
-	userID := c.Locals("user_id")
-	if userID == nil {
+	userID, authErr := requiredUserID(c)
+	if authErr != nil {
 		logger.Error("获取用户信息失败：未认证")
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "未认证"})
+		return authErr
 	}
 
-	logger.Info("获取用户信息", zap.String("user_id", userID.(string)))
+	logger.Info("获取用户信息", zap.String("user_id", userID))
 
-	user, err := h.userService.GetUserByID(userID.(string))
+	user, err := h.userService.GetUserByID(userID)
 	if err != nil {
-		logger.Error("获取用户信息失败", zap.String("user_id", userID.(string)), zap.Error(err))
+		logger.Error("获取用户信息失败", zap.String("user_id", userID), zap.Error(err))
 		return writeUserServiceError(c, err)
 	}
 
@@ -149,54 +149,41 @@ func (h *AuthHandler) GetProfile(c fiber.Ctx) error {
 // ChangePassword handles user password change requests
 func (h *AuthHandler) ChangePassword(c fiber.Ctx) error {
 	// Get user ID from context (set by auth middleware)
-	userID := c.Locals("user_id")
-	if userID == nil {
+	userID, authErr := requiredUserID(c)
+	if authErr != nil {
 		logger.Error("修改密码失败：未认证")
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "未认证"})
+		return authErr
 	}
 
 	// Bind request body
 	var req models.ChangePasswordRequest
 	if err := c.Bind().Body(&req); err != nil {
 		logger.Error("修改密码请求参数绑定失败", zap.Error(err))
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		return writeErrorResponse(c, fiber.StatusBadRequest, err.Error())
 	}
 
-	logger.Info("开始处理修改密码请求", zap.String("user_id", userID.(string)))
+	logger.Info("开始处理修改密码请求", zap.String("user_id", userID))
 	currentSessionID, _ := c.Locals("session_id").(string)
 
-	// Determine which password fields to use (support both old and new formats)
-	oldPassword := req.OldPassword
-	newPassword := req.NewPassword
-
-	// If new format fields are present, use them
-	if req.CurrentPassword != "" {
-		oldPassword = req.CurrentPassword
-	}
-	if req.NewPasswordField != "" {
-		newPassword = req.NewPasswordField
-	}
-
-	// Validate new password and confirm password match if using new format
-	if req.ConfirmPassword != "" && req.NewPasswordField != "" && req.NewPasswordField != req.ConfirmPassword {
-		logger.Error("修改密码失败：新密码与确认密码不匹配", zap.String("user_id", userID.(string)))
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "新密码与确认密码不匹配"})
+	if req.NewPassword != req.ConfirmPassword {
+		logger.Error("修改密码失败：新密码与确认密码不匹配", zap.String("user_id", userID))
+		return writeErrorResponse(c, fiber.StatusBadRequest, "新密码与确认密码不匹配")
 	}
 
 	revokedCount := 0
 	if req.LogoutOtherSessions {
-		count, err := h.userService.ChangePasswordAndRevokeOtherSessions(userID.(string), oldPassword, newPassword, currentSessionID)
+		count, err := h.userService.ChangePasswordAndRevokeOtherSessions(userID, req.CurrentPassword, req.NewPassword, currentSessionID)
 		if err != nil {
-			logger.Error("修改密码失败", zap.String("user_id", userID.(string)), zap.Error(err))
+			logger.Error("修改密码失败", zap.String("user_id", userID), zap.Error(err))
 			return writeUserServiceError(c, err)
 		}
 		revokedCount = count
-	} else if err := h.userService.ChangePassword(userID.(string), oldPassword, newPassword); err != nil {
-		logger.Error("修改密码失败", zap.String("user_id", userID.(string)), zap.Error(err))
+	} else if err := h.userService.ChangePassword(userID, req.CurrentPassword, req.NewPassword); err != nil {
+		logger.Error("修改密码失败", zap.String("user_id", userID), zap.Error(err))
 		return writeUserServiceError(c, err)
 	}
 
-	logger.Info("密码修改成功", zap.String("user_id", userID.(string)))
+	logger.Info("密码修改成功", zap.String("user_id", userID))
 
 	// Return success response
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
@@ -207,7 +194,11 @@ func (h *AuthHandler) ChangePassword(c fiber.Ctx) error {
 
 // ListSessions returns the current user's active and historical sessions.
 func (h *AuthHandler) ListSessions(c fiber.Ctx) error {
-	userID, _ := c.Locals("user_id").(string)
+	userID, authErr := requiredUserID(c)
+	if authErr != nil {
+		logger.Error("获取会话列表失败：未认证")
+		return authErr
+	}
 	currentSessionID, _ := c.Locals("session_id").(string)
 
 	sessions, err := h.sessionService.GetUserSessions(userID)
@@ -226,7 +217,11 @@ func (h *AuthHandler) ListSessions(c fiber.Ctx) error {
 
 // Logout revokes the current session and clears the server-side login state.
 func (h *AuthHandler) Logout(c fiber.Ctx) error {
-	userID, _ := c.Locals("user_id").(string)
+	userID, authErr := requiredUserID(c)
+	if authErr != nil {
+		logger.Error("退出登录失败：未认证")
+		return authErr
+	}
 	sessionID, _ := c.Locals("session_id").(string)
 
 	if err := h.sessionService.RevokeSession(userID, sessionID); err != nil {
@@ -239,7 +234,11 @@ func (h *AuthHandler) Logout(c fiber.Ctx) error {
 
 // RevokeSession revokes one session owned by the current user.
 func (h *AuthHandler) RevokeSession(c fiber.Ctx) error {
-	userID, _ := c.Locals("user_id").(string)
+	userID, authErr := requiredUserID(c)
+	if authErr != nil {
+		logger.Error("吊销会话失败：未认证")
+		return authErr
+	}
 	sessionID := c.Params("sessionId")
 
 	if err := h.sessionService.RevokeSession(userID, sessionID); err != nil {
@@ -252,7 +251,11 @@ func (h *AuthHandler) RevokeSession(c fiber.Ctx) error {
 
 // RevokeOtherSessions revokes all other sessions of the current user.
 func (h *AuthHandler) RevokeOtherSessions(c fiber.Ctx) error {
-	userID, _ := c.Locals("user_id").(string)
+	userID, authErr := requiredUserID(c)
+	if authErr != nil {
+		logger.Error("移除其他会话失败：未认证")
+		return authErr
+	}
 	currentSessionID, _ := c.Locals("session_id").(string)
 
 	count, err := h.sessionService.RevokeOtherSessions(userID, currentSessionID)

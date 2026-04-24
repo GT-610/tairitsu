@@ -2,42 +2,11 @@ import { Box, Typography, Card, CardContent, Avatar, Grid, Divider, Button }
 from '@mui/material';
 import { Link } from 'react-router-dom';
 import { User } from '../services/api';
+import { formatUserTime, getUserRoleLabel, hasDisplayableUserTime } from '../utils/userPresentation';
 
 // Profile组件的props类型
 interface ProfileProps {
   user: User | null;
-}
-
-function formatProfileTime(value?: string): string {
-  if (!value) {
-    return '未记录'
-  }
-
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime()) || date.getFullYear() <= 1) {
-    return '未记录'
-  }
-
-  return date.toLocaleString()
-}
-
-function getRoleLabel(role?: string): string {
-  if (role === 'admin') {
-    return '管理员'
-  }
-  if (role === 'user') {
-    return '普通用户'
-  }
-  return '未知角色'
-}
-
-function hasValidProfileTime(value?: string): boolean {
-  if (!value) {
-    return false
-  }
-
-  const date = new Date(value)
-  return !Number.isNaN(date.getTime()) && date.getFullYear() > 1
 }
 
 function Profile({ user }: ProfileProps) {
@@ -69,7 +38,7 @@ function Profile({ user }: ProfileProps) {
                   {user.username}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  {getRoleLabel(user.role)}
+                  {getUserRoleLabel(user.role)}
                 </Typography>
               </Box>
             </CardContent>
@@ -85,22 +54,24 @@ function Profile({ user }: ProfileProps) {
               <Divider sx={{ mb: 3 }} />
               
               <Box sx={{ display: 'grid', gap: 3 }}>
-                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 2fr' }, gap: 2 }}>
-                  <Typography variant="body2" color="text.secondary">
-                    创建时间
-                  </Typography>
-                  <Typography variant="body1">
-                    {formatProfileTime(user.createdAt)}
-                  </Typography>
-                </Box>
+                {hasDisplayableUserTime(user.createdAt) && (
+                  <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 2fr' }, gap: 2 }}>
+                    <Typography variant="body2" color="text.secondary">
+                      创建时间
+                    </Typography>
+                    <Typography variant="body1">
+                      {formatUserTime(user.createdAt)}
+                    </Typography>
+                  </Box>
+                )}
                 
-                {hasValidProfileTime(user.updatedAt) && (
+                {hasDisplayableUserTime(user.updatedAt) && (
                   <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 2fr' }, gap: 2 }}>
                     <Typography variant="body2" color="text.secondary">
                       更新时间
                     </Typography>
                     <Typography variant="body1">
-                      {formatProfileTime(user.updatedAt)}
+                      {formatUserTime(user.updatedAt)}
                     </Typography>
                   </Box>
                 )}

@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import api, { authAPI, User, UserSession } from './api';
+import { clearPersistedAuthState, restoreAuthState } from './authStorage';
 
 // 定义Auth上下文类型
 export interface AuthContextType {
@@ -30,29 +31,11 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   // 在应用启动时从存储中恢复认证状态
   useEffect(() => {
-    const storedUser = localStorage.getItem('user') || sessionStorage.getItem('user');
-    const storedToken = localStorage.getItem('token') || sessionStorage.getItem('token');
-    const storedSession = localStorage.getItem('session') || sessionStorage.getItem('session');
-    
-    if (storedUser && storedToken) {
-      try {
-        const userData = JSON.parse(storedUser) as User;
-        const sessionData = storedSession ? JSON.parse(storedSession) as UserSession : null;
-        setUser(userData);
-        setToken(storedToken);
-        setSession(sessionData);
-        // 更新API实例的默认请求头
-        api.defaults.headers.common['Authorization'] = `Bearer ${storedToken}`;
-      } catch (error) {
-        console.error('解析存储的用户数据失败:', error);
-        // 如果解析失败，清除存储的数据
-        localStorage.removeItem('user');
-        localStorage.removeItem('token');
-        localStorage.removeItem('session');
-        sessionStorage.removeItem('user');
-        sessionStorage.removeItem('token');
-        sessionStorage.removeItem('session');
-      }
+    const restored = restoreAuthState();
+    if (restored) {
+      setUser(restored.user);
+      setToken(restored.token);
+      setSession(restored.session);
     }
   }, []);
 
@@ -81,13 +64,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     setUser(null);
     setToken(null);
     setSession(null);
-    localStorage.removeItem('user');
-    localStorage.removeItem('token');
-    localStorage.removeItem('session');
-    sessionStorage.removeItem('user');
-    sessionStorage.removeItem('token');
-    sessionStorage.removeItem('session');
-    delete api.defaults.headers.common['Authorization'];
+    clearPersistedAuthState();
   };
 
   const logout = async () => {

@@ -42,21 +42,9 @@ func (s *UserService) getDB() database.DBInterface {
 	return db
 }
 
-func NewUserServiceWithDB(db database.DBInterface) *UserService {
+func NewUserService(db database.DBInterface) *UserService {
 	return &UserService{
 		db: db,
-	}
-}
-
-func NewUserServiceWithoutDB() *UserService {
-	return &UserService{
-		db: nil,
-	}
-}
-
-func NewUserService() *UserService {
-	return &UserService{
-		db: nil,
 	}
 }
 

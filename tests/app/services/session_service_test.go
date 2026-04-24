@@ -30,7 +30,7 @@ func TestSessionService_CreateValidateAndRevokeOtherSessions(t *testing.T) {
 	}
 	require.NoError(t, db.CreateUser(user))
 
-	sessionService := services.NewSessionServiceWithDB(db)
+	sessionService := services.NewSessionService(db)
 	currentSession, err := sessionService.CreateSession(services.SessionCreateInput{
 		UserID:     user.ID,
 		UserAgent:  "browser-a",

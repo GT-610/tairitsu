@@ -1,6 +1,6 @@
-# Operations and Support Boundaries
+# Operations
 
-This document describes what Tairitsu includes, what stays experimental, and which boundaries are important for operators.
+This document summarizes what Tairitsu currently provides, what remains experimental, and which boundaries matter in day-to-day operation.
 
 ## Available Capabilities
 
@@ -30,10 +30,3 @@ The following are **not** supported today:
 
 - it should be treated as a separate test surface
 - it should be validated independently before production use
-
-## Internal vs Public Documentation
-
-- Public docs live under `docs/`
-- Working notes, audits, and developer-oriented regression checklists stay under `.cache/`
-
-That split is intentional: public docs should explain what operators need to run Tairitsu, while internal notes can stay more implementation-specific.

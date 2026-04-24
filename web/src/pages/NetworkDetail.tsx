@@ -129,21 +129,15 @@ function generateRandomIPv4Subnet(): string {
 }
 
 function formatNetworkMember(member: ApiMember): NetworkMemberDevice {
-  const memberID = member.id || member.nodeId || ''
-  const clientVersion = member.clientVersion || (
-    member.vMajor !== undefined && member.vMinor !== undefined && member.vRev !== undefined &&
-    member.vMajor >= 0 && member.vMinor >= 0 && member.vRev >= 0
-      ? `${member.vMajor}.${member.vMinor}.${member.vRev}`
-      : 'unknown'
-  )
+  const memberID = member.id || ''
 
   return {
     id: memberID,
-    name: member.name || member.nodeId || member.id || '未命名设备',
+    name: member.name || member.id || '未命名设备',
     description: member.description || '',
     authorized: member.config?.authorized ?? member.authorized ?? false,
     ipAssignments: member.config?.ipAssignments ?? member.ipAssignments ?? [],
-    clientVersion,
+    clientVersion: member.clientVersion || 'unknown',
     address: member.address || '',
     identity: member.identity || '',
     online: member.online ?? false,
@@ -253,7 +247,6 @@ function NetworkDetail() {
       setError('')
     } catch (err: unknown) {
       setError(getErrorMessage(err, '获取网络详情失败'))
-      console.error('Fetch network detail error:', err)
     } finally {
       setLoading(false)
     }

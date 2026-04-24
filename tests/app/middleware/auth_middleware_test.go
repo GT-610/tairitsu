@@ -235,7 +235,7 @@ func TestAdminRequiredWithUserService_DeniesStaleAdminTokenAfterTransfer(t *test
 
 	jwtService := services.NewJWTService("test-secret-key")
 	authMiddleware := middleware.AuthMiddleware(jwtService, nil)
-	adminMiddleware := middleware.AdminRequiredWithUserService(services.NewUserServiceWithDB(db))
+	adminMiddleware := middleware.AdminRequiredWithUserService(services.NewUserService(db))
 
 	token, err := jwtService.GenerateToken(&models.User{
 		ID:       currentAdmin.ID,
@@ -288,7 +288,7 @@ func TestAuthMiddleware_RejectsRevokedSession(t *testing.T) {
 	}
 	require.NoError(t, db.CreateSession(session))
 
-	sessionService := services.NewSessionServiceWithDB(db)
+	sessionService := services.NewSessionService(db)
 	jwtService := services.NewJWTService("test-secret-key")
 	token, err := jwtService.GenerateToken(user, session.ID)
 	require.NoError(t, err)

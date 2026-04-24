@@ -9,7 +9,7 @@ import (
 )
 
 func TestUserServiceRegisterRequiresDatabase(t *testing.T) {
-	userService := services.NewUserServiceWithoutDB()
+	userService := services.NewUserService(nil)
 
 	user, err := userService.Register(&models.RegisterRequest{
 		Username: "admin",
@@ -21,7 +21,7 @@ func TestUserServiceRegisterRequiresDatabase(t *testing.T) {
 }
 
 func TestUserServiceLoginRequiresDatabase(t *testing.T) {
-	userService := services.NewUserServiceWithoutDB()
+	userService := services.NewUserService(nil)
 
 	user, err := userService.Login(&models.LoginRequest{
 		Username: "admin",

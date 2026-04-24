@@ -7,9 +7,9 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestNewUserServiceWithoutDB(t *testing.T) {
+func TestNewUserServiceWithNilDB(t *testing.T) {
 	// Act
-	userService := services.NewUserServiceWithoutDB()
+	userService := services.NewUserService(nil)
 
 	// Assert
 	assert.NotNil(t, userService)

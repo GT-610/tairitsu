@@ -16,6 +16,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../services/auth';
 import { authAPI, systemAPI } from '../services/api';
 import { getErrorMessage, hasStatus } from '../services/errors';
+import { persistAuthState } from '../services/authStorage';
 import { isPublicRegistrationEnabled } from '../utils/publicRegistration';
 
 function getNavigationMessage(state: unknown): string {
@@ -122,15 +123,7 @@ function Login() {
       const { user, token, session } = response.data;
       
       // Save to localStorage or sessionStorage
-      if (rememberMe) {
-        localStorage.setItem('user', JSON.stringify(user));
-        localStorage.setItem('token', token);
-        localStorage.setItem('session', JSON.stringify(session));
-      } else {
-        sessionStorage.setItem('user', JSON.stringify(user));
-        sessionStorage.setItem('token', token);
-        sessionStorage.setItem('session', JSON.stringify(session));
-      }
+      persistAuthState(user, token, session, rememberMe)
       
       // Call login function from auth context
       login(user, token, session);
@@ -138,7 +131,6 @@ function Login() {
       // Login successful, redirect to networks
       void navigate('/networks');
     } catch (error: unknown) {
-      console.error('登录错误:', error);
       const serverMessage = getErrorMessage(error, '');
       if (hasStatus(error, 401) && (!serverMessage || serverMessage === '用户名或密码错误')) {
         setLoginError('用户名或密码错误');

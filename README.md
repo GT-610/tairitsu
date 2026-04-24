@@ -73,7 +73,7 @@ Open `http://<host>:3000` and complete the setup wizard:
 
 ## Documentation
 
-- [Operations and Support Boundaries](docs/OPERATIONS.md)
+- [Operations](docs/OPERATIONS.md)
 - [API documentation](docs/api/Tairitsu_API_Documentation.md)
 
 ## Development

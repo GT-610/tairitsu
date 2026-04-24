@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { formatSessionPresentation } from './sessionPresentation'
+import { formatSessionPresentation, formatSessionTime, hasDisplayableSessionTime } from './sessionPresentation'
 
 describe('sessionPresentation', () => {
   test('formats readable browser and platform labels', () => {
@@ -48,5 +48,10 @@ describe('sessionPresentation', () => {
 
     expect(revoked.status.label).toBe('已移除')
     expect(current.status.label).toBe('当前会话')
+  })
+
+  test('hides zero-value timestamps', () => {
+    expect(hasDisplayableSessionTime('0001-01-01T00:00:00Z')).toBe(false)
+    expect(formatSessionTime('0001-01-01T00:00:00Z')).toBe('未知')
   })
 })

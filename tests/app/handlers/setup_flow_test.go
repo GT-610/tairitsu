@@ -45,8 +45,8 @@ func TestSetupFlow_ResetDatabaseThenRegisterAdmin(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, db.Init())
 
-	userService := services.NewUserServiceWithDB(db)
-	sessionService := services.NewSessionServiceWithDB(db)
+	userService := services.NewUserService(db)
+	sessionService := services.NewSessionService(db)
 	networkService := services.NewNetworkService(nil, db)
 	stateService := services.NewStateServiceWithConfig(config.AppConfig)
 	runtimeService := services.NewRuntimeService(userService, sessionService, networkService, stateService)

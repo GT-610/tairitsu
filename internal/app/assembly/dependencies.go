@@ -48,18 +48,8 @@ type Dependencies struct {
 func NewDependencies(cfg *config.Config, db database.DBInterface, ztClient *zerotier.Client) *Dependencies {
 	networkService := services.NewNetworkService(ztClient, db)
 
-	var userService *services.UserService
-	if db != nil {
-		userService = services.NewUserServiceWithDB(db)
-	} else {
-		userService = services.NewUserServiceWithoutDB()
-	}
-	var sessionService *services.SessionService
-	if db != nil {
-		sessionService = services.NewSessionServiceWithDB(db)
-	} else {
-		sessionService = services.NewSessionServiceWithoutDB()
-	}
+	userService := services.NewUserService(db)
+	sessionService := services.NewSessionService(db)
 
 	stateService := services.NewStateServiceWithConfig(cfg)
 	runtimeService := services.NewRuntimeService(userService, sessionService, networkService, stateService)
