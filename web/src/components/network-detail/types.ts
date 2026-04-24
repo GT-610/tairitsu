@@ -7,7 +7,6 @@ export interface NetworkMemberDevice {
   authorized: boolean;
   ipAssignments: string[];
   clientVersion: string;
-  lastSeenLabel: string;
   activeBridge: boolean;
   noAutoAssignIps: boolean;
 }

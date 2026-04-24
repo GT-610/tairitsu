@@ -144,7 +144,6 @@ function formatNetworkMember(member: ApiMember): NetworkMemberDevice {
     authorized: member.config?.authorized ?? member.authorized ?? false,
     ipAssignments: member.config?.ipAssignments ?? member.ipAssignments ?? [],
     clientVersion,
-    lastSeenLabel: member.lastSeen ? new Date(member.lastSeen).toLocaleString() : '未知',
     activeBridge: member.config?.activeBridge ?? member.activeBridge ?? false,
     noAutoAssignIps: member.config?.noAutoAssignIps ?? member.noAutoAssignIps ?? false,
   }

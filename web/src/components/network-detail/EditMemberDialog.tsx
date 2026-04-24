@@ -61,13 +61,9 @@ function EditMemberDialog({
               成员元信息
             </Typography>
             <Grid container spacing={2}>
-              <Grid size={{ xs: 12, sm: 6 }}>
+              <Grid size={{ xs: 12 }}>
                 <Typography variant="body2" color="text.secondary">ZeroTier 版本</Typography>
                 <Typography variant="body1">{selectedMember?.clientVersion || 'unknown'}</Typography>
-              </Grid>
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <Typography variant="body2" color="text.secondary">最后活动</Typography>
-                <Typography variant="body1">{selectedMember?.lastSeenLabel || '未知'}</Typography>
               </Grid>
             </Grid>
           </Paper>

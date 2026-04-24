@@ -143,6 +143,11 @@ export interface DNSConfig {
   servers?: string[];
 }
 
+export interface MemberTag {
+  id: number;
+  value: number;
+}
+
 export interface Member {
   id: string;
   networkId?: string;
@@ -158,6 +163,10 @@ export interface Member {
   clientVersion?: string;
   online?: boolean;
   address?: string;
+  identity?: string;
+  creationTime?: string | number;
+  tags?: MemberTag[];
+  capabilities?: number[];
   config?: {
     authorized?: boolean;
     activeBridge?: boolean;

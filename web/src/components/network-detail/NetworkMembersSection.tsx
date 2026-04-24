@@ -119,14 +119,13 @@ function NetworkMembersSection({
                 <TableCell>状态</TableCell>
                 <TableCell>Managed IPs</TableCell>
                 <TableCell>ZT 版本</TableCell>
-                <TableCell>最后活动</TableCell>
                 <TableCell align="right">操作</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {filteredMembers.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} align="center" sx={{ py: 5, color: 'text.secondary' }}>
+                  <TableCell colSpan={6} align="center" sx={{ py: 5, color: 'text.secondary' }}>
                     {memberSearchTerm ? '没有找到匹配的成员设备' : '暂无设备连接'}
                   </TableCell>
                 </TableRow>
@@ -145,7 +144,6 @@ function NetworkMembersSection({
                     </TableCell>
                     <TableCell>{member.ipAssignments.length > 0 ? member.ipAssignments.join(', ') : '-'}</TableCell>
                     <TableCell>{member.clientVersion}</TableCell>
-                    <TableCell>{member.lastSeenLabel}</TableCell>
                     <TableCell align="right">
                       <IconButton onClick={(event) => onOpenMemberMenu(event, member)}>
                         <MoreHoriz />
