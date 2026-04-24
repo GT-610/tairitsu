@@ -8,10 +8,26 @@ import (
 
 type SetupStatus struct {
 	Initialized             bool             `json:"initialized"`
-	HasDatabase             bool             `json:"hasDatabase,omitempty"`
-	HasAdmin                bool             `json:"hasAdmin,omitempty"`
+	HasDatabase             bool             `json:"hasDatabase"`
+	DatabaseConfigured      bool             `json:"databaseConfigured"`
+	HasAdmin                bool             `json:"hasAdmin"`
+	ZeroTierConfigured      bool             `json:"zerotierConfigured"`
+	AdminCreationPrepared   bool             `json:"adminCreationPrepared"`
+	AdminUsername           string           `json:"adminUsername,omitempty"`
+	DatabaseConfig          *SetupDatabase   `json:"databaseConfig,omitempty"`
+	ZeroTierConfig          *SetupZeroTier   `json:"zeroTierConfig,omitempty"`
 	AllowPublicRegistration bool             `json:"allowPublicRegistration"`
 	ZTStatus                *zerotier.Status `json:"ztStatus,omitempty"`
+}
+
+type SetupDatabase struct {
+	Type string `json:"type"`
+	Path string `json:"path,omitempty"`
+}
+
+type SetupZeroTier struct {
+	ControllerURL string `json:"controllerUrl"`
+	TokenPath     string `json:"tokenPath"`
 }
 
 type RuntimeSettings struct {
@@ -101,30 +117,60 @@ func (s *StateService) CreateZTClient() (*zerotier.Client, error) {
 }
 
 func (s *StateService) GetSetupStatus(userService *UserService, networkService *NetworkService) SetupStatus {
-	if !s.IsInitialized() {
-		return SetupStatus{
-			Initialized:             false,
-			AllowPublicRegistration: config.AllowPublicRegistration(s.Config()),
-		}
-	}
+	cfg := s.Config()
+	databaseConfigured := s.DatabaseConfigured()
+	zeroTierConfigured := cfg != nil && cfg.ZeroTier.URL != "" && cfg.ZeroTier.TokenPath != ""
 
 	status := SetupStatus{
-		Initialized:             true,
-		HasDatabase:             s.DatabaseConfigured(),
+		Initialized:             s.IsInitialized(),
+		HasDatabase:             databaseConfigured,
+		DatabaseConfigured:      databaseConfigured,
+		ZeroTierConfigured:      zeroTierConfigured,
+		AdminCreationPrepared:   config.GetTempSetting("admin_creation_reset_done") == "true",
 		AllowPublicRegistration: config.AllowPublicRegistration(s.Config()),
 	}
 
-	if status.HasDatabase && userService != nil {
+	if databaseConfigured && cfg != nil {
+		status.DatabaseConfig = &SetupDatabase{
+			Type: string(cfg.Database.Type),
+			Path: cfg.Database.Path,
+		}
+	}
+
+	if zeroTierConfigured && cfg != nil {
+		status.ZeroTierConfig = &SetupZeroTier{
+			ControllerURL: cfg.ZeroTier.URL,
+			TokenPath:     cfg.ZeroTier.TokenPath,
+		}
+	}
+
+	if databaseConfigured && userService != nil {
 		users := userService.GetAllUsers()
 		for _, user := range users {
 			if user.Role == "admin" {
 				status.HasAdmin = true
+				status.AdminUsername = user.Username
 				break
 			}
 		}
 	}
 
-	if networkService != nil {
+	if zeroTierConfigured {
+		if networkService != nil {
+			if ztStatus, err := networkService.GetStatus(); err == nil {
+				status.ZTStatus = ztStatus
+			}
+		}
+		if status.ZTStatus == nil {
+			if ztClient, err := s.CreateZTClient(); err == nil {
+				if ztStatus, err := ztClient.GetStatus(); err == nil {
+					status.ZTStatus = ztStatus
+				}
+			}
+		}
+	}
+
+	if status.Initialized && status.ZTStatus == nil && networkService != nil {
 		if ztStatus, err := networkService.GetStatus(); err == nil {
 			status.ZTStatus = ztStatus
 		} else {

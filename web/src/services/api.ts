@@ -240,8 +240,20 @@ export interface SystemStats {
 
 export interface SetupStatus {
   initialized: boolean;
-  hasDatabase?: boolean;
-  hasAdmin?: boolean;
+  hasDatabase: boolean;
+  databaseConfigured: boolean;
+  hasAdmin: boolean;
+  zerotierConfigured: boolean;
+  adminCreationPrepared: boolean;
+  adminUsername?: string;
+  databaseConfig?: {
+    type: 'sqlite';
+    path?: string;
+  };
+  zeroTierConfig?: {
+    controllerUrl: string;
+    tokenPath: string;
+  };
   allowPublicRegistration: boolean;
   ztStatus?: {
     version: string;
@@ -265,6 +277,27 @@ export interface DatabaseSetupConfig {
 export interface ZeroTierSetupConfig {
   controllerUrl: string;
   tokenPath: string;
+}
+
+export interface DatabaseSetupResponse {
+  message: string;
+  config: DatabaseSetupConfig;
+}
+
+export interface ZeroTierSetupResponse {
+  message: string;
+  config: ZeroTierSetupConfig;
+  status: NonNullable<SetupStatus['ztStatus']>;
+}
+
+export interface InitializeAdminCreationResponse {
+  message: string;
+  resetDone: boolean;
+  databaseType: string;
+}
+
+export interface SetInitializedResponse {
+  message: string;
 }
 
 export interface RuntimeSettings {
@@ -404,17 +437,17 @@ export const systemAPI = {
   // Get system setup status (used to check if it's first run)
   getSetupStatus: () => api.get<SetupStatus>('/system/status'),
   // Configure database
-  configureDatabase: (config: DatabaseSetupConfig) => api.post('/system/database', config),
+  configureDatabase: (config: DatabaseSetupConfig) => api.post<DatabaseSetupResponse>('/system/database', config),
   // Initialize ZeroTier client
   initZeroTierClient: () => api.post('/system/zerotier/init'),
   // Test ZeroTier connection
   testZtConnection: () => api.get('/system/zerotier/test'),
   // Save ZeroTier configuration
-  saveZtConfig: (config: ZeroTierSetupConfig) => api.post('/system/zerotier/config', config),
+  saveZtConfig: (config: ZeroTierSetupConfig) => api.post<ZeroTierSetupResponse>('/system/zerotier/config', config),
   // Set system initialization status
-  setInitialized: (initialized: boolean) => api.post('/system/initialized', { initialized }),
+  setInitialized: (initialized: boolean) => api.post<SetInitializedResponse>('/system/initialized', { initialized }),
   // Initialize admin account creation step
-  initializeAdminCreation: () => api.post('/system/admin/init'),
+  initializeAdminCreation: () => api.post<InitializeAdminCreationResponse>('/system/admin/init'),
   // Get runtime settings (admin only)
   getRuntimeSettings: () => api.get<RuntimeSettings>('/system/settings'),
   // Update runtime settings (admin only)

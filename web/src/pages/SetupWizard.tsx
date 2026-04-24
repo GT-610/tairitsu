@@ -1,150 +1,135 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import {
+  Alert,
   Box,
-  Container,
-  Typography,
-  Paper,
-  Stepper,
-  Step,
-  StepLabel,
   Button,
   CircularProgress,
-  Alert,
+  Container,
+  Paper,
+  Step,
+  StepLabel,
+  Stepper,
   TextField,
-  IconButton
+  Typography,
 } from '@mui/material';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
-import { authAPI, systemAPI } from '../services/api';
+import { authAPI, systemAPI, type DatabaseSetupConfig, type SetupStatus, type ZeroTierSetupConfig } from '../services/api';
 import { getErrorMessage } from '../services/errors';
-import { setupWizardDatabaseStepCopy } from '../utils/setupWizard';
+import { getInitialSetupWizardStep, isSetupStepSaved, setupWizardDatabaseStepCopy } from '../utils/setupWizard';
 
-// 管理员账户数据类型
 interface AdminData {
   username: string;
   password: string;
 }
 
-// 数据库配置类型
-interface DbConfig {
-  type: 'sqlite';
-  path: string;
-  host: string;
-  port: number;
-  user: string;
-  pass: string;
-  name: string;
-}
+const setupCompletedEvent = 'tairitsu-setup-complete';
 
-// ZeroTier配置类型
-interface ZtConfig {
-  controllerUrl: string;
-  tokenPath: string;
-}
+const defaultDbConfig: DatabaseSetupConfig = {
+  type: 'sqlite',
+  path: '',
+  host: '',
+  port: 0,
+  user: '',
+  pass: '',
+  name: '',
+};
 
-// ZeroTier状态类型 (暂时未使用)
-// interface ZtStatus {
-//   online: boolean;
-//   version: string;
-// }
+const defaultZtConfig: ZeroTierSetupConfig = {
+  controllerUrl: 'http://localhost:9993',
+  tokenPath: '/var/lib/zerotier-one/authtoken.secret',
+};
 
-// Main component for the setup wizard
-const SetupWizard = () => {
-  const [activeStep, setActiveStep] = useState<number>(0);
-  const [loading, setLoading] = useState<boolean>(false);
-  const [error, setError] = useState<string>('');
-  const [success, setSuccess] = useState<string>('');
+const steps = [
+  '欢迎使用 Tairitsu',
+  '配置 ZeroTier 控制器',
+  '配置数据库',
+  '创建管理员账户',
+  '完成设置',
+];
 
-  // Admin account data
-  const [adminData, setAdminData] = useState<AdminData>({
-    username: '',
-    password: ''
-  });
+function SetupWizard() {
+  const [activeStep, setActiveStep] = useState(0);
+  const [status, setStatus] = useState<SetupStatus | null>(null);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [adminData, setAdminData] = useState<AdminData>({ username: '', password: '' });
+  const [dbConfig, setDbConfig] = useState<DatabaseSetupConfig>(defaultDbConfig);
+  const [ztConfig, setZtConfig] = useState<ZeroTierSetupConfig>(defaultZtConfig);
 
-  // Database configuration
-  const [dbConfig, setDbConfig] = useState<DbConfig>({
-    type: 'sqlite',
-    path: '',
-    host: '',
-    port: 0,
-    user: '',
-    pass: '',
-    name: ''
-  });
-
-  // ZeroTier configuration
-  const [ztConfig, setZtConfig] = useState<ZtConfig>({
-    controllerUrl: 'http://localhost:9993',
-    tokenPath: '/var/lib/zerotier-one/authtoken.secret'
-  });
-
-  // Setup wizard step titles
-  const steps: string[] = [
-    '欢迎使用 Tairitsu',
-    '配置 ZeroTier 控制器',
-    '配置数据库',
-    '创建管理员账户',
-    '完成设置'
-  ];
-
-  // Track setup wizard state in localStorage
-  useEffect(() => {
-    // Mark setup wizard as started
-    localStorage.setItem('tairitsu_setup_started', 'true');
-
-    // Cleanup function to maintain localStorage integrity
-    return () => {
-      // Only remove flag if setup process was interrupted
-      if (!localStorage.getItem('tairitsu_initialized')) {
-        localStorage.removeItem('tairitsu_setup_started');
-      }
-    };
-  }, []);
-
-  // Validate ZeroTier controller connection and save configuration
-  const testAndInitZtConnection = async (): Promise<boolean> => {
-    setLoading(true);
-    setError('');
-    setSuccess('');
-    try {
-      // Save configuration and test connection simultaneously
-      await systemAPI.saveZtConfig(ztConfig);
-      setSuccess('ZeroTier 连接成功！已自动前往下一步。');
-      return true;
-    } catch (err: unknown) {
-      setError(getErrorMessage(err, 'ZeroTier 连接失败'));
-      return false;
-    } finally {
-      setLoading(false);
+  const hydrateFromStatus = (nextStatus: SetupStatus) => {
+    setStatus(nextStatus);
+    setActiveStep(getInitialSetupWizardStep(nextStatus));
+    setZtConfig({
+      controllerUrl: nextStatus.zeroTierConfig?.controllerUrl || defaultZtConfig.controllerUrl,
+      tokenPath: nextStatus.zeroTierConfig?.tokenPath || defaultZtConfig.tokenPath,
+    });
+    setDbConfig((previous) => ({
+      ...previous,
+      type: 'sqlite',
+      path: nextStatus.databaseConfig?.path || '',
+    }));
+    if (nextStatus.adminUsername) {
+      setAdminData((previous) => ({
+        ...previous,
+        username: nextStatus.adminUsername || previous.username,
+        password: nextStatus.hasAdmin ? '' : previous.password,
+      }));
     }
   };
 
-  // Handle form submission for each step
-  const handleSubmit = async () => {
+  const fetchSetupStatus = async () => {
+    const response = await systemAPI.getSetupStatus();
+    hydrateFromStatus(response.data);
+    return response.data;
+  };
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        setInitialLoading(true);
+        setError('');
+        await fetchSetupStatus();
+      } catch (err: unknown) {
+        setError(getErrorMessage(err, '获取初始化状态失败'));
+      } finally {
+        setInitialLoading(false);
+      }
+    };
+
+    void load();
+  }, []);
+
+  const runStep = async () => {
     setLoading(true);
     setError('');
     setSuccess('');
 
     try {
-      // Execute different actions based on current step
       if (activeStep === 0) {
-        // Welcome page - proceed to next step directly
-        setActiveStep((prevActiveStep) => prevActiveStep + 1);
-      } else if (activeStep === 1) {
-        // ZeroTier configuration step - validate and initialize
-        const success = await testAndInitZtConnection();
-        if (success) {
-          // Validation successful, proceed to next step
-          setActiveStep((prevActiveStep) => prevActiveStep + 1);
-        }
-      } else if (activeStep === 2) {
-        // Send database configuration to backend
-        await systemAPI.configureDatabase(dbConfig);
+        setActiveStep(status ? getInitialSetupWizardStep(status) : 1);
+        return;
+      }
 
-        // Proceed to next step
-        setActiveStep((prevActiveStep) => prevActiveStep + 1);
-      } else if (activeStep === 3) {
-        // Create administrator account step
-        // Form validation
+      if (activeStep === 1) {
+        const response = await systemAPI.saveZtConfig(ztConfig);
+        const nextStatus = await fetchSetupStatus();
+        setSuccess(`ZeroTier 控制器连接成功并已保存：${response.data.status.address || response.data.config.controllerUrl}`);
+        setActiveStep(Math.max(2, getInitialSetupWizardStep(nextStatus)));
+        return;
+      }
+
+      if (activeStep === 2) {
+        const response = await systemAPI.configureDatabase(dbConfig);
+        const nextStatus = await fetchSetupStatus();
+        const savedPath = response.data.config.path || nextStatus.databaseConfig?.path || 'data/tairitsu.db';
+        setSuccess(`SQLite 配置已保存：${savedPath}`);
+        setActiveStep(Math.max(3, getInitialSetupWizardStep(nextStatus)));
+        return;
+      }
+
+      if (activeStep === 3) {
         if (!adminData.username.trim()) {
           setError('请输入用户名');
           return;
@@ -154,33 +139,27 @@ const SetupWizard = () => {
           return;
         }
 
-        await systemAPI.initializeAdminCreation();
-        await authAPI.register(adminData);
-        // Proceed to next step
-        setActiveStep((prevActiveStep) => prevActiveStep + 1);
-      } else if (activeStep === 4) {
-        // Finalize setup step
-        try {
-          // Mark system as initialized
-          await systemAPI.setInitialized(true);
-
-          // Update localStorage flag to indicate system initialization
-          localStorage.setItem('tairitsu_initialized', 'true');
-          localStorage.removeItem('tairitsu_setup_started');
-
-          // Set success message
-          setSuccess('系统初始化完成！正在刷新页面...');
-
-          // Delay page refresh to show success message
-          setTimeout(() => {
-            window.location.reload();
-          }, 2000);
-        } catch (err: unknown) {
-          setError(getErrorMessage(err, '完成设置失败'));
+        if (!status?.adminCreationPrepared && !status?.hasAdmin) {
+          await systemAPI.initializeAdminCreation();
         }
-      } else {
-        // Default case: proceed to next step
-        setActiveStep((prevActiveStep) => prevActiveStep + 1);
+        await authAPI.register(adminData);
+        const nextStatus = await fetchSetupStatus();
+        setSuccess(`首个管理员 ${adminData.username.trim()} 创建成功`);
+        setAdminData((previous) => ({ ...previous, password: '' }));
+        setActiveStep(Math.max(4, getInitialSetupWizardStep(nextStatus)));
+        return;
+      }
+
+      if (activeStep === 4) {
+        await systemAPI.setInitialized(true);
+        const nextStatus = await fetchSetupStatus();
+        if (!nextStatus.initialized) {
+          throw new Error('初始化状态尚未生效，请稍后重试');
+        }
+
+        setSuccess('系统初始化完成，正在进入登录页面...');
+        window.dispatchEvent(new Event(setupCompletedEvent));
+        return;
       }
     } catch (err: unknown) {
       setError(getErrorMessage(err, '操作失败'));
@@ -189,38 +168,31 @@ const SetupWizard = () => {
     }
   };
 
-  // Navigate to previous step
   const handleBack = () => {
-    setActiveStep((prevActiveStep) => prevActiveStep - 1);
+    setError('');
+    setSuccess('');
+    setActiveStep((previous) => Math.max(previous - 1, 0));
   };
 
-  // Handle changes to admin account data
-  const handleAdminDataChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setAdminData({
-      ...adminData,
-      [e.target.name]: e.target.value
-    });
-  };
+  const stepSaved = status ? isSetupStepSaved(status, activeStep) : false;
+  const stepStatusText = activeStep === 0 ? '' : stepSaved ? '已保存' : '未保存';
+  const nextDisabled = loading || initialLoading || (activeStep === 4 && status?.initialized === true);
 
-  // Handle changes to database configuration
-  const handleDbPathChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setDbConfig({
-      ...dbConfig,
-      path: e.target.value
-    });
-  };
+  if (initialLoading) {
+    return (
+      <Box sx={{ p: 3, display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '50vh' }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
 
-  // Handle changes to ZeroTier configuration
-  const handleZtConfigChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setZtConfig({
-      ...ztConfig,
-      [e.target.name]: e.target.value
-    });
-  };
-
-  // Helper function to render error and success messages
   const renderMessages = () => (
     <>
+      {activeStep > 0 && (
+        <Alert severity={stepSaved ? 'success' : 'info'} sx={{ mt: 2 }}>
+          当前步骤状态：{stepStatusText}
+        </Alert>
+      )}
       {error && (
         <Alert severity="error" sx={{ mt: 2 }}>
           {error}
@@ -234,29 +206,26 @@ const SetupWizard = () => {
     </>
   );
 
-  // Render content for each step
-  const renderStepContent = (step: number) => {
-    switch (step) {
+  const renderStepContent = () => {
+    switch (activeStep) {
       case 0:
         return (
           <Paper sx={{ p: 3, height: '300px', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
-            <Typography variant="h3" gutterBottom align="center" sx={{ mb: 4 }}>
+            <Typography variant="h3" gutterBottom align="center" sx={{ mb: 3 }}>
               欢迎使用 Tairitsu
             </Typography>
-            <IconButton 
-              onClick={() => { void handleSubmit(); }}
-              sx={{ 
-                width: 60, 
-                height: 60, 
-                borderRadius: '50%', 
-                backgroundColor: 'primary.main',
-                '&:hover': {
-                  backgroundColor: 'primary.dark'
-                }
-              }}
+            <Typography variant="body1" align="center" sx={{ maxWidth: 520, mb: 4 }}>
+              本向导会依次完成 ZeroTier 控制器连接、SQLite 配置、首个管理员创建，以及运行态切换。
+            </Typography>
+            <Button
+              variant="contained"
+              startIcon={<ArrowForwardIcon />}
+              onClick={() => { void runStep(); }}
+              disabled={loading}
             >
-              <ArrowForwardIcon sx={{ color: 'white', fontSize: 30 }} />
-            </IconButton>
+              开始初始化
+            </Button>
+            {renderMessages()}
           </Paper>
         );
       case 1:
@@ -266,36 +235,39 @@ const SetupWizard = () => {
               配置 ZeroTier 控制器
             </Typography>
             <Typography variant="body1" paragraph>
-              请输入您的 ZeroTier 控制器信息，以便 Tairitsu 能够连接和管理您的网络。
+              这一步会测试连接并保存配置。刷新页面后，已保存的控制器地址和 token 路径会自动回显。
             </Typography>
-            <form onSubmit={(e) => e.preventDefault()}>
-              <TextField
-                margin="normal"
-                required
-                fullWidth
-                id="controllerUrl"
-                label="ZeroTier 控制器 URL"
-                name="controllerUrl"
-                autoComplete="url"
-                value={ztConfig.controllerUrl}
-                onChange={handleZtConfigChange}
-                disabled={loading}
-              />
-              <TextField
-                margin="normal"
-                required
-                fullWidth
-                id="tokenPath"
-                label="认证令牌文件路径"
-                name="tokenPath"
-                autoComplete="file-path"
-                value={ztConfig.tokenPath}
-                onChange={handleZtConfigChange}
-                disabled={loading}
-                helperText="默认为 /var/lib/zerotier-one/authtoken.secret"
-              />
-              {renderMessages()}
-            </form>
+            <TextField
+              margin="normal"
+              required
+              fullWidth
+              id="controllerUrl"
+              label="ZeroTier 控制器 URL"
+              name="controllerUrl"
+              autoComplete="url"
+              value={ztConfig.controllerUrl}
+              onChange={(event) => setZtConfig((previous) => ({ ...previous, controllerUrl: event.target.value }))}
+              disabled={loading}
+            />
+            <TextField
+              margin="normal"
+              required
+              fullWidth
+              id="tokenPath"
+              label="认证令牌文件路径"
+              name="tokenPath"
+              autoComplete="file-path"
+              value={ztConfig.tokenPath}
+              onChange={(event) => setZtConfig((previous) => ({ ...previous, tokenPath: event.target.value }))}
+              disabled={loading}
+              helperText="例如 /var/lib/zerotier-one/authtoken.secret"
+            />
+            {status?.ztStatus && (
+              <Alert severity={status.ztStatus.online ? 'success' : 'warning'} sx={{ mt: 2 }}>
+                当前控制器状态：{status.ztStatus.online ? '在线' : '离线'}{status.ztStatus.address ? ` · ${status.ztStatus.address}` : ''}
+              </Alert>
+            )}
+            {renderMessages()}
           </Paper>
         );
       case 2:
@@ -310,69 +282,70 @@ const SetupWizard = () => {
             <Alert severity="info" sx={{ mb: 2 }}>
               {setupWizardDatabaseStepCopy.supportAlert}
             </Alert>
-            <form onSubmit={(e) => e.preventDefault()}>
-              <TextField
-                margin="normal"
-                fullWidth
-                id="type"
-                label="数据库类型"
-                value={dbConfig.type}
-                disabled
-                helperText={setupWizardDatabaseStepCopy.databaseTypeHelperText}
-              />
-              <TextField
-                margin="normal"
-                fullWidth
-                id="path"
-                label="SQLite 文件路径"
-                name="path"
-                value={dbConfig.path}
-                onChange={handleDbPathChange}
-                disabled={loading}
-                helperText={setupWizardDatabaseStepCopy.databasePathHelperText}
-              />
-              {renderMessages()}
-            </form>
+            <TextField
+              margin="normal"
+              fullWidth
+              id="type"
+              label="数据库类型"
+              value={dbConfig.type}
+              disabled
+              helperText={setupWizardDatabaseStepCopy.databaseTypeHelperText}
+            />
+            <TextField
+              margin="normal"
+              fullWidth
+              id="path"
+              label="SQLite 文件路径"
+              name="path"
+              value={dbConfig.path}
+              onChange={(event) => setDbConfig((previous) => ({ ...previous, path: event.target.value }))}
+              disabled={loading}
+              helperText={setupWizardDatabaseStepCopy.databasePathHelperText}
+            />
+            {renderMessages()}
           </Paper>
         );
       case 3:
         return (
           <Paper sx={{ p: 3 }}>
             <Typography variant="h5" gutterBottom>
-              创建管理员账户
+              创建首个管理员账户
             </Typography>
             <Typography variant="body1" paragraph>
-              请创建一个管理员账户，用于登录和管理 Tairitsu 平台。
+              这一步仅用于首次部署。若你已经创建过管理员，刷新后会自动进入完成步骤，不会重复重置数据库。
             </Typography>
-            <form onSubmit={(e) => e.preventDefault()}>
-              <TextField
-                margin="normal"
-                required
-                fullWidth
-                id="username"
-                label="用户名"
-                name="username"
-                autoComplete="username"
-                value={adminData.username}
-                onChange={handleAdminDataChange}
-                disabled={loading}
-              />
-              <TextField
-                margin="normal"
-                required
-                fullWidth
-                name="password"
-                label="密码"
-                type="password"
-                id="password"
-                autoComplete="new-password"
-                value={adminData.password}
-                onChange={handleAdminDataChange}
-                disabled={loading}
-                helperText="密码长度至少为6位"
-              />
-              {renderMessages()}
-            </form>
+            <TextField
+              margin="normal"
+              required
+              fullWidth
+              id="username"
+              label="用户名"
+              name="username"
+              autoComplete="username"
+              value={adminData.username}
+              onChange={(event) => setAdminData((previous) => ({ ...previous, username: event.target.value }))}
+              disabled={loading || !!status?.hasAdmin}
+            />
+            <TextField
+              margin="normal"
+              required
+              fullWidth
+              name="password"
+              label="密码"
+              type="password"
+              id="password"
+              autoComplete="new-password"
+              value={adminData.password}
+              onChange={(event) => setAdminData((previous) => ({ ...previous, password: event.target.value }))}
+              disabled={loading || !!status?.hasAdmin}
+              helperText="密码长度至少为6位"
+            />
+            {status?.adminCreationPrepared && !status?.hasAdmin && (
+              <Alert severity="info" sx={{ mt: 2 }}>
+                首个管理员创建环境已准备完成，可以直接提交账号信息。
+              </Alert>
+            )}
+            {renderMessages()}
           </Paper>
         );
       case 4:
@@ -382,16 +355,13 @@ const SetupWizard = () => {
               完成设置
             </Typography>
             <Typography variant="body1" paragraph>
-              恭喜您！Tairitsu 平台已成功配置。
+              请确认以下信息。点击“完成初始化”后，系统会校验关键配置并切换到运行态。
             </Typography>
-            <Typography variant="body1" paragraph>
-              配置概要：
-            </Typography>
-            <ul>
-              <li>ZeroTier 控制器: {ztConfig.controllerUrl}</li>
-              <li>数据库类型: {dbConfig.type}</li>
-              <li>管理员账户: {adminData.username}</li>
-            </ul>
+            <Box component="ul" sx={{ pl: 3, mb: 0 }}>
+              <li>ZeroTier 控制器：{status?.zeroTierConfig?.controllerUrl || ztConfig.controllerUrl}</li>
+              <li>SQLite 路径：{status?.databaseConfig?.path || dbConfig.path || 'data/tairitsu.db'}</li>
+              <li>首个管理员：{status?.adminUsername || adminData.username || '尚未创建'}</li>
+            </Box>
             {renderMessages()}
           </Paper>
         );
@@ -413,32 +383,42 @@ const SetupWizard = () => {
             </Step>
           ))}
         </Stepper>
-        <div>{renderStepContent(activeStep)}</div>
-        <Box sx={{ mt: 4, display: 'flex', justifyContent: 'space-between' }}>
-          {activeStep > 0 && (
-            <Button 
-              variant="outlined" 
+        <div>{renderStepContent()}</div>
+        {activeStep !== 0 && (
+          <Box sx={{ mt: 4, display: 'flex', justifyContent: 'space-between' }}>
+            <Button
+              variant="outlined"
               onClick={handleBack}
-              disabled={loading || (activeStep === 4 && !!success)}
+              disabled={loading || activeStep === 4}
             >
               返回
             </Button>
-          )}
-          {activeStep !== 0 && (
-            <Button 
-              variant="contained" 
-              color="primary" 
-              onClick={() => { void handleSubmit(); }}
-              disabled={loading}
+            <Button
+              variant="contained"
+              color="primary"
+              onClick={() => { void runStep(); }}
+              disabled={nextDisabled}
             >
-              {loading ? <CircularProgress size={24} /> : 
-                activeStep === 4 ? '完成设置' : '下一步'}
+              {loading ? (
+                <CircularProgress size={24} />
+              ) : activeStep === 1 ? (
+                '测试并保存'
+              ) : activeStep === 2 ? (
+                '保存数据库配置'
+              ) : activeStep === 3 ? (
+                '创建首个管理员'
+              ) : activeStep === 4 ? (
+                '完成初始化'
+              ) : (
+                '下一步'
+              )}
             </Button>
-          )}
-        </Box>
+          </Box>
+        )}
       </Paper>
     </Container>
   );
-};
+}
 
+export { setupCompletedEvent };
 export default SetupWizard;

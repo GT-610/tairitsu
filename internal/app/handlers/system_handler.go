@@ -79,7 +79,10 @@ func (h *SystemHandler) ConfigureDatabase(c fiber.Ctx) error {
 	logger.Info("数据库配置成功", zap.String("type", dbConfig.Type))
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
 		"message": "数据库配置成功",
-		"config":  dbConfig,
+		"config": fiber.Map{
+			"type": dbCfg.Type,
+			"path": dbCfg.Path,
+		},
 	})
 }
 

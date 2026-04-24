@@ -1,9 +1,9 @@
-import { useState, useEffect, lazy, Suspense } from 'react';
+import { useState, useEffect, lazy, Suspense, useCallback } from 'react';
 import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { CircularProgress, Box } from '@mui/material';
 import Login from './pages/Login';
 import Register from './pages/Register';
-import SetupWizard from './pages/SetupWizard';
+import SetupWizard, { setupCompletedEvent } from './pages/SetupWizard';
 import Networks from './pages/Networks';
 import NotFound from './pages/NotFound';
 import Layout from './components/Layout';
@@ -43,6 +43,34 @@ function AppContent() {
   const [loading, setLoading] = useState<boolean>(true);
   const location = useLocation();
 
+  const checkFirstRun = useCallback(async () => {
+    try {
+      const response = await api.get<SetupStatus>('/system/status', {
+        headers: {
+          'Cache-Control': 'no-cache'
+        }
+      });
+
+      const isBackendInitialized = response.data.initialized;
+      setIsFirstRun(!isBackendInitialized);
+
+      console.log('系统状态检查:', {
+        initialized: isBackendInitialized,
+        isFirstRun: !isBackendInitialized,
+        additionalInfo: {
+          hasDatabase: response.data?.hasDatabase,
+          hasAdmin: response.data?.hasAdmin,
+          ztStatus: response.data?.ztStatus
+        }
+      });
+    } catch (error) {
+      console.error('获取后端初始化状态失败:', error);
+      setIsFirstRun(true);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   // Listen for API errors and handle logout on 401 unauthorized responses
   useEffect(() => {
     const handleApiError = (error: unknown) => {
@@ -81,43 +109,20 @@ function AppContent() {
 
   // 检查系统是否已初始化（仅在应用启动时执行一次）
   useEffect(() => {
-    const checkFirstRun = async () => {
-      try {
-        const response = await api.get<SetupStatus>('/system/status', {
-          headers: {
-            'Cache-Control': 'no-cache'
-          }
-        });
-        
-        // 确保response.data存在且包含initialized字段
-        const isBackendInitialized = response.data.initialized;
-        
-        // 完全依赖后端API状态，不使用本地存储
-        setIsFirstRun(!isBackendInitialized);
-        
-        // 记录API响应，帮助调试
-        console.log('系统状态检查:', { 
-          initialized: isBackendInitialized, 
-          isFirstRun: !isBackendInitialized,
-          // 如果后端返回了更多信息，也记录下来以便调试
-          additionalInfo: {
-            hasDatabase: response.data?.hasDatabase,
-            hasAdmin: response.data?.hasAdmin,
-            ztStatus: response.data?.ztStatus
-          }
-        });
-      } catch (error) {
-        console.error('获取后端初始化状态失败:', error);
-        // 当后端不可用时，默认显示为首次运行，要求用户连接到后端
-        // 不再使用本地存储作为回退机制，完全依赖后端API
-        setIsFirstRun(true);
-      } finally {
-        setLoading(false);
-      }
+    void checkFirstRun();
+  }, [checkFirstRun]);
+
+  useEffect(() => {
+    const handleSetupComplete = () => {
+      setLoading(true);
+      void checkFirstRun();
     };
 
-    void checkFirstRun();
-  }, []);
+    window.addEventListener(setupCompletedEvent, handleSetupComplete);
+    return () => {
+      window.removeEventListener(setupCompletedEvent, handleSetupComplete);
+    };
+  }, [checkFirstRun]);
 
   if (loading || isFirstRun === null) {
     return (

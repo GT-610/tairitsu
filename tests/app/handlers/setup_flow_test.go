@@ -80,4 +80,14 @@ func TestSetupFlow_ResetDatabaseThenRegisterAdmin(t *testing.T) {
 	require.Len(t, users, 1)
 	assert.Equal(t, "admin", users[0].Username)
 	assert.Equal(t, "admin", users[0].Role)
+
+	secondInitReq := httptest.NewRequest(http.MethodPost, "/system/admin/init", bytes.NewReader([]byte("{}")))
+	secondInitReq.Header.Set("Content-Type", "application/json")
+	secondInitResp, err := app.Test(secondInitReq)
+	require.NoError(t, err)
+	assert.Equal(t, fiber.StatusOK, secondInitResp.StatusCode)
+
+	usersAfterSecondInit := userService.GetAllUsers()
+	require.Len(t, usersAfterSecondInit, 1)
+	assert.Equal(t, "admin", usersAfterSecondInit[0].Username)
 }

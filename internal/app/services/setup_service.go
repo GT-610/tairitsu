@@ -119,18 +119,27 @@ func (s *SetupService) UpdateRuntimeSettings(settings RuntimeSettings) error {
 }
 
 func (s *SetupService) InitializeAdminCreation() (string, error) {
-	resetDoneKey := "admin_creation_reset_done"
-	if config.GetTempSetting(resetDoneKey) == "true" {
-		dbConfig := s.stateService.DatabaseConfig()
-		return string(dbConfig.Type), nil
-	}
-
 	dbConfig := s.stateService.DatabaseConfig()
 	if dbConfig.Type == "" {
 		return "", fmt.Errorf("尚未完成数据库配置，请先配置 SQLite 数据库")
 	}
 	if dbConfig.Type != database.SQLite {
 		return "", fmt.Errorf("当前仅支持 SQLite，%s 初始化暂不支持", dbConfig.Type)
+	}
+
+	if s.stateService.IsInitialized() {
+		return "", fmt.Errorf("系统已初始化，不能再次执行首次管理员创建准备")
+	}
+
+	resetDoneKey := "admin_creation_reset_done"
+	if config.GetTempSetting(resetDoneKey) == "true" {
+		return string(dbConfig.Type), nil
+	}
+
+	hasAdmin, err := s.userService.HasAdminUser()
+	if err == nil && hasAdmin {
+		config.SetTempSetting(resetDoneKey, "true")
+		return string(dbConfig.Type), nil
 	}
 
 	s.runtimeService.CloseCurrentDatabase()
@@ -149,6 +158,10 @@ func (s *SetupService) InitializeAdminCreation() (string, error) {
 
 func (s *SetupService) SetInitialized(initialized bool) error {
 	if initialized {
+		if err := s.validateInitializationReady(); err != nil {
+			return err
+		}
+
 		cfg := s.stateService.Config()
 		if cfg.Security.JWTSecret == "" {
 			cfg.Security.JWTSecret = generateRandomSecret(32)
@@ -167,6 +180,40 @@ func (s *SetupService) SetInitialized(initialized bool) error {
 
 	if err := s.stateService.SetInitialized(initialized); err != nil {
 		return fmt.Errorf("设置初始化状态失败: %w", err)
+	}
+
+	return nil
+}
+
+func (s *SetupService) validateInitializationReady() error {
+	if !s.stateService.DatabaseConfigured() {
+		return fmt.Errorf("尚未完成数据库配置，请先配置 SQLite 数据库")
+	}
+
+	if s.runtimeService.CurrentDatabase() == nil {
+		if err := s.runtimeService.ReopenConfiguredDatabase(); err != nil {
+			return fmt.Errorf("数据库未就绪: %w", err)
+		}
+	}
+
+	hasAdmin, err := s.userService.HasAdminUser()
+	if err != nil {
+		return fmt.Errorf("无法确认管理员状态: %w", err)
+	}
+	if !hasAdmin {
+		return fmt.Errorf("请先创建首个管理员账户")
+	}
+
+	if _, err := s.stateService.CreateZTClient(); err != nil {
+		return fmt.Errorf("ZeroTier 配置未完成: %w", err)
+	}
+
+	status, err := s.runtimeService.InitZTClientFromConfig()
+	if err != nil {
+		return fmt.Errorf("ZeroTier 连接验证失败: %w", err)
+	}
+	if status == nil || !status.Online {
+		return fmt.Errorf("ZeroTier 控制器当前不可用")
 	}
 
 	return nil
