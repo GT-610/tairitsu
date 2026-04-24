@@ -103,8 +103,8 @@ func TestSystemHandler_GetSystemStatus_Uninitialized(t *testing.T) {
 	}
 	config.SetTempSetting("admin_creation_reset_done", "true")
 
-	userService := services.NewUserServiceWithoutDB()
-	sessionService := services.NewSessionServiceWithoutDB()
+	userService := services.NewUserService(nil)
+	sessionService := services.NewSessionService(nil)
 	networkService := services.NewNetworkService(nil, nil)
 	stateService := services.NewStateServiceWithConfig(config.AppConfig)
 	runtimeService := services.NewRuntimeService(userService, sessionService, networkService, stateService)
@@ -145,12 +145,12 @@ func TestSystemHandler_GetSystemStatus_Initialized(t *testing.T) {
 		},
 	}
 
-	userService := services.NewUserServiceWithDB(&handlerStateDBStub{
+	userService := services.NewUserService(&handlerStateDBStub{
 		users: []*models.User{
 			{ID: "1", Username: "admin", Role: "admin"},
 		},
 	})
-	sessionService := services.NewSessionServiceWithDB(&handlerStateDBStub{
+	sessionService := services.NewSessionService(&handlerStateDBStub{
 		users: []*models.User{
 			{ID: "1", Username: "admin", Role: "admin"},
 		},
@@ -204,8 +204,8 @@ func TestSystemHandler_RuntimeSettingsReadWrite(t *testing.T) {
 		},
 	}
 
-	userService := services.NewUserServiceWithoutDB()
-	sessionService := services.NewSessionServiceWithoutDB()
+	userService := services.NewUserService(nil)
+	sessionService := services.NewSessionService(nil)
 	networkService := services.NewNetworkService(nil, nil)
 	stateService := services.NewStateServiceWithConfig(config.AppConfig)
 	runtimeService := services.NewRuntimeService(userService, sessionService, networkService, stateService)
@@ -249,8 +249,8 @@ func TestSystemHandler_SetInitializedRejectsMissingAdmin(t *testing.T) {
 	}
 
 	stateDB := &handlerStateDBStub{}
-	userService := services.NewUserServiceWithDB(stateDB)
-	sessionService := services.NewSessionServiceWithDB(stateDB)
+	userService := services.NewUserService(stateDB)
+	sessionService := services.NewSessionService(stateDB)
 	networkService := services.NewNetworkService(nil, stateDB)
 	stateService := services.NewStateServiceWithConfig(config.AppConfig)
 	runtimeService := services.NewRuntimeService(userService, sessionService, networkService, stateService)

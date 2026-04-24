@@ -79,7 +79,7 @@ func (d *txFailingDB) Close() error                  { return d.inner.Close() }
 
 func TestUserServiceRegisterReturnsSentinelForDuplicateUsername(t *testing.T) {
 	db := newTestSQLiteDB(t)
-	service := appservices.NewUserServiceWithDB(db)
+	service := appservices.NewUserService(db)
 
 	_, err := service.Register(&models.RegisterRequest{Username: "admin", Password: "secret123"}, "admin")
 	require.NoError(t, err)
@@ -90,7 +90,7 @@ func TestUserServiceRegisterReturnsSentinelForDuplicateUsername(t *testing.T) {
 
 func TestUserServiceRegisterRejectsEmptyOrWhitespaceUsername(t *testing.T) {
 	db := newTestSQLiteDB(t)
-	service := appservices.NewUserServiceWithDB(db)
+	service := appservices.NewUserService(db)
 
 	_, err := service.Register(&models.RegisterRequest{Username: "", Password: "secret123"}, "user")
 	require.ErrorIs(t, err, appservices.ErrInvalidUsername)
@@ -101,7 +101,7 @@ func TestUserServiceRegisterRejectsEmptyOrWhitespaceUsername(t *testing.T) {
 
 func TestUserServiceRegisterNormalizesUsernameBeforeCheckingDuplicates(t *testing.T) {
 	db := newTestSQLiteDB(t)
-	service := appservices.NewUserServiceWithDB(db)
+	service := appservices.NewUserService(db)
 
 	user, err := service.Register(&models.RegisterRequest{Username: "  alice  ", Password: "secret123"}, "user")
 	require.NoError(t, err)
@@ -113,7 +113,7 @@ func TestUserServiceRegisterNormalizesUsernameBeforeCheckingDuplicates(t *testin
 
 func TestUserServiceLoginReturnsSentinelForInvalidCredentials(t *testing.T) {
 	db := newTestSQLiteDB(t)
-	service := appservices.NewUserServiceWithDB(db)
+	service := appservices.NewUserService(db)
 
 	_, err := service.Login(&models.LoginRequest{Username: "missing", Password: "secret123"})
 	require.ErrorIs(t, err, appservices.ErrInvalidCredentials)
@@ -121,7 +121,7 @@ func TestUserServiceLoginReturnsSentinelForInvalidCredentials(t *testing.T) {
 
 func TestUserServiceUpdateUserRoleValidatesRoleAndMissingUser(t *testing.T) {
 	db := newTestSQLiteDB(t)
-	service := appservices.NewUserServiceWithDB(db)
+	service := appservices.NewUserService(db)
 
 	_, err := service.UpdateUserRole("missing", "super-admin")
 	require.ErrorIs(t, err, appservices.ErrInvalidUserRole)
@@ -132,7 +132,7 @@ func TestUserServiceUpdateUserRoleValidatesRoleAndMissingUser(t *testing.T) {
 
 func TestUserServiceChangePasswordReturnsSentinelForWrongPassword(t *testing.T) {
 	db := newTestSQLiteDB(t)
-	service := appservices.NewUserServiceWithDB(db)
+	service := appservices.NewUserService(db)
 
 	user, err := service.Register(&models.RegisterRequest{Username: "admin", Password: "secret123"}, "admin")
 	require.NoError(t, err)
@@ -143,7 +143,7 @@ func TestUserServiceChangePasswordReturnsSentinelForWrongPassword(t *testing.T) 
 
 func TestUserServiceChangePasswordAndRevokeOtherSessionsRollsBackOnSessionFailure(t *testing.T) {
 	db := newTestSQLiteDB(t)
-	service := appservices.NewUserServiceWithDB(&txFailingDB{
+	service := appservices.NewUserService(&txFailingDB{
 		inner:               db,
 		failSessionUpdateAt: 1,
 	})
@@ -191,7 +191,7 @@ func TestUserServiceChangePasswordAndRevokeOtherSessionsRollsBackOnSessionFailur
 
 func TestUserServiceUpdateUserRoleUpdatesStoredUser(t *testing.T) {
 	db := newTestSQLiteDB(t)
-	service := appservices.NewUserServiceWithDB(db)
+	service := appservices.NewUserService(db)
 
 	user, err := service.Register(&models.RegisterRequest{Username: "user-1", Password: "secret123"}, "user")
 	require.NoError(t, err)
@@ -203,7 +203,7 @@ func TestUserServiceUpdateUserRoleUpdatesStoredUser(t *testing.T) {
 
 func TestUserServiceTransferAdminTransfersSingleAdminRole(t *testing.T) {
 	db := newTestSQLiteDB(t)
-	service := appservices.NewUserServiceWithDB(db)
+	service := appservices.NewUserService(db)
 
 	currentAdmin, err := service.Register(&models.RegisterRequest{Username: "admin", Password: "secret123"}, "admin")
 	require.NoError(t, err)
@@ -225,7 +225,7 @@ func TestUserServiceTransferAdminTransfersSingleAdminRole(t *testing.T) {
 
 func TestUserServiceTransferAdminRejectsTransferToSelf(t *testing.T) {
 	db := newTestSQLiteDB(t)
-	service := appservices.NewUserServiceWithDB(db)
+	service := appservices.NewUserService(db)
 
 	currentAdmin, err := service.Register(&models.RegisterRequest{Username: "admin", Password: "secret123"}, "admin")
 	require.NoError(t, err)
@@ -236,7 +236,7 @@ func TestUserServiceTransferAdminRejectsTransferToSelf(t *testing.T) {
 
 func TestUserServiceResetPasswordByAdminRejectsSelfReset(t *testing.T) {
 	db := newTestSQLiteDB(t)
-	service := appservices.NewUserServiceWithDB(db)
+	service := appservices.NewUserService(db)
 
 	admin, err := service.Register(&models.RegisterRequest{Username: "admin", Password: "secret123"}, "admin")
 	require.NoError(t, err)
@@ -247,7 +247,7 @@ func TestUserServiceResetPasswordByAdminRejectsSelfReset(t *testing.T) {
 
 func TestUserServiceResetPasswordByAdminUpdatesPasswordAndRevokesSessions(t *testing.T) {
 	db := newTestSQLiteDB(t)
-	service := appservices.NewUserServiceWithDB(db)
+	service := appservices.NewUserService(db)
 
 	admin, err := service.Register(&models.RegisterRequest{Username: "admin", Password: "secret123"}, "admin")
 	require.NoError(t, err)
@@ -302,7 +302,7 @@ func TestUserServiceResetPasswordByAdminUpdatesPasswordAndRevokesSessions(t *tes
 
 func TestUserServiceResetPasswordByAdminRollsBackOnSessionRevokeFailure(t *testing.T) {
 	db := newTestSQLiteDB(t)
-	service := appservices.NewUserServiceWithDB(&txFailingDB{
+	service := appservices.NewUserService(&txFailingDB{
 		inner:               db,
 		failSessionUpdateAt: 1,
 	})
@@ -339,7 +339,7 @@ func TestUserServiceResetPasswordByAdminRollsBackOnSessionRevokeFailure(t *testi
 
 func TestUserServiceCreateUserByAdminCreatesUserWithTemporaryPassword(t *testing.T) {
 	db := newTestSQLiteDB(t)
-	service := appservices.NewUserServiceWithDB(db)
+	service := appservices.NewUserService(db)
 
 	admin, err := service.Register(&models.RegisterRequest{Username: "admin", Password: "secret123"}, "admin")
 	require.NoError(t, err)
@@ -357,7 +357,7 @@ func TestUserServiceCreateUserByAdminCreatesUserWithTemporaryPassword(t *testing
 
 func TestUserServiceCreateUserByAdminRejectsWhitespaceUsername(t *testing.T) {
 	db := newTestSQLiteDB(t)
-	service := appservices.NewUserServiceWithDB(db)
+	service := appservices.NewUserService(db)
 
 	admin, err := service.Register(&models.RegisterRequest{Username: "admin", Password: "secret123"}, "admin")
 	require.NoError(t, err)
@@ -368,7 +368,7 @@ func TestUserServiceCreateUserByAdminRejectsWhitespaceUsername(t *testing.T) {
 
 func TestUserServiceDeleteUserByAdminTransfersNetworksAndRevokesSessions(t *testing.T) {
 	db := newTestSQLiteDB(t)
-	service := appservices.NewUserServiceWithDB(db)
+	service := appservices.NewUserService(db)
 
 	admin, err := service.Register(&models.RegisterRequest{Username: "admin", Password: "secret123"}, "admin")
 	require.NoError(t, err)
@@ -422,7 +422,7 @@ func TestUserServiceDeleteUserByAdminTransfersNetworksAndRevokesSessions(t *test
 
 func TestUserServiceDeleteUserByAdminRollsBackOnDeleteFailure(t *testing.T) {
 	db := newTestSQLiteDB(t)
-	service := appservices.NewUserServiceWithDB(&txFailingDB{
+	service := appservices.NewUserService(&txFailingDB{
 		inner:          db,
 		failDeleteUser: true,
 	})
@@ -473,7 +473,7 @@ func TestUserServiceDeleteUserByAdminRollsBackOnDeleteFailure(t *testing.T) {
 
 func TestUserServiceDeleteUserByAdminRejectsDeletingSelf(t *testing.T) {
 	db := newTestSQLiteDB(t)
-	service := appservices.NewUserServiceWithDB(db)
+	service := appservices.NewUserService(db)
 
 	admin, err := service.Register(&models.RegisterRequest{Username: "admin", Password: "secret123"}, "admin")
 	require.NoError(t, err)
@@ -484,7 +484,7 @@ func TestUserServiceDeleteUserByAdminRejectsDeletingSelf(t *testing.T) {
 
 func TestUserServiceDeleteUserByAdminRejectsDeletingAdmin(t *testing.T) {
 	db := newTestSQLiteDB(t)
-	service := appservices.NewUserServiceWithDB(db)
+	service := appservices.NewUserService(db)
 
 	admin, err := service.Register(&models.RegisterRequest{Username: "admin", Password: "secret123"}, "admin")
 	require.NoError(t, err)

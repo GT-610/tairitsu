@@ -150,16 +150,11 @@ export interface MemberTag {
 
 export interface Member {
   id: string;
-  networkId?: string;
-  nodeId?: string;
   name?: string;
   description?: string;
   authorized?: boolean;
   activeBridge?: boolean;
   ipAssignments?: string[];
-  lastSeen?: string | number;
-  createdAt?: string | number;
-  updatedAt?: string | number;
   clientVersion?: string;
   online?: boolean;
   address?: string;

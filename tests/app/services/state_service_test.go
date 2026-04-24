@@ -64,7 +64,7 @@ func TestStateService_GetSetupStatus_InitializedWithAdminAndOfflineZT(t *testing
 		},
 	}
 
-	userService := services.NewUserServiceWithDB(&stateServiceDBStub{
+	userService := services.NewUserService(&stateServiceDBStub{
 		users: []*models.User{
 			{ID: "1", Username: "admin", Role: "admin"},
 		},

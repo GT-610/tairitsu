@@ -77,7 +77,6 @@ func SetupRoutes(router *fiber.App, dependencies *assembly.Dependencies) {
 		api.Post("/system/admin/init", setupOnly, systemHandler.InitializeAdminCreation)
 
 		api.Get("/profile", runtimeOnly, authMiddleware, authHandler.GetProfile)
-		api.Post("/auth/update-password", runtimeOnly, authMiddleware, authHandler.ChangePassword)
 		api.Put("/profile/password", runtimeOnly, authMiddleware, authHandler.ChangePassword)
 		api.Get("/profile/sessions", runtimeOnly, authMiddleware, authHandler.ListSessions)
 		api.Delete("/profile/sessions/others", runtimeOnly, authMiddleware, authHandler.RevokeOtherSessions)

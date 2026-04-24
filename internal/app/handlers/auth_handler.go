@@ -165,33 +165,20 @@ func (h *AuthHandler) ChangePassword(c fiber.Ctx) error {
 	logger.Info("开始处理修改密码请求", zap.String("user_id", userID.(string)))
 	currentSessionID, _ := c.Locals("session_id").(string)
 
-	// Determine which password fields to use (support both old and new formats)
-	oldPassword := req.OldPassword
-	newPassword := req.NewPassword
-
-	// If new format fields are present, use them
-	if req.CurrentPassword != "" {
-		oldPassword = req.CurrentPassword
-	}
-	if req.NewPasswordField != "" {
-		newPassword = req.NewPasswordField
-	}
-
-	// Validate new password and confirm password match if using new format
-	if req.ConfirmPassword != "" && req.NewPasswordField != "" && req.NewPasswordField != req.ConfirmPassword {
+	if req.NewPassword != req.ConfirmPassword {
 		logger.Error("修改密码失败：新密码与确认密码不匹配", zap.String("user_id", userID.(string)))
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "新密码与确认密码不匹配"})
 	}
 
 	revokedCount := 0
 	if req.LogoutOtherSessions {
-		count, err := h.userService.ChangePasswordAndRevokeOtherSessions(userID.(string), oldPassword, newPassword, currentSessionID)
+		count, err := h.userService.ChangePasswordAndRevokeOtherSessions(userID.(string), req.CurrentPassword, req.NewPassword, currentSessionID)
 		if err != nil {
 			logger.Error("修改密码失败", zap.String("user_id", userID.(string)), zap.Error(err))
 			return writeUserServiceError(c, err)
 		}
 		revokedCount = count
-	} else if err := h.userService.ChangePassword(userID.(string), oldPassword, newPassword); err != nil {
+	} else if err := h.userService.ChangePassword(userID.(string), req.CurrentPassword, req.NewPassword); err != nil {
 		logger.Error("修改密码失败", zap.String("user_id", userID.(string)), zap.Error(err))
 		return writeUserServiceError(c, err)
 	}

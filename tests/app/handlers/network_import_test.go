@@ -50,9 +50,9 @@ func TestNetworkHandler_ImportConsoleAndImportResponseShape(t *testing.T) {
 	})
 
 	networkService := services.NewNetworkService(ztClient, db)
-	userService := services.NewUserServiceWithDB(db)
+	userService := services.NewUserService(db)
 	jwtService := services.NewJWTService("test-secret")
-	sessionService := services.NewSessionServiceWithDB(db)
+	sessionService := services.NewSessionService(db)
 	networkHandler := apphandlers.NewNetworkHandler(networkService)
 
 	adminSession, err := sessionService.CreateSession(services.SessionCreateInput{

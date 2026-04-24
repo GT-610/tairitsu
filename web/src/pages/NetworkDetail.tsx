@@ -129,7 +129,7 @@ function generateRandomIPv4Subnet(): string {
 }
 
 function formatNetworkMember(member: ApiMember): NetworkMemberDevice {
-  const memberID = member.id || member.nodeId || ''
+  const memberID = member.id || ''
   const clientVersion = member.clientVersion || (
     member.vMajor !== undefined && member.vMinor !== undefined && member.vRev !== undefined &&
     member.vMajor >= 0 && member.vMinor >= 0 && member.vRev >= 0
@@ -139,7 +139,7 @@ function formatNetworkMember(member: ApiMember): NetworkMemberDevice {
 
   return {
     id: memberID,
-    name: member.name || member.nodeId || member.id || '未命名设备',
+    name: member.name || member.id || '未命名设备',
     description: member.description || '',
     authorized: member.config?.authorized ?? member.authorized ?? false,
     ipAssignments: member.config?.ipAssignments ?? member.ipAssignments ?? [],

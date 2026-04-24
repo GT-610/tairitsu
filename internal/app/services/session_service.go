@@ -25,12 +25,8 @@ type SessionService struct {
 	mutex sync.RWMutex
 }
 
-func NewSessionServiceWithDB(db database.DBInterface) *SessionService {
+func NewSessionService(db database.DBInterface) *SessionService {
 	return &SessionService{db: db}
-}
-
-func NewSessionServiceWithoutDB() *SessionService {
-	return &SessionService{}
 }
 
 func (s *SessionService) SetDB(db database.DBInterface) {

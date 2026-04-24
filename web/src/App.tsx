@@ -19,7 +19,6 @@ const lazyPages = {
   Settings: lazy(() => import('./pages/Settings')),
   Profile: lazy(() => import('./pages/Profile')),
   NetworkDetail: lazy(() => import('./pages/NetworkDetail')),
-  Members: lazy(() => import('./pages/Members')),
 };
 
 function Loading() {
@@ -53,18 +52,7 @@ function AppContent() {
 
       const isBackendInitialized = response.data.initialized;
       setIsFirstRun(!isBackendInitialized);
-
-      console.log('系统状态检查:', {
-        initialized: isBackendInitialized,
-        isFirstRun: !isBackendInitialized,
-        additionalInfo: {
-          hasDatabase: response.data?.hasDatabase,
-          hasAdmin: response.data?.hasAdmin,
-          ztStatus: response.data?.ztStatus
-        }
-      });
-    } catch (error) {
-      console.error('获取后端初始化状态失败:', error);
+    } catch {
       setIsFirstRun(true);
     } finally {
       setLoading(false);
@@ -158,7 +146,6 @@ function AppContent() {
                   {/* 公共路由 */}
                   <Route path="networks" element={<Networks />}></Route>
                   <Route path="networks/:id" element={<Suspense fallback={<Loading />}><lazyPages.NetworkDetail /></Suspense>}></Route>
-                  <Route path="networks/:id/members" element={<Suspense fallback={<Loading />}><lazyPages.Members /></Suspense>}></Route>
                   <Route path="profile" element={<Suspense fallback={<Loading />}><lazyPages.Profile user={user} /></Suspense>}></Route>
                   <Route path="settings" element={<Suspense fallback={<Loading />}><lazyPages.Settings /></Suspense>}></Route>
                   
