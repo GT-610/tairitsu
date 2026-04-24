@@ -21,7 +21,8 @@ import { authAPI, type UserSession } from '../services/api'
 import { getErrorMessage } from '../services/errors'
 import { useAuth } from '../services/auth'
 import { useNavigate } from 'react-router-dom'
-import { formatSessionPresentation } from '../utils/sessionPresentation'
+import { formatSessionPresentation, formatSessionTime } from '../utils/sessionPresentation'
+import { getUserRoleLabel } from '../utils/userPresentation'
 
 function Settings() {
   const navigate = useNavigate()
@@ -48,6 +49,7 @@ function Settings() {
   const [revokingSessionId, setRevokingSessionId] = useState('')
   const [revokingOtherSessions, setRevokingOtherSessions] = useState(false)
   const visibleSessions = sessions.filter((sessionItem) => !sessionItem.revokedAt)
+  const otherVisibleSessionCount = visibleSessions.filter((sessionItem) => !sessionItem.current).length
 
   useEffect(() => {
     const loadSettings = async () => {
@@ -189,9 +191,6 @@ function Settings() {
       setRevokingOtherSessions(false)
     }
   }
-
-  const formatSessionTime = (value: string) => new Date(value).toLocaleString()
-
   return (
     <Box sx={{ p: 3 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
@@ -231,7 +230,7 @@ function Settings() {
                     当前角色
                   </Typography>
                   <Typography variant="body1">
-                    {user?.role === 'admin' ? '管理员' : '普通用户'}
+                    {getUserRoleLabel(user?.role)}
                   </Typography>
                 </Box>
               </Stack>
@@ -251,7 +250,7 @@ function Settings() {
                     variant="outlined"
                     color="warning"
                     fullWidth
-                    disabled={loadingSessions || revokingOtherSessions || visibleSessions.filter((sessionItem) => !sessionItem.current).length === 0}
+                    disabled={loadingSessions || revokingOtherSessions || otherVisibleSessionCount === 0}
                     onClick={() => { void handleRevokeOtherSessions() }}
                   >
                     {revokingOtherSessions ? '移除中...' : '退出其他设备'}

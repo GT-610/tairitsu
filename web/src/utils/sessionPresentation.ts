@@ -10,6 +10,11 @@ export interface SessionPresentation {
   details: string[]
 }
 
+export function formatSessionTime(value: string): string {
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? '未知' : date.toLocaleString()
+}
+
 function detectBrowser(userAgent: string): string {
   if (!userAgent) return '未知浏览器'
   if (/Edg\//i.test(userAgent)) return 'Edge'

@@ -33,7 +33,9 @@ import { useNavigate } from 'react-router-dom';
 import { User, userAPI, authAPI, systemAPI, type ResetUserPasswordResponse, type CreateUserResponse, type DeleteUserResponse, type RuntimeSettings } from '../services/api';
 import { getErrorMessage } from '../services/errors';
 import { useAuth } from '../services/auth';
+import UserRoleBadge from '../components/UserRoleBadge';
 import { buildCreateUserSuccessMessage, buildDeleteUserSuccessMessage, buildResetPasswordSuccessMessage } from '../utils/userGovernance';
+import { formatUserTime } from '../utils/userPresentation';
 
 function UserManagement() {
   const navigate = useNavigate();
@@ -373,20 +375,9 @@ function UserManagement() {
                   {user.username}
                 </TableCell>
                 <TableCell>
-                  <Box
-                    sx={{
-                      display: 'inline-block',
-                      padding: '2px 8px',
-                      borderRadius: '4px',
-                      backgroundColor: user.role === 'admin' ? '#e3f2fd' : '#f1f8e9',
-                      color: user.role === 'admin' ? '#1565c0' : '#388e3c',
-                      fontWeight: 'bold'
-                    }}
-                  >
-                    {user.role === 'admin' ? '管理员' : '普通用户'}
-                  </Box>
+                  <UserRoleBadge role={user.role} />
                 </TableCell>
-                <TableCell>{user.createdAt ? new Date(user.createdAt).toLocaleString() : '未知'}</TableCell>
+                <TableCell>{formatUserTime(user.createdAt)}</TableCell>
                 <TableCell>
                   {/* 不能对自己进行操作 */}
                   {currentUser && user.id !== currentUser.id && user.role !== 'admin' ? (
