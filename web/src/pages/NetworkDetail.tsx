@@ -147,7 +147,7 @@ function formatNetworkMember(member: ApiMember): NetworkMemberDevice {
     address: member.address || '',
     identity: member.identity || '',
     online: member.online ?? false,
-    creationTime: member.creationTime ?? member.createdAt,
+    creationTime: member.creationTime,
     tags: member.tags ?? [],
     capabilities: member.capabilities ?? [],
     peerVersion: member.peerVersion || '',

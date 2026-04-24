@@ -8,6 +8,38 @@ interface ProfileProps {
   user: User | null;
 }
 
+function formatProfileTime(value?: string): string {
+  if (!value) {
+    return '未记录'
+  }
+
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime()) || date.getFullYear() <= 1) {
+    return '未记录'
+  }
+
+  return date.toLocaleString()
+}
+
+function getRoleLabel(role?: string): string {
+  if (role === 'admin') {
+    return '管理员'
+  }
+  if (role === 'user') {
+    return '普通用户'
+  }
+  return '未知角色'
+}
+
+function hasValidProfileTime(value?: string): boolean {
+  if (!value) {
+    return false
+  }
+
+  const date = new Date(value)
+  return !Number.isNaN(date.getTime()) && date.getFullYear() > 1
+}
+
 function Profile({ user }: ProfileProps) {
   if (!user) {
     return (
@@ -37,7 +69,7 @@ function Profile({ user }: ProfileProps) {
                   {user.username}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  {user.role || '普通用户'}
+                  {getRoleLabel(user.role)}
                 </Typography>
               </Box>
             </CardContent>
@@ -55,30 +87,23 @@ function Profile({ user }: ProfileProps) {
               <Box sx={{ display: 'grid', gap: 3 }}>
                 <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 2fr' }, gap: 2 }}>
                   <Typography variant="body2" color="text.secondary">
-                    用户名
-                  </Typography>
-                  <Typography variant="body1">
-                    {user.username}
-                  </Typography>
-                </Box>
-                
-                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 2fr' }, gap: 2 }}>
-                  <Typography variant="body2" color="text.secondary">
                     创建时间
                   </Typography>
                   <Typography variant="body1">
-                    {user.createdAt ? new Date(user.createdAt).toLocaleString() : '未知'}
+                    {formatProfileTime(user.createdAt)}
                   </Typography>
                 </Box>
                 
-                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 2fr' }, gap: 2 }}>
-                  <Typography variant="body2" color="text.secondary">
-                    更新时间
-                  </Typography>
-                  <Typography variant="body1">
-                    {user.updatedAt ? new Date(user.updatedAt).toLocaleString() : '未知'}
-                  </Typography>
-                </Box>
+                {hasValidProfileTime(user.updatedAt) && (
+                  <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 2fr' }, gap: 2 }}>
+                    <Typography variant="body2" color="text.secondary">
+                      更新时间
+                    </Typography>
+                    <Typography variant="body1">
+                      {formatProfileTime(user.updatedAt)}
+                    </Typography>
+                  </Box>
+                )}
               </Box>
 
               <Box sx={{ mt: 4 }}>

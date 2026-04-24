@@ -17,9 +17,13 @@ function formatMemberCreationTime(value?: string | number): string {
     return '未知'
   }
 
-  const date = typeof value === 'number'
-    ? new Date(value < 1_000_000_000_000 ? value * 1000 : value)
-    : new Date(value)
+  const normalizedValue = typeof value === 'string' && /^\d+$/.test(value)
+    ? Number(value)
+    : value
+
+  const date = typeof normalizedValue === 'number'
+    ? new Date(normalizedValue < 1_000_000_000_000 ? normalizedValue * 1000 : normalizedValue)
+    : new Date(normalizedValue)
 
   return Number.isNaN(date.getTime()) ? '未知' : date.toLocaleString()
 }
@@ -46,6 +50,14 @@ function formatPeerLatency(value?: number): string {
   }
 
   return `${value} ms`
+}
+
+function formatMemberVersion(member: NetworkMemberDevice | null): string {
+  if (!member) {
+    return '未知'
+  }
+
+  return member.peerVersion || member.clientVersion || '未知'
 }
 
 function EditMemberDialog({
@@ -115,7 +127,7 @@ function EditMemberDialog({
               </Grid>
               <Grid size={{ xs: 12, sm: 6 }}>
                 <Typography variant="body2" color="text.secondary">ZeroTier 版本</Typography>
-                <Typography variant="body1">{selectedMember?.clientVersion || 'unknown'}</Typography>
+                <Typography variant="body1">{formatMemberVersion(selectedMember)}</Typography>
               </Grid>
               <Grid size={{ xs: 12, sm: 6 }}>
                 <Typography variant="body2" color="text.secondary">桥接模式</Typography>
@@ -132,10 +144,6 @@ function EditMemberDialog({
               <Grid size={{ xs: 12 }}>
                 <Typography variant="body2" color="text.secondary">标签</Typography>
                 <Typography variant="body1">{formatMemberTags(selectedMember)}</Typography>
-              </Grid>
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <Typography variant="body2" color="text.secondary">Peer 版本</Typography>
-                <Typography variant="body1">{selectedMember?.peerVersion || '未知'}</Typography>
               </Grid>
               <Grid size={{ xs: 12, sm: 6 }}>
                 <Typography variant="body2" color="text.secondary">Peer 角色</Typography>
