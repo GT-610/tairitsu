@@ -103,3 +103,38 @@ func TestGeneratePlanetHandler_ReturnsPlanetDataAndMetadata(t *testing.T) {
 		t.Fatalf("download_name = %q, want planet", result.DownloadName)
 	}
 }
+
+func TestGetSigningKeysInfoHandler_ReturnsStatus(t *testing.T) {
+	tempDir := t.TempDir()
+	prevPath := filepath.Join(tempDir, "previous.c25519")
+	curPath := filepath.Join(tempDir, "current.c25519")
+	if err := os.WriteFile(prevPath, []byte("ready"), 0644); err != nil {
+		t.Fatalf("write previous key: %v", err)
+	}
+	if err := os.WriteFile(curPath, []byte("ready"), 0644); err != nil {
+		t.Fatalf("write current key: %v", err)
+	}
+
+	app := fiber.New()
+	app.Get("/signing-keys", GetSigningKeysInfoHandler)
+
+	req := httptest.NewRequest(http.MethodGet, "/signing-keys?path="+tempDir, nil)
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("app.Test() error = %v", err)
+	}
+	if resp.StatusCode != fiber.StatusOK {
+		t.Fatalf("status = %d, want %d", resp.StatusCode, fiber.StatusOK)
+	}
+
+	var body SigningKeysInfoResponse
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if !body.Ready {
+		t.Fatal("Ready = false, want true")
+	}
+	if body.SigningKeyPath != tempDir {
+		t.Fatalf("signing_key_path = %q, want %q", body.SigningKeyPath, tempDir)
+	}
+}

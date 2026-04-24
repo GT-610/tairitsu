@@ -109,6 +109,7 @@ func SetupRoutes(router *fiber.App, dependencies *assembly.Dependencies) {
 		api.Post("/admin/networks/import", runtimeOnly, authMiddleware, adminOnly, networkHandler.ImportNetworks)
 		api.Get("/admin/planet/identity", runtimeOnly, authMiddleware, adminOnly, handlers.GetIdentityHandler)
 		api.Post("/admin/planet/generate", runtimeOnly, authMiddleware, adminOnly, handlers.GeneratePlanetHandler)
+		api.Get("/admin/planet/signing-keys", runtimeOnly, authMiddleware, adminOnly, handlers.GetSigningKeysInfoHandler)
 		api.Post("/admin/planet/keys", runtimeOnly, authMiddleware, adminOnly, handlers.GenerateSigningKeysHandler)
 	}
 }

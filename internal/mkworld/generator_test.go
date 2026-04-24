@@ -2,6 +2,8 @@ package mkworld
 
 import (
 	"errors"
+	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -45,6 +47,14 @@ func TestGeneratePlanet_RejectsInvalidInput(t *testing.T) {
 			},
 			target: ErrInvalidEndpoint,
 		},
+		{
+			name: "duplicate endpoint",
+			options: &GenerateOptions{
+				IdentityPublic: validIdentityPublic,
+				Endpoints:      []string{"203.0.113.1/9993", "203.0.113.1/9993"},
+			},
+			target: ErrDuplicateEndpoint,
+		},
 	}
 
 	for _, tc := range testCases {
@@ -75,5 +85,45 @@ func TestGeneratePlanet_ReturnsMetadataAndData(t *testing.T) {
 	}
 	if len(result.PlanetData) == 0 {
 		t.Fatalf("PlanetData is empty")
+	}
+}
+
+func TestGeneratePlanet_UsesSigningKeysFromDirectory(t *testing.T) {
+	tempDir := t.TempDir()
+	prevPath := filepath.Join(tempDir, "previous.c25519")
+	curPath := filepath.Join(tempDir, "current.c25519")
+
+	if err := CreateSigningKeys(prevPath, curPath); err != nil {
+		t.Fatalf("CreateSigningKeys() error = %v", err)
+	}
+
+	result, err := GeneratePlanet(&GenerateOptions{
+		IdentityPublic: validIdentityPublic,
+		Endpoints:      []string{"203.0.113.1/9993"},
+		SigningKeyPath: tempDir,
+	})
+	if err != nil {
+		t.Fatalf("GeneratePlanet() error = %v", err)
+	}
+
+	if len(result.PlanetData) == 0 {
+		t.Fatalf("PlanetData is empty")
+	}
+}
+
+func TestReadSigningKeys_RejectsInvalidLength(t *testing.T) {
+	tempDir := t.TempDir()
+	prevPath := filepath.Join(tempDir, "previous.c25519")
+	curPath := filepath.Join(tempDir, "current.c25519")
+
+	if err := os.WriteFile(prevPath, []byte("bad"), 0644); err != nil {
+		t.Fatalf("write previous key: %v", err)
+	}
+	if err := os.WriteFile(curPath, []byte("bad"), 0644); err != nil {
+		t.Fatalf("write current key: %v", err)
+	}
+
+	if _, _, _, _, err := ReadSigningKeys(prevPath, curPath); err == nil {
+		t.Fatal("ReadSigningKeys() error = nil, want error")
 	}
 }

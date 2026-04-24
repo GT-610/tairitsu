@@ -21,6 +21,7 @@ type GeneratePlanetRequest struct {
 	IdentityPublic string   `json:"identity_public"`
 	Endpoints      []string `json:"endpoints"`
 	Comments       string   `json:"comments"`
+	SigningKeyPath string   `json:"signing_key_path"`
 }
 
 type GeneratePlanetResponse struct {
@@ -35,6 +36,23 @@ type IdentityInfoResponse struct {
 	Message        string `json:"message"`
 	IdentityPublic string `json:"identity_public"`
 	IdentityPath   string `json:"identity_path"`
+}
+
+type SigningKeysInfoResponse struct {
+	Message         string `json:"message"`
+	SigningKeyPath  string `json:"signing_key_path"`
+	PreviousKeyPath string `json:"previous_key_path"`
+	CurrentKeyPath  string `json:"current_key_path"`
+	PreviousExists  bool   `json:"previous_exists"`
+	CurrentExists   bool   `json:"current_exists"`
+	Ready           bool   `json:"ready"`
+}
+
+type GenerateSigningKeysResponse struct {
+	Message         string `json:"message"`
+	SigningKeyPath  string `json:"signing_key_path"`
+	PreviousKeyPath string `json:"previous_key_path"`
+	CurrentKeyPath  string `json:"current_key_path"`
 }
 
 type ErrorResponse struct {
@@ -61,13 +79,16 @@ func GeneratePlanetHandler(c fiber.Ctx) error {
 		IdentityPublic: req.IdentityPublic,
 		Endpoints:      req.Endpoints,
 		Comments:       req.Comments,
+		SigningKeyPath: strings.TrimSpace(req.SigningKeyPath),
 	})
 	if err != nil {
 		switch {
 		case errors.Is(err, mkworld.ErrIdentityPublicRequired),
 			errors.Is(err, mkworld.ErrNoEndpoints),
 			errors.Is(err, mkworld.ErrInvalidIdentity),
-			errors.Is(err, mkworld.ErrInvalidEndpoint):
+			errors.Is(err, mkworld.ErrInvalidEndpoint),
+			errors.Is(err, mkworld.ErrDuplicateEndpoint),
+			errors.Is(err, mkworld.ErrInvalidSigningKeys):
 			return c.Status(fiber.StatusBadRequest).JSON(ErrorResponse{
 				Error: err.Error(),
 			})
@@ -114,6 +135,39 @@ func GetIdentityHandler(c fiber.Ctx) error {
 	})
 }
 
+func GetSigningKeysInfoHandler(c fiber.Ctx) error {
+	ztPath := c.Query("path", "/var/lib/zerotier-one")
+	prevPath := filepath.Join(ztPath, "previous.c25519")
+	curPath := filepath.Join(ztPath, "current.c25519")
+
+	_, prevErr := os.Stat(prevPath)
+	_, curErr := os.Stat(curPath)
+	if prevErr != nil && !os.IsNotExist(prevErr) {
+		return c.Status(500).JSON(ErrorResponse{
+			Error:   "Failed to inspect previous signing key",
+			Details: prevErr.Error(),
+		})
+	}
+	if curErr != nil && !os.IsNotExist(curErr) {
+		return c.Status(500).JSON(ErrorResponse{
+			Error:   "Failed to inspect current signing key",
+			Details: curErr.Error(),
+		})
+	}
+	prevExists := prevErr == nil
+	curExists := curErr == nil
+
+	return c.JSON(SigningKeysInfoResponse{
+		Message:         "Signing key status loaded successfully",
+		SigningKeyPath:  ztPath,
+		PreviousKeyPath: prevPath,
+		CurrentKeyPath:  curPath,
+		PreviousExists:  prevExists,
+		CurrentExists:   curExists,
+		Ready:           prevExists && curExists,
+	})
+}
+
 func GenerateSigningKeysHandler(c fiber.Ctx) error {
 	ztPath := c.Query("path", "/var/lib/zerotier-one")
 	prevPath := filepath.Join(ztPath, "previous.c25519")
@@ -127,10 +181,10 @@ func GenerateSigningKeysHandler(c fiber.Ctx) error {
 		})
 	}
 
-	return c.JSON(fiber.Map{
-		"success":     true,
-		"message":     "Signing keys generated successfully",
-		"previousKey": prevPath,
-		"currentKey":  curPath,
+	return c.JSON(GenerateSigningKeysResponse{
+		Message:         "Signing keys generated successfully",
+		SigningKeyPath:  ztPath,
+		PreviousKeyPath: prevPath,
+		CurrentKeyPath:  curPath,
 	})
 }

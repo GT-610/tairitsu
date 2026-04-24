@@ -11,8 +11,10 @@ import "errors"
 var (
 	ErrInvalidIdentity        = errors.New("invalid identity format")
 	ErrInvalidEndpoint        = errors.New("invalid endpoint format")
+	ErrDuplicateEndpoint      = errors.New("duplicate endpoint")
 	ErrMaxEndpointsExceeded   = errors.New("endpoint count exceeds maximum")
 	ErrSerializedDataTooLarge = errors.New("serialized data too large")
+	ErrInvalidSigningKeys     = errors.New("invalid signing keys")
 	ErrUnknown                = errors.New("unknown error")
 )
 

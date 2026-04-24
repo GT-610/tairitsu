@@ -27,6 +27,7 @@ type GenerateOptions struct {
 	IdentityPublic string
 	Endpoints      []string
 	Comments       string
+	SigningKeyPath string
 }
 
 type GeneratedPlanet struct {
@@ -56,16 +57,24 @@ func GeneratePlanet(opts *GenerateOptions) (*GeneratedPlanet, error) {
 	}
 
 	endpoints := make([]*ZtNodeInetAddr, 0, len(endpointValues))
+	seenEndpoints := make(map[string]struct{}, len(endpointValues))
 	for _, epStr := range endpointValues {
 		ep := &ZtNodeInetAddr{}
 		if err := ep.FromString(epStr); err != nil {
 			return nil, fmt.Errorf("%w: %s", ErrInvalidEndpoint, epStr)
 		}
+		endpointKey := ep.IP.String() + "/" + fmt.Sprintf("%d", ep.Port)
+		if _, exists := seenEndpoints[endpointKey]; exists {
+			return nil, fmt.Errorf("%w: %s", ErrDuplicateEndpoint, epStr)
+		}
+		seenEndpoints[endpointKey] = struct{}{}
 		endpoints = append(endpoints, ep)
 	}
 
-	prevPub, prevPriv := GenerateDualPair()
-	curPub := prevPub
+	prevPub, curPub, prevPriv, _, err := loadSigningKeys(opts.SigningKeyPath)
+	if err != nil {
+		return nil, err
+	}
 
 	planetID, err := generatePlanetID()
 	if err != nil {
@@ -160,6 +169,23 @@ func normalizeEndpoints(values []string) []string {
 	return normalized
 }
 
+func loadSigningKeys(signingKeyPath string) (prevPub, curPub [ZT_C25519_PUBLIC_KEY_LEN]byte, prevPriv, curPriv [ZT_C25519_PRIVATE_KEY_LEN]byte, err error) {
+	if strings.TrimSpace(signingKeyPath) == "" {
+		prevPub, prevPriv = GenerateDualPair()
+		curPub = prevPub
+		curPriv = prevPriv
+		return
+	}
+
+	prevPath := filepath.Join(signingKeyPath, "previous.c25519")
+	curPath := filepath.Join(signingKeyPath, "current.c25519")
+	prevPub, curPub, prevPriv, curPriv, err = ReadSigningKeys(prevPath, curPath)
+	if err != nil {
+		err = fmt.Errorf("%w: %v", ErrInvalidSigningKeys, err)
+	}
+	return
+}
+
 func generatePlanetID() (uint64, error) {
 	b := make([]byte, 4)
 	for {
@@ -196,6 +222,13 @@ func SavePlanetFile(data []byte, path string) error {
 func CreateSigningKeys(prevPath, curPath string) error {
 	prevPub, prevPriv := GenerateDualPair()
 
+	if err := EnsureDirectory(prevPath); err != nil {
+		return fmt.Errorf("failed to prepare previous key directory: %w", err)
+	}
+	if err := EnsureDirectory(curPath); err != nil {
+		return fmt.Errorf("failed to prepare current key directory: %w", err)
+	}
+
 	if err := writeKeyFile(prevPath, prevPub, prevPriv); err != nil {
 		return fmt.Errorf("failed to write previous key: %w", err)
 	}
@@ -223,7 +256,7 @@ func writeKeyFile(path string, pub [ZT_C25519_PUBLIC_KEY_LEN]byte, priv [ZT_C255
 	return nil
 }
 
-func ReadSigningKeys(prevPath, curPath string) (prevPub, curPub [32]byte, prevPriv, curPriv [32]byte, err error) {
+func ReadSigningKeys(prevPath, curPath string) (prevPub, curPub [ZT_C25519_PUBLIC_KEY_LEN]byte, prevPriv, curPriv [ZT_C25519_PRIVATE_KEY_LEN]byte, err error) {
 	prevData, err := os.ReadFile(prevPath)
 	if err != nil {
 		return

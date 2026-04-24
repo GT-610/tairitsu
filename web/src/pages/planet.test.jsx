@@ -8,9 +8,10 @@ describe('Planet page', () => {
 
     expect((html.match(/该能力当前保持实验性状态/g) || []).length).toBe(1)
     expect(html).not.toContain('复制 C 头文件')
-    expect(html).not.toContain('Signing keys')
     expect(html).toContain('身份加载')
     expect(html).toContain('Planet 配置')
+    expect(html).toContain('高级模式')
+    expect(html).toContain('signing keys')
     expect(html).toContain('读取身份')
     expect(html).not.toContain('读取中...')
   })

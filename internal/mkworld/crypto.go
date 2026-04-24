@@ -28,8 +28,8 @@ func SignMessage(pub [ZT_C25519_PUBLIC_KEY_LEN]byte, priv [ZT_C25519_PRIVATE_KEY
 	copy(sigBuf[64:], s512[:32])
 
 	goPrivK := make([]byte, 64)
-	copy(goPrivK[:32], priv[:])
-	copy(goPrivK[32:], pub[:])
+	copy(goPrivK[:32], priv[32:64])
+	copy(goPrivK[32:], pub[32:64])
 	sigData := ed25519.Sign(goPrivK, s512[:32])
 	copy(sigBuf[:64], sigData)
 

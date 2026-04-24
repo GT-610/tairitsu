@@ -453,6 +453,8 @@ Response:
 `Planet` endpoints are admin-only and experimental:
 
 - `GET /admin/planet/identity`
+- `GET /admin/planet/signing-keys`
+- `POST /admin/planet/keys`
 - `POST /admin/planet/generate`
 
 ### `GET /admin/planet/identity`
@@ -464,8 +466,41 @@ Success response:
 ```json
 {
   "message": "Identity read successfully",
-  "identity_public": "992fcf1db7:0:206ed59350b31916f749a1f85dffb3a8787dcbf83b8c6e9448d4e3ea0e336930",
+  "identity_public": "f76fd3000b:0:542c89e34a369c2281ed940d05beeffdbaa66930f17b875e9172e43d0ba30b6a39708507f4d64e66cde4a1040d2a995d01209d685ca6c4adb4a5c880af1e9715",
   "identity_path": "/var/lib/zerotier-one/identity.public"
+}
+```
+
+### `GET /admin/planet/signing-keys`
+
+Checks whether `previous.c25519` and `current.c25519` exist in a given directory.
+
+Success response:
+
+```json
+{
+  "message": "Signing key status loaded successfully",
+  "signing_key_path": "/var/lib/zerotier-one",
+  "previous_key_path": "/var/lib/zerotier-one/previous.c25519",
+  "current_key_path": "/var/lib/zerotier-one/current.c25519",
+  "previous_exists": true,
+  "current_exists": true,
+  "ready": true
+}
+```
+
+### `POST /admin/planet/keys`
+
+Generates `previous.c25519` and `current.c25519` in a given directory.
+
+Success response:
+
+```json
+{
+  "message": "Signing keys generated successfully",
+  "signing_key_path": "/var/lib/zerotier-one",
+  "previous_key_path": "/var/lib/zerotier-one/previous.c25519",
+  "current_key_path": "/var/lib/zerotier-one/current.c25519"
 }
 ```
 
@@ -477,9 +512,10 @@ Request:
 
 ```json
 {
-  "identity_public": "992fcf1db7:0:206ed59350b31916f749a1f85dffb3a8787dcbf83b8c6e9448d4e3ea0e336930",
+  "identity_public": "f76fd3000b:0:542c89e34a369c2281ed940d05beeffdbaa66930f17b875e9172e43d0ba30b6a39708507f4d64e66cde4a1040d2a995d01209d685ca6c4adb4a5c880af1e9715",
   "endpoints": ["203.0.113.1/9993", "2001:db8::1/9993"],
-  "comments": "private planet"
+  "comments": "private planet",
+  "signing_key_path": "/var/lib/zerotier-one"
 }
 ```
 
