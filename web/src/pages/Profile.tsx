@@ -1,4 +1,4 @@
-import { Box, Typography, Card, CardContent, Avatar, Grid, Divider, Button, Alert }
+import { Box, Typography, Card, CardContent, Avatar, Grid, Divider, Button }
 from '@mui/material';
 import { Link } from 'react-router-dom';
 import { User } from '../services/api';
@@ -6,6 +6,38 @@ import { User } from '../services/api';
 // Profile组件的props类型
 interface ProfileProps {
   user: User | null;
+}
+
+function formatProfileTime(value?: string): string {
+  if (!value) {
+    return '未记录'
+  }
+
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime()) || date.getFullYear() <= 1) {
+    return '未记录'
+  }
+
+  return date.toLocaleString()
+}
+
+function getRoleLabel(role?: string): string {
+  if (role === 'admin') {
+    return '管理员'
+  }
+  if (role === 'user') {
+    return '普通用户'
+  }
+  return '未知角色'
+}
+
+function hasValidProfileTime(value?: string): boolean {
+  if (!value) {
+    return false
+  }
+
+  const date = new Date(value)
+  return !Number.isNaN(date.getTime()) && date.getFullYear() > 1
 }
 
 function Profile({ user }: ProfileProps) {
@@ -24,10 +56,6 @@ function Profile({ user }: ProfileProps) {
       <Typography variant="h4" component="h1" gutterBottom>
         个人信息
       </Typography>
-
-      <Alert severity="info" sx={{ mb: 3 }}>
-        这里显示当前账户的基础信息。密码修改和后续账户偏好设置可在“设置”页面中完成。
-      </Alert>
       
       <Grid container spacing={3}>
         <Grid size={{ xs: 12, md: 4 }}>
@@ -41,7 +69,7 @@ function Profile({ user }: ProfileProps) {
                   {user.username}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  {user.role || '普通用户'}
+                  {getRoleLabel(user.role)}
                 </Typography>
               </Box>
             </CardContent>
@@ -59,30 +87,23 @@ function Profile({ user }: ProfileProps) {
               <Box sx={{ display: 'grid', gap: 3 }}>
                 <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 2fr' }, gap: 2 }}>
                   <Typography variant="body2" color="text.secondary">
-                    用户名
-                  </Typography>
-                  <Typography variant="body1">
-                    {user.username}
-                  </Typography>
-                </Box>
-                
-                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 2fr' }, gap: 2 }}>
-                  <Typography variant="body2" color="text.secondary">
                     创建时间
                   </Typography>
                   <Typography variant="body1">
-                    {user.createdAt ? new Date(user.createdAt).toLocaleString() : '未知'}
+                    {formatProfileTime(user.createdAt)}
                   </Typography>
                 </Box>
                 
-                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 2fr' }, gap: 2 }}>
-                  <Typography variant="body2" color="text.secondary">
-                    更新时间
-                  </Typography>
-                  <Typography variant="body1">
-                    {user.updatedAt ? new Date(user.updatedAt).toLocaleString() : '未知'}
-                  </Typography>
-                </Box>
+                {hasValidProfileTime(user.updatedAt) && (
+                  <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 2fr' }, gap: 2 }}>
+                    <Typography variant="body2" color="text.secondary">
+                      更新时间
+                    </Typography>
+                    <Typography variant="body1">
+                      {formatProfileTime(user.updatedAt)}
+                    </Typography>
+                  </Box>
+                )}
               </Box>
 
               <Box sx={{ mt: 4 }}>

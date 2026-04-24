@@ -24,11 +24,7 @@ func NewNetworkHandler(networkService *services.NetworkService) *NetworkHandler 
 func (h *NetworkHandler) GetStatus(c fiber.Ctx) error {
 	logger.Info("开始获取ZeroTier网络状态")
 
-	status, err := h.networkService.GetStatus()
-	if err != nil {
-		logger.Error("获取ZeroTier网络状态失败", zap.Error(err))
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
-	}
+	status := h.networkService.GetRuntimeStatus()
 
 	logger.Info("成功获取ZeroTier网络状态")
 

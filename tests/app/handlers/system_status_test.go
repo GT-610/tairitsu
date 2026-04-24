@@ -84,11 +84,24 @@ func (s *handlerStateDBStub) Close() error { return nil }
 
 func TestSystemHandler_GetSystemStatus_Uninitialized(t *testing.T) {
 	originalConfig := config.AppConfig
+	originalResetFlag := config.GetTempSetting("admin_creation_reset_done")
 	t.Cleanup(func() {
 		config.AppConfig = originalConfig
+		config.SetTempSetting("admin_creation_reset_done", originalResetFlag)
 	})
 
-	config.AppConfig = &config.Config{Initialized: false}
+	config.AppConfig = &config.Config{
+		Initialized: false,
+		Database: config.DatabaseConfig{
+			Type: config.SQLite,
+			Path: "data/setup.db",
+		},
+		ZeroTier: config.ZeroTierConfig{
+			URL:       "http://127.0.0.1:9993",
+			TokenPath: "/tmp/authtoken.secret",
+		},
+	}
+	config.SetTempSetting("admin_creation_reset_done", "true")
 
 	userService := services.NewUserServiceWithoutDB()
 	sessionService := services.NewSessionServiceWithoutDB()
@@ -108,6 +121,10 @@ func TestSystemHandler_GetSystemStatus_Uninitialized(t *testing.T) {
 	var body map[string]any
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(&body))
 	assert.Equal(t, false, body["initialized"])
+	assert.Equal(t, true, body["hasDatabase"])
+	assert.Equal(t, true, body["databaseConfigured"])
+	assert.Equal(t, true, body["zerotierConfigured"])
+	assert.Equal(t, true, body["adminCreationPrepared"])
 	assert.Equal(t, true, body["allowPublicRegistration"])
 }
 
@@ -215,4 +232,40 @@ func TestSystemHandler_RuntimeSettingsReadWrite(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, fiber.StatusOK, updateResp.StatusCode)
 	assert.False(t, config.AllowPublicRegistration(config.AppConfig))
+}
+
+func TestSystemHandler_SetInitializedRejectsMissingAdmin(t *testing.T) {
+	originalConfig := config.AppConfig
+	t.Cleanup(func() {
+		config.AppConfig = originalConfig
+	})
+
+	config.AppConfig = &config.Config{
+		Initialized: false,
+		Database: config.DatabaseConfig{
+			Type: config.SQLite,
+			Path: "data/test.db",
+		},
+	}
+
+	stateDB := &handlerStateDBStub{}
+	userService := services.NewUserServiceWithDB(stateDB)
+	sessionService := services.NewSessionServiceWithDB(stateDB)
+	networkService := services.NewNetworkService(nil, stateDB)
+	stateService := services.NewStateServiceWithConfig(config.AppConfig)
+	runtimeService := services.NewRuntimeService(userService, sessionService, networkService, stateService)
+	handler := apphandlers.NewSystemHandler(services.NewSetupService(runtimeService, stateService, userService, networkService), services.NewSystemService())
+
+	app := fiber.New()
+	app.Post("/system/initialized", handler.SetInitialized)
+
+	req := httptest.NewRequest(http.MethodPost, "/system/initialized", bytes.NewBufferString(`{"initialized":true}`))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, fiber.StatusInternalServerError, resp.StatusCode)
+
+	var body map[string]any
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&body))
+	assert.Contains(t, body["error"], "请先创建首个管理员账户")
 }

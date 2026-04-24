@@ -209,6 +209,10 @@ type Member struct {
 	VMajor          int          `json:"vMajor,omitempty"`
 	VMinor          int          `json:"vMinor,omitempty"`
 	VRev            int          `json:"vRev,omitempty"`
+	PeerVersion     string       `json:"peerVersion,omitempty"`
+	PeerLatency     int          `json:"peerLatency,omitempty"`
+	PeerRole        string       `json:"peerRole,omitempty"`
+	PreferredPath   string       `json:"preferredPath,omitempty"`
 }
 
 type memberAlias struct {
@@ -323,6 +327,28 @@ type MemberConfig struct {
 	NoAutoAssignIPs bool     `json:"noAutoAssignIps"`
 }
 
+type Peer struct {
+	Address       string     `json:"address"`
+	Latency       int        `json:"latency"`
+	Paths         []PeerPath `json:"paths"`
+	PreferredPath PeerPath   `json:"preferredPath"`
+	Role          string     `json:"role"`
+	Version       string     `json:"version"`
+	VersionMajor  int        `json:"versionMajor"`
+	VersionMinor  int        `json:"versionMinor"`
+	VersionRev    int        `json:"versionRev"`
+}
+
+type PeerPath struct {
+	Active        bool   `json:"active"`
+	Address       string `json:"address"`
+	Expired       bool   `json:"expired"`
+	LastReceive   int64  `json:"lastReceive"`
+	LastSend      int64  `json:"lastSend"`
+	Preferred     bool   `json:"preferred"`
+	TrustedPathID int    `json:"trustedPathId"`
+}
+
 // Status ZeroTier状态
 type Status struct {
 	Version     string `json:"version"`
@@ -330,6 +356,30 @@ type Status struct {
 	Online      bool   `json:"online"`
 	TCPFallback bool   `json:"tcpFallbackAvailable"`
 	APIReady    bool   `json:"apiReady"`
+}
+
+type statusAlias struct {
+	Version              string `json:"version"`
+	Address              string `json:"address"`
+	Online               bool   `json:"online"`
+	TCPFallbackAvailable bool   `json:"tcpFallbackAvailable"`
+	TCPFallbackActive    bool   `json:"tcpFallbackActive"`
+	APIReady             bool   `json:"apiReady"`
+}
+
+func (s *Status) UnmarshalJSON(data []byte) error {
+	var raw statusAlias
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return fmt.Errorf("解析状态JSON失败: %w", err)
+	}
+
+	s.Version = raw.Version
+	s.Address = raw.Address
+	s.Online = raw.Online
+	s.TCPFallback = raw.TCPFallbackAvailable || raw.TCPFallbackActive
+	s.APIReady = raw.APIReady
+
+	return nil
 }
 
 // NewClient 创建新的ZeroTier客户端
@@ -709,6 +759,25 @@ func (c *Client) GetMember(networkID, memberID string) (*Member, error) {
 	return &member, nil
 }
 
+// GetPeers 获取所有对等节点信息
+func (c *Client) GetPeers() ([]Peer, error) {
+	respBody, err := c.doRequest("GET", "/peer", nil)
+	if err != nil {
+		return nil, err
+	}
+
+	peers, err := parsePeerList(respBody)
+	if err != nil {
+		return nil, fmt.Errorf("解析 peer 列表失败: %w; 响应预览: %s", err, responsePreview(respBody))
+	}
+
+	sort.Slice(peers, func(i, j int) bool {
+		return peers[i].Address < peers[j].Address
+	})
+
+	return peers, nil
+}
+
 // UpdateMember 更新成员配置
 func (c *Client) UpdateMember(networkID, memberID string, member *MemberUpdateRequest) (*Member, error) {
 	endpoint := fmt.Sprintf("/controller/network/%s/member/%s", networkID, memberID)
@@ -771,6 +840,28 @@ func parseMemberIndexList(respBody []byte) ([]string, error) {
 	sort.Strings(memberIDs)
 
 	return memberIDs, nil
+}
+
+func parsePeerList(respBody []byte) ([]Peer, error) {
+	var peers []Peer
+	if err := json.Unmarshal(respBody, &peers); err == nil {
+		return peers, nil
+	}
+
+	var peerMap map[string]Peer
+	if err := json.Unmarshal(respBody, &peerMap); err != nil {
+		return nil, err
+	}
+
+	peers = make([]Peer, 0, len(peerMap))
+	for address, peer := range peerMap {
+		if peer.Address == "" {
+			peer.Address = address
+		}
+		peers = append(peers, peer)
+	}
+
+	return peers, nil
 }
 
 func responsePreview(respBody []byte) string {

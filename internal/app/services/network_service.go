@@ -20,6 +20,18 @@ type NetworkService struct {
 	mutex    sync.RWMutex
 }
 
+type RuntimeStatus struct {
+	Version              string `json:"version"`
+	Address              string `json:"address"`
+	Online               bool   `json:"online"`
+	TCPFallbackAvailable bool   `json:"tcpFallbackAvailable"`
+	APIReady             bool   `json:"apiReady"`
+	ZeroTierStatus       string `json:"zeroTierStatus"`
+	DatabaseStatus       string `json:"databaseStatus"`
+	ZeroTierError        string `json:"zeroTierError,omitempty"`
+	DatabaseError        string `json:"databaseError,omitempty"`
+}
+
 func NewNetworkService(ztClient *zerotier.Client, db database.DBInterface) *NetworkService {
 	return &NetworkService{
 		ztClient: ztClient,
@@ -62,6 +74,48 @@ func (s *NetworkService) GetStatus() (*zerotier.Status, error) {
 	}
 
 	return status, nil
+}
+
+func (s *NetworkService) GetRuntimeStatus() *RuntimeStatus {
+	runtimeStatus := &RuntimeStatus{
+		ZeroTierStatus: "offline",
+		DatabaseStatus: "disconnected",
+	}
+
+	if db := s.getDB(); db != nil {
+		if _, err := db.GetAllUsers(); err != nil {
+			runtimeStatus.DatabaseStatus = "error"
+			runtimeStatus.DatabaseError = err.Error()
+		} else {
+			runtimeStatus.DatabaseStatus = "connected"
+		}
+	}
+
+	if s.ztClient == nil {
+		runtimeStatus.ZeroTierStatus = "error"
+		runtimeStatus.ZeroTierError = "ZeroTier客户端未初始化"
+		return runtimeStatus
+	}
+
+	status, err := s.ztClient.GetStatus()
+	if err != nil {
+		runtimeStatus.ZeroTierStatus = "error"
+		runtimeStatus.ZeroTierError = err.Error()
+		return runtimeStatus
+	}
+
+	runtimeStatus.Version = status.Version
+	runtimeStatus.Address = status.Address
+	runtimeStatus.Online = status.Online
+	runtimeStatus.TCPFallbackAvailable = status.TCPFallback
+	runtimeStatus.APIReady = status.APIReady
+	if status.Online {
+		runtimeStatus.ZeroTierStatus = "online"
+	} else {
+		runtimeStatus.ZeroTierStatus = "offline"
+	}
+
+	return runtimeStatus
 }
 
 // NetworkSummary 网络摘要信息（从数据库获取）
@@ -182,6 +236,8 @@ func (s *NetworkService) GetNetworkByID(id string, userID string) (*NetworkDetai
 		logger.Error("服务层：获取网络成员失败", zap.String("network_id", id), zap.Error(err))
 		return nil, err
 	}
+
+	s.enrichMembersWithPeerMetadata(members)
 
 	logger.Info("服务层：获取网络详情成功",
 		zap.String("network_id", id),
@@ -377,6 +433,8 @@ func (s *NetworkService) GetNetworkMembers(networkID string, userID string) ([]z
 		return nil, err
 	}
 
+	s.enrichMembersWithPeerMetadata(members)
+
 	return members, nil
 }
 
@@ -404,6 +462,8 @@ func (s *NetworkService) GetNetworkMember(networkID, memberID string, userID str
 		return nil, nil
 	}
 
+	s.enrichMemberWithPeerMetadata(member)
+
 	return member, nil
 }
 
@@ -426,7 +486,78 @@ func (s *NetworkService) UpdateNetworkMember(networkID, memberID string, member 
 		return nil, err
 	}
 
+	s.enrichMemberWithPeerMetadata(updatedMember)
+
 	return updatedMember, nil
+}
+
+func (s *NetworkService) enrichMembersWithPeerMetadata(members []zerotier.Member) {
+	if s.ztClient == nil || len(members) == 0 {
+		return
+	}
+
+	peers, err := s.ztClient.GetPeers()
+	if err != nil {
+		logger.Warn("服务层：获取 peer 列表失败，成员元信息将不包含 peer 衍生字段", zap.Error(err))
+		return
+	}
+
+	peerByAddress := make(map[string]zerotier.Peer, len(peers))
+	for _, peer := range peers {
+		if peer.Address == "" {
+			continue
+		}
+		peerByAddress[peer.Address] = peer
+	}
+
+	for index := range members {
+		enrichMemberPeerFields(&members[index], peerByAddress[members[index].Address])
+	}
+}
+
+func (s *NetworkService) enrichMemberWithPeerMetadata(member *zerotier.Member) {
+	if s.ztClient == nil || member == nil || member.Address == "" {
+		return
+	}
+
+	peers, err := s.ztClient.GetPeers()
+	if err != nil {
+		logger.Warn("服务层：获取 peer 列表失败，单成员元信息将不包含 peer 衍生字段", zap.Error(err))
+		return
+	}
+
+	for _, peer := range peers {
+		if peer.Address == member.Address {
+			enrichMemberPeerFields(member, peer)
+			return
+		}
+	}
+}
+
+func enrichMemberPeerFields(member *zerotier.Member, peer zerotier.Peer) {
+	if member == nil || peer.Address == "" {
+		return
+	}
+
+	member.PeerRole = peer.Role
+	member.PeerLatency = peer.Latency
+	member.PeerVersion = peer.Version
+
+	if member.PeerVersion == "" && (peer.VersionMajor > 0 || peer.VersionMinor > 0 || peer.VersionRev > 0) {
+		member.PeerVersion = fmt.Sprintf("%d.%d.%d", peer.VersionMajor, peer.VersionMinor, peer.VersionRev)
+	}
+
+	if peer.PreferredPath.Address != "" {
+		member.PreferredPath = peer.PreferredPath.Address
+		return
+	}
+
+	for _, path := range peer.Paths {
+		if path.Preferred || path.Active {
+			member.PreferredPath = path.Address
+			return
+		}
+	}
 }
 
 // RemoveNetworkMember 从网络中移除成员 with ownership check

@@ -36,7 +36,6 @@ interface Member {
   authorized: boolean; // 是否已授权
   activeBridge: boolean; // 是否作为活动桥接
   ipAssignments: string[]; // 分配的IP地址列表
-  lastSeen: string; // 最后在线时间
   createdAt: string; // 创建时间
 }
 
@@ -71,7 +70,6 @@ function formatMember(member: ApiMember): Member {
     authorized,
     activeBridge,
     ipAssignments,
-    lastSeen: member.lastSeen ? new Date(member.lastSeen).toLocaleString() : '未知',
     createdAt: member.createdAt ? new Date(member.createdAt).toLocaleDateString() : '未知'
   };
 }
@@ -271,7 +269,6 @@ function Members() {
         authorized: member.config?.authorized ?? member.authorized ?? false,
         activeBridge: member.config?.activeBridge ?? member.activeBridge ?? false,
         ipAssignments: member.config?.ipAssignments ?? member.ipAssignments ?? [],
-        lastSeen: member.lastSeen ? new Date(member.lastSeen).toLocaleString() : '未知',
         createdAt: member.createdAt ? new Date(member.createdAt).toLocaleDateString() : '未知'
       }));
       setMembers(formattedMembers);
@@ -347,7 +344,6 @@ function Members() {
                 <TableCell>设备ID</TableCell>
                 <TableCell>IP地址</TableCell>
                 <TableCell>授权状态</TableCell>
-                <TableCell>最后在线</TableCell>
                 <TableCell>加入时间</TableCell>
                 <TableCell align="right">操作</TableCell>
               </TableRow>
@@ -355,7 +351,7 @@ function Members() {
             <TableBody>
               {filteredMembers.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} align="center" sx={{ py: 4 }}>
+                  <TableCell colSpan={6} align="center" sx={{ py: 4 }}>
                     <Typography variant="body1" color="text.secondary">
                       {searchTerm ? '没有找到匹配的设备' : '暂无设备'}
                     </Typography>
@@ -391,7 +387,6 @@ function Members() {
                         label={member.authorized ? '已授权' : '未授权'}
                       />
                     </TableCell>
-                    <TableCell>{member.lastSeen}</TableCell>
                     <TableCell>{member.createdAt}</TableCell>
                     <TableCell align="right">
                       <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
