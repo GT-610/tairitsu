@@ -42,18 +42,22 @@ func (s *NetworkService) authorizeOwnedNetwork(networkID, userID string) (*model
 }
 
 func (s *NetworkService) authorizeMemberReadAccess(networkID, userID string) (*models.Network, error) {
-	network, err := s.getOwnedNetwork(networkID, userID)
-	if err == nil {
-		return network, nil
-	}
-	if !IsNetworkAccessDenied(err) {
-		return nil, err
-	}
-
 	db := s.getDB()
 	if db == nil {
 		return nil, errors.New("数据库未初始化")
 	}
+
+	network, err := db.GetNetworkByID(networkID)
+	if err != nil {
+		return nil, err
+	}
+	if network == nil {
+		return nil, ErrNetworkNotFound
+	}
+	if network.OwnerID == userID {
+		return network, nil
+	}
+
 	viewer, viewerErr := db.GetNetworkViewer(networkID, userID)
 	if viewerErr != nil {
 		return nil, viewerErr
@@ -62,13 +66,6 @@ func (s *NetworkService) authorizeMemberReadAccess(networkID, userID string) (*m
 		return nil, ErrMemberAccessDenied
 	}
 
-	network, networkErr := db.GetNetworkByID(networkID)
-	if networkErr != nil {
-		return nil, networkErr
-	}
-	if network == nil {
-		return nil, ErrNetworkNotFound
-	}
 	return network, nil
 }
 
