@@ -102,6 +102,8 @@ bun run dev
 
 ## 法律声明
 
+自 1.16.0 版本起，ZeroTier 的控制器组件采用[商业性的、专有的非开源许可协议](https://github.com/zerotier/ZeroTierOne/blob/main/nonfree/LICENSE.md)。
+
 Tairitsu 不重新分发任何 ZeroTier 控制器代码，而是通过官方 API 与**独立安装**的 ZeroTier 控制器通信，避免落入 ZeroTier 控制器专有代码分发范围。
 
 `Generate Planet` 功能基于 [ztnodeid-go](https://github.com/kmahyyg/ztnodeid-go) 修改，遵循其 GNU GPL v3 许可证，**并非**来自 ZeroTier 本身。
