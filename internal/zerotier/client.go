@@ -332,6 +332,30 @@ type Status struct {
 	APIReady    bool   `json:"apiReady"`
 }
 
+type statusAlias struct {
+	Version              string `json:"version"`
+	Address              string `json:"address"`
+	Online               bool   `json:"online"`
+	TCPFallbackAvailable bool   `json:"tcpFallbackAvailable"`
+	TCPFallbackActive    bool   `json:"tcpFallbackActive"`
+	APIReady             bool   `json:"apiReady"`
+}
+
+func (s *Status) UnmarshalJSON(data []byte) error {
+	var raw statusAlias
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return fmt.Errorf("解析状态JSON失败: %w", err)
+	}
+
+	s.Version = raw.Version
+	s.Address = raw.Address
+	s.Online = raw.Online
+	s.TCPFallback = raw.TCPFallbackAvailable || raw.TCPFallbackActive
+	s.APIReady = raw.APIReady
+
+	return nil
+}
+
 // NewClient 创建新的ZeroTier客户端
 func NewClient() (*Client, error) {
 	cfg, err := config.Current()

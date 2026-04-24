@@ -222,9 +222,13 @@ export interface ImportNetworksResponse {
 export interface SystemStatus {
   version: string;
   address: string;
-  uptime: number;
+  online: boolean;
+  tcpFallbackAvailable?: boolean;
+  apiReady?: boolean;
   zeroTierStatus: 'online' | 'offline' | 'error';
   databaseStatus: 'connected' | 'disconnected' | 'error';
+  zeroTierError?: string;
+  databaseError?: string;
 }
 
 // System statistics interface

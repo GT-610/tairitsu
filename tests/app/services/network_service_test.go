@@ -132,6 +132,45 @@ func TestNetworkServiceGetImportableNetworks_EmptySliceWhenControllerHasNoNetwor
 	assert.Equal(t, services.ImportableNetworksSummary{}, result.Summary)
 }
 
+func TestNetworkServiceGetRuntimeStatus_UsesZeroTierAndDatabaseTruth(t *testing.T) {
+	db := newTestSQLiteDB(t)
+	createTestUser(t, db, "admin-1", "admin")
+	client := newTestZTClientWithStatus(t, map[string]zerotier.Network{}, zerotier.Status{
+		Version:     "1.14.2",
+		Address:     "f76fd3000b",
+		Online:      true,
+		TCPFallback: true,
+		APIReady:    true,
+	})
+
+	service := services.NewNetworkService(client, db)
+
+	status := service.GetRuntimeStatus()
+	require.NotNil(t, status)
+	assert.Equal(t, "1.14.2", status.Version)
+	assert.Equal(t, "f76fd3000b", status.Address)
+	assert.True(t, status.Online)
+	assert.True(t, status.TCPFallbackAvailable)
+	assert.True(t, status.APIReady)
+	assert.Equal(t, "online", status.ZeroTierStatus)
+	assert.Equal(t, "connected", status.DatabaseStatus)
+	assert.Empty(t, status.ZeroTierError)
+	assert.Empty(t, status.DatabaseError)
+}
+
+func TestNetworkServiceGetRuntimeStatus_ReturnsErrorStates(t *testing.T) {
+	db := newTestSQLiteDB(t)
+	client := newTestZTClientWithStatusError(t, map[string]zerotier.Network{}, http.StatusInternalServerError)
+
+	service := services.NewNetworkService(client, db)
+
+	status := service.GetRuntimeStatus()
+	require.NotNil(t, status)
+	assert.Equal(t, "error", status.ZeroTierStatus)
+	assert.NotEmpty(t, status.ZeroTierError)
+	assert.Equal(t, "connected", status.DatabaseStatus)
+}
+
 func TestNetworkServiceImportNetworks_RejectsNonAdmin(t *testing.T) {
 	db := newTestSQLiteDB(t)
 	createTestUser(t, db, "user-1", "user")
@@ -427,6 +466,32 @@ func TestZTClientGetMembersReturnsPreviewOnUnexpectedShape(t *testing.T) {
 	assert.Contains(t, err.Error(), "\"unexpected\"")
 }
 
+func TestZTClientGetStatusSupportsTcpFallbackActive(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		require.NoError(t, json.NewEncoder(w).Encode(map[string]any{
+			"version":           "1.14.2",
+			"address":           "f76fd3000b",
+			"online":            true,
+			"tcpFallbackActive": true,
+			"apiReady":          true,
+		}))
+	}))
+	t.Cleanup(server.Close)
+
+	client := &zerotier.Client{
+		BaseURL:    server.URL,
+		Token:      "test-token",
+		HTTPClient: server.Client(),
+	}
+
+	status, err := client.GetStatus()
+	require.NoError(t, err)
+	require.NotNil(t, status)
+	assert.True(t, status.TCPFallback)
+	assert.True(t, status.APIReady)
+}
+
 func TestNetworkServiceGetAllNetworksIncludesMemberStatsFromIndexResponse(t *testing.T) {
 	db := newTestSQLiteDB(t)
 	now := time.Now()
@@ -510,6 +575,78 @@ func newTestSQLiteDB(t *testing.T) *database.SQLiteDB {
 
 func newTestZTClient(t *testing.T, networks map[string]zerotier.Network) *zerotier.Client {
 	return newTestZTClientWithMembers(t, networks, map[string][]zerotier.Member{})
+}
+
+func newTestZTClientWithStatus(t *testing.T, networks map[string]zerotier.Network, status zerotier.Status) *zerotier.Client {
+	t.Helper()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		switch r.URL.Path {
+		case "/status":
+			require.NoError(t, json.NewEncoder(w).Encode(map[string]any{
+				"version":              status.Version,
+				"address":              status.Address,
+				"online":               status.Online,
+				"tcpFallbackAvailable": status.TCPFallback,
+				"apiReady":             status.APIReady,
+			}))
+		case "/controller/network":
+			ids := make([]string, 0, len(networks))
+			for id := range networks {
+				ids = append(ids, id)
+			}
+			require.NoError(t, json.NewEncoder(w).Encode(ids))
+		default:
+			if len(r.URL.Path) <= len("/controller/network/") {
+				http.NotFound(w, r)
+				return
+			}
+			path := r.URL.Path[len("/controller/network/"):]
+			network, ok := networks[path]
+			if !ok {
+				http.NotFound(w, r)
+				return
+			}
+			require.NoError(t, json.NewEncoder(w).Encode(network))
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	return &zerotier.Client{
+		BaseURL:    server.URL,
+		Token:      "test-token",
+		HTTPClient: server.Client(),
+	}
+}
+
+func newTestZTClientWithStatusError(t *testing.T, networks map[string]zerotier.Network, statusCode int) *zerotier.Client {
+	t.Helper()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		switch r.URL.Path {
+		case "/status":
+			http.Error(w, "broken status", statusCode)
+		case "/controller/network":
+			ids := make([]string, 0, len(networks))
+			for id := range networks {
+				ids = append(ids, id)
+			}
+			require.NoError(t, json.NewEncoder(w).Encode(ids))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	return &zerotier.Client{
+		BaseURL:    server.URL,
+		Token:      "test-token",
+		HTTPClient: server.Client(),
+	}
 }
 
 func newTestZTClientWithMembers(t *testing.T, networks map[string]zerotier.Network, members map[string][]zerotier.Member) *zerotier.Client {

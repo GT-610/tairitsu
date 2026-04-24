@@ -25,6 +25,32 @@ interface OverviewStats {
   pendingMemberCount: number;
 }
 
+function zeroTierStatusLabel(status?: SystemStatus['zeroTierStatus']) {
+  switch (status) {
+    case 'online':
+      return '在线'
+    case 'offline':
+      return '离线'
+    case 'error':
+      return '错误'
+    default:
+      return '未知'
+  }
+}
+
+function databaseStatusLabel(status?: SystemStatus['databaseStatus']) {
+  switch (status) {
+    case 'connected':
+      return '已连接'
+    case 'disconnected':
+      return '未连接'
+    case 'error':
+      return '错误'
+    default:
+      return '未知'
+  }
+}
+
 function Dashboard() {
   const [status, setStatus] = useState<SystemStatus | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -278,7 +304,7 @@ function Dashboard() {
                   控制器地址
                 </Typography>
                 <Typography variant="body1">
-                  {status?.address || 'Unknown'}
+                  {status?.address || '未知'}
                 </Typography>
               </Box>
               <Box>
@@ -286,7 +312,7 @@ function Dashboard() {
                   版本
                 </Typography>
                 <Typography variant="body1">
-                  {status?.version || 'Unknown'}
+                  {status?.version || '未知'}
                 </Typography>
               </Box>
               <Box>
@@ -294,20 +320,30 @@ function Dashboard() {
                   控制器状态
                 </Typography>
                 <Chip 
-                  label={status?.zeroTierStatus || '未知'}
+                  label={zeroTierStatusLabel(status?.zeroTierStatus)}
                   color={status?.zeroTierStatus === 'online' ? 'success' : status?.zeroTierStatus === 'error' ? 'error' : 'warning'} 
                   size="small"
                 />
+                {status?.zeroTierError && (
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                    {status.zeroTierError}
+                  </Typography>
+                )}
               </Box>
               <Box>
                 <Typography variant="body2" color="text.secondary">
                   数据库状态
                 </Typography>
                 <Chip
-                  label={status?.databaseStatus || '未知'}
+                  label={databaseStatusLabel(status?.databaseStatus)}
                   color={status?.databaseStatus === 'connected' ? 'success' : status?.databaseStatus === 'error' ? 'error' : 'warning'}
                   size="small"
                 />
+                {status?.databaseError && (
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                    {status.databaseError}
+                  </Typography>
+                )}
               </Box>
             </Box>
           </Paper>

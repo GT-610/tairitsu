@@ -20,6 +20,18 @@ type NetworkService struct {
 	mutex    sync.RWMutex
 }
 
+type RuntimeStatus struct {
+	Version              string `json:"version"`
+	Address              string `json:"address"`
+	Online               bool   `json:"online"`
+	TCPFallbackAvailable bool   `json:"tcpFallbackAvailable"`
+	APIReady             bool   `json:"apiReady"`
+	ZeroTierStatus       string `json:"zeroTierStatus"`
+	DatabaseStatus       string `json:"databaseStatus"`
+	ZeroTierError        string `json:"zeroTierError,omitempty"`
+	DatabaseError        string `json:"databaseError,omitempty"`
+}
+
 func NewNetworkService(ztClient *zerotier.Client, db database.DBInterface) *NetworkService {
 	return &NetworkService{
 		ztClient: ztClient,
@@ -62,6 +74,48 @@ func (s *NetworkService) GetStatus() (*zerotier.Status, error) {
 	}
 
 	return status, nil
+}
+
+func (s *NetworkService) GetRuntimeStatus() *RuntimeStatus {
+	runtimeStatus := &RuntimeStatus{
+		ZeroTierStatus: "offline",
+		DatabaseStatus: "disconnected",
+	}
+
+	if db := s.getDB(); db != nil {
+		if _, err := db.GetAllUsers(); err != nil {
+			runtimeStatus.DatabaseStatus = "error"
+			runtimeStatus.DatabaseError = err.Error()
+		} else {
+			runtimeStatus.DatabaseStatus = "connected"
+		}
+	}
+
+	if s.ztClient == nil {
+		runtimeStatus.ZeroTierStatus = "error"
+		runtimeStatus.ZeroTierError = "ZeroTier客户端未初始化"
+		return runtimeStatus
+	}
+
+	status, err := s.ztClient.GetStatus()
+	if err != nil {
+		runtimeStatus.ZeroTierStatus = "error"
+		runtimeStatus.ZeroTierError = err.Error()
+		return runtimeStatus
+	}
+
+	runtimeStatus.Version = status.Version
+	runtimeStatus.Address = status.Address
+	runtimeStatus.Online = status.Online
+	runtimeStatus.TCPFallbackAvailable = status.TCPFallback
+	runtimeStatus.APIReady = status.APIReady
+	if status.Online {
+		runtimeStatus.ZeroTierStatus = "online"
+	} else {
+		runtimeStatus.ZeroTierStatus = "offline"
+	}
+
+	return runtimeStatus
 }
 
 // NetworkSummary 网络摘要信息（从数据库获取）
