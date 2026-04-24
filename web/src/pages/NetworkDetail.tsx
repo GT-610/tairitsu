@@ -253,7 +253,6 @@ function NetworkDetail() {
       setError('')
     } catch (err: unknown) {
       setError(getErrorMessage(err, '获取网络详情失败'))
-      console.error('Fetch network detail error:', err)
     } finally {
       setLoading(false)
     }

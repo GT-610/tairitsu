@@ -1,15 +1,14 @@
-import { useState, useEffect, lazy, Suspense, useCallback } from 'react';
-import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { lazy, Suspense } from 'react';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import { CircularProgress, Box } from '@mui/material';
 import Login from './pages/Login';
 import Register from './pages/Register';
-import SetupWizard, { setupCompletedEvent } from './pages/SetupWizard';
+import SetupWizard from './pages/SetupWizard';
 import Networks from './pages/Networks';
 import NotFound from './pages/NotFound';
 import Layout from './components/Layout';
-import api, { type SetupStatus } from './services/api';
-import { hasStatus } from './services/errors';
 import { useAuth } from './services/auth';
+import { useSetupGate, useUnauthorizedRedirect } from './hooks/useAppRuntime';
 
 const lazyPages = {
   UserManagement: lazy(() => import('./pages/UserManagement')),
@@ -36,81 +35,9 @@ function Loading() {
 // import './App.css';
 
 function AppContent() {
-  const navigate = useNavigate();
   const { user, isAuthenticated } = useAuth();
-  const [isFirstRun, setIsFirstRun] = useState<boolean | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
-  const location = useLocation();
-
-  const checkFirstRun = useCallback(async () => {
-    try {
-      const response = await api.get<SetupStatus>('/system/status', {
-        headers: {
-          'Cache-Control': 'no-cache'
-        }
-      });
-
-      const isBackendInitialized = response.data.initialized;
-      setIsFirstRun(!isBackendInitialized);
-    } catch {
-      setIsFirstRun(true);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  // Listen for API errors and handle logout on 401 unauthorized responses
-  useEffect(() => {
-    const handleApiError = (error: unknown) => {
-      // Check if the error is a 401 unauthorized error
-      if (hasStatus(error, 401)) {
-        // Clear authentication information
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-        localStorage.removeItem('session');
-        sessionStorage.removeItem('token');
-        sessionStorage.removeItem('user');
-        sessionStorage.removeItem('session');
-        delete api.defaults.headers.common['Authorization'];
-        
-        // Redirect to login page (using React Router instead of window.location)
-        if (location.pathname !== '/login') {
-          void navigate('/login');
-        }
-      }
-    };
-
-    // 添加响应拦截器
-    const interceptor = api.interceptors.response.use(
-      response => response,
-      error => {
-        handleApiError(error);
-        return Promise.reject(error instanceof Error ? error : new Error(String(error)));
-      }
-    );
-
-    // 清理函数
-    return () => {
-      api.interceptors.response.eject(interceptor);
-    };
-  }, [navigate, location.pathname]);
-
-  // 检查系统是否已初始化（仅在应用启动时执行一次）
-  useEffect(() => {
-    void checkFirstRun();
-  }, [checkFirstRun]);
-
-  useEffect(() => {
-    const handleSetupComplete = () => {
-      setLoading(true);
-      void checkFirstRun();
-    };
-
-    window.addEventListener(setupCompletedEvent, handleSetupComplete);
-    return () => {
-      window.removeEventListener(setupCompletedEvent, handleSetupComplete);
-    };
-  }, [checkFirstRun]);
+  const { isFirstRun, loading } = useSetupGate();
+  useUnauthorizedRedirect();
 
   if (loading || isFirstRun === null) {
     return (
