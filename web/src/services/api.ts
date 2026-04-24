@@ -83,6 +83,28 @@ export interface NetworkSummary {
   updated_at: string;
 }
 
+export interface SharedNetworkSummary {
+  id: string;
+  name: string;
+  description?: string;
+  owner_id: string;
+  owner_username: string;
+  member_count: number;
+  authorized_member_count: number;
+  pending_member_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface NetworkViewer {
+  id: string;
+  username: string;
+  role: 'admin' | 'user';
+  granted_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface NetworkConfig {
   private: boolean;
   allowPassiveBridging?: boolean;
@@ -429,6 +451,8 @@ export const userAPI = {
 export const networkAPI = {
   // Get all networks (from database, lightweight)
   getAllNetworks: () => api.get<NetworkSummary[]>('/networks'),
+  // Get read-only shared networks for current user
+  getSharedNetworks: () => api.get<SharedNetworkSummary[]>('/networks/shared'),
   // Get a single network (with full details from ZeroTier API)
   getNetwork: (networkId: string) => api.get<Network>(`/networks/${networkId}`),
   // Create a network
@@ -439,6 +463,14 @@ export const networkAPI = {
   updateNetworkMetadata: (networkId: string, data: NetworkMetadataUpdateRequest) => api.put<Network>(`/networks/${networkId}/metadata`, data),
   // Delete a network
   deleteNetwork: (networkId: string) => api.delete<void>(`/networks/${networkId}`),
+  // Get read-only viewers for an owned network
+  getNetworkViewers: (networkId: string) => api.get<NetworkViewer[]>(`/networks/${networkId}/viewers`),
+  // Get eligible users for read-only sharing
+  getNetworkViewerCandidates: (networkId: string) => api.get<NetworkViewer[]>(`/networks/${networkId}/viewers/available`),
+  // Grant read-only viewer access
+  addNetworkViewer: (networkId: string, userId: string) => api.post<{ message: string }>(`/networks/${networkId}/viewers`, { user_id: userId }),
+  // Revoke read-only viewer access
+  deleteNetworkViewer: (networkId: string, userId: string) => api.delete<{ message: string }>(`/networks/${networkId}/viewers/${userId}`),
   // Get importable networks (admin only)
   getImportableNetworks: () => api.get<ImportableNetworksResponse>('/admin/networks/importable'),
   // Import specified networks (admin only)

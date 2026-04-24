@@ -5,6 +5,7 @@ import (
 
 	"github.com/GT-610/tairitsu/internal/app/models"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // GormDB 是基于GORM的数据库实现
@@ -15,7 +16,7 @@ type GormDB struct {
 // Init 初始化数据库
 func (g *GormDB) Init() error {
 	// 自动迁移用户模型
-	if err := g.db.AutoMigrate(&models.User{}, &models.Network{}, &models.Session{}); err != nil {
+	if err := g.db.AutoMigrate(&models.User{}, &models.Network{}, &models.Session{}, &models.NetworkViewer{}); err != nil {
 		return fmt.Errorf("自动迁移模型失败: %w", err)
 	}
 	return nil
@@ -176,6 +177,55 @@ func (g *GormDB) UpdateNetwork(network *models.Network) error {
 func (g *GormDB) DeleteNetwork(id string) error {
 	result := g.db.Delete(&models.Network{}, "id = ?", id)
 	return result.Error
+}
+
+func (g *GormDB) UpsertNetworkViewer(viewer *models.NetworkViewer) error {
+	return g.db.Clauses(clause.OnConflict{
+		Columns: []clause.Column{
+			{Name: "network_id"},
+			{Name: "user_id"},
+		},
+		DoUpdates: clause.AssignmentColumns([]string{"granted_by", "updated_at"}),
+	}).Create(viewer).Error
+}
+
+func (g *GormDB) GetNetworkViewer(networkID, userID string) (*models.NetworkViewer, error) {
+	var viewer models.NetworkViewer
+	result := g.db.First(&viewer, "network_id = ? AND user_id = ?", networkID, userID)
+	if result.Error != nil {
+		if result.Error == gorm.ErrRecordNotFound {
+			return nil, nil
+		}
+		return nil, result.Error
+	}
+	return &viewer, nil
+}
+
+func (g *GormDB) GetNetworkViewers(networkID string) ([]*models.NetworkViewer, error) {
+	var viewers []*models.NetworkViewer
+	result := g.db.Where("network_id = ?", networkID).Order("created_at ASC").Find(&viewers)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	return viewers, nil
+}
+
+func (g *GormDB) GetSharedNetworksByUserID(userID string) ([]*models.Network, error) {
+	var networks []*models.Network
+	result := g.db.Table("networks").
+		Select("networks.id, networks.name, networks.description, networks.owner_id, networks.created_at, networks.updated_at").
+		Joins("JOIN network_viewers ON network_viewers.network_id = networks.id").
+		Where("network_viewers.user_id = ?", userID).
+		Order("networks.created_at DESC").
+		Find(&networks)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	return networks, nil
+}
+
+func (g *GormDB) DeleteNetworkViewer(networkID, userID string) error {
+	return g.db.Delete(&models.NetworkViewer{}, "network_id = ? AND user_id = ?", networkID, userID).Error
 }
 
 // Close 关闭数据库连接

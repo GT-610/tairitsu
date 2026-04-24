@@ -18,6 +18,7 @@ const lazyPages = {
   Settings: lazy(() => import('./pages/Settings')),
   Profile: lazy(() => import('./pages/Profile')),
   NetworkDetail: lazy(() => import('./pages/NetworkDetail')),
+  SharedNetworkMembers: lazy(() => import('./pages/SharedNetworkMembers')),
 };
 
 function Loading() {
@@ -72,6 +73,7 @@ function AppContent() {
                 <Route path="/" element={<Layout user={user} />}>
                   {/* 公共路由 */}
                   <Route path="networks" element={<Networks />}></Route>
+                  <Route path="networks/shared/:id" element={<Suspense fallback={<Loading />}><lazyPages.SharedNetworkMembers /></Suspense>}></Route>
                   <Route path="networks/:id" element={<Suspense fallback={<Loading />}><lazyPages.NetworkDetail /></Suspense>}></Route>
                   <Route path="profile" element={<Suspense fallback={<Loading />}><lazyPages.Profile user={user} /></Suspense>}></Route>
                   <Route path="settings" element={<Suspense fallback={<Loading />}><lazyPages.Settings /></Suspense>}></Route>

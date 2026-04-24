@@ -31,6 +31,11 @@ type DBInterface interface {
 	GetAllNetworks() ([]*models.Network, error)
 	UpdateNetwork(network *models.Network) error
 	DeleteNetwork(id string) error
+	UpsertNetworkViewer(viewer *models.NetworkViewer) error
+	GetNetworkViewer(networkID, userID string) (*models.NetworkViewer, error)
+	GetNetworkViewers(networkID string) ([]*models.NetworkViewer, error)
+	GetSharedNetworksByUserID(userID string) ([]*models.Network, error)
+	DeleteNetworkViewer(networkID, userID string) error
 
 	// 检查是否已存在管理员用户
 	HasAdminUser() (bool, error)

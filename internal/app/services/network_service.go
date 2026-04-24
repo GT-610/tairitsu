@@ -131,6 +131,28 @@ type NetworkSummary struct {
 	UpdatedAt             time.Time `json:"updated_at"`
 }
 
+type SharedNetworkSummary struct {
+	ID                    string    `json:"id"`
+	Name                  string    `json:"name"`
+	Description           string    `json:"description"`
+	OwnerID               string    `json:"owner_id"`
+	OwnerUsername         string    `json:"owner_username"`
+	MemberCount           int       `json:"member_count"`
+	AuthorizedMemberCount int       `json:"authorized_member_count"`
+	PendingMemberCount    int       `json:"pending_member_count"`
+	CreatedAt             time.Time `json:"created_at"`
+	UpdatedAt             time.Time `json:"updated_at"`
+}
+
+type NetworkViewerSummary struct {
+	ID         string    `json:"id"`
+	Username   string    `json:"username"`
+	Role       string    `json:"role"`
+	GrantedBy  string    `json:"granted_by"`
+	CreatedAt  time.Time `json:"created_at"`
+	UpdatedAt  time.Time `json:"updated_at"`
+}
+
 // NetworkDetail 网络详情（包含控制器信息和数据库描述）
 type NetworkDetail struct {
 	*zerotier.Network
@@ -205,6 +227,82 @@ func (s *NetworkService) GetAllNetworks(ownerID string) ([]NetworkSummary, error
 	}
 
 	return networkSummaries, nil
+}
+
+func (s *NetworkService) GetSharedNetworks(userID string) ([]SharedNetworkSummary, error) {
+	db := s.getDB()
+	if db == nil {
+		logger.Warn("服务层：数据库未初始化")
+		return nil, fmt.Errorf("数据库未初始化")
+	}
+
+	sharedNetworks, err := db.GetSharedNetworksByUserID(userID)
+	if err != nil {
+		logger.Error("服务层：获取共享网络列表失败", zap.String("user_id", userID), zap.Error(err))
+		return nil, err
+	}
+	if len(sharedNetworks) == 0 {
+		return []SharedNetworkSummary{}, nil
+	}
+
+	ownerIDs := make(map[string]struct{}, len(sharedNetworks))
+	for _, network := range sharedNetworks {
+		ownerIDs[network.OwnerID] = struct{}{}
+	}
+	ownersByID := make(map[string]string, len(ownerIDs))
+	for ownerID := range ownerIDs {
+		owner, ownerErr := db.GetUserByID(ownerID)
+		if ownerErr != nil {
+			return nil, ownerErr
+		}
+		if owner != nil {
+			ownersByID[ownerID] = owner.Username
+		}
+	}
+
+	summaries := make([]SharedNetworkSummary, len(sharedNetworks))
+	for i, net := range sharedNetworks {
+		summaries[i] = SharedNetworkSummary{
+			ID:            net.ID,
+			Name:          net.Name,
+			Description:   net.Description,
+			OwnerID:       net.OwnerID,
+			OwnerUsername: ownersByID[net.OwnerID],
+			CreatedAt:     net.CreatedAt,
+			UpdatedAt:     net.UpdatedAt,
+		}
+	}
+
+	if s.ztClient != nil {
+		var wg sync.WaitGroup
+		limiter := make(chan struct{}, min(networkMemberStatsConcurrency, len(sharedNetworks)))
+		for i, net := range sharedNetworks {
+			wg.Add(1)
+			go func(index int, networkID string) {
+				defer wg.Done()
+				limiter <- struct{}{}
+				defer func() { <-limiter }()
+
+				members, memberErr := s.ztClient.GetMembers(networkID)
+				if memberErr != nil {
+					logger.Warn("服务层：获取共享网络成员统计失败", zap.String("network_id", networkID), zap.Error(memberErr))
+					return
+				}
+
+				summaries[index].MemberCount = len(members)
+				for _, member := range members {
+					if member.Config.Authorized {
+						summaries[index].AuthorizedMemberCount++
+					} else {
+						summaries[index].PendingMemberCount++
+					}
+				}
+			}(i, net.ID)
+		}
+		wg.Wait()
+	}
+
+	return summaries, nil
 }
 
 func (s *NetworkService) GetNetworkByID(id string, userID string) (*NetworkDetail, error) {
@@ -405,9 +503,22 @@ func (s *NetworkService) DeleteNetwork(networkID string, userID string) error {
 		return err
 	}
 
-	// Delete network from database
-	if err := db.DeleteNetwork(networkID); err != nil {
-		logger.Error("服务层：从数据库删除网络失败", zap.String("network_id", networkID), zap.Error(err))
+	if err := db.WithTransaction(func(tx database.DBInterface) error {
+		viewers, txErr := tx.GetNetworkViewers(networkID)
+		if txErr != nil {
+			return txErr
+		}
+		for _, viewer := range viewers {
+			if viewer == nil {
+				continue
+			}
+			if deleteErr := tx.DeleteNetworkViewer(networkID, viewer.UserID); deleteErr != nil {
+				return deleteErr
+			}
+		}
+		return tx.DeleteNetwork(networkID)
+	}); err != nil {
+		logger.Error("服务层：从数据库删除网络及查看授权失败", zap.String("network_id", networkID), zap.Error(err))
 		// Continue anyway, as ZeroTier deletion was successful
 	}
 
@@ -421,7 +532,7 @@ func (s *NetworkService) GetNetworkMembers(networkID string, userID string) ([]z
 		return nil, fmt.Errorf("ZeroTier客户端未初始化")
 	}
 
-	_, err := s.authorizeMemberAccess(networkID, userID)
+	_, err := s.authorizeMemberReadAccess(networkID, userID)
 	if err != nil {
 		logger.Warn("服务层：无权限访问网络成员", zap.String("network_id", networkID), zap.String("user_id", userID), zap.Error(err))
 		return nil, err
@@ -445,7 +556,7 @@ func (s *NetworkService) GetNetworkMember(networkID, memberID string, userID str
 		return nil, fmt.Errorf("ZeroTier客户端未初始化")
 	}
 
-	_, err := s.authorizeMemberAccess(networkID, userID)
+	_, err := s.authorizeMemberReadAccess(networkID, userID)
 	if err != nil {
 		logger.Warn("服务层：无权限访问网络成员", zap.String("network_id", networkID), zap.String("user_id", userID), zap.Error(err))
 		return nil, err
@@ -474,7 +585,7 @@ func (s *NetworkService) UpdateNetworkMember(networkID, memberID string, member 
 		return nil, fmt.Errorf("ZeroTier客户端未初始化")
 	}
 
-	_, err := s.authorizeMemberAccess(networkID, userID)
+	_, err := s.authorizeMemberWriteAccess(networkID, userID)
 	if err != nil {
 		logger.Warn("服务层：无权限更新网络成员", zap.String("network_id", networkID), zap.String("user_id", userID), zap.Error(err))
 		return nil, err
@@ -567,7 +678,7 @@ func (s *NetworkService) RemoveNetworkMember(networkID, memberID string, userID 
 		return fmt.Errorf("ZeroTier客户端未初始化")
 	}
 
-	_, err := s.authorizeMemberAccess(networkID, userID)
+	_, err := s.authorizeMemberWriteAccess(networkID, userID)
 	if err != nil {
 		logger.Warn("服务层：无权限移除网络成员", zap.String("network_id", networkID), zap.String("user_id", userID), zap.Error(err))
 		return err
@@ -580,6 +691,133 @@ func (s *NetworkService) RemoveNetworkMember(networkID, memberID string, userID 
 	}
 
 	return nil
+}
+
+func (s *NetworkService) GetNetworkViewers(networkID, ownerID string) ([]NetworkViewerSummary, error) {
+	db := s.getDB()
+	if db == nil {
+		return nil, fmt.Errorf("数据库未初始化")
+	}
+
+	network, err := s.authorizeViewerManagement(networkID, ownerID)
+	if err != nil {
+		return nil, err
+	}
+
+	viewers, err := db.GetNetworkViewers(network.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	summaries := make([]NetworkViewerSummary, 0, len(viewers))
+	for _, viewer := range viewers {
+		user, userErr := db.GetUserByID(viewer.UserID)
+		if userErr != nil {
+			return nil, userErr
+		}
+		if user == nil {
+			continue
+		}
+		summaries = append(summaries, NetworkViewerSummary{
+			ID:        user.ID,
+			Username:  user.Username,
+			Role:      user.Role,
+			GrantedBy: viewer.GrantedBy,
+			CreatedAt: viewer.CreatedAt,
+			UpdatedAt: viewer.UpdatedAt,
+		})
+	}
+
+	return summaries, nil
+}
+
+func (s *NetworkService) GetNetworkViewerCandidates(networkID, ownerID string) ([]NetworkViewerSummary, error) {
+	db := s.getDB()
+	if db == nil {
+		return nil, fmt.Errorf("数据库未初始化")
+	}
+
+	network, err := s.authorizeViewerManagement(networkID, ownerID)
+	if err != nil {
+		return nil, err
+	}
+
+	users, err := db.GetAllUsers()
+	if err != nil {
+		return nil, err
+	}
+	viewers, err := db.GetNetworkViewers(network.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	viewerSet := make(map[string]struct{}, len(viewers))
+	for _, viewer := range viewers {
+		viewerSet[viewer.UserID] = struct{}{}
+	}
+
+	candidates := make([]NetworkViewerSummary, 0)
+	for _, user := range users {
+		if user == nil || user.ID == network.OwnerID || user.Role != "user" {
+			continue
+		}
+		if _, exists := viewerSet[user.ID]; exists {
+			continue
+		}
+		candidates = append(candidates, NetworkViewerSummary{
+			ID:       user.ID,
+			Username: user.Username,
+			Role:     user.Role,
+		})
+	}
+
+	return candidates, nil
+}
+
+func (s *NetworkService) GrantNetworkViewer(networkID, targetUserID, ownerID string) error {
+	db := s.getDB()
+	if db == nil {
+		return fmt.Errorf("数据库未初始化")
+	}
+
+	network, err := s.authorizeViewerManagement(networkID, ownerID)
+	if err != nil {
+		return err
+	}
+
+	targetUser, err := db.GetUserByID(targetUserID)
+	if err != nil {
+		return err
+	}
+	if targetUser == nil {
+		return ErrUserNotFound
+	}
+	if targetUser.Role != "user" || targetUser.ID == network.OwnerID {
+		return ErrViewerTargetInvalid
+	}
+
+	now := time.Now()
+	return db.UpsertNetworkViewer(&models.NetworkViewer{
+		NetworkID: network.ID,
+		UserID:    targetUser.ID,
+		GrantedBy: ownerID,
+		CreatedAt: now,
+		UpdatedAt: now,
+	})
+}
+
+func (s *NetworkService) RevokeNetworkViewer(networkID, targetUserID, ownerID string) error {
+	db := s.getDB()
+	if db == nil {
+		return fmt.Errorf("数据库未初始化")
+	}
+
+	network, err := s.authorizeViewerManagement(networkID, ownerID)
+	if err != nil {
+		return err
+	}
+
+	return db.DeleteNetworkViewer(network.ID, targetUserID)
 }
 
 // SetZTClient 设置ZeroTier客户端

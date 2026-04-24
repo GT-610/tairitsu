@@ -74,6 +74,21 @@ func (s *SQLiteDB) Init() error {
 		return fmt.Errorf("创建网络表失败: %w", err)
 	}
 
+	createNetworkViewersTable := `
+	CREATE TABLE IF NOT EXISTS network_viewers (
+		network_id TEXT NOT NULL,
+		user_id TEXT NOT NULL,
+		granted_by TEXT NOT NULL,
+		created_at DATETIME NOT NULL,
+		updated_at DATETIME NOT NULL,
+		PRIMARY KEY (network_id, user_id)
+	);`
+
+	_, err = s.db.Exec(createNetworkViewersTable)
+	if err != nil {
+		return fmt.Errorf("创建网络查看授权表失败: %w", err)
+	}
+
 	createSessionsTable := `
 	CREATE TABLE IF NOT EXISTS sessions (
 		id TEXT PRIMARY KEY,
@@ -606,6 +621,130 @@ func (s *SQLiteDB) DeleteNetwork(id string) error {
 		return fmt.Errorf("删除网络失败: %w", err)
 	}
 
+	return nil
+}
+
+func (s *SQLiteDB) UpsertNetworkViewer(viewer *models.NetworkViewer) error {
+	query := `
+	INSERT INTO network_viewers (network_id, user_id, granted_by, created_at, updated_at)
+	VALUES (?, ?, ?, ?, ?)
+	ON CONFLICT(network_id, user_id) DO UPDATE SET
+		granted_by = excluded.granted_by,
+		updated_at = excluded.updated_at`
+
+	var err error
+	if s.tx != nil {
+		_, err = s.tx.Exec(query, viewer.NetworkID, viewer.UserID, viewer.GrantedBy, viewer.CreatedAt, viewer.UpdatedAt)
+	} else {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		_, err = s.db.Exec(query, viewer.NetworkID, viewer.UserID, viewer.GrantedBy, viewer.CreatedAt, viewer.UpdatedAt)
+	}
+	if err != nil {
+		return fmt.Errorf("保存网络查看授权失败: %w", err)
+	}
+	return nil
+}
+
+func (s *SQLiteDB) GetNetworkViewer(networkID, userID string) (*models.NetworkViewer, error) {
+	query := `SELECT network_id, user_id, granted_by, created_at, updated_at FROM network_viewers WHERE network_id = ? AND user_id = ?`
+	var row *sql.Row
+	if s.tx != nil {
+		row = s.tx.QueryRow(query, networkID, userID)
+	} else {
+		s.mu.RLock()
+		defer s.mu.RUnlock()
+		row = s.db.QueryRow(query, networkID, userID)
+	}
+
+	var viewer models.NetworkViewer
+	err := row.Scan(&viewer.NetworkID, &viewer.UserID, &viewer.GrantedBy, &viewer.CreatedAt, &viewer.UpdatedAt)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("查询网络查看授权失败: %w", err)
+	}
+
+	return &viewer, nil
+}
+
+func (s *SQLiteDB) GetNetworkViewers(networkID string) ([]*models.NetworkViewer, error) {
+	query := `SELECT network_id, user_id, granted_by, created_at, updated_at FROM network_viewers WHERE network_id = ? ORDER BY created_at ASC`
+	var (
+		rows *sql.Rows
+		err  error
+	)
+	if s.tx != nil {
+		rows, err = s.tx.Query(query, networkID)
+	} else {
+		s.mu.RLock()
+		defer s.mu.RUnlock()
+		rows, err = s.db.Query(query, networkID)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("查询网络查看授权列表失败: %w", err)
+	}
+	defer rows.Close()
+
+	var viewers []*models.NetworkViewer
+	for rows.Next() {
+		var viewer models.NetworkViewer
+		if err := rows.Scan(&viewer.NetworkID, &viewer.UserID, &viewer.GrantedBy, &viewer.CreatedAt, &viewer.UpdatedAt); err != nil {
+			return nil, fmt.Errorf("扫描网络查看授权数据失败: %w", err)
+		}
+		viewers = append(viewers, &viewer)
+	}
+	return viewers, nil
+}
+
+func (s *SQLiteDB) GetSharedNetworksByUserID(userID string) ([]*models.Network, error) {
+	query := `
+	SELECT networks.id, networks.name, networks.description, networks.owner_id, networks.created_at, networks.updated_at
+	FROM networks
+	JOIN network_viewers ON network_viewers.network_id = networks.id
+	WHERE network_viewers.user_id = ?
+	ORDER BY networks.created_at DESC`
+	var (
+		rows *sql.Rows
+		err  error
+	)
+	if s.tx != nil {
+		rows, err = s.tx.Query(query, userID)
+	} else {
+		s.mu.RLock()
+		defer s.mu.RUnlock()
+		rows, err = s.db.Query(query, userID)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("查询共享网络列表失败: %w", err)
+	}
+	defer rows.Close()
+
+	var networks []*models.Network
+	for rows.Next() {
+		var network models.Network
+		if err := rows.Scan(&network.ID, &network.Name, &network.Description, &network.OwnerID, &network.CreatedAt, &network.UpdatedAt); err != nil {
+			return nil, fmt.Errorf("扫描共享网络数据失败: %w", err)
+		}
+		networks = append(networks, &network)
+	}
+	return networks, nil
+}
+
+func (s *SQLiteDB) DeleteNetworkViewer(networkID, userID string) error {
+	query := `DELETE FROM network_viewers WHERE network_id = ? AND user_id = ?`
+	var err error
+	if s.tx != nil {
+		_, err = s.tx.Exec(query, networkID, userID)
+	} else {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		_, err = s.db.Exec(query, networkID, userID)
+	}
+	if err != nil {
+		return fmt.Errorf("删除网络查看授权失败: %w", err)
+	}
 	return nil
 }
 

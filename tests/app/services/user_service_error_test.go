@@ -74,6 +74,21 @@ func (d *txFailingDB) UpdateNetwork(network *models.Network) error {
 	return d.inner.UpdateNetwork(network)
 }
 func (d *txFailingDB) DeleteNetwork(id string) error { return d.inner.DeleteNetwork(id) }
+func (d *txFailingDB) UpsertNetworkViewer(viewer *models.NetworkViewer) error {
+	return d.inner.UpsertNetworkViewer(viewer)
+}
+func (d *txFailingDB) GetNetworkViewer(networkID, userID string) (*models.NetworkViewer, error) {
+	return d.inner.GetNetworkViewer(networkID, userID)
+}
+func (d *txFailingDB) GetNetworkViewers(networkID string) ([]*models.NetworkViewer, error) {
+	return d.inner.GetNetworkViewers(networkID)
+}
+func (d *txFailingDB) GetSharedNetworksByUserID(userID string) ([]*models.Network, error) {
+	return d.inner.GetSharedNetworksByUserID(userID)
+}
+func (d *txFailingDB) DeleteNetworkViewer(networkID, userID string) error {
+	return d.inner.DeleteNetworkViewer(networkID, userID)
+}
 func (d *txFailingDB) HasAdminUser() (bool, error)   { return d.inner.HasAdminUser() }
 func (d *txFailingDB) Close() error                  { return d.inner.Close() }
 
@@ -385,6 +400,21 @@ func TestUserServiceDeleteUserByAdminTransfersNetworksAndRevokesSessions(t *test
 		UpdatedAt:   now,
 	}
 	require.NoError(t, db.CreateNetwork(network))
+	require.NoError(t, db.CreateNetwork(&models.Network{
+		ID:          "net-2",
+		Name:        "shared-network",
+		Description: "shared network",
+		OwnerID:     admin.ID,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}))
+	require.NoError(t, db.UpsertNetworkViewer(&models.NetworkViewer{
+		NetworkID: "net-2",
+		UserID:    target.ID,
+		GrantedBy: admin.ID,
+		CreatedAt: now,
+		UpdatedAt: now,
+	}))
 
 	session := &models.Session{
 		ID:         "session-1",
@@ -415,6 +445,10 @@ func TestUserServiceDeleteUserByAdminTransfersNetworksAndRevokesSessions(t *test
 	reloadedUser, err := db.GetUserByID(target.ID)
 	require.NoError(t, err)
 	assert.Nil(t, reloadedUser)
+
+	reloadedViewerGrant, err := db.GetNetworkViewer("net-2", target.ID)
+	require.NoError(t, err)
+	assert.Nil(t, reloadedViewerGrant)
 
 	_, err = service.Login(&models.LoginRequest{Username: "alice", Password: "secret123"})
 	require.ErrorIs(t, err, appservices.ErrInvalidCredentials)

@@ -1,9 +1,24 @@
 import { useState, useEffect } from 'react';
-import { Box, Typography, Button, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, CircularProgress, Alert, Modal, TextField, IconButton, Grid, Card, CardContent, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions, Stack } from '@mui/material';
+import { Box, Typography, Button, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, CircularProgress, Alert, Modal, TextField, IconButton, Grid, Card, CardContent, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions, Stack, Chip } from '@mui/material';
 import { Link, useLocation } from 'react-router-dom';
 import { Add, Delete, Close, Refresh } from '@mui/icons-material';
-import { networkAPI, NetworkSummary } from '../services/api';
+import { networkAPI, type NetworkSummary, type SharedNetworkSummary } from '../services/api';
 import { getErrorMessage } from '../services/errors';
+
+type DisplayNetwork = {
+  id: string;
+  name?: string;
+  description?: string;
+  owner_id: string;
+  owner_username?: string;
+  member_count: number;
+  authorized_member_count: number;
+  pending_member_count: number;
+  created_at: string;
+  updated_at: string;
+  readOnly: boolean;
+  detailPath: string;
+}
 
 function getNavigationMessage(state: unknown): string {
   if (!state || typeof state !== 'object' || !('message' in state)) {
@@ -16,11 +31,11 @@ function getNavigationMessage(state: unknown): string {
 
 function Networks() {
   const location = useLocation();
-  const [networks, setNetworks] = useState<NetworkSummary[]>([]);
+  const [networks, setNetworks] = useState<DisplayNetwork[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string>('');
   const [openModal, setOpenModal] = useState<boolean>(false);
-  const [editingNetwork, setEditingNetwork] = useState<NetworkSummary | null>(null);
+  const [editingNetwork, setEditingNetwork] = useState<DisplayNetwork | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     description: ''
@@ -34,20 +49,54 @@ function Networks() {
   const fetchNetworks = async () => {
     setLoading(true);
     try {
-      const response = await networkAPI.getAllNetworks();
-      setNetworks(response.data);
+      const [ownedResult, sharedResult] = await Promise.allSettled([
+        networkAPI.getAllNetworks(),
+        networkAPI.getSharedNetworks(),
+      ])
+
+      if (ownedResult.status !== 'fulfilled') {
+        throw ownedResult.reason
+      }
+
+      const ownedNetworks = Array.isArray(ownedResult.value.data) ? ownedResult.value.data : []
+      const sharedNetworks = sharedResult.status === 'fulfilled' && Array.isArray(sharedResult.value.data)
+        ? sharedResult.value.data
+        : []
+
+      setNetworks([
+        ...ownedNetworks.map((network: NetworkSummary): DisplayNetwork => ({
+          ...network,
+          readOnly: false,
+          detailPath: `/networks/${network.id}`,
+        })),
+        ...sharedNetworks.map((network: SharedNetworkSummary): DisplayNetwork => ({
+          ...network,
+          readOnly: true,
+          detailPath: `/networks/shared/${network.id}`,
+        })),
+      ])
+      if (sharedResult.status !== 'fulfilled') {
+        setError('共享给我的网络暂时无法加载，当前仅显示您拥有的网络')
+      } else {
+        setError('')
+      }
     } catch (err: unknown) {
-      setError(getErrorMessage(err, '获取网络列表失败'));
+      setError(getErrorMessage(err, '获取网络列表失败'))
+      setNetworks([])
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
   useEffect(() => {
-    void fetchNetworks();
-  }, []);
+    void fetchNetworks()
+  }, [])
 
-  const handleOpenModal = (network: NetworkSummary | null = null) => {
+  const handleOpenModal = (network: DisplayNetwork | null = null) => {
+    if (network?.readOnly) {
+      return
+    }
+
     setEditingNetwork(network);
     if (network) {
       setFormData({
@@ -61,7 +110,7 @@ function Networks() {
       });
     }
     setOpenModal(true);
-  };
+  }
 
   const handleCloseModal = () => {
     setOpenModal(false);
@@ -70,15 +119,15 @@ function Networks() {
       name: '',
       description: ''
     });
-  };
+  }
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
       [name]: value
-    }));
-  };
+    }))
+  }
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -95,54 +144,54 @@ function Networks() {
         });
       }
       handleCloseModal();
-      void fetchNetworks();
+      void fetchNetworks()
     } catch (err: unknown) {
-      setError(getErrorMessage(err, editingNetwork ? '更新网络失败' : '创建网络失败'));
+      setError(getErrorMessage(err, editingNetwork ? '更新网络失败' : '创建网络失败'))
     }
-  };
+  }
 
   const handleDeleteClick = (networkId: string, networkName: string) => {
     setDeletingNetworkId(networkId);
     setDeletingNetworkName(networkName);
     setDeleteDialogOpen(true);
-  };
+  }
 
   const handleDeleteConfirm = async () => {
     if (!deletingNetworkId) return;
     try {
       await networkAPI.deleteNetwork(deletingNetworkId);
-      void fetchNetworks();
-      setDeleteDialogOpen(false);
-      setDeletingNetworkId(null);
-      setDeletingNetworkName('');
+      void fetchNetworks()
+      setDeleteDialogOpen(false)
+      setDeletingNetworkId(null)
+      setDeletingNetworkName('')
     } catch (err: unknown) {
-      setError(getErrorMessage(err, '删除网络失败'));
+      setError(getErrorMessage(err, '删除网络失败'))
     }
-  };
+  }
 
   const handleDeleteCancel = () => {
-    setDeleteDialogOpen(false);
-    setDeletingNetworkId(null);
-    setDeletingNetworkName('');
-  };
+    setDeleteDialogOpen(false)
+    setDeletingNetworkId(null)
+    setDeletingNetworkName('')
+  }
 
   const getFilteredNetworks = () => {
-    return networks.filter(network => {
+    return networks.filter((network) => {
       const matchesSearch = searchQuery === '' ||
         (network.name && network.name.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        (network.id && network.id.toLowerCase().includes(searchQuery.toLowerCase()));
+        (network.id && network.id.toLowerCase().includes(searchQuery.toLowerCase()))
 
-      return matchesSearch;
-    });
-  };
+      return matchesSearch
+    })
+  }
 
-  const totalNetworks = networks.length;
-  const totalAuthorizedMembers = networks.reduce((sum, network) => sum + (network.authorized_member_count || 0), 0);
-  const totalPendingMembers = networks.reduce((sum, network) => sum + (network.pending_member_count || 0), 0);
-  const filteredNetworks = getFilteredNetworks();
-  const isSearchMode = searchQuery.trim() !== '';
-  const isEmptyState = !loading && networks.length === 0;
-  const isSearchEmptyState = !loading && networks.length > 0 && filteredNetworks.length === 0;
+  const totalNetworks = networks.length
+  const ownedNetworksCount = networks.filter((network) => !network.readOnly).length
+  const readOnlyNetworksCount = networks.filter((network) => network.readOnly).length
+  const filteredNetworks = getFilteredNetworks()
+  const isSearchMode = searchQuery.trim() !== ''
+  const isEmptyState = !loading && networks.length === 0
+  const isSearchEmptyState = !loading && networks.length > 0 && filteredNetworks.length === 0
 
   return (
     <Box sx={{ p: 3 }}>
@@ -192,10 +241,10 @@ function Networks() {
             <Card sx={{ height: '100%', backgroundColor: '#2c3e50', display: 'flex', flexDirection: 'column' }}>
               <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
                 <Typography variant="h6" color="text.secondary" gutterBottom>
-                  已认证设备数
+                  我拥有
                 </Typography>
                 <Typography variant="h4">
-                  {totalAuthorizedMembers}
+                  {ownedNetworksCount}
                 </Typography>
               </CardContent>
             </Card>
@@ -204,10 +253,10 @@ function Networks() {
             <Card sx={{ height: '100%', backgroundColor: '#2c3e50', display: 'flex', flexDirection: 'column' }}>
               <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
                 <Typography variant="h6" color="text.secondary" gutterBottom>
-                  待认证设备数
+                  共享给我
                 </Typography>
                 <Typography variant="h4">
-                  {totalPendingMembers}
+                  {readOnlyNetworksCount}
                 </Typography>
               </CardContent>
             </Card>
@@ -281,7 +330,24 @@ function Networks() {
                   {filteredNetworks.map((network) => (
                     <TableRow key={network.id}>
                       <TableCell component="th" scope="row">
-                        {network.name || '未命名网络'}
+                        <Stack direction="row" spacing={1} alignItems="center" useFlexGap flexWrap="wrap">
+                          <Typography variant="body1">
+                            {network.name || '未命名网络'}
+                          </Typography>
+                          {network.readOnly && (
+                            <Chip label="只读" size="small" color="default" variant="outlined" />
+                          )}
+                        </Stack>
+                        {network.description ? (
+                          <Typography variant="body2" color="text.secondary">
+                            {network.description}
+                          </Typography>
+                        ) : null}
+                        {network.readOnly && network.owner_username ? (
+                          <Typography variant="body2" color="text.secondary">
+                            共享来源：{network.owner_username}
+                          </Typography>
+                        ) : null}
                       </TableCell>
                       <TableCell>{network.id}</TableCell>
                       <TableCell>
@@ -294,21 +360,23 @@ function Networks() {
                         <Box sx={{ display: 'flex', gap: 1 }}>
                           <Button
                             component={Link}
-                            to={`/networks/${network.id}`}
+                            to={network.detailPath}
                             variant="outlined"
                             size="small"
                           >
-                            详情
+                            {network.readOnly ? '查看设备' : '详情'}
                           </Button>
-                          <Button
-                            variant="outlined"
-                            size="small"
-                            color="error"
-                            startIcon={<Delete />}
-                            onClick={() => handleDeleteClick(network.id, network.name || '未命名网络')}
-                          >
-                            删除
-                          </Button>
+                          {!network.readOnly && (
+                            <Button
+                              variant="outlined"
+                              size="small"
+                              color="error"
+                              startIcon={<Delete />}
+                              onClick={() => handleDeleteClick(network.id, network.name || '未命名网络')}
+                            >
+                              删除
+                            </Button>
+                          )}
                         </Box>
                       </TableCell>
                     </TableRow>
