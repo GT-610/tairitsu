@@ -333,6 +333,9 @@ func (h *NetworkHandler) DeleteNetworkViewer(c fiber.Ctx) error {
 	if authErr != nil {
 		return authErr
 	}
+	if targetUserID == "" {
+		return writeErrorResponse(c, fiber.StatusBadRequest, "必须指定用户")
+	}
 
 	if err := h.networkService.RevokeNetworkViewer(networkID, targetUserID, userID); err != nil {
 		return writeNetworkServiceError(c, err, "网络不存在", "无权限管理网络查看授权")

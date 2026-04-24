@@ -5,6 +5,7 @@ import (
 
 	"github.com/GT-610/tairitsu/internal/app/models"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // GormDB 是基于GORM的数据库实现
@@ -179,7 +180,13 @@ func (g *GormDB) DeleteNetwork(id string) error {
 }
 
 func (g *GormDB) UpsertNetworkViewer(viewer *models.NetworkViewer) error {
-	return g.db.Save(viewer).Error
+	return g.db.Clauses(clause.OnConflict{
+		Columns: []clause.Column{
+			{Name: "network_id"},
+			{Name: "user_id"},
+		},
+		DoUpdates: clause.AssignmentColumns([]string{"granted_by", "updated_at"}),
+	}).Create(viewer).Error
 }
 
 func (g *GormDB) GetNetworkViewer(networkID, userID string) (*models.NetworkViewer, error) {
@@ -196,7 +203,7 @@ func (g *GormDB) GetNetworkViewer(networkID, userID string) (*models.NetworkView
 
 func (g *GormDB) GetNetworkViewers(networkID string) ([]*models.NetworkViewer, error) {
 	var viewers []*models.NetworkViewer
-	result := g.db.Where("network_id = ?", networkID).Find(&viewers)
+	result := g.db.Where("network_id = ?", networkID).Order("created_at ASC").Find(&viewers)
 	if result.Error != nil {
 		return nil, result.Error
 	}

@@ -1,34 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Alert, Box, Button, CircularProgress, IconButton, Typography } from '@mui/material'
+import { Alert, Box, Button, CircularProgress, IconButton, Snackbar, Typography } from '@mui/material'
 import { ArrowBack, ContentCopy } from '@mui/icons-material'
 import { Link, useParams } from 'react-router-dom'
-import { memberAPI, networkAPI, type Member as ApiMember, type SharedNetworkSummary } from '../services/api'
+import { Alert as MuiAlert } from '@mui/material'
+import { memberAPI, networkAPI, type SharedNetworkSummary } from '../services/api'
 import { getErrorMessage } from '../services/errors'
 import NetworkMembersSection from '../components/network-detail/NetworkMembersSection'
 import type { NetworkMemberDevice } from '../components/network-detail/types'
-
-function formatNetworkMember(member: ApiMember): NetworkMemberDevice {
-  return {
-    id: member.id || '',
-    name: member.name || member.id || '未命名设备',
-    description: member.description || '',
-    authorized: member.config?.authorized ?? member.authorized ?? false,
-    ipAssignments: member.config?.ipAssignments ?? member.ipAssignments ?? [],
-    clientVersion: member.clientVersion || 'unknown',
-    address: member.address || '',
-    identity: member.identity || '',
-    online: member.online ?? false,
-    creationTime: member.creationTime,
-    tags: member.tags ?? [],
-    capabilities: member.capabilities ?? [],
-    peerVersion: member.peerVersion || '',
-    peerRole: member.peerRole || '',
-    peerLatency: member.peerLatency,
-    preferredPath: member.preferredPath || '',
-    activeBridge: member.config?.activeBridge ?? member.activeBridge ?? false,
-    noAutoAssignIps: member.config?.noAutoAssignIps ?? member.noAutoAssignIps ?? false,
-  }
-}
+import { formatNetworkMember } from '../utils/memberUtils'
 
 function SharedNetworkMembers() {
   const { id } = useParams<{ id: string }>()
@@ -37,6 +16,11 @@ function SharedNetworkMembers() {
   const [memberSearchTerm, setMemberSearchTerm] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
+    open: false,
+    message: '',
+    severity: 'success',
+  })
 
   useEffect(() => {
     void fetchSharedNetwork()
@@ -85,6 +69,7 @@ function SharedNetworkMembers() {
     if (!network?.id) return
     try {
       await navigator.clipboard.writeText(network.id)
+      setSnackbar({ open: true, message: '网络 ID 已复制', severity: 'success' })
     } catch {
       setError('复制网络 ID 失败')
     }
@@ -155,6 +140,22 @@ function SharedNetworkMembers() {
           readOnly
         />
       )}
+
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={3000}
+        onClose={() => setSnackbar((previous) => ({ ...previous, open: false }))}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        <MuiAlert
+          onClose={() => setSnackbar((previous) => ({ ...previous, open: false }))}
+          severity={snackbar.severity}
+          variant="filled"
+          sx={{ width: '100%' }}
+        >
+          {snackbar.message}
+        </MuiAlert>
+      </Snackbar>
     </Box>
   )
 }

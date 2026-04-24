@@ -83,6 +83,10 @@ function Networks() {
   }, [])
 
   const handleOpenModal = (network: DisplayNetwork | null = null) => {
+    if (network?.readOnly) {
+      return
+    }
+
     setEditingNetwork(network);
     if (network) {
       setFormData({

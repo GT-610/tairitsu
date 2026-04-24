@@ -34,6 +34,9 @@ function NetworkMembersSection({
   onOpenMemberMenu,
   readOnly = false,
 }: NetworkMembersSectionProps) {
+  const showAction = !readOnly && Boolean(onOpenMemberMenu)
+  const handleOpenMemberMenu = onOpenMemberMenu
+
   return (
     <>
       {pendingMembers.length > 0 && !hidePendingBanner && !readOnly && (
@@ -121,13 +124,13 @@ function NetworkMembersSection({
                 <TableCell>状态</TableCell>
                 <TableCell>Managed IPs</TableCell>
                 <TableCell>ZT 版本</TableCell>
-                {!readOnly && <TableCell align="right">操作</TableCell>}
+                {showAction && <TableCell align="right">操作</TableCell>}
               </TableRow>
             </TableHead>
             <TableBody>
               {filteredMembers.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={readOnly ? 5 : 6} align="center" sx={{ py: 5, color: 'text.secondary' }}>
+                  <TableCell colSpan={showAction ? 6 : 5} align="center" sx={{ py: 5, color: 'text.secondary' }}>
                     {memberSearchTerm ? '没有找到匹配的成员设备' : '暂无设备连接'}
                   </TableCell>
                 </TableRow>
@@ -146,9 +149,9 @@ function NetworkMembersSection({
                     </TableCell>
                     <TableCell>{member.ipAssignments.length > 0 ? member.ipAssignments.join(', ') : '-'}</TableCell>
                     <TableCell>{member.clientVersion}</TableCell>
-                    {!readOnly && onOpenMemberMenu && (
+                    {showAction && (
                       <TableCell align="right">
-                        <IconButton onClick={(event) => onOpenMemberMenu(event, member)}>
+                        <IconButton onClick={(event) => handleOpenMemberMenu?.(event, member)}>
                           <MoreHoriz />
                         </IconButton>
                       </TableCell>

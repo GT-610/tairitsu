@@ -23,7 +23,6 @@ import { ArrowBack, ContentCopy } from '@mui/icons-material'
 import { Link, useParams } from 'react-router-dom'
 import {
   type IpAssignmentPool,
-  type Member as ApiMember,
   type Network,
   type NetworkConfig,
   type NetworkMetadataUpdateRequest,
@@ -78,6 +77,7 @@ import {
   getManagedRouteIssue,
   isValidDnsServer,
 } from '../utils/networkValidation'
+import { formatNetworkMember } from '../utils/memberUtils'
 
 const defaultNetworkConfig: Partial<NetworkConfig> = {
   private: true,
@@ -128,31 +128,6 @@ const emptyMemberForm: MemberFormState = {
 
 function generateRandomIPv4Subnet(): string {
   return `10.${Math.floor(Math.random() * 256)}.${Math.floor(Math.random() * 256)}.0/24`
-}
-
-function formatNetworkMember(member: ApiMember): NetworkMemberDevice {
-  const memberID = member.id || ''
-
-  return {
-    id: memberID,
-    name: member.name || member.id || '未命名设备',
-    description: member.description || '',
-    authorized: member.config?.authorized ?? member.authorized ?? false,
-    ipAssignments: member.config?.ipAssignments ?? member.ipAssignments ?? [],
-    clientVersion: member.clientVersion || 'unknown',
-    address: member.address || '',
-    identity: member.identity || '',
-    online: member.online ?? false,
-    creationTime: member.creationTime,
-    tags: member.tags ?? [],
-    capabilities: member.capabilities ?? [],
-    peerVersion: member.peerVersion || '',
-    peerRole: member.peerRole || '',
-    peerLatency: member.peerLatency,
-    preferredPath: member.preferredPath || '',
-    activeBridge: member.config?.activeBridge ?? member.activeBridge ?? false,
-    noAutoAssignIps: member.config?.noAutoAssignIps ?? member.noAutoAssignIps ?? false,
-  }
 }
 
 function NetworkDetail() {
@@ -215,12 +190,17 @@ function NetworkDetail() {
         throw new Error('网络ID不能为空')
       }
 
-      const response = await networkAPI.getNetwork(id)
-      const [networkData, viewersResponse, viewerCandidatesResponse] = await Promise.all([
-        Promise.resolve(response.data),
-        networkAPI.getNetworkViewers(id),
-        networkAPI.getNetworkViewerCandidates(id),
-      ]).then(([detail, viewers, candidates]) => [detail, viewers.data, candidates.data] as const)
+      const networkPromise = networkAPI.getNetwork(id)
+      const viewersPromise = networkAPI.getNetworkViewers(id)
+      const viewerCandidatesPromise = networkAPI.getNetworkViewerCandidates(id)
+      const [networkResponse, viewersResponse, viewerCandidatesResponse] = await Promise.all([
+        networkPromise,
+        viewersPromise,
+        viewerCandidatesPromise,
+      ])
+      const networkData = networkResponse.data
+      const viewersData = viewersResponse.data
+      const viewerCandidatesData = viewerCandidatesResponse.data
       if (!networkData) return
 
       networkData.config = { ...defaultNetworkConfig, ...networkData.config }
@@ -252,10 +232,14 @@ function NetworkDetail() {
       setDnsSettings(nextDns)
       setInitialMulticastSettings(nextMulticast)
       setMulticastSettings(nextMulticast)
-      setNetworkViewers(Array.isArray(viewersResponse) ? viewersResponse : [])
-      const nextViewerCandidates = Array.isArray(viewerCandidatesResponse) ? viewerCandidatesResponse : []
+      setNetworkViewers(Array.isArray(viewersData) ? viewersData : [])
+      const nextViewerCandidates = Array.isArray(viewerCandidatesData) ? viewerCandidatesData : []
       setViewerCandidates(nextViewerCandidates)
-      setSelectedViewerCandidateId((previous) => previous || nextViewerCandidates[0]?.id || '')
+      setSelectedViewerCandidateId((previous) => (
+        nextViewerCandidates.some((candidate) => candidate.id === previous)
+          ? previous
+          : nextViewerCandidates[0]?.id || ''
+      ))
       setHidePendingBanner(false)
       setError('')
     } catch (err: unknown) {

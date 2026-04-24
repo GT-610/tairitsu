@@ -41,10 +41,6 @@ func (s *NetworkService) authorizeOwnedNetwork(networkID, userID string) (*model
 	return s.getOwnedNetwork(networkID, userID)
 }
 
-func (s *NetworkService) authorizeMemberAccess(networkID, userID string) (*models.Network, error) {
-	return s.authorizeMemberReadAccess(networkID, userID)
-}
-
 func (s *NetworkService) authorizeMemberReadAccess(networkID, userID string) (*models.Network, error) {
 	network, err := s.getOwnedNetwork(networkID, userID)
 	if err == nil {
