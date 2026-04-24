@@ -370,14 +370,14 @@ function PlanetGenerator() {
         <Box key={endpoint.id} sx={{ display: 'flex', gap: 1, alignItems: 'flex-start' }}>
           <TextField
             label={`端点 ${index + 1}`}
-            placeholder="IP/Port，例如：203.0.113.1/9993"
+            placeholder="IP/Port，例如：198.51.100.10/9993"
             value={endpoint.value}
             onChange={(event) => onChange(endpoint.id, event.target.value)}
             fullWidth
             error={Boolean(endpoint.value.trim()) && validatePlanetEndpointValue(endpoint.value) !== null}
             helperText={endpoint.value.trim()
               ? validatePlanetEndpointValue(endpoint.value) ?? '该地址会作为 stable endpoint 写入 planet'
-              : '格式：IP/Port。IPv4 示例：203.0.113.1/9993；IPv6 示例：2001:db8::1/9993'}
+              : '格式：IP/Port。IPv4 示例：198.51.100.10/9993；IPv6 示例：2001:db8:100::10/9993'}
             disabled={disabled}
           />
           {endpointDrafts.length > 1 && (
@@ -419,7 +419,7 @@ function PlanetGenerator() {
             身份加载
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            默认模式会从给定目录读取一个 `identity.public`，并将其作为单 root node 的 identity。
+            默认模式会从给定目录读取一个 `identity.public`，并将其作为单个根节点的身份。
           </Typography>
 
           {identityMessage && (
@@ -492,7 +492,7 @@ function PlanetGenerator() {
                     <Typography variant="body2" color="text.secondary">
                       Root 模式
                     </Typography>
-                    <Typography variant="body1">单 root node</Typography>
+                    <Typography variant="body1">单个根节点</Typography>
                   </Box>
                 </Box>
               )}
@@ -513,8 +513,8 @@ function PlanetGenerator() {
             value={comments}
             onChange={(event) => setComments(event.target.value)}
             sx={{ mb: 2 }}
-            placeholder="例如：Primary root node"
-            helperText="默认模式下，这会作为当前 root node 的注释信息"
+            placeholder="例如：主根节点"
+            helperText="默认模式下，这会作为当前根节点的备注"
             disabled={generating}
           />
 
@@ -522,7 +522,7 @@ function PlanetGenerator() {
             端点列表
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Stable endpoint 使用 `IP/Port` 格式，用于告诉其他节点如何找到这个 root node。
+            Stable endpoint 使用 `IP/Port` 格式，用于告诉其他节点如何找到这个根节点。
           </Typography>
 
           {renderEndpointFields(
@@ -549,14 +549,14 @@ function PlanetGenerator() {
           <Box>
             <Typography variant="h6">高级模式</Typography>
             <Typography variant="body2" color="text.secondary">
-              补全多 root node、手工元数据和自定义 signing keys，但默认主流程仍保持简洁。
+              需要配置多个根节点或自定义生成参数时，可在这里完成更细的设置。
             </Typography>
           </Box>
         </AccordionSummary>
         <AccordionDetails>
           <Stack spacing={3}>
             <Alert severity="info">
-              启用高级模式后，将以高级配置区作为唯一提交真相。默认主流程中的 identity、comments 和 endpoints 会自动带入第一个 root node。
+              打开后，页面会把上方已填写的身份、备注和端点带入第一个根节点，您可以继续补充其他节点和参数。
             </Alert>
 
             <Card variant="outlined">
@@ -691,7 +691,7 @@ function PlanetGenerator() {
                   <Box>
                     <Typography variant="h6">Root Nodes</Typography>
                     <Typography variant="body2" color="text.secondary">
-                      每个 root node 都可选择“从目录读取 identity.public”或“手工粘贴 identity.public”。
+                      每个根节点都可选择“从目录读取 identity.public”或“手工粘贴 identity.public”。
                     </Typography>
                   </Box>
                   <Button startIcon={<AddIcon />} onClick={addRootNode} disabled={generating}>
@@ -774,7 +774,7 @@ function PlanetGenerator() {
                               placeholder="格式：10hexdigits:0:publicKey"
                               helperText={rootNode.identityPublic.trim()
                                 ? rootIdentitySummary
-                                  ? '该 identity.public 将作为此 root node 的 identity'
+                                  ? '该 identity.public 将作为此根节点的身份'
                                   : 'identity.public 格式无效'
                                 : '可读取后自动填入，也可直接手工粘贴'}
                               error={Boolean(rootNode.identityPublic.trim()) && !rootIdentitySummary}
@@ -786,7 +786,7 @@ function PlanetGenerator() {
                               fullWidth
                               value={rootNode.comments}
                               onChange={(event) => updateRootNode(rootNode.id, (item) => ({ ...item, comments: event.target.value }))}
-                              helperText="用于标识该 root node 的注释信息"
+                              helperText="用于标识此根节点的备注信息"
                               disabled={generating}
                             />
 
