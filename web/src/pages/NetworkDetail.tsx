@@ -78,6 +78,7 @@ import {
   isValidDnsServer,
 } from '../utils/networkValidation'
 import { formatNetworkMember } from '../utils/memberUtils'
+import { useTranslation } from '../i18n'
 
 const defaultNetworkConfig: Partial<NetworkConfig> = {
   private: true,
@@ -131,6 +132,7 @@ function generateRandomIPv4Subnet(): string {
 }
 
 function NetworkDetail() {
+  const { translateText } = useTranslation()
   const { id } = useParams<{ id: string }>()
   const [network, setNetwork] = useState<Network | null>(null)
   const [loading, setLoading] = useState(true)
@@ -187,7 +189,7 @@ function NetworkDetail() {
     setLoading(true)
     try {
       if (!id) {
-        throw new Error('网络ID不能为空')
+        throw new Error(translateText('网络ID不能为空'))
       }
 
       const [networkResponse, viewersResult, viewerCandidatesResult] = await Promise.allSettled([
@@ -247,7 +249,7 @@ function NetworkDetail() {
       setHidePendingBanner(false)
       setError('')
     } catch (err: unknown) {
-      setError(getErrorMessage(err, '获取网络详情失败'))
+      setError(getErrorMessage(err, translateText('获取网络详情失败')))
     } finally {
       setLoading(false)
     }
@@ -303,7 +305,7 @@ function NetworkDetail() {
       showSnackbar(authorized ? '设备授权成功' : '设备已拒绝')
       await fetchNetworkDetail()
     } catch (err: unknown) {
-      showSnackbar(getErrorMessage(err, authorized ? '设备授权失败' : '设备拒绝失败'), 'error')
+      showSnackbar(getErrorMessage(err, translateText(authorized ? '设备授权失败' : '设备拒绝失败')), 'error')
     } finally {
       setSaving(false)
       closeMemberMenu()
@@ -325,7 +327,7 @@ function NetworkDetail() {
       setMemberDialogOpen(false)
       await fetchNetworkDetail()
     } catch (err: unknown) {
-      showSnackbar(getErrorMessage(err, '更新成员失败'), 'error')
+      showSnackbar(getErrorMessage(err, translateText('更新成员失败')), 'error')
     } finally {
       setSaving(false)
     }
@@ -341,7 +343,7 @@ function NetworkDetail() {
       closeMemberMenu()
       await fetchNetworkDetail()
     } catch (err: unknown) {
-      showSnackbar(getErrorMessage(err, '移除成员失败'), 'error')
+      showSnackbar(getErrorMessage(err, translateText('移除成员失败')), 'error')
     } finally {
       setSaving(false)
     }
@@ -379,7 +381,7 @@ function NetworkDetail() {
       showSnackbar('名称和描述保存成功')
       scheduleRefetch()
     } catch (err: unknown) {
-      showSnackbar(getErrorMessage(err, '保存失败'), 'error')
+      showSnackbar(getErrorMessage(err, translateText('保存失败')), 'error')
     } finally {
       setSaving(false)
     }
@@ -395,7 +397,7 @@ function NetworkDetail() {
         window.location.href = '/networks'
       }, 1000)
     } catch (err: unknown) {
-      showSnackbar(getErrorMessage(err, '删除失败'), 'error')
+      showSnackbar(getErrorMessage(err, translateText('删除失败')), 'error')
     } finally {
       setSaving(false)
       setDeleteDialogOpen(false)
@@ -430,7 +432,7 @@ function NetworkDetail() {
       showSnackbar('IPv4配置保存成功')
       scheduleRefetch()
     } catch (err: unknown) {
-      showSnackbar(getErrorMessage(err, '保存失败'), 'error')
+      showSnackbar(getErrorMessage(err, translateText('保存失败')), 'error')
     } finally {
       setSaving(false)
     }
@@ -468,7 +470,7 @@ function NetworkDetail() {
       showSnackbar('IPv6配置保存成功')
       scheduleRefetch()
     } catch (err: unknown) {
-      showSnackbar(getErrorMessage(err, '保存失败'), 'error')
+      showSnackbar(getErrorMessage(err, translateText('保存失败')), 'error')
     } finally {
       setSaving(false)
     }
@@ -490,7 +492,7 @@ function NetworkDetail() {
       showSnackbar('托管路由保存成功')
       scheduleRefetch()
     } catch (err: unknown) {
-      showSnackbar(getErrorMessage(err, '保存失败'), 'error')
+      showSnackbar(getErrorMessage(err, translateText('保存失败')), 'error')
     } finally {
       setSaving(false)
     }
@@ -509,7 +511,7 @@ function NetworkDetail() {
       showSnackbar('DNS 设置保存成功')
       scheduleRefetch()
     } catch (err: unknown) {
-      showSnackbar(getErrorMessage(err, '保存失败'), 'error')
+      showSnackbar(getErrorMessage(err, translateText('保存失败')), 'error')
     } finally {
       setSaving(false)
     }
@@ -526,7 +528,7 @@ function NetworkDetail() {
       showSnackbar('多播设置保存成功')
       scheduleRefetch()
     } catch (err: unknown) {
-      showSnackbar(getErrorMessage(err, '保存失败'), 'error')
+      showSnackbar(getErrorMessage(err, translateText('保存失败')), 'error')
     } finally {
       setSaving(false)
     }
@@ -650,7 +652,7 @@ function NetworkDetail() {
       showSnackbar('只读查看权限已授予')
       await fetchNetworkDetail()
     } catch (err: unknown) {
-      showSnackbar(getErrorMessage(err, '授予只读查看权限失败'), 'error')
+      showSnackbar(getErrorMessage(err, translateText('授予只读查看权限失败')), 'error')
     } finally {
       setSaving(false)
     }
@@ -664,7 +666,7 @@ function NetworkDetail() {
       showSnackbar('只读查看权限已移除')
       await fetchNetworkDetail()
     } catch (err: unknown) {
-      showSnackbar(getErrorMessage(err, '移除只读查看权限失败'), 'error')
+      showSnackbar(getErrorMessage(err, translateText('移除只读查看权限失败')), 'error')
     } finally {
       setSaving(false)
     }
@@ -674,10 +676,10 @@ function NetworkDetail() {
     return (
       <Box sx={{ p: 3 }}>
         <Alert severity="error" sx={{ mb: 3 }}>
-          {error || '网络不存在'}
+          {translateText(error || '网络不存在')}
         </Alert>
         <Button variant="contained" component={Link} to="/networks">
-          返回网络列表
+          {translateText('返回网络列表')}
         </Button>
       </Box>
     )
@@ -696,7 +698,7 @@ function NetworkDetail() {
         </Box>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <Typography variant="body1" color="text.secondary">
-            网络ID: {network?.id}
+            {translateText('网络ID:')}{network?.id}
           </Typography>
           <IconButton size="small" onClick={() => { void handleCopyNetworkID() }}>
             <ContentCopy />
@@ -706,8 +708,8 @@ function NetworkDetail() {
 
       <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
         <Tabs value={activeTab} onChange={handleTabChange} aria-label="network tabs">
-          <Tab label="成员设备" />
-          <Tab label="设置" />
+          <Tab label={translateText('成员设备')} />
+          <Tab label={translateText('设置')} />
         </Tabs>
       </Box>
 
@@ -736,12 +738,12 @@ function NetworkDetail() {
 
               <SettingsSectionCard title="只读查看授权">
                 <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                  这里可以授予普通用户只读查看该网络成员设备的权限。被授权用户只能查看设备和元信息，不能修改任何内容。
+                  {translateText('这里可以授予普通用户只读查看该网络成员设备的权限。被授权用户只能查看设备和元信息，不能修改任何内容。')}
                 </Typography>
                 <Box sx={{ display: 'flex', gap: 2, mb: 3, flexWrap: 'wrap', alignItems: 'center' }}>
                   <TextField
                     select
-                    label="选择用户"
+                    label={translateText('选择用户')}
                     value={selectedViewerCandidateId}
                     onChange={(event) => setSelectedViewerCandidateId(event.target.value)}
                     sx={{ minWidth: 260 }}
@@ -759,13 +761,13 @@ function NetworkDetail() {
                     onClick={() => { void handleAddViewer() }}
                     disabled={saving || !selectedViewerCandidateId}
                   >
-                    授予只读查看
+                    {translateText('授予只读查看')}
                   </Button>
                 </Box>
 
                 {networkViewers.length === 0 ? (
                   <Typography variant="body2" color="text.secondary">
-                    当前还没有被授予只读查看权限的用户。
+                    {translateText('当前还没有被授予只读查看权限的用户。')}
                   </Typography>
                 ) : (
                   <Box sx={{ display: 'grid', gap: 1.5 }}>
@@ -786,7 +788,7 @@ function NetworkDetail() {
                         <Box>
                           <Typography variant="body1">{viewer.username}</Typography>
                           <Typography variant="body2" color="text.secondary">
-                            授权时间：{viewer.created_at ? new Date(viewer.created_at).toLocaleString() : '-'}
+                            {translateText('授权时间：')}{viewer.created_at ? new Date(viewer.created_at).toLocaleString() : '-'}
                           </Typography>
                         </Box>
                         <Button
@@ -796,7 +798,7 @@ function NetworkDetail() {
                           onClick={() => { void handleRemoveViewer(viewer.id) }}
                           disabled={saving}
                         >
-                          移除权限
+                          {translateText('移除权限')}
                         </Button>
                       </Box>
                     ))}
@@ -903,24 +905,24 @@ function NetworkDetail() {
 
               <SettingsSectionCard title="删除网络">
                 <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                  此操作不可恢复。删除网络将断开所有连接的设备，并永久删除网络配置。
+                  {translateText('此操作不可恢复。删除网络将断开所有连接的设备，并永久删除网络配置。')}
                 </Typography>
                 <Button variant="contained" color="error" size="large" onClick={() => setDeleteDialogOpen(true)}>
-                  删除网络
+                  {translateText('删除网络')}
                 </Button>
               </SettingsSectionCard>
 
               <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>
-                <DialogTitle>确认删除网络</DialogTitle>
+                <DialogTitle>{translateText('确认删除网络')}</DialogTitle>
                 <DialogContent>
                   <DialogContentText>
-                    您确定要删除网络 "{network?.name}" 吗？此操作不可恢复，将永久删除该网络及其所有配置。
+                    {translateText('您确定要删除网络')} "{network?.name}" {translateText('吗？此操作不可恢复，将永久删除该网络及其所有配置。')}
                   </DialogContentText>
                 </DialogContent>
                 <DialogActions>
-                  <Button onClick={() => setDeleteDialogOpen(false)} color="primary">取消</Button>
+                  <Button onClick={() => setDeleteDialogOpen(false)} color="primary">{translateText('取消')}</Button>
                   <Button onClick={() => { void handleDeleteNetwork() }} color="error" autoFocus disabled={saving}>
-                    {saving ? '删除中...' : '确认删除'}
+                    {saving ? translateText('删除中...') : translateText('确认删除')}
                   </Button>
                 </DialogActions>
               </Dialog>
@@ -930,15 +932,15 @@ function NetworkDetail() {
       )}
 
       <Menu anchorEl={memberMenuAnchor} open={Boolean(memberMenuAnchor)} onClose={closeMemberMenu}>
-        <MenuItem onClick={handleOpenEditMember}>编辑成员</MenuItem>
+        <MenuItem onClick={handleOpenEditMember}>{translateText('编辑成员')}</MenuItem>
         {selectedMember && !selectedMember.authorized && (
           <MenuItem onClick={() => { void handleUpdateMemberStatus(selectedMember, true) }}>
-            授权
+            {translateText('授权')}
           </MenuItem>
         )}
         {selectedMember && (
           <MenuItem onClick={() => { void handleUpdateMemberStatus(selectedMember, false) }}>
-            拒绝设备
+            {translateText('拒绝设备')}
           </MenuItem>
         )}
         <MenuItem
@@ -948,7 +950,7 @@ function NetworkDetail() {
           }}
           sx={{ color: 'error.main' }}
         >
-          移除成员
+          {translateText('移除成员')}
         </MenuItem>
       </Menu>
 
@@ -978,7 +980,7 @@ function NetworkDetail() {
         anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
       >
         <MuiAlert onClose={handleCloseSnackbar} severity={snackbar.severity} variant="filled" sx={{ width: '100%' }}>
-          {snackbar.message}
+          {translateText(snackbar.message)}
         </MuiAlert>
       </Snackbar>
     </Box>

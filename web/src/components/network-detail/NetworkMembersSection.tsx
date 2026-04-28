@@ -2,6 +2,7 @@ import { MoreHoriz } from '@mui/icons-material'
 import { Alert, Box, Button, Card, CardContent, Chip, Grid, IconButton, Paper, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Typography } from '@mui/material'
 import type { MouseEvent } from 'react'
 import type { NetworkMemberDevice } from './types'
+import { useTranslation } from '../../i18n'
 
 interface NetworkMembersSectionProps {
   memberDevices: NetworkMemberDevice[];
@@ -34,6 +35,7 @@ function NetworkMembersSection({
   onOpenMemberMenu,
   readOnly = false,
 }: NetworkMembersSectionProps) {
+  const { translateText } = useTranslation()
   const showAction = !readOnly && Boolean(onOpenMemberMenu)
   const handleOpenMemberMenu = onOpenMemberMenu
 
@@ -46,18 +48,18 @@ function NetworkMembersSection({
           action={(
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
               <Button color="inherit" variant="outlined" size="small" disabled={saving} onClick={onQuickApprove}>
-                授权第一个待审批成员
+                {translateText('授权第一个待审批成员')}
               </Button>
               <Button color="inherit" variant="text" size="small" disabled={saving} onClick={onQuickReject}>
-                拒绝第一个待审批成员
+                {translateText('拒绝第一个待审批成员')}
               </Button>
               <Button color="inherit" size="small" onClick={onHidePendingBanner}>
-                关闭
+                {translateText('关闭')}
               </Button>
             </Stack>
           )}
         >
-          当前有 {pendingMembers.length} 个待授权设备。你可以在此快速审批，也可以在下方成员列表中逐个处理。
+          {translateText('当前有 ')}{pendingMembers.length}{translateText(' 个待授权设备。你可以在此快速审批，也可以在下方成员列表中逐个处理。')}
         </Alert>
       )}
 
@@ -67,7 +69,7 @@ function NetworkMembersSection({
             <Card sx={{ height: '100%', backgroundColor: '#2c3e50', display: 'flex', flexDirection: 'column' }}>
               <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
                 <Typography variant="h6" color="text.secondary" gutterBottom>
-                  设备总数
+                  {translateText('设备总数')}
                 </Typography>
                 <Typography variant="h4">
                   {memberDevices.length}
@@ -79,7 +81,7 @@ function NetworkMembersSection({
             <Card sx={{ height: '100%', backgroundColor: '#2c3e50', display: 'flex', flexDirection: 'column' }}>
               <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
                 <Typography variant="h6" color="text.secondary" gutterBottom>
-                  已授权设备
+                  {translateText('已授权设备')}
                 </Typography>
                 <Typography variant="h4">
                   {authorizedMembers.length}
@@ -91,7 +93,7 @@ function NetworkMembersSection({
             <Card sx={{ height: '100%', backgroundColor: '#2c3e50', display: 'flex', flexDirection: 'column' }}>
               <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
                 <Typography variant="h6" color="text.secondary" gutterBottom>
-                  待授权设备
+                  {translateText('待授权设备')}
                 </Typography>
                 <Typography variant="h4">
                   {pendingMembers.length}
@@ -105,11 +107,11 @@ function NetworkMembersSection({
       <Paper elevation={3} sx={{ p: 3, mb: 4 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
           <Typography variant="h5">
-            成员设备
+            {translateText('成员设备')}
           </Typography>
           <TextField
             size="small"
-            placeholder="搜索设备名称或设备 ID"
+            placeholder={translateText('搜索设备名称或设备 ID')}
             value={memberSearchTerm}
             onChange={(event) => onMemberSearchTermChange(event.target.value)}
             sx={{ width: { xs: '100%', sm: 280 } }}
@@ -119,29 +121,29 @@ function NetworkMembersSection({
           <Table>
             <TableHead>
               <TableRow>
-                <TableCell>设备 ID</TableCell>
-                <TableCell>名称</TableCell>
-                <TableCell>状态</TableCell>
+                <TableCell>{translateText('设备 ID')}</TableCell>
+                <TableCell>{translateText('名称')}</TableCell>
+                <TableCell>{translateText('状态')}</TableCell>
                 <TableCell>Managed IPs</TableCell>
                 <TableCell>ZT 版本</TableCell>
-                {showAction && <TableCell align="right">操作</TableCell>}
+                {showAction && <TableCell align="right">{translateText('操作')}</TableCell>}
               </TableRow>
             </TableHead>
             <TableBody>
               {filteredMembers.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={showAction ? 6 : 5} align="center" sx={{ py: 5, color: 'text.secondary' }}>
-                    {memberSearchTerm ? '没有找到匹配的成员设备' : '暂无设备连接'}
+                    {translateText(memberSearchTerm ? '没有找到匹配的成员设备' : '暂无设备连接')}
                   </TableCell>
                 </TableRow>
               ) : (
                 filteredMembers.map((member) => (
                   <TableRow key={member.id} hover>
                     <TableCell>{member.id}</TableCell>
-                    <TableCell>{member.name || '未命名设备'}</TableCell>
+                    <TableCell>{member.name || translateText('未命名设备')}</TableCell>
                     <TableCell>
                       <Chip
-                        label={member.authorized ? '已授权' : '待授权'}
+                        label={translateText(member.authorized ? '已授权' : '待授权')}
                         color={member.authorized ? 'success' : 'warning'}
                         variant={member.authorized ? 'filled' : 'outlined'}
                         size="small"
@@ -152,7 +154,7 @@ function NetworkMembersSection({
                     {showAction && (
                       <TableCell align="right">
                         <IconButton
-                          aria-label={`打开成员菜单：${member.name || member.id || '成员设备'}`}
+                          aria-label={`${translateText('打开成员菜单：')}${member.name || member.id || translateText('成员设备')}`}
                           onClick={(event) => handleOpenMemberMenu?.(event, member)}
                         >
                           <MoreHoriz />
