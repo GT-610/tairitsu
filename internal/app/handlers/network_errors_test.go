@@ -55,9 +55,9 @@ func TestWriteNetworkServiceError_MapsWrappedImportErrors(t *testing.T) {
 			if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
 				t.Fatalf("decode response body: %v", err)
 			}
-			errorText, ok := body["error"].(string)
-			if !ok || strings.TrimSpace(errorText) == "" {
-				t.Fatalf("expected non-empty error body")
+			messageText, ok := body["message"].(string)
+			if !ok || strings.TrimSpace(messageText) == "" {
+				t.Fatalf("expected non-empty message body")
 			}
 			errorCode, ok := body["error_code"].(string)
 			if !ok || strings.TrimSpace(errorCode) == "" {

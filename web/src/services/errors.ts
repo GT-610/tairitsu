@@ -2,7 +2,6 @@ import axios, { type AxiosError } from 'axios';
 import { translateMessageCode } from '../i18n';
 
 interface ErrorResponseData {
-  error?: string;
   message?: string;
   error_code?: string;
   message_code?: string;
@@ -30,7 +29,7 @@ export function getErrorMessage(error: unknown, fallback: string): string {
       }
     }
 
-    const responseMessage = error.response?.data?.error ?? error.response?.data?.message;
+    const responseMessage = error.response?.data?.message;
     if (typeof responseMessage === 'string' && responseMessage.trim() !== '') {
       return responseMessage;
     }

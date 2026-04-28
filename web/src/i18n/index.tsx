@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react'
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { createTheme, ThemeProvider } from '@mui/material/styles'
 import type { ThemeOptions } from '@mui/material/styles'
 import { enUS, zhCN } from '@mui/material/locale'
@@ -558,31 +558,46 @@ function RuntimeTextTranslator({ language }: { language: Language }) {
       queuedMutations = []
       cancelScheduledWork = null
 
-      for (const mutation of mutations) {
-        mutation.addedNodes.forEach((node) => {
-          if (node.nodeType === Node.TEXT_NODE && isInLegacyTranslationRoot(node)) {
-            const translated = translateRawText(node.nodeValue ?? '', language)
-            if (translated !== node.nodeValue) {
-              node.nodeValue = translated
+      try {
+        for (const mutation of mutations) {
+          mutation.addedNodes.forEach((node) => {
+            if (node.nodeType === Node.TEXT_NODE && isInLegacyTranslationRoot(node)) {
+              const translated = translateRawText(node.nodeValue ?? '', language)
+              if (translated !== node.nodeValue) {
+                node.nodeValue = translated
+              }
+            } else if (node instanceof Element) {
+              translateDocument(node, language)
             }
-          } else if (node instanceof Element) {
-            translateDocument(node, language)
-          }
-        })
-        if (mutation.type === 'characterData' && isInLegacyTranslationRoot(mutation.target)) {
-          const translated = translateRawText(mutation.target.nodeValue ?? '', language)
-          if (translated !== mutation.target.nodeValue) {
-            mutation.target.nodeValue = translated
+          })
+          if (mutation.type === 'characterData' && isInLegacyTranslationRoot(mutation.target)) {
+            const translated = translateRawText(mutation.target.nodeValue ?? '', language)
+            if (translated !== mutation.target.nodeValue) {
+              mutation.target.nodeValue = translated
+            }
           }
         }
+      } catch (error) {
+        console.error('Runtime text translation failed', error)
       }
     }
 
-    const cancelInitialTranslation = scheduleIdle(() => translateDocument(root, language))
+    const cancelInitialTranslation = scheduleIdle(() => {
+      try {
+        translateDocument(root, language)
+      } catch (error) {
+        console.error('Initial runtime text translation failed', error)
+      }
+    })
     const observer = new MutationObserver((mutations) => {
-      queuedMutations.push(...mutations)
-      if (!cancelScheduledWork) {
-        cancelScheduledWork = scheduleIdle(flushMutations)
+      try {
+        queuedMutations.push(...mutations)
+        if (!cancelScheduledWork) {
+          cancelScheduledWork = scheduleIdle(flushMutations)
+        }
+      } catch (error) {
+        console.error('Runtime text translation observer failed', error)
+        cancelScheduledWork = null
       }
     })
     observer.observe(root, {
@@ -622,11 +637,11 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     }
   }, [preference])
 
-  const setPreference = (nextPreference: LanguagePreference) => {
+  const setPreference = useCallback((nextPreference: LanguagePreference) => {
     const normalized = normalizeLanguagePreference(nextPreference)
     storeLanguagePreference(normalized)
     setPreferenceState(normalized)
-  }
+  }, [])
 
   const value = useMemo<TranslationContextValue>(() => {
     const dictionary = language === 'zh-CN' ? zh : en
@@ -641,7 +656,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
       }).format(new Date(valueToFormat)),
       translateText: (valueToTranslate) => translateRawText(valueToTranslate, language),
     }
-  }, [language, preference])
+  }, [language, preference, setPreference])
 
   const theme = useMemo(
     () => createTheme(baseTheme, language === 'zh-CN' ? zhCN : enUS),

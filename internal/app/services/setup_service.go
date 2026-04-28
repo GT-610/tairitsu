@@ -52,6 +52,7 @@ func (s *SetupService) ConfigureDatabase(dbConfig models.DatabaseConfig) (databa
 	if err := db.Init(); err != nil {
 		if closeErr := db.Close(); closeErr != nil {
 			logger.Warn("failed to close database after initialization error", zap.Error(closeErr))
+			return database.Config{}, fmt.Errorf("database initialization failed: %w; failed to close database: %w", err, closeErr)
 		}
 		return database.Config{}, fmt.Errorf("database initialization failed: %w", err)
 	}
@@ -63,6 +64,7 @@ func (s *SetupService) ConfigureDatabase(dbConfig models.DatabaseConfig) (databa
 	if err := s.stateService.SaveDatabaseConfig(dbCfg); err != nil {
 		if closeErr := db.Close(); closeErr != nil {
 			logger.Warn("failed to close database after save configuration error", zap.Error(closeErr))
+			return database.Config{}, fmt.Errorf("failed to save database configuration: %w; failed to close database: %w", err, closeErr)
 		}
 		return database.Config{}, fmt.Errorf("failed to save database configuration: %w", err)
 	}
@@ -187,7 +189,7 @@ func (s *SetupService) SetInitialized(initialized bool) error {
 		}
 
 		if err := s.stateService.SaveConfig(); err != nil {
-			return fmt.Errorf("failed to generate secure key: %w", err)
+			return fmt.Errorf("failed to save config: %w", err)
 		}
 	}
 
