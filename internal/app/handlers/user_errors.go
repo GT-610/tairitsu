@@ -10,7 +10,8 @@ import (
 func writeUserServiceError(c fiber.Ctx, err error) error {
 	switch {
 	case services.IsUserDBUnavailable(err):
-		return writeErrorResponseWithCode(c, fiber.StatusServiceUnavailable, "user.db_unavailable", err.Error())
+		logger.Error("User service database is unavailable", zap.Error(err))
+		return writeErrorResponseWithCode(c, fiber.StatusServiceUnavailable, "user.db_unavailable", "User service is unavailable")
 	case services.IsUsernameExists(err):
 		return writeErrorResponseWithCode(c, fiber.StatusBadRequest, "user.username_exists", err.Error())
 	case services.IsInvalidUsername(err):

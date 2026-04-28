@@ -359,7 +359,35 @@ const rawEn: Record<string, string> = {
   '导入失败': 'Import failed',
 }
 
-const rawZh = Object.fromEntries(Object.keys(rawEn).map((key) => [rawEn[key], key]))
+const rawZhDuplicateTargets: Record<string, string> = {
+  'Loading...': '加载中...',
+  'Password must be at least 6 characters': '密码长度至少 6 位',
+  'Clear search': '清空搜索',
+  'Disabled': '已禁用',
+}
+
+function invertRawDictionary(dictionary: Record<string, string>, duplicateTargets: Record<string, string>): Record<string, string> {
+  const inverted: Record<string, string> = {}
+  const duplicates: string[] = []
+
+  for (const [source, target] of Object.entries(dictionary)) {
+    if (Object.prototype.hasOwnProperty.call(inverted, target)) {
+      if (!Object.prototype.hasOwnProperty.call(duplicateTargets, target)) {
+        duplicates.push(target)
+      }
+      continue
+    }
+    inverted[target] = source
+  }
+
+  if (duplicates.length > 0) {
+    throw new Error(`Duplicate raw i18n target values: ${[...new Set(duplicates)].join(', ')}`)
+  }
+
+  return { ...inverted, ...duplicateTargets }
+}
+
+const rawZh = invertRawDictionary(rawEn, rawZhDuplicateTargets)
 
 export function detectSystemLanguage(languages?: readonly string[]): Language {
   const candidates: readonly string[] = languages && languages.length > 0
@@ -403,7 +431,7 @@ export function translateRawText(value: string, language: Language): string {
   const dictionary = language === 'en' ? rawEn : rawZh
   const translated = dictionary[normalized]
   if (translated) {
-    return value.replace(normalized, translated)
+    return value.split(normalized).join(translated)
   }
 
   if (language === 'en') {
@@ -479,27 +507,62 @@ function translateDocument(root: ParentNode, language: Language) {
 
 function RuntimeTextTranslator({ language }: { language: Language }) {
   useEffect(() => {
-    translateDocument(document.body, language)
-    const observer = new MutationObserver((mutations) => {
+    const root = document.getElementById('root') ?? document.body
+    const scheduleIdle = (callback: () => void) => {
+      const idleCallback = globalThis.requestIdleCallback
+      if (idleCallback) {
+        const id = idleCallback(callback)
+        return () => globalThis.cancelIdleCallback?.(id)
+      }
+      const id = window.setTimeout(callback, 0)
+      return () => window.clearTimeout(id)
+    }
+
+    let queuedMutations: MutationRecord[] = []
+    let cancelScheduledWork: (() => void) | null = null
+
+    const flushMutations = () => {
+      const mutations = queuedMutations
+      queuedMutations = []
+      cancelScheduledWork = null
+
       for (const mutation of mutations) {
         mutation.addedNodes.forEach((node) => {
           if (node.nodeType === Node.TEXT_NODE) {
-            node.nodeValue = translateRawText(node.nodeValue ?? '', language)
+            const translated = translateRawText(node.nodeValue ?? '', language)
+            if (translated !== node.nodeValue) {
+              node.nodeValue = translated
+            }
           } else if (node instanceof Element) {
             translateDocument(node, language)
           }
         })
         if (mutation.type === 'characterData') {
-          mutation.target.nodeValue = translateRawText(mutation.target.nodeValue ?? '', language)
+          const translated = translateRawText(mutation.target.nodeValue ?? '', language)
+          if (translated !== mutation.target.nodeValue) {
+            mutation.target.nodeValue = translated
+          }
         }
       }
+    }
+
+    const cancelInitialTranslation = scheduleIdle(() => translateDocument(root, language))
+    const observer = new MutationObserver((mutations) => {
+      queuedMutations.push(...mutations)
+      if (!cancelScheduledWork) {
+        cancelScheduledWork = scheduleIdle(flushMutations)
+      }
     })
-    observer.observe(document.body, {
+    observer.observe(root, {
       childList: true,
       subtree: true,
       characterData: true,
     })
-    return () => observer.disconnect()
+    return () => {
+      observer.disconnect()
+      cancelInitialTranslation()
+      cancelScheduledWork?.()
+    }
   }, [language])
 
   return null

@@ -63,7 +63,9 @@ func (s *SetupService) ConfigureDatabase(dbConfig models.DatabaseConfig) (databa
 	}
 
 	if err := s.stateService.SaveDatabaseConfig(dbCfg); err != nil {
-		db.Close()
+		if closeErr := db.Close(); closeErr != nil {
+			logger.Warn("failed to close database after save configuration error", zap.Error(closeErr))
+		}
 		return database.Config{}, fmt.Errorf("failed to save database configuration: %w", err)
 	}
 

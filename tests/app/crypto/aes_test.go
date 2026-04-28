@@ -1,6 +1,8 @@
 package crypto
 
 import (
+	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/GT-610/tairitsu/internal/app/crypto"
@@ -69,6 +71,7 @@ func TestAES_Decrypt_InvalidCiphertext(t *testing.T) {
 
 	// Assert
 	assert.Error(t, err)
+	assert.True(t, errors.Is(err, crypto.ErrInvalidCiphertext))
 	assert.Empty(t, decrypted)
 }
 
@@ -86,6 +89,7 @@ func TestAES_Decrypt_WrongKey(t *testing.T) {
 
 	// Assert
 	assert.Error(t, err)
+	assert.True(t, errors.Is(err, crypto.ErrDecryptFailed))
 	assert.Empty(t, decrypted)
 }
 
@@ -99,5 +103,12 @@ func TestAES_Decrypt_EmptyCiphertext(t *testing.T) {
 
 	// Assert
 	assert.Error(t, err)
+	assert.True(t, errors.Is(err, crypto.ErrInvalidCiphertext))
 	assert.Empty(t, decrypted)
+}
+
+func TestAES_ErrorSentinels(t *testing.T) {
+	assert.True(t, errors.Is(fmt.Errorf("%w: detail", crypto.ErrEncryptFailed), crypto.ErrEncryptFailed))
+	assert.True(t, errors.Is(fmt.Errorf("%w: detail", crypto.ErrDecryptFailed), crypto.ErrDecryptFailed))
+	assert.True(t, errors.Is(fmt.Errorf("%w: detail", crypto.ErrInvalidCiphertext), crypto.ErrInvalidCiphertext))
 }
