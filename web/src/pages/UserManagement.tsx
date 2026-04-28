@@ -37,8 +37,10 @@ import UserRoleBadge from '../components/UserRoleBadge';
 import OneTimePasswordDialog from '../components/user-management/OneTimePasswordDialog';
 import { buildCreateUserSuccessMessage, buildDeleteUserSuccessMessage, buildResetPasswordSuccessMessage } from '../utils/userGovernance';
 import { formatUserTime } from '../utils/userPresentation';
+import { useTranslation } from '../i18n';
 
 function UserManagement() {
+  const { translateText } = useTranslation();
   const navigate = useNavigate();
   const { refreshUser } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
@@ -80,7 +82,7 @@ function UserManagement() {
         setInitialRuntimeSettings(settingsResponse.data);
       } catch (error: unknown) {
         setMessage({ 
-          text: getErrorMessage(error, '获取用户数据失败'), 
+          text: getErrorMessage(error, translateText('获取用户数据失败')), 
           severity: 'error' 
         });
       } finally {
@@ -89,14 +91,14 @@ function UserManagement() {
     };
 
     void fetchData();
-  }, []);
+  }, [translateText]);
 
   const transferCandidates = users.filter((candidate) => candidate.id !== currentUser?.id && candidate.role !== 'admin');
   const runtimeSettingsUnsaved = runtimeSettings.allow_public_registration !== initialRuntimeSettings.allow_public_registration;
 
   const handleCreateUser = async () => {
     if (!createUsername.trim()) {
-      setCreateUsernameError('请输入用户名');
+      setCreateUsernameError(translateText('请输入用户名'));
       return;
     }
 
@@ -109,11 +111,11 @@ function UserManagement() {
       setCreateUsernameError('');
       setCreateResult(response.data);
       setMessage({
-        text: buildCreateUserSuccessMessage(response.data),
+        text: translateText(buildCreateUserSuccessMessage(response.data)),
         severity: 'success',
       });
     } catch (error: unknown) {
-      setCreateUsernameError(getErrorMessage(error, '创建用户失败'));
+      setCreateUsernameError(getErrorMessage(error, translateText('创建用户失败')));
     } finally {
       setUpdating(false);
     }
@@ -130,12 +132,12 @@ function UserManagement() {
       setResetTarget(null);
       setResetResult(response.data);
       setMessage({
-        text: buildResetPasswordSuccessMessage(response.data),
+        text: translateText(buildResetPasswordSuccessMessage(response.data)),
         severity: 'success',
       });
     } catch (error: unknown) {
       setMessage({
-        text: getErrorMessage(error, '重置用户密码失败'),
+        text: getErrorMessage(error, translateText('重置用户密码失败')),
         severity: 'error',
       });
     } finally {
@@ -155,12 +157,12 @@ function UserManagement() {
       setDeleteTarget(null);
       setDeleteResult(response.data);
       setMessage({
-        text: buildDeleteUserSuccessMessage(response.data),
+        text: translateText(buildDeleteUserSuccessMessage(response.data)),
         severity: 'success',
       });
     } catch (error: unknown) {
       setMessage({
-        text: getErrorMessage(error, '删除用户失败'),
+        text: getErrorMessage(error, translateText('删除用户失败')),
         severity: 'error',
       });
     } finally {
@@ -174,9 +176,9 @@ function UserManagement() {
       const response = await systemAPI.updateRuntimeSettings(runtimeSettings);
       setRuntimeSettings(response.data.settings);
       setInitialRuntimeSettings(response.data.settings);
-      setMessage({ text: '实例治理设置已保存', severity: 'success' });
+      setMessage({ text: translateText('实例治理设置已保存'), severity: 'success' });
     } catch (error: unknown) {
-      setMessage({ text: getErrorMessage(error, '保存实例治理设置失败'), severity: 'error' });
+      setMessage({ text: getErrorMessage(error, translateText('保存实例治理设置失败')), severity: 'error' });
     } finally {
       setSavingRuntimeSettings(false);
     }
@@ -190,7 +192,7 @@ function UserManagement() {
   const handleTransferAdmin = async (targetUserId?: string) => {
     const nextTargetUserId = targetUserId || targetAdminId;
     if (!nextTargetUserId) {
-      setMessage({ text: '请选择新的管理员', severity: 'error' });
+      setMessage({ text: translateText('请选择新的管理员'), severity: 'error' });
       return;
     }
 
@@ -215,10 +217,10 @@ function UserManagement() {
       refreshUser(refreshedProfile.data);
       void navigate('/networks', {
         replace: true,
-        state: { message: `管理员身份已转让给 ${nextAdmin.username}` },
+        state: { message: translateText(`管理员身份已转让给 ${nextAdmin.username}`) },
       });
     } catch (error: unknown) {
-      setMessage({ text: getErrorMessage(error, '转让管理员身份失败'), severity: 'error' });
+      setMessage({ text: getErrorMessage(error, translateText('转让管理员身份失败')), severity: 'error' });
     } finally {
       setTransferringAdmin(false);
     }
@@ -236,14 +238,14 @@ function UserManagement() {
     <Box sx={{ p: 3 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Typography variant="h4" component="h1">
-          用户管理
+          {translateText('用户管理')}
         </Typography>
         <Stack direction="row" spacing={2} alignItems="center">
           <Typography variant="body2" color="text.secondary">
-            当前系统仅保留一个管理员。你可以创建普通用户、重置普通用户密码，或将管理员身份转让给某个普通用户。
+            {translateText('当前系统仅保留一个管理员。你可以创建普通用户、重置普通用户密码，或将管理员身份转让给某个普通用户。')}
           </Typography>
           <Button variant="contained" onClick={() => setOpenCreateDialog(true)} disabled={updating}>
-            创建用户
+            {translateText('创建用户')}
           </Button>
         </Stack>
       </Box>
@@ -268,10 +270,10 @@ function UserManagement() {
       <Card sx={{ mb: 3 }}>
         <CardContent>
           <Typography variant="h6" gutterBottom>
-            实例治理
+            {translateText('实例治理')}
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            这里控制实例级账户与发布边界。当前支持公开注册策略配置。
+            {translateText('这里控制实例级账户与发布边界。当前支持公开注册策略配置。')}
           </Typography>
 
           <Stack spacing={2.5}>
@@ -285,10 +287,10 @@ function UserManagement() {
                   }))}
                 />
               )}
-              label="允许公开注册"
+              label={translateText('允许公开注册')}
             />
             <Typography variant="body2" color="text.secondary">
-              关闭后，未登录用户将不能继续公开创建账号，但 setup 阶段的首个管理员创建逻辑不受影响。
+              {translateText('关闭后，未登录用户将不能继续公开创建账号，但 setup 阶段的首个管理员创建逻辑不受影响。')}
             </Typography>
             <Stack direction="row" spacing={1.5}>
               <Button
@@ -296,14 +298,14 @@ function UserManagement() {
                 disabled={!runtimeSettingsUnsaved || savingRuntimeSettings}
                 onClick={() => setRuntimeSettings(initialRuntimeSettings)}
               >
-                重置
+                {translateText('重置')}
               </Button>
               <Button
                 variant="contained"
                 disabled={!runtimeSettingsUnsaved || savingRuntimeSettings}
                 onClick={() => { void handleSaveRuntimeSettings(); }}
               >
-                {savingRuntimeSettings ? '保存中...' : '保存'}
+                {savingRuntimeSettings ? translateText('保存中...') : translateText('保存')}
               </Button>
             </Stack>
           </Stack>
@@ -313,19 +315,19 @@ function UserManagement() {
       <Card sx={{ mb: 3 }}>
         <CardContent>
           <Typography variant="h6" gutterBottom>
-            管理员职责
+            {translateText('管理员职责')}
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            当前系统保持单管理员模型。你可以在这里把管理员身份转让给某个普通用户，转让后自己会自动降为普通用户。
+            {translateText('当前系统保持单管理员模型。你可以在这里把管理员身份转让给某个普通用户，转让后自己会自动降为普通用户。')}
           </Typography>
           <Stack spacing={2}>
-            <Alert severity="info">当前管理员：{currentUser?.username || '未知用户'}</Alert>
+            <Alert severity="info">{translateText('当前管理员：')}{currentUser?.username || translateText('未知用户')}</Alert>
             <FormControl fullWidth>
-              <InputLabel id="transfer-admin-label">新的管理员</InputLabel>
+              <InputLabel id="transfer-admin-label">{translateText('新的管理员')}</InputLabel>
               <Select
                 labelId="transfer-admin-label"
                 value={targetAdminId}
-                label="新的管理员"
+                label={translateText('新的管理员')}
                 onChange={(event) => setTargetAdminId(event.target.value)}
               >
                 {transferCandidates.map((candidate) => (
@@ -337,7 +339,7 @@ function UserManagement() {
             </FormControl>
             {transferCandidates.length === 0 && (
               <Alert severity="warning">
-                当前没有可接收管理员身份的普通用户。请先创建或保留至少一个普通用户账号。
+                {translateText('当前没有可接收管理员身份的普通用户。请先创建或保留至少一个普通用户账号。')}
               </Alert>
             )}
             <Button
@@ -346,7 +348,7 @@ function UserManagement() {
               disabled={!targetAdminId || transferringAdmin}
               onClick={() => { void handleTransferAdmin(); }}
             >
-              {transferringAdmin ? '转让中...' : '转让管理员身份'}
+              {transferringAdmin ? translateText('转让中...') : translateText('转让管理员身份')}
             </Button>
           </Stack>
         </CardContent>
@@ -358,10 +360,10 @@ function UserManagement() {
         <Table sx={{ minWidth: 650 }} aria-label="user management table">
           <TableHead>
             <TableRow>
-              <TableCell>用户名</TableCell>
-              <TableCell>角色</TableCell>
-              <TableCell>创建时间</TableCell>
-              <TableCell>操作</TableCell>
+              <TableCell>{translateText('用户名')}</TableCell>
+              <TableCell>{translateText('角色')}</TableCell>
+              <TableCell>{translateText('创建时间')}</TableCell>
+              <TableCell>{translateText('操作')}</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -389,7 +391,7 @@ function UserManagement() {
                         onClick={() => setDeleteTarget(user)}
                         disabled={updating}
                       >
-                        删除用户
+                        {translateText('删除用户')}
                       </Button>
                       <Button
                         variant="outlined"
@@ -397,7 +399,7 @@ function UserManagement() {
                         onClick={() => setResetTarget(user)}
                         disabled={updating}
                       >
-                        重置密码
+                        {translateText('重置密码')}
                       </Button>
                       <Button
                         variant="contained"
@@ -405,16 +407,16 @@ function UserManagement() {
                         onClick={() => { void handleTransferAdmin(user.id); }}
                         disabled={updating || transferringAdmin}
                       >
-                        转让管理员
+                        {translateText('转让管理员')}
                       </Button>
                     </Stack>
                   ) : currentUser && user.id === currentUser.id ? (
                     <Typography variant="body2" color="text.secondary">
-                      当前管理员
+                      {translateText('当前管理员')}
                     </Typography>
                   ) : user.role === 'admin' ? (
                     <Typography variant="body2" color="text.secondary">
-                      已是管理员
+                      {translateText('已是管理员')}
                     </Typography>
                   ) : null}
                 </TableCell>
@@ -425,14 +427,14 @@ function UserManagement() {
       </TableContainer>
 
       <Dialog open={openCreateDialog} onClose={() => !updating && setOpenCreateDialog(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>创建用户</DialogTitle>
+        <DialogTitle>{translateText('创建用户')}</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ mt: 1 }}>
             <Alert severity="info">
-              新用户会自动创建为普通用户，并生成一个一次性临时密码。
+              {translateText('新用户会自动创建为普通用户，并生成一个一次性临时密码。')}
             </Alert>
             <TextField
-              label="用户名"
+              label={translateText('用户名')}
               value={createUsername}
               onChange={(event) => {
                 setCreateUsername(event.target.value)
@@ -442,15 +444,15 @@ function UserManagement() {
               }}
               fullWidth
               error={Boolean(createUsernameError)}
-              helperText={createUsernameError || '建议使用可识别、便于通知的用户名'}
+              helperText={createUsernameError || translateText('建议使用可识别、便于通知的用户名')}
               disabled={updating}
             />
           </Stack>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setOpenCreateDialog(false)} disabled={updating}>取消</Button>
+          <Button onClick={() => setOpenCreateDialog(false)} disabled={updating}>{translateText('取消')}</Button>
           <Button variant="contained" onClick={() => { void handleCreateUser(); }} disabled={updating}>
-            {updating ? '创建中...' : '确认创建'}
+            {updating ? translateText('创建中...') : translateText('确认创建')}
           </Button>
         </DialogActions>
       </Dialog>
@@ -459,85 +461,85 @@ function UserManagement() {
         open={Boolean(createResult)}
         username={createResult?.user.username || ''}
         password={createResult?.temporary_password || ''}
-        subjectLabel="新用户"
-        footerText="用户首次收到密码后，应尽快登录并到“设置”中修改为自己的新密码。"
+        subjectLabel={translateText('新用户')}
+        footerText={translateText('用户首次收到密码后，应尽快登录并到“设置”中修改为自己的新密码。')}
         onClose={() => setCreateResult(null)}
       />
 
       <Dialog open={Boolean(deleteTarget)} onClose={() => !updating && setDeleteTarget(null)} maxWidth="sm" fullWidth>
-        <DialogTitle>删除用户</DialogTitle>
+        <DialogTitle>{translateText('删除用户')}</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ mt: 1 }}>
             <Alert severity="error">
-              删除 {deleteTarget?.username || '该用户'} 后，账号将不可恢复。
+              {translateText('删除 ')}{deleteTarget?.username || translateText('该用户')}{translateText(' 后，账号将不可恢复。')}
             </Alert>
             <Typography variant="body2" color="text.secondary">
-              该用户拥有的网络将自动转让给当前管理员，ZeroTier 控制器内网络本身不会被删除。
+              {translateText('该用户拥有的网络将自动转让给当前管理员，ZeroTier 控制器内网络本身不会被删除。')}
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              该用户当前所有登录会话会立即失效，后续请求会被强制退出。
+              {translateText('该用户当前所有登录会话会立即失效，后续请求会被强制退出。')}
             </Typography>
           </Stack>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setDeleteTarget(null)} disabled={updating}>取消</Button>
+          <Button onClick={() => setDeleteTarget(null)} disabled={updating}>{translateText('取消')}</Button>
           <Button
             variant="contained"
             color="error"
             onClick={() => { void handleDeleteUser(); }}
             disabled={updating}
           >
-            {updating ? '删除中...' : '确认删除'}
+            {updating ? translateText('删除中...') : translateText('确认删除')}
           </Button>
         </DialogActions>
       </Dialog>
 
       <Dialog open={Boolean(deleteResult)} onClose={() => setDeleteResult(null)} maxWidth="sm" fullWidth>
-        <DialogTitle>用户已删除</DialogTitle>
+        <DialogTitle>{translateText('用户已删除')}</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ mt: 1 }}>
             <Alert severity="success">
-              {deleteResult?.user.username || '该用户'} 已被删除。
+              {deleteResult?.user.username || translateText('该用户')} {translateText('已被删除。')}
             </Alert>
             <Typography variant="body2" color="text.secondary">
-              转移网络：{deleteResult?.transferred_networks ?? 0} 个
+              {translateText('转移网络：')}{deleteResult?.transferred_networks ?? 0}{translateText(' 个')}
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              吊销会话：{deleteResult?.revoked_sessions ?? 0} 个
+              {translateText('吊销会话：')}{deleteResult?.revoked_sessions ?? 0}{translateText(' 个')}
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              这些网络现在已归当前管理员所有，可在网络列表中继续管理。
+              {translateText('这些网络现在已归当前管理员所有，可在网络列表中继续管理。')}
             </Typography>
           </Stack>
         </DialogContent>
         <DialogActions>
           <Button variant="contained" onClick={() => setDeleteResult(null)}>
-            我知道了
+            {translateText('我知道了')}
           </Button>
         </DialogActions>
       </Dialog>
 
       <Dialog open={Boolean(resetTarget)} onClose={() => !updating && setResetTarget(null)} maxWidth="sm" fullWidth>
-        <DialogTitle>重置用户密码</DialogTitle>
+        <DialogTitle>{translateText('重置用户密码')}</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ mt: 1 }}>
             <Alert severity="warning">
-              将为 {resetTarget?.username || '该用户'} 生成一个新的随机密码，并立即吊销该用户当前所有登录会话。
+              {translateText('将为 ')}{resetTarget?.username || translateText('该用户')}{translateText(' 生成一个新的随机密码，并立即吊销该用户当前所有登录会话。')}
             </Alert>
             <Typography variant="body2" color="text.secondary">
-              新密码只会展示一次。请通过其他安全方式告知用户，并提醒其在登录后尽快到“设置”中修改密码。
+              {translateText('新密码只会展示一次。请通过其他安全方式告知用户，并提醒其在登录后尽快到“设置”中修改密码。')}
             </Typography>
           </Stack>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setResetTarget(null)} disabled={updating}>取消</Button>
+          <Button onClick={() => setResetTarget(null)} disabled={updating}>{translateText('取消')}</Button>
           <Button
             variant="contained"
             color="warning"
             onClick={() => { void handleResetPassword(); }}
             disabled={updating}
           >
-            {updating ? '重置中...' : '确认重置'}
+            {updating ? translateText('重置中...') : translateText('确认重置')}
           </Button>
         </DialogActions>
       </Dialog>
@@ -546,8 +548,8 @@ function UserManagement() {
         open={Boolean(resetResult)}
         username={resetResult?.user.username || ''}
         password={resetResult?.temporary_password || ''}
-        subjectLabel="目标用户"
-        footerText={`已吊销会话：${resetResult?.revoked_sessions ?? 0} 个。用户收到密码后应尽快登录并修改为自己的新密码。`}
+        subjectLabel={translateText('目标用户')}
+        footerText={`${translateText('已吊销会话：')}${resetResult?.revoked_sessions ?? 0}${translateText(' 个。用户收到密码后应尽快登录并修改为自己的新密码。')}`}
         onClose={() => setResetResult(null)}
       />
     </Box>
