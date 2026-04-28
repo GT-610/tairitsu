@@ -3,6 +3,7 @@ from '@mui/material';
 import { Link } from 'react-router-dom';
 import { User } from '../services/api';
 import { formatUserTime, getUserRoleLabel, hasDisplayableUserTime } from '../utils/userPresentation';
+import { useTranslation } from '../i18n';
 
 // Profile组件的props类型
 interface ProfileProps {
@@ -10,11 +11,13 @@ interface ProfileProps {
 }
 
 function Profile({ user }: ProfileProps) {
+  const { translateText } = useTranslation()
+
   if (!user) {
     return (
       <Box sx={{ p: 3 }}>
         <Typography variant="body1" color="error">
-          用户信息不可用
+          {translateText('用户信息不可用')}
         </Typography>
       </Box>
     );
@@ -23,7 +26,7 @@ function Profile({ user }: ProfileProps) {
   return (
     <Box sx={{ p: 3 }}>
       <Typography variant="h4" component="h1" gutterBottom>
-        个人信息
+        {translateText('个人信息')}
       </Typography>
       
       <Grid container spacing={3}>
@@ -38,7 +41,7 @@ function Profile({ user }: ProfileProps) {
                   {user.username}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  {getUserRoleLabel(user.role)}
+                  {translateText(getUserRoleLabel(user.role))}
                 </Typography>
               </Box>
             </CardContent>
@@ -49,7 +52,7 @@ function Profile({ user }: ProfileProps) {
           <Card>
             <CardContent>
               <Typography variant="h6" gutterBottom>
-                账户信息
+                {translateText('账户信息')}
               </Typography>
               <Divider sx={{ mb: 3 }} />
               
@@ -57,7 +60,7 @@ function Profile({ user }: ProfileProps) {
                 {hasDisplayableUserTime(user.createdAt) && (
                   <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 2fr' }, gap: 2 }}>
                     <Typography variant="body2" color="text.secondary">
-                      创建时间
+                      {translateText('创建时间')}
                     </Typography>
                     <Typography variant="body1">
                       {formatUserTime(user.createdAt)}
@@ -68,7 +71,7 @@ function Profile({ user }: ProfileProps) {
                 {hasDisplayableUserTime(user.updatedAt) && (
                   <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 2fr' }, gap: 2 }}>
                     <Typography variant="body2" color="text.secondary">
-                      更新时间
+                      {translateText('更新时间')}
                     </Typography>
                     <Typography variant="body1">
                       {formatUserTime(user.updatedAt)}
@@ -79,7 +82,7 @@ function Profile({ user }: ProfileProps) {
 
               <Box sx={{ mt: 4 }}>
                 <Button component={Link} to="/settings" variant="outlined">
-                  打开账户设置与修改密码
+                  {translateText('打开账户设置与修改密码')}
                 </Button>
               </Box>
             </CardContent>

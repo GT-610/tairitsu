@@ -4,6 +4,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { Add, Delete, Close, Refresh } from '@mui/icons-material';
 import { networkAPI, type NetworkSummary, type SharedNetworkSummary } from '../services/api';
 import { getErrorMessage } from '../services/errors';
+import { useTranslation } from '../i18n';
 
 type DisplayNetwork = {
   id: string;
@@ -31,6 +32,7 @@ function getNavigationMessage(state: unknown): string {
 
 function Networks() {
   const location = useLocation();
+  const { translateText } = useTranslation();
   const [networks, setNetworks] = useState<DisplayNetwork[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string>('');
@@ -76,12 +78,12 @@ function Networks() {
         })),
       ])
       if (sharedResult.status !== 'fulfilled') {
-        setError('共享给我的网络暂时无法加载，当前仅显示您拥有的网络')
+        setError(translateText('共享给我的网络暂时无法加载，当前仅显示您拥有的网络'))
       } else {
         setError('')
       }
     } catch (err: unknown) {
-      setError(getErrorMessage(err, '获取网络列表失败'))
+      setError(getErrorMessage(err, translateText('获取网络列表失败')))
       setNetworks([])
     } finally {
       setLoading(false)
@@ -146,7 +148,7 @@ function Networks() {
       handleCloseModal();
       void fetchNetworks()
     } catch (err: unknown) {
-      setError(getErrorMessage(err, editingNetwork ? '更新网络失败' : '创建网络失败'))
+      setError(getErrorMessage(err, translateText(editingNetwork ? '更新网络失败' : '创建网络失败')))
     }
   }
 
@@ -165,7 +167,7 @@ function Networks() {
       setDeletingNetworkId(null)
       setDeletingNetworkName('')
     } catch (err: unknown) {
-      setError(getErrorMessage(err, '删除网络失败'))
+      setError(getErrorMessage(err, translateText('删除网络失败')))
     }
   }
 
@@ -197,14 +199,14 @@ function Networks() {
     <Box sx={{ p: 3 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Typography variant="h4" component="h1">
-          网络管理
+          {translateText('网络管理')}
         </Typography>
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
           <Button variant="outlined" startIcon={<Refresh />} onClick={() => { void fetchNetworks(); }} disabled={loading}>
-            刷新
+            {translateText('刷新')}
           </Button>
           <Button variant="contained" startIcon={<Add />} onClick={() => handleOpenModal()}>
-            创建网络
+            {translateText('创建网络')}
           </Button>
         </Stack>
       </Box>
@@ -229,7 +231,7 @@ function Networks() {
             <Card sx={{ height: '100%', backgroundColor: '#2c3e50', display: 'flex', flexDirection: 'column' }}>
               <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
                 <Typography variant="h6" color="text.secondary" gutterBottom>
-                  总网络数
+                  {translateText('总网络数')}
                 </Typography>
                 <Typography variant="h4">
                   {totalNetworks}
@@ -241,7 +243,7 @@ function Networks() {
             <Card sx={{ height: '100%', backgroundColor: '#2c3e50', display: 'flex', flexDirection: 'column' }}>
               <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
                 <Typography variant="h6" color="text.secondary" gutterBottom>
-                  我拥有
+                  {translateText('我拥有')}
                 </Typography>
                 <Typography variant="h4">
                   {ownedNetworksCount}
@@ -253,7 +255,7 @@ function Networks() {
             <Card sx={{ height: '100%', backgroundColor: '#2c3e50', display: 'flex', flexDirection: 'column' }}>
               <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
                 <Typography variant="h6" color="text.secondary" gutterBottom>
-                  共享给我
+                  {translateText('共享给我')}
                 </Typography>
                 <Typography variant="h4">
                   {readOnlyNetworksCount}
@@ -272,7 +274,7 @@ function Networks() {
         <>
           <Box sx={{ display: 'flex', gap: 2, mb: 3, flexWrap: 'wrap', alignItems: 'center' }}>
             <TextField
-              label="搜索"
+              label={translateText('搜索')}
               variant="outlined"
               size="small"
               value={searchQuery}
@@ -281,7 +283,7 @@ function Networks() {
             />
             {isSearchMode && (
               <Button variant="text" onClick={() => setSearchQuery('')}>
-                清除搜索
+                {translateText('清除搜索')}
               </Button>
             )}
           </Box>
@@ -289,30 +291,30 @@ function Networks() {
           {isEmptyState ? (
             <Paper sx={{ p: 5, textAlign: 'center' }}>
               <Typography variant="h6" sx={{ mb: 1 }}>
-                还没有任何网络
+                {translateText('还没有任何网络')}
               </Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-                您可以直接创建一个新网络，或前往“导入网络”把控制器中已有的网络登记到当前账号。
+                {translateText('您可以直接创建一个新网络，或前往“导入网络”把控制器中已有的网络登记到当前账号。')}
               </Typography>
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} justifyContent="center">
                 <Button variant="contained" startIcon={<Add />} onClick={() => handleOpenModal()}>
-                  创建网络
+                  {translateText('创建网络')}
                 </Button>
                 <Button component={Link} to="/import-network" variant="outlined">
-                  导入现有网络
+                  {translateText('导入现有网络')}
                 </Button>
               </Stack>
             </Paper>
           ) : isSearchEmptyState ? (
             <Paper sx={{ p: 5, textAlign: 'center' }}>
               <Typography variant="h6" sx={{ mb: 1 }}>
-                没有匹配的网络
+                {translateText('没有匹配的网络')}
               </Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-                当前搜索条件未匹配到任何网络，请尝试缩短关键字或清空搜索后重试。
+                {translateText('当前搜索条件未匹配到任何网络，请尝试缩短关键字或清空搜索后重试。')}
               </Typography>
               <Button variant="outlined" onClick={() => setSearchQuery('')}>
-                清空搜索
+                {translateText('清空搜索')}
               </Button>
             </Paper>
           ) : (
@@ -320,10 +322,10 @@ function Networks() {
               <Table sx={{ minWidth: 650 }}>
                 <TableHead>
                   <TableRow>
-                    <TableCell>名称</TableCell>
-                    <TableCell>网络ID</TableCell>
-                    <TableCell>成员统计</TableCell>
-                    <TableCell>操作</TableCell>
+                    <TableCell>{translateText('名称')}</TableCell>
+                    <TableCell>{translateText('网络ID')}</TableCell>
+                    <TableCell>{translateText('成员统计')}</TableCell>
+                    <TableCell>{translateText('操作')}</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -332,10 +334,10 @@ function Networks() {
                       <TableCell component="th" scope="row">
                         <Stack direction="row" spacing={1} alignItems="center" useFlexGap flexWrap="wrap">
                           <Typography variant="body1">
-                            {network.name || '未命名网络'}
+                            {network.name || translateText('未命名网络')}
                           </Typography>
                           {network.readOnly && (
-                            <Chip label="只读" size="small" color="default" variant="outlined" />
+                            <Chip label={translateText('只读')} size="small" color="default" variant="outlined" />
                           )}
                         </Stack>
                         {network.description ? (
@@ -345,15 +347,15 @@ function Networks() {
                         ) : null}
                         {network.readOnly && network.owner_username ? (
                           <Typography variant="body2" color="text.secondary">
-                            共享来源：{network.owner_username}
+                            {translateText('共享来源：')}{network.owner_username}
                           </Typography>
                         ) : null}
                       </TableCell>
                       <TableCell>{network.id}</TableCell>
                       <TableCell>
-                        {network.member_count} 台
+                        {network.member_count}{translateText(' 台')}
                         <Typography variant="body2" color="text.secondary">
-                          已授权 {network.authorized_member_count} / 待授权 {network.pending_member_count}
+                          {translateText('已授权 ')}{network.authorized_member_count} / {translateText('待授权 ')}{network.pending_member_count}
                         </Typography>
                       </TableCell>
                       <TableCell>
@@ -364,7 +366,7 @@ function Networks() {
                             variant="outlined"
                             size="small"
                           >
-                            {network.readOnly ? '查看设备' : '详情'}
+                            {network.readOnly ? translateText('查看设备') : translateText('详情')}
                           </Button>
                           {!network.readOnly && (
                             <Button
@@ -372,9 +374,9 @@ function Networks() {
                               size="small"
                               color="error"
                               startIcon={<Delete />}
-                              onClick={() => handleDeleteClick(network.id, network.name || '未命名网络')}
+                              onClick={() => handleDeleteClick(network.id, network.name || translateText('未命名网络'))}
                             >
-                              删除
+                              {translateText('删除')}
                             </Button>
                           )}
                         </Box>
@@ -409,7 +411,7 @@ function Networks() {
         >
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
             <Typography id="network-modal-title" variant="h5">
-              {editingNetwork ? '编辑网络' : '创建网络'}
+              {translateText(editingNetwork ? '编辑网络' : '创建网络')}
             </Typography>
             <IconButton onClick={handleCloseModal}>
               <Close />
@@ -420,7 +422,7 @@ function Networks() {
               margin="normal"
               required
               fullWidth
-              label="网络名称"
+              label={translateText('网络名称')}
               name="name"
               value={formData.name}
               onChange={handleChange}
@@ -428,7 +430,7 @@ function Networks() {
             <TextField
               margin="normal"
               fullWidth
-              label="网络描述"
+              label={translateText('网络描述')}
               name="description"
               multiline
               rows={3}
@@ -438,10 +440,10 @@ function Networks() {
 
             <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end', mt: 3 }}>
               <Button onClick={handleCloseModal}>
-                取消
+                {translateText('取消')}
               </Button>
               <Button type="submit" variant="contained">
-                {editingNetwork ? '更新' : '创建'}
+                {translateText(editingNetwork ? '更新' : '创建')}
               </Button>
             </Box>
           </Box>
@@ -453,19 +455,19 @@ function Networks() {
         onClose={handleDeleteCancel}
       >
         <DialogTitle>
-          确认删除网络
+          {translateText('确认删除网络')}
         </DialogTitle>
         <DialogContent>
           <DialogContentText>
-            您确定要删除网络 "{deletingNetworkName}" 吗？此操作不可恢复，将永久删除该网络及其所有配置。
+            {translateText('您确定要删除网络')} "{deletingNetworkName}" {translateText('吗？此操作不可恢复，将永久删除该网络及其所有配置。')}
           </DialogContentText>
         </DialogContent>
         <DialogActions>
           <Button onClick={handleDeleteCancel}>
-            取消
+            {translateText('取消')}
           </Button>
           <Button onClick={() => { void handleDeleteConfirm(); }} color="error">
-            确认删除
+            {translateText('确认删除')}
           </Button>
         </DialogActions>
       </Dialog>
