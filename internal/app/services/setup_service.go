@@ -4,8 +4,6 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
-	mathrand "math/rand"
-	"time"
 
 	"github.com/GT-610/tairitsu/internal/app/config"
 	"github.com/GT-610/tairitsu/internal/app/database"
@@ -141,7 +139,10 @@ func (s *SetupService) InitializeAdminCreation() (string, error) {
 	}
 
 	hasAdmin, err := s.userService.HasAdminUser()
-	if err == nil && hasAdmin {
+	if err != nil {
+		return "", fmt.Errorf("failed to check administrator state before reset: %w", err)
+	}
+	if hasAdmin {
 		config.SetTempSetting(resetDoneKey, "true")
 		return string(dbConfig.Type), nil
 	}
@@ -168,12 +169,20 @@ func (s *SetupService) SetInitialized(initialized bool) error {
 
 		cfg := s.stateService.Config()
 		if cfg.Security.JWTSecret == "" {
-			cfg.Security.JWTSecret = generateRandomSecret(32)
+			secret, err := generateRandomSecret(32)
+			if err != nil {
+				return fmt.Errorf("failed to generate JWT secret: %w", err)
+			}
+			cfg.Security.JWTSecret = secret
 			logger.Info("generated new JWT secret")
 		}
 
 		if cfg.Security.SessionSecret == "" {
-			cfg.Security.SessionSecret = generateRandomSecret(32)
+			secret, err := generateRandomSecret(32)
+			if err != nil {
+				return fmt.Errorf("failed to generate session secret: %w", err)
+			}
+			cfg.Security.SessionSecret = secret
 			logger.Info("generated new session secret")
 		}
 
@@ -223,16 +232,11 @@ func (s *SetupService) validateInitializationReady() error {
 	return nil
 }
 
-func generateRandomSecret(length int) string {
+func generateRandomSecret(length int) (string, error) {
 	bytes := make([]byte, length)
 	if _, err := rand.Read(bytes); err != nil {
-		logger.Warn("failed to generate random key with crypto/rand; falling back to math/rand", zap.Error(err))
-
-		r := mathrand.New(mathrand.NewSource(time.Now().UnixNano()))
-		for i := range bytes {
-			bytes[i] = byte(r.Intn(256))
-		}
+		return "", err
 	}
 
-	return base64.URLEncoding.EncodeToString(bytes)
+	return base64.URLEncoding.EncodeToString(bytes), nil
 }

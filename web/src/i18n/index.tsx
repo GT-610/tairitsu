@@ -109,7 +109,9 @@ const messageCodes: Record<string, { en: string; 'zh-CN': string }> = {
   'user.old_password_incorrect': { en: 'Current password is incorrect', 'zh-CN': '原密码错误' },
   'user.invalid_role': { en: 'Invalid role. Must be admin or user.', 'zh-CN': '无效的角色值，必须是admin或user' },
   'user.admin_access_denied': { en: 'The current user is not an administrator.', 'zh-CN': '当前用户不是管理员，无法执行该操作' },
+  'user.invalid_admin_operation': { en: 'This administrator operation is not allowed', 'zh-CN': '该管理员操作不允许' },
   'user.public_registration_disabled': { en: 'Public registration is disabled. Contact an administrator to create an account.', 'zh-CN': '公开注册已关闭，请联系管理员创建账户' },
+  'user.required': { en: 'User is required', 'zh-CN': '必须指定用户' },
   'session.not_found': { en: 'Session not found', 'zh-CN': '会话不存在' },
   'session.access_denied': { en: 'You do not have access to this session', 'zh-CN': '无权访问该会话' },
   'session.revoked': { en: 'Session is no longer valid. Please sign in again.', 'zh-CN': '会话已失效，请重新登录' },
@@ -120,6 +122,7 @@ const messageCodes: Record<string, { en: string; 'zh-CN': string }> = {
   'network.viewer_access_denied': { en: 'Network viewer access denied', 'zh-CN': '无权限管理网络查看授权' },
   'network.viewer_target_invalid': { en: 'Only regular users can be granted network viewer access', 'zh-CN': '只能授权普通用户查看网络' },
   'network.import_access_denied': { en: 'Only administrators can import networks', 'zh-CN': '只有管理员可以导入网络' },
+  'network.import_empty': { en: 'Network ID list is empty', 'zh-CN': '网络ID列表为空' },
   'network.import_owner_required': { en: 'Network owner is required', 'zh-CN': '必须指定网络所有者' },
   'network.import_owner_not_found': { en: 'Specified network owner was not found', 'zh-CN': '指定的网络所有者不存在' },
   'network.delete_success': { en: 'Network deleted successfully', 'zh-CN': '网络删除成功' },
@@ -396,7 +399,10 @@ export function detectSystemLanguage(languages?: readonly string[]): Language {
 
   return candidates.some((language) => {
     const normalized = language.toLowerCase()
-    return normalized === 'zh-cn' || normalized === 'zh-hans' || normalized.startsWith('zh-hans-')
+    if (normalized === 'zh-tw' || normalized === 'zh-hk' || normalized === 'zh-mo' || normalized === 'zh-hant' || normalized.startsWith('zh-hant-')) {
+      return false
+    }
+    return normalized === 'zh' || normalized === 'zh-cn' || normalized === 'zh-hans' || normalized.startsWith('zh-hans-') || normalized.startsWith('zh-')
   }) ? 'zh-CN' : 'en'
 }
 
@@ -434,24 +440,25 @@ export function translateRawText(value: string, language: Language): string {
     return value.split(normalized).join(translated)
   }
 
-  if (language === 'en') {
-    return value
-      .replace(/共享来源：/g, 'Shared by: ')
-      .replace(/网络ID:/g, 'Network ID:')
-      .replace(/网络 ID/g, 'Network ID')
-      .replace(/已授权 /g, 'Authorized ')
-      .replace(/待授权 /g, 'Pending ')
-      .replace(/ 台/g, ' devices')
-      .replace(/最近活跃：/g, 'Last active: ')
-      .replace(/登录时间：/g, 'Signed in: ')
-      .replace(/到期时间：/g, 'Expires: ')
-      .replace(/授权时间：/g, 'Granted at: ')
-      .replace(/当前步骤状态：/g, 'Current step status: ')
-      .replace(/平台:/g, 'Platform:')
-      .replace(/内核:/g, 'Kernel:')
-  }
+  const rawReplacementPairs: Array<[RegExp, string, RegExp, string]> = [
+    [/共享来源：/g, 'Shared by: ', /Shared by: /g, '共享来源：'],
+    [/网络ID:/g, 'Network ID:', /Network ID:/g, '网络ID:'],
+    [/网络 ID/g, 'Network ID', /Network ID/g, '网络 ID'],
+    [/已授权 /g, 'Authorized ', /Authorized /g, '已授权 '],
+    [/待授权 /g, 'Pending ', /Pending /g, '待授权 '],
+    [/ 台/g, ' devices', / devices/g, ' 台'],
+    [/最近活跃：/g, 'Last active: ', /Last active: /g, '最近活跃：'],
+    [/登录时间：/g, 'Signed in: ', /Signed in: /g, '登录时间：'],
+    [/到期时间：/g, 'Expires: ', /Expires: /g, '到期时间：'],
+    [/授权时间：/g, 'Granted at: ', /Granted at: /g, '授权时间：'],
+    [/当前步骤状态：/g, 'Current step status: ', /Current step status: /g, '当前步骤状态：'],
+    [/平台:/g, 'Platform:', /Platform:/g, '平台:'],
+    [/内核:/g, 'Kernel:', /Kernel:/g, '内核:'],
+  ]
 
-  return value
+  return rawReplacementPairs.reduce((result, [zhPattern, enText, enPattern, zhText]) => {
+    return language === 'en' ? result.replace(zhPattern, enText) : result.replace(enPattern, zhText)
+  }, value)
 }
 
 export function translateMessageCode(code: string, language = resolveLanguage(getStoredLanguagePreference())): string | null {
@@ -477,24 +484,40 @@ function interpolate(template: string, params?: Record<string, string | number>)
   )
 }
 
+const legacyTranslationSelector = '[data-legacy-translate], .legacy-i18n'
+
+function legacyTranslationRoots(root: ParentNode): Element[] {
+  const roots: Element[] = []
+  if (root instanceof Element && root.matches(legacyTranslationSelector)) {
+    roots.push(root)
+  }
+  if (root instanceof Element || root instanceof Document) {
+    roots.push(...Array.from(root.querySelectorAll(legacyTranslationSelector)))
+  }
+  return roots
+}
+
+function isInLegacyTranslationRoot(node: Node): boolean {
+  return Boolean(node.parentElement?.closest(legacyTranslationSelector))
+}
+
 function translateDocument(root: ParentNode, language: Language) {
   const ignoredTags = new Set(['SCRIPT', 'STYLE', 'TEXTAREA'])
-  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
-  let node = walker.nextNode()
-  while (node) {
-    const parent = node.parentElement
-    if (parent && !ignoredTags.has(parent.tagName)) {
-      const nextValue = translateRawText(node.nodeValue ?? '', language)
-      if (nextValue !== node.nodeValue) {
-        node.nodeValue = nextValue
+  for (const legacyRoot of legacyTranslationRoots(root)) {
+    const walker = document.createTreeWalker(legacyRoot, NodeFilter.SHOW_TEXT)
+    let node = walker.nextNode()
+    while (node) {
+      const parent = node.parentElement
+      if (parent && !ignoredTags.has(parent.tagName)) {
+        const nextValue = translateRawText(node.nodeValue ?? '', language)
+        if (nextValue !== node.nodeValue) {
+          node.nodeValue = nextValue
+        }
       }
+      node = walker.nextNode()
     }
-    node = walker.nextNode()
-  }
 
-  if (root instanceof Element || root instanceof Document) {
-    const elementRoot = root instanceof Document ? root.documentElement : root
-    elementRoot.querySelectorAll<HTMLElement>('[placeholder],[aria-label],[title]').forEach((element) => {
+    legacyRoot.querySelectorAll<HTMLElement>('[placeholder],[aria-label],[title]').forEach((element) => {
       for (const attr of ['placeholder', 'aria-label', 'title']) {
         const value = element.getAttribute(attr)
         if (value) {
@@ -502,6 +525,15 @@ function translateDocument(root: ParentNode, language: Language) {
         }
       }
     })
+
+    if (legacyRoot instanceof HTMLElement) {
+      for (const attr of ['placeholder', 'aria-label', 'title']) {
+        const value = legacyRoot.getAttribute(attr)
+        if (value) {
+          legacyRoot.setAttribute(attr, translateRawText(value, language))
+        }
+      }
+    }
   }
 }
 
@@ -528,7 +560,7 @@ function RuntimeTextTranslator({ language }: { language: Language }) {
 
       for (const mutation of mutations) {
         mutation.addedNodes.forEach((node) => {
-          if (node.nodeType === Node.TEXT_NODE) {
+          if (node.nodeType === Node.TEXT_NODE && isInLegacyTranslationRoot(node)) {
             const translated = translateRawText(node.nodeValue ?? '', language)
             if (translated !== node.nodeValue) {
               node.nodeValue = translated
@@ -537,7 +569,7 @@ function RuntimeTextTranslator({ language }: { language: Language }) {
             translateDocument(node, language)
           }
         })
-        if (mutation.type === 'characterData') {
+        if (mutation.type === 'characterData' && isInLegacyTranslationRoot(mutation.target)) {
           const translated = translateRawText(mutation.target.nodeValue ?? '', language)
           if (translated !== mutation.target.nodeValue) {
             mutation.target.nodeValue = translated

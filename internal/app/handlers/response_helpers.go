@@ -24,6 +24,9 @@ func writeMessageResponse(c fiber.Ctx, status int, code string, message string, 
 		"message_code": code,
 	}
 	for key, value := range extra {
+		if key == "message" || key == "message_code" {
+			continue
+		}
 		body[key] = value
 	}
 	return c.Status(status).JSON(body)

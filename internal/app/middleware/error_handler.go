@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/GT-610/tairitsu/internal/app/httpcode"
@@ -24,7 +25,8 @@ func ErrorHandler() fiber.Handler {
 		if err != nil {
 			logger.Error("API error", zap.Error(err))
 
-			if fiberErr, ok := err.(*fiber.Error); ok {
+			var fiberErr *fiber.Error
+			if errors.As(err, &fiberErr) {
 				return c.Status(fiberErr.Code).JSON(ErrorResponse{
 					Error:     http.StatusText(fiberErr.Code),
 					Message:   fiberErr.Message,
