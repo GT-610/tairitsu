@@ -3,8 +3,10 @@ package middleware
 import (
 	"strings"
 
+	"github.com/GT-610/tairitsu/internal/app/logger"
 	"github.com/GT-610/tairitsu/internal/app/services"
 	"github.com/gofiber/fiber/v3"
+	"go.uber.org/zap"
 )
 
 // AuthMiddleware 认证中间件
@@ -116,9 +118,10 @@ func AdminRequiredWithUserService(userService *services.UserService) fiber.Handl
 		user, err := userService.GetUserByID(userID)
 		if err != nil {
 			if services.IsUserDBUnavailable(err) {
+				logger.Error("Administrator authorization failed because user database is unavailable", zap.Error(err))
 				return c.Status(fiber.StatusServiceUnavailable).JSON(ErrorResponse{
 					Error:     "Service Unavailable",
-					Message:   err.Error(),
+					Message:   "User service is unavailable",
 					ErrorCode: "user.db_unavailable",
 					Code:      fiber.StatusServiceUnavailable,
 				})

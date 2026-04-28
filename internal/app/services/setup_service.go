@@ -52,7 +52,9 @@ func (s *SetupService) ConfigureDatabase(dbConfig models.DatabaseConfig) (databa
 	}
 
 	if err := db.Init(); err != nil {
-		db.Close()
+		if closeErr := db.Close(); closeErr != nil {
+			logger.Warn("failed to close database after initialization error", zap.Error(closeErr))
+		}
 		return database.Config{}, fmt.Errorf("database initialization failed: %w", err)
 	}
 

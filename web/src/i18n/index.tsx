@@ -507,7 +507,11 @@ function RuntimeTextTranslator({ language }: { language: Language }) {
 
 export function LanguageProvider({ children }: { children: React.ReactNode }) {
   const [preference, setPreferenceState] = useState<LanguagePreference>(() => getStoredLanguagePreference())
-  const language = resolveLanguage(preference)
+  const [systemLanguageTick, setSystemLanguageTick] = useState(0)
+  const language = useMemo(
+    () => (preference === 'system' ? detectSystemLanguage() : preference),
+    [preference, systemLanguageTick],
+  )
 
   useEffect(() => {
     document.documentElement.lang = language === 'zh-CN' ? 'zh-CN' : 'en'
@@ -516,13 +520,10 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (preference !== 'system') return
 
-    const media = window.matchMedia?.('(prefers-color-scheme: dark)')
-    const onLanguageChange = () => setPreferenceState((current) => current)
+    const onLanguageChange = () => setSystemLanguageTick((current) => current + 1)
     window.addEventListener('languagechange', onLanguageChange)
-    media?.addEventListener?.('change', onLanguageChange)
     return () => {
       window.removeEventListener('languagechange', onLanguageChange)
-      media?.removeEventListener?.('change', onLanguageChange)
     }
   }, [preference])
 

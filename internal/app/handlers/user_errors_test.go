@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/GT-610/tairitsu/internal/app/services"
@@ -51,10 +52,12 @@ func TestWriteUserServiceError_MapsKnownErrors(t *testing.T) {
 			if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
 				t.Fatalf("decode response body: %v", err)
 			}
-			if body["error"] == "" {
+			errorMsg, ok := body["error"].(string)
+			if !ok || strings.TrimSpace(errorMsg) == "" {
 				t.Fatalf("expected non-empty error body")
 			}
-			if body["error_code"] == "" {
+			errorCode, ok := body["error_code"].(string)
+			if !ok || strings.TrimSpace(errorCode) == "" {
 				t.Fatalf("expected non-empty error_code body")
 			}
 		})

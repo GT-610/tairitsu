@@ -190,12 +190,7 @@ func (h *SystemHandler) GetSystemStats(c fiber.Ctx) error {
 	stats, err := h.systemService.GetSystemStats()
 	if err != nil {
 		logger.Error("Failed to get system stats", zap.Error(err))
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error":      "Unable to retrieve system resource statistics",
-			"message":    "Unable to retrieve system resource statistics",
-			"error_code": "system.stats_unavailable",
-			"details":    err.Error(),
-		})
+		return writeErrorResponseWithCode(c, fiber.StatusInternalServerError, "system.stats_unavailable", "Unable to retrieve system resource statistics")
 	}
 
 	return c.Status(fiber.StatusOK).JSON(stats)

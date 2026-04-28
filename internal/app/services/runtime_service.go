@@ -87,7 +87,9 @@ func (s *RuntimeService) ReopenConfiguredDatabase() error {
 	}
 
 	if err := db.Init(); err != nil {
-		db.Close()
+		if closeErr := db.Close(); closeErr != nil {
+			logger.Warn("failed to close database after reinitialization error", zap.Error(closeErr))
+		}
 		return fmt.Errorf("failed to reinitialize database: %w", err)
 	}
 

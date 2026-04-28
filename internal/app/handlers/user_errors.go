@@ -1,8 +1,10 @@
 package handlers
 
 import (
+	"github.com/GT-610/tairitsu/internal/app/logger"
 	"github.com/GT-610/tairitsu/internal/app/services"
 	"github.com/gofiber/fiber/v3"
+	"go.uber.org/zap"
 )
 
 func writeUserServiceError(c fiber.Ctx, err error) error {
@@ -36,6 +38,7 @@ func writeUserServiceError(c fiber.Ctx, err error) error {
 	case services.IsSessionAccessDenied(err):
 		return writeErrorResponseWithCode(c, fiber.StatusForbidden, "session.access_denied", err.Error())
 	default:
-		return writeErrorResponseWithCode(c, fiber.StatusInternalServerError, "system.internal_error", err.Error())
+		logger.Error("Unhandled user service error", zap.Error(err))
+		return writeErrorResponseWithCode(c, fiber.StatusInternalServerError, "system.internal_error", "Internal Server Error")
 	}
 }

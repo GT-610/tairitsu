@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/GT-610/tairitsu/internal/app/logger"
 	"github.com/gofiber/fiber/v3"
@@ -27,7 +28,7 @@ func ErrorHandler() fiber.Handler {
 				return c.Status(fiberErr.Code).JSON(ErrorResponse{
 					Error:     http.StatusText(fiberErr.Code),
 					Message:   fiberErr.Message,
-					ErrorCode: "http." + http.StatusText(fiberErr.Code),
+					ErrorCode: defaultErrorCode(fiberErr.Code),
 					Code:      fiberErr.Code,
 				})
 			}
@@ -35,13 +36,21 @@ func ErrorHandler() fiber.Handler {
 			// 响应错误
 			return c.Status(fiber.StatusInternalServerError).JSON(ErrorResponse{
 				Error:     "Internal Server Error",
-				Message:   err.Error(),
+				Message:   "Internal Server Error",
 				ErrorCode: "system.internal_error",
 				Code:      fiber.StatusInternalServerError,
 			})
 		}
 		return nil
 	}
+}
+
+func defaultErrorCode(status int) string {
+	text := strings.ToLower(http.StatusText(status))
+	if text == "" {
+		return "error.unknown"
+	}
+	return "http." + strings.ReplaceAll(text, " ", "_")
 }
 
 // CORS 跨域中间件
