@@ -4,8 +4,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gofiber/fiber/v3"
 	"github.com/GT-610/tairitsu/internal/app/logger"
+	"github.com/gofiber/fiber/v3"
 	"go.uber.org/zap"
 )
 
@@ -14,18 +14,18 @@ import (
 
 // TokenBucket 令牌桶结构
 type TokenBucket struct {
-	capacity     int           // 桶容量
-	tokens       int           // 当前令牌数
-	refillRate   int           // 每秒补充令牌数
-	lastRefill   time.Time     // 上次补充令牌时间
-	refillMutex  sync.Mutex    // 补充令牌的互斥锁
+	capacity    int        // 桶容量
+	tokens      int        // 当前令牌数
+	refillRate  int        // 每秒补充令牌数
+	lastRefill  time.Time  // 上次补充令牌时间
+	refillMutex sync.Mutex // 补充令牌的互斥锁
 }
 
 // NewTokenBucket 创建新的令牌桶
 func NewTokenBucket(capacity, refillRate int) *TokenBucket {
 	return &TokenBucket{
 		capacity:   capacity,
-		tokens:     capacity,     // 初始填满令牌
+		tokens:     capacity, // 初始填满令牌
 		refillRate: refillRate,
 		lastRefill: time.Now(),
 	}
@@ -43,14 +43,14 @@ func (tb *TokenBucket) GetToken() bool {
 	tokensToAdd := int(duration.Seconds()) * tb.refillRate
 
 	if tokensToAdd > 0 {
-			// 更新令牌数，不超过容量
-			newTokens := tb.tokens + tokensToAdd
-			if newTokens > tb.capacity {
-				newTokens = tb.capacity
-			}
-			tb.tokens = newTokens
-			tb.lastRefill = now
+		// 更新令牌数，不超过容量
+		newTokens := tb.tokens + tokensToAdd
+		if newTokens > tb.capacity {
+			newTokens = tb.capacity
 		}
+		tb.tokens = newTokens
+		tb.lastRefill = now
+	}
 
 	// 尝试获取令牌
 	if tb.tokens > 0 {
@@ -124,11 +124,14 @@ func RateLimit() fiber.Handler {
 					// 忽略日志初始化失败的情况
 				}
 			}()
-			logger.Warn("API速率限制触发", zap.String("client_ip", clientIP), zap.String("path", c.Path()))
+			logger.Warn("API rate limit triggered", zap.String("client_ip", clientIP), zap.String("path", c.Path()))
 
 			// 返回429 Too Many Requests
 			return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
-				"error": "请求频率过高，请稍后再试",
+				"error":      "Too many requests. Please try again later.",
+				"message":    "Too many requests. Please try again later.",
+				"error_code": "system.rate_limited",
+				"code":       fiber.StatusTooManyRequests,
 			})
 		}
 

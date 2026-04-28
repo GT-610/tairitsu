@@ -47,12 +47,15 @@ func TestWriteUserServiceError_MapsKnownErrors(t *testing.T) {
 				t.Fatalf("status = %d, want %d", resp.StatusCode, tc.expectedCode)
 			}
 
-			var body map[string]string
+			var body map[string]any
 			if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
 				t.Fatalf("decode response body: %v", err)
 			}
 			if body["error"] == "" {
 				t.Fatalf("expected non-empty error body")
+			}
+			if body["error_code"] == "" {
+				t.Fatalf("expected non-empty error_code body")
 			}
 		})
 	}

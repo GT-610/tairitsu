@@ -23,17 +23,17 @@ func Encrypt(text, key string) (string, error) {
 
 	block, err := aes.NewCipher([]byte(key))
 	if err != nil {
-		return "", fmt.Errorf("创建AES密码器失败: %w", err)
+		return "", fmt.Errorf("failed to create AES cipher: %w", err)
 	}
 
 	gcm, err := cipher.NewGCM(block)
 	if err != nil {
-		return "", fmt.Errorf("创建GCM模式失败: %w", err)
+		return "", fmt.Errorf("failed to create GCM mode: %w", err)
 	}
 
 	nonce := make([]byte, gcm.NonceSize())
 	if _, err = io.ReadFull(rand.Reader, nonce); err != nil {
-		return "", fmt.Errorf("生成随机数失败: %w", err)
+		return "", fmt.Errorf("failed to generate nonce: %w", err)
 	}
 
 	ciphertext := gcm.Seal(nonce, nonce, []byte(text), nil)
@@ -54,27 +54,27 @@ func Decrypt(encryptedText, key string) (string, error) {
 
 	data, err := base64.StdEncoding.DecodeString(encryptedText)
 	if err != nil {
-		return "", fmt.Errorf("解码失败: %w", err)
+		return "", fmt.Errorf("failed to decode: %w", err)
 	}
 
 	block, err := aes.NewCipher([]byte(key))
 	if err != nil {
-		return "", fmt.Errorf("创建AES密码器失败: %w", err)
+		return "", fmt.Errorf("failed to create AES cipher: %w", err)
 	}
 
 	gcm, err := cipher.NewGCM(block)
 	if err != nil {
-		return "", fmt.Errorf("创建GCM模式失败: %w", err)
+		return "", fmt.Errorf("failed to create GCM mode: %w", err)
 	}
 
 	if len(data) < gcm.NonceSize() {
-		return "", fmt.Errorf("密文太短")
+		return "", fmt.Errorf("ciphertext is too short")
 	}
 
 	nonce, ciphertext := data[:gcm.NonceSize()], data[gcm.NonceSize():]
 	plaintext, err := gcm.Open(nil, nonce, ciphertext, nil)
 	if err != nil {
-		return "", fmt.Errorf("解密失败: %w", err)
+		return "", fmt.Errorf("failed to decrypt: %w", err)
 	}
 
 	return string(plaintext), nil

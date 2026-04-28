@@ -14,9 +14,10 @@ func AuthMiddleware(jwtService *services.JWTService, sessionService *services.Se
 		authHeader := c.Get("Authorization")
 		if authHeader == "" {
 			return c.Status(fiber.StatusUnauthorized).JSON(ErrorResponse{
-				Error:   "Unauthorized",
-				Message: "缺少认证令牌",
-				Code:    fiber.StatusUnauthorized,
+				Error:     "Unauthorized",
+				Message:   "Missing authentication token",
+				ErrorCode: "auth.missing_token",
+				Code:      fiber.StatusUnauthorized,
 			})
 		}
 
@@ -24,9 +25,10 @@ func AuthMiddleware(jwtService *services.JWTService, sessionService *services.Se
 		parts := strings.SplitN(authHeader, " ", 2)
 		if !(len(parts) == 2 && parts[0] == "Bearer") {
 			return c.Status(fiber.StatusUnauthorized).JSON(ErrorResponse{
-				Error:   "Unauthorized",
-				Message: "认证格式无效",
-				Code:    fiber.StatusUnauthorized,
+				Error:     "Unauthorized",
+				Message:   "Invalid authentication format",
+				ErrorCode: "auth.invalid_format",
+				Code:      fiber.StatusUnauthorized,
 			})
 		}
 
@@ -34,9 +36,10 @@ func AuthMiddleware(jwtService *services.JWTService, sessionService *services.Se
 		claims, err := jwtService.ValidateToken(parts[1])
 		if err != nil {
 			return c.Status(fiber.StatusUnauthorized).JSON(ErrorResponse{
-				Error:   "Unauthorized",
-				Message: "无效的认证令牌",
-				Code:    fiber.StatusUnauthorized,
+				Error:     "Unauthorized",
+				Message:   "Invalid authentication token",
+				ErrorCode: "auth.invalid_token",
+				Code:      fiber.StatusUnauthorized,
 			})
 		}
 
@@ -45,9 +48,10 @@ func AuthMiddleware(jwtService *services.JWTService, sessionService *services.Se
 			session, err := sessionService.ValidateSession(claims.UserID, claims.SessionID)
 			if err != nil {
 				return c.Status(fiber.StatusUnauthorized).JSON(ErrorResponse{
-					Error:   "Unauthorized",
-					Message: "无效的认证令牌",
-					Code:    fiber.StatusUnauthorized,
+					Error:     "Unauthorized",
+					Message:   "Invalid authentication token",
+					ErrorCode: "auth.invalid_token",
+					Code:      fiber.StatusUnauthorized,
 				})
 			}
 			_ = sessionService.TouchSession(session)
@@ -68,17 +72,19 @@ func AdminRequired() fiber.Handler {
 		role, exists := c.Locals("role").(string)
 		if !exists {
 			return c.Status(fiber.StatusForbidden).JSON(ErrorResponse{
-				Error:   "Forbidden",
-				Message: "需要认证",
-				Code:    fiber.StatusForbidden,
+				Error:     "Forbidden",
+				Message:   "Authentication required",
+				ErrorCode: "auth.required",
+				Code:      fiber.StatusForbidden,
 			})
 		}
 
 		if role != "admin" {
 			return c.Status(fiber.StatusForbidden).JSON(ErrorResponse{
-				Error:   "Forbidden",
-				Message: "需要管理员权限",
-				Code:    fiber.StatusForbidden,
+				Error:     "Forbidden",
+				Message:   "Administrator permission required",
+				ErrorCode: "auth.admin_required",
+				Code:      fiber.StatusForbidden,
 			})
 		}
 
@@ -91,17 +97,19 @@ func AdminRequiredWithUserService(userService *services.UserService) fiber.Handl
 		userID, exists := c.Locals("user_id").(string)
 		if !exists || userID == "" {
 			return c.Status(fiber.StatusForbidden).JSON(ErrorResponse{
-				Error:   "Forbidden",
-				Message: "需要认证",
-				Code:    fiber.StatusForbidden,
+				Error:     "Forbidden",
+				Message:   "Authentication required",
+				ErrorCode: "auth.required",
+				Code:      fiber.StatusForbidden,
 			})
 		}
 
 		if userService == nil {
 			return c.Status(fiber.StatusServiceUnavailable).JSON(ErrorResponse{
-				Error:   "Service Unavailable",
-				Message: "用户服务不可用",
-				Code:    fiber.StatusServiceUnavailable,
+				Error:     "Service Unavailable",
+				Message:   "User service is unavailable",
+				ErrorCode: "system.user_service_unavailable",
+				Code:      fiber.StatusServiceUnavailable,
 			})
 		}
 
@@ -109,23 +117,26 @@ func AdminRequiredWithUserService(userService *services.UserService) fiber.Handl
 		if err != nil {
 			if services.IsUserDBUnavailable(err) {
 				return c.Status(fiber.StatusServiceUnavailable).JSON(ErrorResponse{
-					Error:   "Service Unavailable",
-					Message: err.Error(),
-					Code:    fiber.StatusServiceUnavailable,
+					Error:     "Service Unavailable",
+					Message:   err.Error(),
+					ErrorCode: "user.db_unavailable",
+					Code:      fiber.StatusServiceUnavailable,
 				})
 			}
 			return c.Status(fiber.StatusForbidden).JSON(ErrorResponse{
-				Error:   "Forbidden",
-				Message: "需要管理员权限",
-				Code:    fiber.StatusForbidden,
+				Error:     "Forbidden",
+				Message:   "Administrator permission required",
+				ErrorCode: "auth.admin_required",
+				Code:      fiber.StatusForbidden,
 			})
 		}
 
 		if user.Role != "admin" {
 			return c.Status(fiber.StatusForbidden).JSON(ErrorResponse{
-				Error:   "Forbidden",
-				Message: "需要管理员权限",
-				Code:    fiber.StatusForbidden,
+				Error:     "Forbidden",
+				Message:   "Administrator permission required",
+				ErrorCode: "auth.admin_required",
+				Code:      fiber.StatusForbidden,
 			})
 		}
 

@@ -10,20 +10,20 @@ import (
 func writeNetworkServiceError(c fiber.Ctx, err error, notFoundMessage string, forbiddenMessage string) error {
 	switch {
 	case services.IsNetworkNotFound(err):
-		return writeErrorResponse(c, fiber.StatusNotFound, notFoundMessage)
+		return writeErrorResponseWithCode(c, fiber.StatusNotFound, "network.not_found", notFoundMessage)
 	case services.IsNetworkAccessDenied(err):
-		return writeErrorResponse(c, fiber.StatusForbidden, forbiddenMessage)
+		return writeErrorResponseWithCode(c, fiber.StatusForbidden, "network.access_denied", forbiddenMessage)
 	case errors.Is(err, services.ErrImportAccessDenied):
-		return writeErrorResponse(c, fiber.StatusForbidden, err.Error())
+		return writeErrorResponseWithCode(c, fiber.StatusForbidden, "network.import_access_denied", err.Error())
 	case errors.Is(err, services.ErrImportOwnerRequired):
-		return writeErrorResponse(c, fiber.StatusBadRequest, err.Error())
+		return writeErrorResponseWithCode(c, fiber.StatusBadRequest, "network.import_owner_required", err.Error())
 	case errors.Is(err, services.ErrImportOwnerNotFound):
-		return writeErrorResponse(c, fiber.StatusBadRequest, err.Error())
+		return writeErrorResponseWithCode(c, fiber.StatusBadRequest, "network.import_owner_not_found", err.Error())
 	case errors.Is(err, services.ErrUserNotFound):
-		return writeErrorResponse(c, fiber.StatusBadRequest, err.Error())
+		return writeErrorResponseWithCode(c, fiber.StatusBadRequest, "user.not_found", err.Error())
 	case errors.Is(err, services.ErrViewerTargetInvalid):
-		return writeErrorResponse(c, fiber.StatusBadRequest, err.Error())
+		return writeErrorResponseWithCode(c, fiber.StatusBadRequest, "network.viewer_target_invalid", err.Error())
 	default:
-		return writeErrorResponse(c, fiber.StatusInternalServerError, err.Error())
+		return writeErrorResponseWithCode(c, fiber.StatusInternalServerError, "system.internal_error", err.Error())
 	}
 }

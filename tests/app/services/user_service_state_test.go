@@ -17,7 +17,7 @@ func TestUserServiceRegisterRequiresDatabase(t *testing.T) {
 	})
 
 	assert.Nil(t, user)
-	assert.EqualError(t, err, "系统尚未配置数据库，请先完成初始设置")
+	assert.ErrorIs(t, err, services.ErrUserDBUnavailable)
 }
 
 func TestUserServiceLoginRequiresDatabase(t *testing.T) {
@@ -29,5 +29,5 @@ func TestUserServiceLoginRequiresDatabase(t *testing.T) {
 	})
 
 	assert.Nil(t, user)
-	assert.EqualError(t, err, "系统尚未配置数据库，请先完成初始设置")
+	assert.ErrorIs(t, err, services.ErrUserDBUnavailable)
 }

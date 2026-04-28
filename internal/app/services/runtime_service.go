@@ -39,7 +39,7 @@ func (s *RuntimeService) CurrentDatabase() database.DBInterface {
 func (s *RuntimeService) BindDatabase(db database.DBInterface) {
 	if current := s.CurrentDatabase(); current != nil && current != db {
 		if err := current.Close(); err != nil {
-			logger.Warn("关闭旧数据库连接失败", zap.Error(err))
+			logger.Warn("failed to close previous database connection", zap.Error(err))
 		}
 	}
 
@@ -61,7 +61,7 @@ func (s *RuntimeService) CloseCurrentDatabase() {
 	}
 
 	if err := current.Close(); err != nil {
-		logger.Warn("关闭当前数据库连接失败", zap.Error(err))
+		logger.Warn("failed to close current database connection", zap.Error(err))
 	}
 
 	if s.userService != nil {
@@ -78,17 +78,17 @@ func (s *RuntimeService) CloseCurrentDatabase() {
 func (s *RuntimeService) ReopenConfiguredDatabase() error {
 	dbConfig := s.stateService.DatabaseConfig()
 	if dbConfig.Type == "" {
-		return fmt.Errorf("数据库尚未配置")
+		return fmt.Errorf("database is not configured")
 	}
 
 	db, err := database.NewDatabase(dbConfig)
 	if err != nil {
-		return fmt.Errorf("重新打开数据库失败: %w", err)
+		return fmt.Errorf("failed to reopen database: %w", err)
 	}
 
 	if err := db.Init(); err != nil {
 		db.Close()
-		return fmt.Errorf("重新初始化数据库失败: %w", err)
+		return fmt.Errorf("failed to reinitialize database: %w", err)
 	}
 
 	s.BindDatabase(db)
@@ -105,14 +105,14 @@ func (s *RuntimeService) BindZTClient(client *zerotier.Client) {
 func (s *RuntimeService) InitZTClientFromConfig() (*zerotier.Status, error) {
 	ztClient, err := s.stateService.CreateZTClient()
 	if err != nil {
-		return nil, fmt.Errorf("创建ZeroTier客户端失败: %w", err)
+		return nil, fmt.Errorf("failed to create ZeroTier client: %w", err)
 	}
 
 	s.BindZTClient(ztClient)
 
 	status, err := s.networkService.GetStatus()
 	if err != nil {
-		return nil, fmt.Errorf("ZeroTier客户端初始化后验证失败: %w", err)
+		return nil, fmt.Errorf("ZeroTier client validation failed after initialization: %w", err)
 	}
 
 	return status, nil

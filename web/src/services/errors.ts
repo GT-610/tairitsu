@@ -1,8 +1,11 @@
 import axios, { type AxiosError } from 'axios';
+import { translateMessageCode } from '../i18n';
 
 interface ErrorResponseData {
   error?: string;
   message?: string;
+  error_code?: string;
+  message_code?: string;
 }
 
 export function toError(error: unknown): Error {
@@ -19,6 +22,11 @@ export function isAxiosError<T = ErrorResponseData>(error: unknown): error is Ax
 
 export function getErrorMessage(error: unknown, fallback: string): string {
   if (isAxiosError(error)) {
+    const responseCode = error.response?.data?.error_code ?? error.response?.data?.message_code;
+    if (typeof responseCode === 'string' && responseCode.trim() !== '') {
+      return translateMessageCode(responseCode) ?? responseCode;
+    }
+
     const responseMessage = error.response?.data?.error ?? error.response?.data?.message;
     if (typeof responseMessage === 'string' && responseMessage.trim() !== '') {
       return responseMessage;

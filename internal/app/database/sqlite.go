@@ -24,13 +24,13 @@ func NewSQLiteDB(dbPath string) (*SQLiteDB, error) {
 	// 确保数据库目录存在
 	dir := filepath.Dir(dbPath)
 	if err := os.MkdirAll(dir, 0755); err != nil {
-		return nil, fmt.Errorf("创建数据库目录失败: %w", err)
+		return nil, fmt.Errorf("failed to create database directory: %w", err)
 	}
 
 	// 连接数据库
 	db, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
-		return nil, fmt.Errorf("连接SQLite数据库失败: %w", err)
+		return nil, fmt.Errorf("failed to connect to SQLite database: %w", err)
 	}
 
 	return &SQLiteDB{
@@ -55,7 +55,7 @@ func (s *SQLiteDB) Init() error {
 
 	_, err := s.db.Exec(createUsersTable)
 	if err != nil {
-		return fmt.Errorf("创建用户表失败: %w", err)
+		return fmt.Errorf("failed to create users table: %w", err)
 	}
 
 	// 创建网络表
@@ -71,7 +71,7 @@ func (s *SQLiteDB) Init() error {
 
 	_, err = s.db.Exec(createNetworkTable)
 	if err != nil {
-		return fmt.Errorf("创建网络表失败: %w", err)
+		return fmt.Errorf("failed to create networks table: %w", err)
 	}
 
 	createNetworkViewersTable := `
@@ -86,7 +86,7 @@ func (s *SQLiteDB) Init() error {
 
 	_, err = s.db.Exec(createNetworkViewersTable)
 	if err != nil {
-		return fmt.Errorf("创建网络查看授权表失败: %w", err)
+		return fmt.Errorf("failed to create network viewer grants table: %w", err)
 	}
 
 	createSessionsTable := `
@@ -105,7 +105,7 @@ func (s *SQLiteDB) Init() error {
 
 	_, err = s.db.Exec(createSessionsTable)
 	if err != nil {
-		return fmt.Errorf("创建会话表失败: %w", err)
+		return fmt.Errorf("failed to create sessions table: %w", err)
 	}
 
 	return nil
@@ -122,7 +122,7 @@ func (s *SQLiteDB) WithTransaction(fn func(DBInterface) error) error {
 
 	tx, err := s.db.Begin()
 	if err != nil {
-		return fmt.Errorf("开启事务失败: %w", err)
+		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 
 	txDB := &SQLiteDB{
@@ -134,13 +134,13 @@ func (s *SQLiteDB) WithTransaction(fn func(DBInterface) error) error {
 
 	if err := fn(txDB); err != nil {
 		if rollbackErr := tx.Rollback(); rollbackErr != nil {
-			return fmt.Errorf("事务回滚失败: %v; 原始错误: %w", rollbackErr, err)
+			return fmt.Errorf("failed to roll back transaction: %v; original error: %w", rollbackErr, err)
 		}
 		return err
 	}
 
 	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("提交事务失败: %w", err)
+		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
 	return nil
@@ -163,7 +163,7 @@ func (s *SQLiteDB) CreateUser(user *models.User) error {
 		_, err = s.db.Exec(query, user.ID, user.Username, user.Password, user.Role, user.CreatedAt, user.UpdatedAt)
 	}
 	if err != nil {
-		return fmt.Errorf("创建用户失败: %w", err)
+		return fmt.Errorf("failed to create user: %w", err)
 	}
 
 	return nil
@@ -187,7 +187,7 @@ func (s *SQLiteDB) GetUserByID(id string) (*models.User, error) {
 		if err == sql.ErrNoRows {
 			return nil, nil
 		}
-		return nil, fmt.Errorf("查询用户失败: %w", err)
+		return nil, fmt.Errorf("failed to query user: %w", err)
 	}
 
 	return &user, nil
@@ -211,7 +211,7 @@ func (s *SQLiteDB) GetUserByUsername(username string) (*models.User, error) {
 		if err == sql.ErrNoRows {
 			return nil, nil
 		}
-		return nil, fmt.Errorf("查询用户失败: %w", err)
+		return nil, fmt.Errorf("failed to query user: %w", err)
 	}
 
 	return &user, nil
@@ -232,7 +232,7 @@ func (s *SQLiteDB) GetAllUsers() ([]*models.User, error) {
 		rows, err = s.db.Query(query)
 	}
 	if err != nil {
-		return nil, fmt.Errorf("查询所有用户失败: %w", err)
+		return nil, fmt.Errorf("failed to query all users: %w", err)
 	}
 	defer rows.Close()
 
@@ -241,7 +241,7 @@ func (s *SQLiteDB) GetAllUsers() ([]*models.User, error) {
 		var user models.User
 		err := rows.Scan(&user.ID, &user.Username, &user.Password, &user.Role, &user.CreatedAt, &user.UpdatedAt)
 		if err != nil {
-			return nil, fmt.Errorf("扫描用户数据失败: %w", err)
+			return nil, fmt.Errorf("failed to scan user data: %w", err)
 		}
 		users = append(users, &user)
 	}
@@ -265,7 +265,7 @@ func (s *SQLiteDB) UpdateUser(user *models.User) error {
 		_, err = s.db.Exec(query, user.Username, user.Password, user.Role, user.UpdatedAt, user.ID)
 	}
 	if err != nil {
-		return fmt.Errorf("更新用户失败: %w", err)
+		return fmt.Errorf("failed to update user: %w", err)
 	}
 
 	return nil
@@ -283,7 +283,7 @@ func (s *SQLiteDB) DeleteUser(id string) error {
 		_, err = s.db.Exec(query, id)
 	}
 	if err != nil {
-		return fmt.Errorf("删除用户失败: %w", err)
+		return fmt.Errorf("failed to delete user: %w", err)
 	}
 
 	return nil
@@ -328,7 +328,7 @@ func (s *SQLiteDB) CreateSession(session *models.Session) error {
 		)
 	}
 	if err != nil {
-		return fmt.Errorf("创建会话失败: %w", err)
+		return fmt.Errorf("failed to create session: %w", err)
 	}
 
 	return nil
@@ -363,7 +363,7 @@ func (s *SQLiteDB) GetSessionByID(id string) (*models.Session, error) {
 		if err == sql.ErrNoRows {
 			return nil, nil
 		}
-		return nil, fmt.Errorf("查询会话失败: %w", err)
+		return nil, fmt.Errorf("failed to query session: %w", err)
 	}
 
 	return &session, nil
@@ -384,7 +384,7 @@ func (s *SQLiteDB) GetSessionsByUserID(userID string) ([]*models.Session, error)
 		rows, err = s.db.Query(query, userID)
 	}
 	if err != nil {
-		return nil, fmt.Errorf("查询会话列表失败: %w", err)
+		return nil, fmt.Errorf("failed to query session list: %w", err)
 	}
 	defer rows.Close()
 
@@ -404,7 +404,7 @@ func (s *SQLiteDB) GetSessionsByUserID(userID string) ([]*models.Session, error)
 			&session.UpdatedAt,
 		)
 		if err != nil {
-			return nil, fmt.Errorf("扫描会话数据失败: %w", err)
+			return nil, fmt.Errorf("failed to scan session data: %w", err)
 		}
 		sessions = append(sessions, &session)
 	}
@@ -448,7 +448,7 @@ func (s *SQLiteDB) UpdateSession(session *models.Session) error {
 		)
 	}
 	if err != nil {
-		return fmt.Errorf("更新会话失败: %w", err)
+		return fmt.Errorf("failed to update session: %w", err)
 	}
 
 	return nil
@@ -469,7 +469,7 @@ func (s *SQLiteDB) HasAdminUser() (bool, error) {
 	var count int
 	err := row.Scan(&count)
 	if err != nil {
-		return false, fmt.Errorf("检查管理员用户失败: %w", err)
+		return false, fmt.Errorf("failed to check administrator users: %w", err)
 	}
 
 	return count > 0, nil
@@ -490,7 +490,7 @@ func (s *SQLiteDB) CreateNetwork(network *models.Network) error {
 		_, err = s.db.Exec(query, network.ID, network.Name, network.Description, network.OwnerID, network.CreatedAt, network.UpdatedAt)
 	}
 	if err != nil {
-		return fmt.Errorf("创建网络失败: %w", err)
+		return fmt.Errorf("failed to create network: %w", err)
 	}
 
 	return nil
@@ -514,7 +514,7 @@ func (s *SQLiteDB) GetNetworkByID(id string) (*models.Network, error) {
 		if err == sql.ErrNoRows {
 			return nil, nil
 		}
-		return nil, fmt.Errorf("查询网络失败: %w", err)
+		return nil, fmt.Errorf("failed to query network: %w", err)
 	}
 
 	return &network, nil
@@ -535,7 +535,7 @@ func (s *SQLiteDB) GetNetworksByOwnerID(ownerID string) ([]*models.Network, erro
 		rows, err = s.db.Query(query, ownerID)
 	}
 	if err != nil {
-		return nil, fmt.Errorf("查询网络列表失败: %w", err)
+		return nil, fmt.Errorf("failed to query network list: %w", err)
 	}
 	defer rows.Close()
 
@@ -544,7 +544,7 @@ func (s *SQLiteDB) GetNetworksByOwnerID(ownerID string) ([]*models.Network, erro
 		var network models.Network
 		err := rows.Scan(&network.ID, &network.Name, &network.Description, &network.OwnerID, &network.CreatedAt, &network.UpdatedAt)
 		if err != nil {
-			return nil, fmt.Errorf("扫描网络数据失败: %w", err)
+			return nil, fmt.Errorf("failed to scan network data: %w", err)
 		}
 		networks = append(networks, &network)
 	}
@@ -567,7 +567,7 @@ func (s *SQLiteDB) GetAllNetworks() ([]*models.Network, error) {
 		rows, err = s.db.Query(query)
 	}
 	if err != nil {
-		return nil, fmt.Errorf("查询所有网络失败: %w", err)
+		return nil, fmt.Errorf("failed to query all networks: %w", err)
 	}
 	defer rows.Close()
 
@@ -576,7 +576,7 @@ func (s *SQLiteDB) GetAllNetworks() ([]*models.Network, error) {
 		var network models.Network
 		err := rows.Scan(&network.ID, &network.Name, &network.Description, &network.OwnerID, &network.CreatedAt, &network.UpdatedAt)
 		if err != nil {
-			return nil, fmt.Errorf("扫描网络数据失败: %w", err)
+			return nil, fmt.Errorf("failed to scan network data: %w", err)
 		}
 		networks = append(networks, &network)
 	}
@@ -600,7 +600,7 @@ func (s *SQLiteDB) UpdateNetwork(network *models.Network) error {
 		_, err = s.db.Exec(query, network.Name, network.Description, network.OwnerID, network.UpdatedAt, network.ID)
 	}
 	if err != nil {
-		return fmt.Errorf("更新网络失败: %w", err)
+		return fmt.Errorf("failed to update network: %w", err)
 	}
 
 	return nil
@@ -618,7 +618,7 @@ func (s *SQLiteDB) DeleteNetwork(id string) error {
 		_, err = s.db.Exec(query, id)
 	}
 	if err != nil {
-		return fmt.Errorf("删除网络失败: %w", err)
+		return fmt.Errorf("failed to delete network: %w", err)
 	}
 
 	return nil
@@ -641,7 +641,7 @@ func (s *SQLiteDB) UpsertNetworkViewer(viewer *models.NetworkViewer) error {
 		_, err = s.db.Exec(query, viewer.NetworkID, viewer.UserID, viewer.GrantedBy, viewer.CreatedAt, viewer.UpdatedAt)
 	}
 	if err != nil {
-		return fmt.Errorf("保存网络查看授权失败: %w", err)
+		return fmt.Errorf("failed to save network viewer grant: %w", err)
 	}
 	return nil
 }
@@ -663,7 +663,7 @@ func (s *SQLiteDB) GetNetworkViewer(networkID, userID string) (*models.NetworkVi
 		if err == sql.ErrNoRows {
 			return nil, nil
 		}
-		return nil, fmt.Errorf("查询网络查看授权失败: %w", err)
+		return nil, fmt.Errorf("failed to query network viewer grant: %w", err)
 	}
 
 	return &viewer, nil
@@ -683,7 +683,7 @@ func (s *SQLiteDB) GetNetworkViewers(networkID string) ([]*models.NetworkViewer,
 		rows, err = s.db.Query(query, networkID)
 	}
 	if err != nil {
-		return nil, fmt.Errorf("查询网络查看授权列表失败: %w", err)
+		return nil, fmt.Errorf("failed to query network viewer grant list: %w", err)
 	}
 	defer rows.Close()
 
@@ -691,7 +691,7 @@ func (s *SQLiteDB) GetNetworkViewers(networkID string) ([]*models.NetworkViewer,
 	for rows.Next() {
 		var viewer models.NetworkViewer
 		if err := rows.Scan(&viewer.NetworkID, &viewer.UserID, &viewer.GrantedBy, &viewer.CreatedAt, &viewer.UpdatedAt); err != nil {
-			return nil, fmt.Errorf("扫描网络查看授权数据失败: %w", err)
+			return nil, fmt.Errorf("failed to scan network viewer grant data: %w", err)
 		}
 		viewers = append(viewers, &viewer)
 	}
@@ -717,7 +717,7 @@ func (s *SQLiteDB) GetSharedNetworksByUserID(userID string) ([]*models.Network, 
 		rows, err = s.db.Query(query, userID)
 	}
 	if err != nil {
-		return nil, fmt.Errorf("查询共享网络列表失败: %w", err)
+		return nil, fmt.Errorf("failed to query shared network list: %w", err)
 	}
 	defer rows.Close()
 
@@ -725,7 +725,7 @@ func (s *SQLiteDB) GetSharedNetworksByUserID(userID string) ([]*models.Network, 
 	for rows.Next() {
 		var network models.Network
 		if err := rows.Scan(&network.ID, &network.Name, &network.Description, &network.OwnerID, &network.CreatedAt, &network.UpdatedAt); err != nil {
-			return nil, fmt.Errorf("扫描共享网络数据失败: %w", err)
+			return nil, fmt.Errorf("failed to scan shared network data: %w", err)
 		}
 		networks = append(networks, &network)
 	}
@@ -743,7 +743,7 @@ func (s *SQLiteDB) DeleteNetworkViewer(networkID, userID string) error {
 		_, err = s.db.Exec(query, networkID, userID)
 	}
 	if err != nil {
-		return fmt.Errorf("删除网络查看授权失败: %w", err)
+		return fmt.Errorf("failed to delete network viewer grant: %w", err)
 	}
 	return nil
 }

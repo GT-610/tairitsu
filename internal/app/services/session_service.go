@@ -61,7 +61,7 @@ func (s *SessionService) CreateSession(input SessionCreateInput) (*models.Sessio
 	}
 
 	if err := db.CreateSession(session); err != nil {
-		return nil, fmt.Errorf("创建会话失败: %w", err)
+		return nil, fmt.Errorf("failed to create session: %w", err)
 	}
 
 	return session, nil
@@ -75,7 +75,7 @@ func (s *SessionService) GetSessionByID(sessionID string) (*models.Session, erro
 
 	session, err := db.GetSessionByID(sessionID)
 	if err != nil {
-		return nil, fmt.Errorf("读取会话失败: %w", err)
+		return nil, fmt.Errorf("failed to read session: %w", err)
 	}
 	if session == nil {
 		return nil, ErrSessionNotFound
@@ -92,7 +92,7 @@ func (s *SessionService) GetUserSessions(userID string) ([]*models.Session, erro
 
 	sessions, err := db.GetSessionsByUserID(userID)
 	if err != nil {
-		return nil, fmt.Errorf("读取会话列表失败: %w", err)
+		return nil, fmt.Errorf("failed to read session list: %w", err)
 	}
 
 	return sessions, nil
@@ -132,7 +132,7 @@ func (s *SessionService) TouchSession(session *models.Session) error {
 	session.LastSeenAt = time.Now()
 	session.UpdatedAt = session.LastSeenAt
 	if err := db.UpdateSession(session); err != nil {
-		return fmt.Errorf("更新会话活跃时间失败: %w", err)
+		return fmt.Errorf("failed to update session activity time: %w", err)
 	}
 
 	return nil
@@ -159,7 +159,7 @@ func (s *SessionService) RevokeSession(userID, sessionID string) error {
 	session.RevokedAt = &now
 	session.UpdatedAt = now
 	if err := db.UpdateSession(session); err != nil {
-		return fmt.Errorf("吊销会话失败: %w", err)
+		return fmt.Errorf("failed to revoke session: %w", err)
 	}
 
 	return nil

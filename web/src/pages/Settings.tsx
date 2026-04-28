@@ -11,7 +11,11 @@ import {
   DialogContent,
   DialogTitle,
   Divider,
+  FormControl,
   FormControlLabel,
+  InputLabel,
+  MenuItem,
+  Select,
   Stack,
   Switch,
   TextField,
@@ -23,10 +27,12 @@ import { useAuth } from '../services/auth'
 import { useNavigate } from 'react-router-dom'
 import { formatSessionPresentation, formatSessionTime, hasDisplayableSessionTime } from '../utils/sessionPresentation'
 import { getUserRoleLabel } from '../utils/userPresentation'
+import { useTranslation, type LanguagePreference } from '../i18n'
 
 function Settings() {
   const navigate = useNavigate()
   const { user, logout } = useAuth()
+  const { preference, setPreference, t } = useTranslation()
 
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState<{ severity: 'info' | 'success' | 'error'; text: string } | null>(null)
@@ -211,6 +217,30 @@ function Settings() {
         </Box>
       ) : (
         <>
+          <Card sx={{ mb: 3 }}>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                {t('settings.language.title')}
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                {t('settings.language.description')}
+              </Typography>
+              <FormControl fullWidth>
+                <InputLabel id="language-preference-label">{t('settings.language.current')}</InputLabel>
+                <Select<LanguagePreference>
+                  labelId="language-preference-label"
+                  label={t('settings.language.current')}
+                  value={preference}
+                  onChange={(event) => setPreference(event.target.value)}
+                >
+                  <MenuItem value="system">{t('language.system')}</MenuItem>
+                  <MenuItem value="en">{t('language.en')}</MenuItem>
+                  <MenuItem value="zh-CN">{t('language.zh-CN')}</MenuItem>
+                </Select>
+              </FormControl>
+            </CardContent>
+          </Card>
+
           <Card sx={{ mb: 3 }}>
             <CardContent>
               <Typography variant="h6" gutterBottom>

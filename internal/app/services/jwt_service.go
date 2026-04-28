@@ -69,7 +69,7 @@ func (s *JWTService) ValidateToken(tokenString string) (*JWTClaims, error) {
 	token, err := jwt.ParseWithClaims(tokenString, &JWTClaims{}, func(token *jwt.Token) (interface{}, error) {
 		// 验证签名方法
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, errors.New("无效的签名方法")
+			return nil, errors.New("invalid signing method")
 		}
 		return []byte(s.secretKey), nil
 	})
@@ -83,5 +83,5 @@ func (s *JWTService) ValidateToken(tokenString string) (*JWTClaims, error) {
 		return claims, nil
 	}
 
-	return nil, errors.New("无效的令牌")
+	return nil, errors.New("invalid token")
 }
