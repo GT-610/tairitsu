@@ -32,7 +32,7 @@ import { useTranslation, type LanguagePreference } from '../i18n'
 function Settings() {
   const navigate = useNavigate()
   const { user, logout } = useAuth()
-  const { preference, setPreference, t } = useTranslation()
+  const { preference, setPreference, t, translateText } = useTranslation()
 
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState<{ severity: 'info' | 'success' | 'error'; text: string } | null>(null)
@@ -65,7 +65,7 @@ function Settings() {
         const sessionResponse = await authAPI.getSessions()
         setSessions(sessionResponse.data.sessions)
       } catch (error: unknown) {
-        setMessage({ severity: 'error', text: getErrorMessage(error, '加载设置失败') })
+        setMessage({ severity: 'error', text: getErrorMessage(error, translateText('加载设置失败')) })
       } finally {
         setLoadingSessions(false)
         setLoading(false)
@@ -73,7 +73,7 @@ function Settings() {
     }
 
     void loadSettings()
-  }, [])
+  }, [translateText])
 
   const resetPasswordDialog = () => {
     setOpenChangePasswordDialog(false)
@@ -100,23 +100,23 @@ function Settings() {
     let isValid = true
 
     if (!passwordForm.oldPassword) {
-      errors.oldPassword = '请输入原密码'
+      errors.oldPassword = translateText('请输入原密码')
       isValid = false
     }
 
     if (!passwordForm.newPassword) {
-      errors.newPassword = '请输入新密码'
+      errors.newPassword = translateText('请输入新密码')
       isValid = false
     } else if (passwordForm.newPassword.length < 6) {
-      errors.newPassword = '新密码长度至少为6位'
+      errors.newPassword = translateText('新密码长度至少为6位')
       isValid = false
     }
 
     if (!passwordForm.confirmPassword) {
-      errors.confirmPassword = '请再次确认新密码'
+      errors.confirmPassword = translateText('请再次确认新密码')
       isValid = false
     } else if (passwordForm.confirmPassword !== passwordForm.newPassword) {
-      errors.confirmPassword = '两次输入的新密码不一致'
+      errors.confirmPassword = translateText('两次输入的新密码不一致')
       isValid = false
     }
 
@@ -142,12 +142,12 @@ function Settings() {
       setMessage({
         severity: 'success',
         text: response.data.revoked_other_sessions > 0
-          ? `密码修改成功，并已移除其他会话 ${response.data.revoked_other_sessions} 个`
-          : '密码修改成功',
+          ? translateText(`密码修改成功，并已移除其他会话 ${response.data.revoked_other_sessions} 个`)
+          : translateText('密码修改成功'),
       })
       resetPasswordDialog()
     } catch (error: unknown) {
-      const errorMessage = getErrorMessage(error, '密码修改失败，请稍后重试')
+      const errorMessage = getErrorMessage(error, translateText('密码修改失败，请稍后重试'))
       setPasswordErrors((previous) => ({
         ...previous,
         oldPassword: errorMessage,
@@ -170,16 +170,16 @@ function Settings() {
         await logout()
         void navigate('/login', {
           replace: true,
-          state: { message: '当前会话已退出' },
+          state: { message: translateText('当前会话已退出') },
         })
         return
       }
 
       await authAPI.revokeSession(sessionItem.id)
       await reloadSessions()
-      setMessage({ severity: 'success', text: '已移除该登录会话' })
+      setMessage({ severity: 'success', text: translateText('已移除该登录会话') })
     } catch (error: unknown) {
-      setMessage({ severity: 'error', text: getErrorMessage(error, '移除登录会话失败') })
+      setMessage({ severity: 'error', text: getErrorMessage(error, translateText('移除登录会话失败')) })
     } finally {
       setRevokingSessionId('')
     }
@@ -190,9 +190,9 @@ function Settings() {
       setRevokingOtherSessions(true)
       const response = await authAPI.revokeOtherSessions()
       await reloadSessions()
-      setMessage({ severity: 'success', text: response.data.count > 0 ? `已移除其他会话 ${response.data.count} 个` : '没有其他可移除的会话' })
+      setMessage({ severity: 'success', text: response.data.count > 0 ? translateText(`已移除其他会话 ${response.data.count} 个`) : translateText('没有其他可移除的会话') })
     } catch (error: unknown) {
-      setMessage({ severity: 'error', text: getErrorMessage(error, '移除其他会话失败') })
+      setMessage({ severity: 'error', text: getErrorMessage(error, translateText('移除其他会话失败')) })
     } finally {
       setRevokingOtherSessions(false)
     }
@@ -201,7 +201,7 @@ function Settings() {
     <Box sx={{ p: 3 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Typography variant="h4" component="h1">
-          设置
+          {translateText('设置')}
         </Typography>
       </Box>
 
@@ -244,23 +244,23 @@ function Settings() {
           <Card sx={{ mb: 3 }}>
             <CardContent>
               <Typography variant="h6" gutterBottom>
-                账户安全
+                {translateText('账户安全')}
               </Typography>
               <Stack spacing={2.5} sx={{ mb: 3 }}>
                 <Box>
                   <Typography variant="body2" color="text.secondary">
-                    当前账号
+                    {translateText('当前账号')}
                   </Typography>
                   <Typography variant="body1">
-                    {user?.username || '未知用户'}
+                    {user?.username || translateText('未知用户')}
                   </Typography>
                 </Box>
                 <Box>
                   <Typography variant="body2" color="text.secondary">
-                    当前角色
+                    {translateText('当前角色')}
                   </Typography>
                   <Typography variant="body1">
-                    {getUserRoleLabel(user?.role)}
+                    {translateText(getUserRoleLabel(user?.role))}
                   </Typography>
                 </Box>
               </Stack>
@@ -273,7 +273,7 @@ function Settings() {
                   onClick={() => setOpenChangePasswordDialog(true)}
                   fullWidth
                 >
-                  修改密码
+                  {translateText('修改密码')}
                 </Button>
                 <Stack direction="row" spacing={1.5}>
                   <Button
@@ -283,11 +283,11 @@ function Settings() {
                     disabled={loadingSessions || revokingOtherSessions || otherVisibleSessionCount === 0}
                     onClick={() => { void handleRevokeOtherSessions() }}
                   >
-                    {revokingOtherSessions ? '移除中...' : '退出其他设备'}
+                    {revokingOtherSessions ? translateText('移除中...') : translateText('退出其他设备')}
                   </Button>
                 </Stack>
                 <Typography variant="body2" color="text.secondary">
-                  你可以在这里修改密码，并管理当前账户的登录会话。退出其他设备会吊销同一账户在其他浏览器或机器上的登录状态。
+                  {translateText('你可以在这里修改密码，并管理当前账户的登录会话。退出其他设备会吊销同一账户在其他浏览器或机器上的登录状态。')}
                 </Typography>
               </Stack>
             </CardContent>
@@ -296,14 +296,14 @@ function Settings() {
           <Card sx={{ mb: 3 }}>
             <CardContent>
               <Typography variant="h6" gutterBottom>
-                登录会话
+                {translateText('登录会话')}
               </Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                当前页面展示的是服务端登记的登录会话。移除其他会话后，对应设备会在下一次请求时失效。
+                {translateText('当前页面展示的是服务端登记的登录会话。移除其他会话后，对应设备会在下一次请求时失效。')}
               </Typography>
               <Stack spacing={2}>
                 {visibleSessions.length === 0 && !loadingSessions && (
-                  <Alert severity="info">当前没有可展示的登录会话。</Alert>
+                  <Alert severity="info">{translateText('当前没有可展示的登录会话。')}</Alert>
                 )}
                 {loadingSessions && (
                   <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
@@ -324,31 +324,31 @@ function Settings() {
                                   {presentation.title}
                                 </Typography>
                                 <Typography variant="body2" color="text.secondary">
-                                  {presentation.subtitle}
+                                  {translateText(presentation.subtitle)}
                                 </Typography>
                               </Box>
                               <Alert severity={presentation.status.severity} sx={{ py: 0 }}>
-                                {presentation.status.label}
+                                {translateText(presentation.status.label)}
                               </Alert>
                             </Stack>
                             {hasDisplayableSessionTime(sessionItem.lastSeenAt) && (
                               <Typography variant="body2" color="text.secondary">
-                                最近活跃：{formatSessionTime(sessionItem.lastSeenAt)}
+                                {translateText('最近活跃：')}{formatSessionTime(sessionItem.lastSeenAt)}
                               </Typography>
                             )}
                             {hasDisplayableSessionTime(sessionItem.createdAt) && (
                               <Typography variant="body2" color="text.secondary">
-                                登录时间：{formatSessionTime(sessionItem.createdAt)}
+                                {translateText('登录时间：')}{formatSessionTime(sessionItem.createdAt)}
                               </Typography>
                             )}
                             {hasDisplayableSessionTime(sessionItem.expiresAt) && (
                               <Typography variant="body2" color="text.secondary">
-                                到期时间：{formatSessionTime(sessionItem.expiresAt)}
+                                {translateText('到期时间：')}{formatSessionTime(sessionItem.expiresAt)}
                               </Typography>
                             )}
                             {presentation.details.map((detail) => (
                               <Typography key={detail} variant="body2" color="text.secondary">
-                                {detail}
+                                {translateText(detail)}
                               </Typography>
                             ))}
                         <Stack direction="row" spacing={1.5}>
@@ -358,7 +358,7 @@ function Settings() {
                                 disabled={disabledAction || revokingSessionId === sessionItem.id}
                             onClick={() => { void handleRevokeSession(sessionItem) }}
                           >
-                                {revokingSessionId === sessionItem.id ? '处理中...' : sessionItem.current ? '退出当前会话' : '移除此会话'}
+                                {revokingSessionId === sessionItem.id ? translateText('处理中...') : sessionItem.current ? translateText('退出当前会话') : translateText('移除此会话')}
                           </Button>
                         </Stack>
                           </Stack>
@@ -380,11 +380,11 @@ function Settings() {
         maxWidth="sm"
         fullWidth
       >
-        <DialogTitle>修改密码</DialogTitle>
+        <DialogTitle>{translateText('修改密码')}</DialogTitle>
         <DialogContent>
           <Box sx={{ mt: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
             <TextField
-              label="原密码"
+              label={translateText('原密码')}
               type="password"
               fullWidth
               value={passwordForm.oldPassword}
@@ -399,7 +399,7 @@ function Settings() {
               disabled={changingPassword}
             />
             <TextField
-              label="新密码"
+              label={translateText('新密码')}
               type="password"
               fullWidth
               value={passwordForm.newPassword}
@@ -410,11 +410,11 @@ function Settings() {
                 }
               }}
               error={Boolean(passwordErrors.newPassword)}
-              helperText={passwordErrors.newPassword || '密码长度至少 6 位'}
+              helperText={passwordErrors.newPassword || translateText('密码长度至少 6 位')}
               disabled={changingPassword}
             />
             <TextField
-              label="再次确认新密码"
+              label={translateText('再次确认新密码')}
               type="password"
               fullWidth
               value={passwordForm.confirmPassword}
@@ -436,21 +436,21 @@ function Settings() {
                   disabled={changingPassword}
                 />
               )}
-              label="修改密码后同时退出其他设备"
+              label={translateText('修改密码后同时退出其他设备')}
             />
             <Typography variant="body2" color="text.secondary">
-              建议开启。保存后会保留当前会话，并吊销当前账户在其他浏览器或机器上的登录状态。
+              {translateText('建议开启。保存后会保留当前会话，并吊销当前账户在其他浏览器或机器上的登录状态。')}
             </Typography>
           </Box>
         </DialogContent>
         <DialogActions>
-          <Button onClick={resetPasswordDialog} disabled={changingPassword}>取消</Button>
+          <Button onClick={resetPasswordDialog} disabled={changingPassword}>{translateText('取消')}</Button>
           <Button
             variant="contained"
             onClick={() => { void handleChangePassword() }}
             disabled={changingPassword}
           >
-            {changingPassword ? '修改中...' : '确认修改'}
+            {changingPassword ? translateText('修改中...') : translateText('确认修改')}
           </Button>
         </DialogActions>
       </Dialog>

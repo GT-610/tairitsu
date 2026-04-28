@@ -32,6 +32,7 @@ import Button from '@mui/material/Button';
 import { Link, useLocation} from 'react-router-dom';
 import { User } from '../services/api';
 import LogoutIcon from '@mui/icons-material/Logout';
+import { useTranslation } from '../i18n';
 
 const drawerWidth = 240;
 
@@ -94,6 +95,7 @@ interface ResponsiveDrawerProps {
 }
 
 export default function ResponsiveDrawer({ window, children, title = 'Tairitsu', user, onLogout }: ResponsiveDrawerProps) {
+  const { translateText } = useTranslation();
   const [mobileOpen, setMobileOpen] = React.useState<boolean>(false);
   const [isClosing, setIsClosing] = React.useState<boolean>(false);
   const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
@@ -154,7 +156,7 @@ export default function ResponsiveDrawer({ window, children, title = 'Tairitsu',
               <ListItemIcon>
                 {item.icon}
               </ListItemIcon>
-              <ListItemText primary={item.text} />
+              <ListItemText primary={translateText(item.text)} />
             </ListItemButton>
           </ListItem>
         ))}
@@ -176,7 +178,7 @@ export default function ResponsiveDrawer({ window, children, title = 'Tairitsu',
                   <ListItemIcon>
                     {item.icon}
                   </ListItemIcon>
-                  <ListItemText primary={item.text} />
+                  <ListItemText primary={translateText(item.text)} />
                 </ListItemButton>
               </ListItem>
             ))}
@@ -235,7 +237,7 @@ export default function ResponsiveDrawer({ window, children, title = 'Tairitsu',
                     <ListItemIcon>
                       <LogoutIcon fontSize="small" />
                     </ListItemIcon>
-                    <ListItemText>退出登录</ListItemText>
+                    <ListItemText>{translateText('退出登录')}</ListItemText>
                   </MenuItem>
                 </MenuList>
               </Menu>
@@ -292,19 +294,19 @@ export default function ResponsiveDrawer({ window, children, title = 'Tairitsu',
         aria-describedby="confirm-logout-description"
       >
         <DialogTitle id="confirm-logout-title">
-          退出登录
+          {translateText('退出登录')}
         </DialogTitle>
         <DialogContent>
           <DialogContentText id="confirm-logout-description">
-            确定要退出登录吗？
+            {translateText('确定要退出登录吗？')}
           </DialogContentText>
         </DialogContent>
         <DialogActions>
           <Button onClick={handleCancelLogout} color="primary">
-            取消
+            {translateText('取消')}
           </Button>
           <Button onClick={handleConfirmLogout} color="primary" autoFocus>
-            确认
+            {translateText('确认')}
           </Button>
         </DialogActions>
       </Dialog>
