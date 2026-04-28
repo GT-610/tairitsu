@@ -124,8 +124,8 @@ function NetworkMembersSection({
                 <TableCell>{translateText('设备 ID')}</TableCell>
                 <TableCell>{translateText('名称')}</TableCell>
                 <TableCell>{translateText('状态')}</TableCell>
-                <TableCell>Managed IPs</TableCell>
-                <TableCell>ZT 版本</TableCell>
+                <TableCell>{translateText('托管 IP')}</TableCell>
+                <TableCell>{translateText('ZT 版本')}</TableCell>
                 {showAction && <TableCell align="right">{translateText('操作')}</TableCell>}
               </TableRow>
             </TableHead>

@@ -1,4 +1,5 @@
 import { Box, Button, Grid, TextField } from '@mui/material'
+import { useTranslation } from '../../i18n'
 import SettingsSectionCard from './SettingsSectionCard'
 import type { BasicSettingsDraft } from './types'
 
@@ -12,6 +13,7 @@ interface NetworkBasicSettingsSectionProps {
 }
 
 function NetworkBasicSettingsSection({ saving, initialValue, draftValue, onChange, onReset, onSave }: NetworkBasicSettingsSectionProps) {
+  const { translateText } = useTranslation()
   const unsaved = draftValue.name !== initialValue.name || draftValue.description !== initialValue.description
 
   return (
@@ -20,7 +22,7 @@ function NetworkBasicSettingsSection({ saving, initialValue, draftValue, onChang
         <Grid size={{ xs: 12 }}>
           <TextField
             fullWidth
-            label="网络名称"
+            label={translateText('网络名称')}
             variant="outlined"
             value={draftValue.name}
             onChange={(e) => onChange({ ...draftValue, name: e.target.value })}
@@ -30,7 +32,7 @@ function NetworkBasicSettingsSection({ saving, initialValue, draftValue, onChang
         <Grid size={{ xs: 12 }}>
           <TextField
             fullWidth
-            label="网络描述"
+            label={translateText('网络描述')}
             variant="outlined"
             multiline
             rows={3}
@@ -41,8 +43,8 @@ function NetworkBasicSettingsSection({ saving, initialValue, draftValue, onChang
         </Grid>
         <Grid size={{ xs: 12 }}>
           <Box sx={{ display: 'flex', justifyContent: 'flex-start', gap: 2 }}>
-            <Button variant="outlined" onClick={onReset} disabled={saving || !unsaved}>重置更改</Button>
-            <Button variant="contained" color="primary" onClick={onSave} disabled={saving || !unsaved}>保存</Button>
+            <Button variant="outlined" onClick={onReset} disabled={saving || !unsaved}>{translateText('重置更改')}</Button>
+            <Button variant="contained" color="primary" onClick={onSave} disabled={saving || !unsaved}>{translateText('保存')}</Button>
           </Box>
         </Grid>
       </Grid>

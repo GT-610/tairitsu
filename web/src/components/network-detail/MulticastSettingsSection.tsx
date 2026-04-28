@@ -1,4 +1,5 @@
 import { Box, Button, FormControlLabel, Switch, TextField, Typography } from '@mui/material'
+import { useTranslation } from '../../i18n'
 import SettingsSectionCard from './SettingsSectionCard'
 import type { MulticastSettingsDraft } from './types'
 
@@ -19,6 +20,7 @@ function MulticastSettingsSection({
   onReset,
   onSave,
 }: MulticastSettingsSectionProps) {
+  const { translateText } = useTranslation()
   const unsaved =
     draftValue.multicastLimit !== initialValue.multicastLimit ||
     draftValue.enableBroadcast !== initialValue.enableBroadcast
@@ -27,7 +29,7 @@ function MulticastSettingsSection({
     <SettingsSectionCard title="多播设置" unsaved={unsaved}>
       <Box sx={{ display: 'grid', gap: 3, gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' } }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-          <Typography variant="body1">多播接收者限制</Typography>
+          <Typography variant="body1">{translateText('多播接收者限制')}</Typography>
           <TextField
             type="number"
             size="small"
@@ -38,13 +40,13 @@ function MulticastSettingsSection({
         </Box>
         <FormControlLabel
           control={<Switch checked={draftValue.enableBroadcast} onChange={(e) => onChange({ ...draftValue, enableBroadcast: e.target.checked })} />}
-          label="启用广播"
+          label={translateText('启用广播')}
         />
       </Box>
 
       <Box sx={{ display: 'flex', justifyContent: 'flex-start', gap: 2, mt: 3 }}>
-        <Button variant="outlined" onClick={onReset} disabled={saving || !unsaved}>重置更改</Button>
-        <Button variant="contained" color="primary" onClick={onSave} disabled={saving || !unsaved}>保存</Button>
+        <Button variant="outlined" onClick={onReset} disabled={saving || !unsaved}>{translateText('重置更改')}</Button>
+        <Button variant="contained" color="primary" onClick={onSave} disabled={saving || !unsaved}>{translateText('保存')}</Button>
       </Box>
     </SettingsSectionCard>
   )
