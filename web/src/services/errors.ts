@@ -24,7 +24,10 @@ export function getErrorMessage(error: unknown, fallback: string): string {
   if (isAxiosError(error)) {
     const responseCode = error.response?.data?.error_code ?? error.response?.data?.message_code;
     if (typeof responseCode === 'string' && responseCode.trim() !== '') {
-      return translateMessageCode(responseCode) ?? responseCode;
+      const translatedMessage = translateMessageCode(responseCode);
+      if (translatedMessage) {
+        return translatedMessage;
+      }
     }
 
     const responseMessage = error.response?.data?.error ?? error.response?.data?.message;
