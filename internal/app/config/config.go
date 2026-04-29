@@ -375,7 +375,7 @@ func boolPtr(value bool) *bool {
 // Current returns the currently loaded config instance.
 func Current() (*Config, error) {
 	if AppConfig == nil {
-		return nil, fmt.Errorf("配置未加载")
+		return nil, fmt.Errorf("configuration is not loaded")
 	}
 	return AppConfig, nil
 }

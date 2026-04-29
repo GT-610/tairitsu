@@ -4,6 +4,7 @@ import { Box, Typography, Paper, CircularProgress, Alert,
 import RefreshIcon from '@mui/icons-material/Refresh';
 import { networkAPI, systemAPI, type NetworkSummary, type RuntimeStatus } from '../services/api';
 import { useAuth } from '../services/auth';
+import { useTranslation } from '../i18n';
 
 
 
@@ -52,6 +53,7 @@ function databaseStatusLabel(status?: RuntimeStatus['databaseStatus']) {
 }
 
 function Dashboard() {
+  const { translateText } = useTranslation()
   const [status, setStatus] = useState<RuntimeStatus | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string>('');
@@ -155,7 +157,7 @@ function Dashboard() {
     <Box sx={{ p: 3 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Typography variant="h4" component="h1">
-          管理员面板
+          {translateText('管理员面板')}
         </Typography>
         <Button
           variant="outlined"
@@ -169,7 +171,7 @@ function Dashboard() {
           }}
           disabled={loading}
         >
-          刷新
+          {translateText('刷新')}
         </Button>
       </Box>
       
@@ -179,11 +181,11 @@ function Dashboard() {
           sx={{ mb: 3 }}
           action={(
             <Button color="inherit" size="small" onClick={() => { void fetchSystemStatus(); }}>
-              重试
+              {translateText('重试')}
             </Button>
           )}
         >
-          {error}
+          {translateText(error)}
         </Alert>
       )}
       {loading ? (
@@ -194,12 +196,12 @@ function Dashboard() {
         <>
           <Paper elevation={3} sx={{ p: 3, mb: 4 }}>
             <Typography variant="h6" component="h3" gutterBottom>
-              控制器总览
+              {translateText('控制器总览')}
             </Typography>
             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(4, 1fr)' }, gap: 3 }}>
               <Box>
                 <Typography variant="body2" color="text.secondary">
-                  网络总数
+                  {translateText('网络总数')}
                 </Typography>
                 <Typography variant="h4">
                   {overviewStats.networkCount}
@@ -207,7 +209,7 @@ function Dashboard() {
               </Box>
               <Box>
                 <Typography variant="body2" color="text.secondary">
-                  成员总数
+                  {translateText('成员总数')}
                 </Typography>
                 <Typography variant="h4">
                   {overviewStats.memberCount}
@@ -215,7 +217,7 @@ function Dashboard() {
               </Box>
               <Box>
                 <Typography variant="body2" color="text.secondary">
-                  已授权成员
+                  {translateText('已授权成员')}
                 </Typography>
                 <Typography variant="h4">
                   {overviewStats.authorizedMemberCount}
@@ -223,7 +225,7 @@ function Dashboard() {
               </Box>
               <Box>
                 <Typography variant="body2" color="text.secondary">
-                  待授权成员
+                  {translateText('待授权成员')}
                 </Typography>
                 <Typography variant="h4">
                   {overviewStats.pendingMemberCount}
@@ -232,7 +234,7 @@ function Dashboard() {
             </Box>
             {overviewError && (
               <Alert severity="info" sx={{ mt: 3 }}>
-                {overviewError}
+                {translateText(overviewError)}
               </Alert>
             )}
           </Paper>
@@ -240,16 +242,16 @@ function Dashboard() {
           {/* 系统健康监控 */}
           <Paper elevation={3} sx={{ p: 3, mb: 4 }}>
             <Typography variant="h6" component="h3" gutterBottom>
-              系统健康监控
+              {translateText('系统健康监控')}
             </Typography>
             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)' }, gap: 3 }}>
               <Box>
                 <Typography variant="body2" color="text.secondary">
-                  CPU使用率
+                  {translateText('CPU使用率')}
                 </Typography>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mt: 1 }}>
                   <Typography variant="body1">
-                    {systemStats.error ? '无法获取' : `${systemStats.cpuUsage?.toFixed(1) || '0'}%`}
+                    {systemStats.error ? translateText('无法获取') : `${systemStats.cpuUsage?.toFixed(1) || '0'}%`}
                   </Typography>
                   <LinearProgress 
                     variant="determinate" 
@@ -260,11 +262,11 @@ function Dashboard() {
               </Box>
               <Box>
                 <Typography variant="body2" color="text.secondary">
-                  内存使用率
+                  {translateText('内存使用率')}
                 </Typography>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mt: 1 }}>
                   <Typography variant="body1">
-                    {systemStats.error ? '无法获取' : `${systemStats.memoryUsage?.toFixed(1) || '0'}%`}
+                    {systemStats.error ? translateText('无法获取') : `${systemStats.memoryUsage?.toFixed(1) || '0'}%`}
                   </Typography>
                   <LinearProgress 
                     variant="determinate" 
@@ -275,20 +277,20 @@ function Dashboard() {
               </Box>
               <Box>
                 <Typography variant="body2" color="text.secondary">
-                  操作系统信息
+                  {translateText('操作系统信息')}
                 </Typography>
                 <Typography variant="body1">
-                  {systemStats.osName || 'Unknown'}
+                  {systemStats.osName || translateText('Unknown')}
                 </Typography>
                 <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                  平台: {systemStats.platform || ''} {systemStats.platformVersion || ''} | 内核: {systemStats.kernelVersion || ''}
+                  {translateText('平台:')} {systemStats.platform || translateText('Unknown')} {systemStats.platformVersion || ''} | {translateText('内核:')} {systemStats.kernelVersion || translateText('Unknown')}
                 </Typography>
               </Box>
 
             </Box>
             {systemStats.error && (
               <Alert severity="info" sx={{ mt: 3 }}>
-                {systemStats.error}
+                {translateText(systemStats.error)}
               </Alert>
             )}
           </Paper>
@@ -296,31 +298,31 @@ function Dashboard() {
           {/* 控制器详情 */}
           <Paper elevation={3} sx={{ p: 3, mb: 4 }}>
             <Typography variant="h6" component="h3" gutterBottom>
-              控制器详情
+              {translateText('控制器详情')}
             </Typography>
             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)' }, gap: 3 }}>
               <Box>
                 <Typography variant="body2" color="text.secondary">
-                  控制器地址
+                  {translateText('控制器地址')}
                 </Typography>
                 <Typography variant="body1">
-                  {status?.address || '未知'}
+                  {status?.address || translateText('未知')}
                 </Typography>
               </Box>
               <Box>
                 <Typography variant="body2" color="text.secondary">
-                  版本
+                  {translateText('版本')}
                 </Typography>
                 <Typography variant="body1">
-                  {status?.version || '未知'}
+                  {status?.version || translateText('未知')}
                 </Typography>
               </Box>
               <Box>
                 <Typography variant="body2" color="text.secondary">
-                  控制器状态
+                  {translateText('控制器状态')}
                 </Typography>
                 <Chip 
-                  label={zeroTierStatusLabel(status?.zeroTierStatus)}
+                  label={translateText(zeroTierStatusLabel(status?.zeroTierStatus))}
                   color={status?.zeroTierStatus === 'online' ? 'success' : status?.zeroTierStatus === 'error' ? 'error' : 'warning'} 
                   size="small"
                 />
@@ -332,10 +334,10 @@ function Dashboard() {
               </Box>
               <Box>
                 <Typography variant="body2" color="text.secondary">
-                  数据库状态
+                  {translateText('数据库状态')}
                 </Typography>
                 <Chip
-                  label={databaseStatusLabel(status?.databaseStatus)}
+                  label={translateText(databaseStatusLabel(status?.databaseStatus))}
                   color={status?.databaseStatus === 'connected' ? 'success' : status?.databaseStatus === 'error' ? 'error' : 'warning'}
                   size="small"
                 />

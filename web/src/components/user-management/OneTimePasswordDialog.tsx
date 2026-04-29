@@ -1,4 +1,5 @@
 import { Alert, Button, Dialog, DialogActions, DialogContent, DialogTitle, Stack, TextField, Typography } from '@mui/material'
+import { useTranslation } from '../../i18n'
 
 interface OneTimePasswordDialogProps {
   open: boolean;
@@ -17,19 +18,21 @@ function OneTimePasswordDialog({
   footerText,
   onClose,
 }: OneTimePasswordDialogProps) {
+  const { translateText } = useTranslation()
+
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>一次性临时密码</DialogTitle>
+      <DialogTitle>{translateText('一次性临时密码')}</DialogTitle>
       <DialogContent>
         <Stack spacing={2} sx={{ mt: 1 }}>
           <Alert severity="warning">
-            该密码只会展示这一次。关闭后将无法再次查看，请立即通过其他方式安全告知用户。
+            {translateText('该密码只会展示这一次。关闭后将无法再次查看，请立即通过其他方式安全告知用户。')}
           </Alert>
           <Typography variant="body2" color="text.secondary">
-            {subjectLabel}：{username || '未知用户'}
+            {subjectLabel}：{username || translateText('未知用户')}
           </Typography>
           <TextField
-            label="临时密码"
+            label={translateText('临时密码')}
             value={password}
             fullWidth
             InputProps={{ readOnly: true }}
@@ -41,7 +44,7 @@ function OneTimePasswordDialog({
       </DialogContent>
       <DialogActions>
         <Button variant="contained" onClick={onClose}>
-          我已记录
+          {translateText('我已记录')}
         </Button>
       </DialogActions>
     </Dialog>

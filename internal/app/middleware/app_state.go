@@ -11,9 +11,10 @@ func SetupOnlyWithState(state initializationState) fiber.Handler {
 	return func(c fiber.Ctx) error {
 		if state.IsInitialized() {
 			return c.Status(fiber.StatusConflict).JSON(ErrorResponse{
-				Error:   "Already Initialized",
-				Message: "系统已初始化，当前接口仅在首次设置期间可用",
-				Code:    fiber.StatusConflict,
+				Error:     "Already Initialized",
+				Message:   "The system is already initialized. This endpoint is only available during first-time setup.",
+				ErrorCode: "system.already_initialized",
+				Code:      fiber.StatusConflict,
 			})
 		}
 
@@ -26,9 +27,10 @@ func InitializedOnlyWithState(state initializationState) fiber.Handler {
 	return func(c fiber.Ctx) error {
 		if !state.IsInitialized() {
 			return c.Status(fiber.StatusServiceUnavailable).JSON(ErrorResponse{
-				Error:   "Setup Required",
-				Message: "系统尚未初始化，请先完成设置向导",
-				Code:    fiber.StatusServiceUnavailable,
+				Error:     "Setup Required",
+				Message:   "System setup is required. Complete the setup wizard first.",
+				ErrorCode: "system.setup_required",
+				Code:      fiber.StatusServiceUnavailable,
 			})
 		}
 

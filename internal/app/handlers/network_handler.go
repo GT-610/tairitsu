@@ -22,33 +22,33 @@ func NewNetworkHandler(networkService *services.NetworkService) *NetworkHandler 
 
 // GetStatus 获取ZeroTier网络状态
 func (h *NetworkHandler) GetStatus(c fiber.Ctx) error {
-	logger.Info("开始获取ZeroTier网络状态")
+	logger.Info("Getting ZeroTier network status")
 
 	status := h.networkService.GetRuntimeStatus()
 
-	logger.Info("成功获取ZeroTier网络状态")
+	logger.Info("ZeroTier network status retrieved")
 
 	return c.Status(fiber.StatusOK).JSON(status)
 }
 
 // GetNetworks 获取当前用户的所有网络
 func (h *NetworkHandler) GetNetworks(c fiber.Ctx) error {
-	logger.Info("开始获取当前用户的所有网络列表")
+	logger.Info("Getting networks for current user")
 
 	// Get user ID from context
 	userID, authErr := requiredUserID(c)
 	if authErr != nil {
-		logger.Error("获取用户ID失败")
+		logger.Error("Failed to get user ID")
 		return authErr
 	}
 
 	networks, err := h.networkService.GetAllNetworks(userID)
 	if err != nil {
-		logger.Error("获取网络列表失败", zap.Error(err))
+		logger.Error("Failed to get network list", zap.Error(err))
 		return writeErrorResponse(c, fiber.StatusInternalServerError, err.Error())
 	}
 
-	logger.Info("成功获取网络列表", zap.Int("network_count", len(networks)))
+	logger.Info("Network list retrieved", zap.Int("network_count", len(networks)))
 
 	return c.Status(fiber.StatusOK).JSON(networks)
 }
@@ -56,13 +56,13 @@ func (h *NetworkHandler) GetNetworks(c fiber.Ctx) error {
 func (h *NetworkHandler) GetSharedNetworks(c fiber.Ctx) error {
 	userID, authErr := requiredUserID(c)
 	if authErr != nil {
-		logger.Error("获取用户ID失败")
+		logger.Error("Failed to get user ID")
 		return authErr
 	}
 
 	networks, err := h.networkService.GetSharedNetworks(userID)
 	if err != nil {
-		logger.Error("获取共享网络列表失败", zap.String("user_id", userID), zap.Error(err))
+		logger.Error("Failed to get shared network list", zap.String("user_id", userID), zap.Error(err))
 		return writeErrorResponse(c, fiber.StatusInternalServerError, err.Error())
 	}
 
@@ -72,22 +72,22 @@ func (h *NetworkHandler) GetSharedNetworks(c fiber.Ctx) error {
 // GetNetwork 获取特定网络
 func (h *NetworkHandler) GetNetwork(c fiber.Ctx) error {
 	id := c.Params("id")
-	logger.Info("开始获取特定网络", zap.String("network_id", id))
+	logger.Info("Getting network", zap.String("network_id", id))
 
 	// Get user ID from context
 	userID, authErr := requiredUserID(c)
 	if authErr != nil {
-		logger.Error("获取用户ID失败")
+		logger.Error("Failed to get user ID")
 		return authErr
 	}
 
 	network, err := h.networkService.GetNetworkByID(id, userID)
 	if err != nil {
-		logger.Error("获取网络失败", zap.String("network_id", id), zap.Error(err))
-		return writeNetworkServiceError(c, err, "网络不存在", "无权限访问网络")
+		logger.Error("Failed to get network", zap.String("network_id", id), zap.Error(err))
+		return writeNetworkServiceError(c, err, "Network not found", "Network access denied")
 	}
 
-	logger.Info("成功获取网络", zap.String("network_id", id))
+	logger.Info("Network retrieved", zap.String("network_id", id))
 
 	return c.Status(fiber.StatusOK).JSON(network)
 }
@@ -96,26 +96,26 @@ func (h *NetworkHandler) GetNetwork(c fiber.Ctx) error {
 func (h *NetworkHandler) CreateNetwork(c fiber.Ctx) error {
 	var req zerotier.Network
 	if err := c.Bind().Body(&req); err != nil {
-		logger.Error("创建网络请求参数绑定失败", zap.Error(err))
+		logger.Error("Failed to bind create network request", zap.Error(err))
 		return writeErrorResponse(c, fiber.StatusBadRequest, err.Error())
 	}
 
-	logger.Info("开始创建新网络", zap.String("network_name", req.Name))
+	logger.Info("Creating network", zap.String("network_name", req.Name))
 
 	// Get user ID from context
 	userID, authErr := requiredUserID(c)
 	if authErr != nil {
-		logger.Error("获取用户ID失败")
+		logger.Error("Failed to get user ID")
 		return authErr
 	}
 
 	network, err := h.networkService.CreateNetwork(&req, userID)
 	if err != nil {
-		logger.Error("创建网络失败", zap.String("network_name", req.Name), zap.Error(err))
+		logger.Error("Failed to create network", zap.String("network_name", req.Name), zap.Error(err))
 		return writeErrorResponse(c, fiber.StatusInternalServerError, err.Error())
 	}
 
-	logger.Info("成功创建网络", zap.String("network_id", network.ID), zap.String("network_name", network.Name))
+	logger.Info("Network created", zap.String("network_id", network.ID), zap.String("network_name", network.Name))
 
 	return c.Status(fiber.StatusCreated).JSON(network)
 }
@@ -126,26 +126,26 @@ func (h *NetworkHandler) UpdateNetwork(c fiber.Ctx) error {
 
 	var req zerotier.NetworkUpdateRequest
 	if err := c.Bind().Body(&req); err != nil {
-		logger.Error("更新网络请求参数绑定失败", zap.Error(err))
+		logger.Error("Failed to bind update network request", zap.Error(err))
 		return writeErrorResponse(c, fiber.StatusBadRequest, err.Error())
 	}
 
-	logger.Info("开始更新网络", zap.String("network_id", id))
+	logger.Info("Updating network", zap.String("network_id", id))
 
 	// Get user ID from context
 	userID, authErr := requiredUserID(c)
 	if authErr != nil {
-		logger.Error("获取用户ID失败")
+		logger.Error("Failed to get user ID")
 		return authErr
 	}
 
 	network, err := h.networkService.UpdateNetwork(id, &req, userID)
 	if err != nil {
-		logger.Error("更新网络失败", zap.String("network_id", id), zap.Error(err))
-		return writeNetworkServiceError(c, err, "网络不存在", "无权限更新网络")
+		logger.Error("Failed to update network", zap.String("network_id", id), zap.Error(err))
+		return writeNetworkServiceError(c, err, "Network not found", "Network update access denied")
 	}
 
-	logger.Info("成功更新网络", zap.String("network_id", network.ID))
+	logger.Info("Network updated", zap.String("network_id", network.ID))
 
 	return c.Status(fiber.StatusOK).JSON(network)
 }
@@ -160,26 +160,26 @@ func (h *NetworkHandler) UpdateNetworkMetadata(c fiber.Ctx) error {
 		Description string `json:"description"`
 	}
 	if err := c.Bind().Body(&req); err != nil {
-		logger.Error("更新网络元数据请求参数绑定失败", zap.Error(err))
+		logger.Error("Failed to bind network metadata update request", zap.Error(err))
 		return writeErrorResponse(c, fiber.StatusBadRequest, err.Error())
 	}
 
-	logger.Info("开始更新网络元数据", zap.String("network_id", id), zap.String("name", req.Name))
+	logger.Info("Updating network metadata", zap.String("network_id", id), zap.String("name", req.Name))
 
 	// Get user ID from context
 	userID, authErr := requiredUserID(c)
 	if authErr != nil {
-		logger.Error("获取用户ID失败")
+		logger.Error("Failed to get user ID")
 		return authErr
 	}
 
 	network, err := h.networkService.UpdateNetworkMetadata(id, req.Name, req.Description, userID)
 	if err != nil {
-		logger.Error("更新网络元数据失败", zap.String("network_id", id), zap.Error(err))
-		return writeNetworkServiceError(c, err, "网络不存在", "无权限更新网络")
+		logger.Error("Failed to update network metadata", zap.String("network_id", id), zap.Error(err))
+		return writeNetworkServiceError(c, err, "Network not found", "Network update access denied")
 	}
 
-	logger.Info("成功更新网络元数据", zap.String("network_id", network.ID))
+	logger.Info("Network metadata updated", zap.String("network_id", network.ID))
 
 	return c.Status(fiber.StatusOK).JSON(network)
 }
@@ -187,55 +187,55 @@ func (h *NetworkHandler) UpdateNetworkMetadata(c fiber.Ctx) error {
 // DeleteNetwork 删除网络
 func (h *NetworkHandler) DeleteNetwork(c fiber.Ctx) error {
 	id := c.Params("id")
-	logger.Info("开始删除网络", zap.String("network_id", id))
+	logger.Info("Deleting network", zap.String("network_id", id))
 
 	// Get user ID from context
 	userID, authErr := requiredUserID(c)
 	if authErr != nil {
-		logger.Error("获取用户ID失败")
+		logger.Error("Failed to get user ID")
 		return authErr
 	}
 
 	err := h.networkService.DeleteNetwork(id, userID)
 	if err != nil {
-		logger.Error("删除网络失败", zap.String("network_id", id), zap.Error(err))
-		return writeNetworkServiceError(c, err, "网络不存在", "无权限删除网络")
+		logger.Error("Failed to delete network", zap.String("network_id", id), zap.Error(err))
+		return writeNetworkServiceError(c, err, "Network not found", "Network delete access denied")
 	}
 
-	logger.Info("成功删除网络", zap.String("network_id", id))
+	logger.Info("Network deleted", zap.String("network_id", id))
 
-	return c.Status(fiber.StatusOK).JSON(fiber.Map{"message": "网络删除成功"})
+	return writeMessageResponse(c, fiber.StatusOK, "network.delete_success", "Network deleted successfully", nil)
 }
 
 // GetImportableNetworks 获取可导入的网络列表
 func (h *NetworkHandler) GetImportableNetworks(c fiber.Ctx) error {
-	logger.Info("开始获取可导入的网络列表")
+	logger.Info("Getting importable networks")
 
 	// Get user ID from context
 	_, authErr := requiredUserID(c)
 	if authErr != nil {
-		logger.Error("获取用户ID失败")
+		logger.Error("Failed to get user ID")
 		return authErr
 	}
 
 	importableNetworks, err := h.networkService.GetImportableNetworks()
 	if err != nil {
-		logger.Error("获取可导入网络列表失败", zap.Error(err))
-		return writeNetworkServiceError(c, err, "网络不存在", "无权限获取可导入网络")
+		logger.Error("Failed to get importable networks", zap.Error(err))
+		return writeNetworkServiceError(c, err, "Network not found", "Importable network access denied")
 	}
 
-	logger.Info("成功获取可导入网络列表", zap.Int("count", len(importableNetworks.Candidates)))
+	logger.Info("Importable networks retrieved", zap.Int("count", len(importableNetworks.Candidates)))
 	return c.Status(fiber.StatusOK).JSON(importableNetworks)
 }
 
 // ImportNetworks 导入指定的网络
 func (h *NetworkHandler) ImportNetworks(c fiber.Ctx) error {
-	logger.Info("开始导入网络")
+	logger.Info("Importing networks")
 
 	// Get user ID from context
 	_, authErr := requiredUserID(c)
 	if authErr != nil {
-		logger.Error("获取用户ID失败")
+		logger.Error("Failed to get user ID")
 		return authErr
 	}
 
@@ -246,25 +246,25 @@ func (h *NetworkHandler) ImportNetworks(c fiber.Ctx) error {
 	}
 
 	if err := c.Bind().Body(&request); err != nil {
-		logger.Error("解析导入请求失败", zap.Error(err))
+		logger.Error("Failed to bind import networks request", zap.Error(err))
 		return writeErrorResponse(c, fiber.StatusBadRequest, err.Error())
 	}
 
 	if len(request.NetworkIDs) == 0 {
-		return writeErrorResponse(c, fiber.StatusBadRequest, "网络ID列表为空")
+		return writeErrorResponseWithCode(c, fiber.StatusBadRequest, "network.import_empty", "Network ID list is empty")
 	}
 
 	role, _ := c.Locals("role").(string)
 
-	logger.Info("开始导入网络", zap.Strings("network_ids", request.NetworkIDs), zap.String("owner_id", request.OwnerID))
+	logger.Info("Processing network import", zap.Strings("network_ids", request.NetworkIDs), zap.String("owner_id", request.OwnerID))
 
 	result, err := h.networkService.ImportNetworks(request.NetworkIDs, request.OwnerID, role)
 	if err != nil {
-		logger.Error("导入网络失败", zap.Error(err))
-		return writeNetworkServiceError(c, err, "网络不存在", "无权限导入网络")
+		logger.Error("Network import failed", zap.Error(err))
+		return writeNetworkServiceError(c, err, "Network not found", "Network import access denied")
 	}
 
-	logger.Info("导入网络处理完成",
+	logger.Info("Network import completed",
 		zap.Int("imported_count", len(result.Imported)),
 		zap.Int("skipped_count", len(result.Skipped)),
 		zap.Int("failed_count", len(result.Failed)))
@@ -281,7 +281,7 @@ func (h *NetworkHandler) GetNetworkViewers(c fiber.Ctx) error {
 
 	viewers, err := h.networkService.GetNetworkViewers(networkID, userID)
 	if err != nil {
-		return writeNetworkServiceError(c, err, "网络不存在", "无权限管理网络查看授权")
+		return writeNetworkServiceError(c, err, "Network not found", "Network viewer access denied")
 	}
 
 	return c.Status(fiber.StatusOK).JSON(viewers)
@@ -296,7 +296,7 @@ func (h *NetworkHandler) GetNetworkViewerCandidates(c fiber.Ctx) error {
 
 	candidates, err := h.networkService.GetNetworkViewerCandidates(networkID, userID)
 	if err != nil {
-		return writeNetworkServiceError(c, err, "网络不存在", "无权限管理网络查看授权")
+		return writeNetworkServiceError(c, err, "Network not found", "Network viewer access denied")
 	}
 
 	return c.Status(fiber.StatusOK).JSON(candidates)
@@ -316,14 +316,14 @@ func (h *NetworkHandler) AddNetworkViewer(c fiber.Ctx) error {
 		return writeErrorResponse(c, fiber.StatusBadRequest, err.Error())
 	}
 	if request.UserID == "" {
-		return writeErrorResponse(c, fiber.StatusBadRequest, "必须指定用户")
+		return writeErrorResponseWithCode(c, fiber.StatusBadRequest, "user.required", "User is required")
 	}
 
 	if err := h.networkService.GrantNetworkViewer(networkID, request.UserID, userID); err != nil {
-		return writeNetworkServiceError(c, err, "网络不存在", "无权限管理网络查看授权")
+		return writeNetworkServiceError(c, err, "Network not found", "Network viewer access denied")
 	}
 
-	return c.Status(fiber.StatusOK).JSON(fiber.Map{"message": "已授予只读查看权限"})
+	return writeMessageResponse(c, fiber.StatusOK, "network.viewer_added", "Read-only viewer access granted", nil)
 }
 
 func (h *NetworkHandler) DeleteNetworkViewer(c fiber.Ctx) error {
@@ -334,12 +334,12 @@ func (h *NetworkHandler) DeleteNetworkViewer(c fiber.Ctx) error {
 		return authErr
 	}
 	if targetUserID == "" {
-		return writeErrorResponse(c, fiber.StatusBadRequest, "必须指定用户")
+		return writeErrorResponseWithCode(c, fiber.StatusBadRequest, "user.required", "User is required")
 	}
 
 	if err := h.networkService.RevokeNetworkViewer(networkID, targetUserID, userID); err != nil {
-		return writeNetworkServiceError(c, err, "网络不存在", "无权限管理网络查看授权")
+		return writeNetworkServiceError(c, err, "Network not found", "Network viewer access denied")
 	}
 
-	return c.Status(fiber.StatusOK).JSON(fiber.Map{"message": "已移除只读查看权限"})
+	return writeMessageResponse(c, fiber.StatusOK, "network.viewer_removed", "Read-only viewer access removed", nil)
 }

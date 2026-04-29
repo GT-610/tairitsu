@@ -1,31 +1,45 @@
 package handlers
 
 import (
+	"github.com/GT-610/tairitsu/internal/app/logger"
 	"github.com/GT-610/tairitsu/internal/app/services"
 	"github.com/gofiber/fiber/v3"
+	"go.uber.org/zap"
 )
 
 func writeUserServiceError(c fiber.Ctx, err error) error {
 	switch {
 	case services.IsUserDBUnavailable(err):
-		return writeErrorResponse(c, fiber.StatusServiceUnavailable, err.Error())
-	case services.IsUsernameExists(err), services.IsInvalidUsername(err):
-		return writeErrorResponse(c, fiber.StatusBadRequest, err.Error())
+		logger.Error("User service database is unavailable", zap.Error(err))
+		return writeErrorResponseWithCode(c, fiber.StatusServiceUnavailable, "user.db_unavailable", "User service is unavailable")
+	case services.IsUsernameExists(err):
+		return writeErrorResponseWithCode(c, fiber.StatusBadRequest, "user.username_exists", err.Error())
+	case services.IsInvalidUsername(err):
+		return writeErrorResponseWithCode(c, fiber.StatusBadRequest, "user.invalid_username", err.Error())
 	case services.IsInvalidCredentials(err):
-		return writeErrorResponse(c, fiber.StatusUnauthorized, err.Error())
+		return writeErrorResponseWithCode(c, fiber.StatusUnauthorized, "user.invalid_credentials", err.Error())
 	case services.IsPublicRegistrationDisabled(err):
-		return writeErrorResponse(c, fiber.StatusForbidden, err.Error())
-	case services.IsSessionRevoked(err), services.IsSessionExpired(err):
-		return writeErrorResponse(c, fiber.StatusUnauthorized, err.Error())
+		return writeErrorResponseWithCode(c, fiber.StatusForbidden, "user.public_registration_disabled", err.Error())
+	case services.IsSessionRevoked(err):
+		return writeErrorResponseWithCode(c, fiber.StatusUnauthorized, "session.revoked", err.Error())
+	case services.IsSessionExpired(err):
+		return writeErrorResponseWithCode(c, fiber.StatusUnauthorized, "session.expired", err.Error())
 	case services.IsUserNotFound(err):
-		return writeErrorResponse(c, fiber.StatusNotFound, err.Error())
+		return writeErrorResponseWithCode(c, fiber.StatusNotFound, "user.not_found", err.Error())
 	case services.IsSessionNotFound(err):
-		return writeErrorResponse(c, fiber.StatusNotFound, err.Error())
-	case services.IsOldPasswordIncorrect(err), services.IsInvalidUserRole(err), services.IsAdminTransferSelf(err), services.IsAdminResetSelf(err), services.IsAdminDeleteSelf(err), services.IsAdminDeleteBlocked(err), services.IsTransferTargetAdmin(err):
-		return writeErrorResponse(c, fiber.StatusBadRequest, err.Error())
-	case services.IsAdminAccessDenied(err), services.IsSessionAccessDenied(err):
-		return writeErrorResponse(c, fiber.StatusForbidden, err.Error())
+		return writeErrorResponseWithCode(c, fiber.StatusNotFound, "session.not_found", err.Error())
+	case services.IsOldPasswordIncorrect(err):
+		return writeErrorResponseWithCode(c, fiber.StatusBadRequest, "user.old_password_incorrect", err.Error())
+	case services.IsInvalidUserRole(err):
+		return writeErrorResponseWithCode(c, fiber.StatusBadRequest, "user.invalid_role", err.Error())
+	case services.IsAdminTransferSelf(err), services.IsAdminResetSelf(err), services.IsAdminDeleteSelf(err), services.IsAdminDeleteBlocked(err), services.IsTransferTargetAdmin(err):
+		return writeErrorResponseWithCode(c, fiber.StatusBadRequest, "user.invalid_admin_operation", err.Error())
+	case services.IsAdminAccessDenied(err):
+		return writeErrorResponseWithCode(c, fiber.StatusForbidden, "user.admin_access_denied", err.Error())
+	case services.IsSessionAccessDenied(err):
+		return writeErrorResponseWithCode(c, fiber.StatusForbidden, "session.access_denied", err.Error())
 	default:
-		return writeErrorResponse(c, fiber.StatusInternalServerError, err.Error())
+		logger.Error("Unhandled user service error", zap.Error(err))
+		return writeErrorResponseWithCode(c, fiber.StatusInternalServerError, "system.internal_error", "Internal Server Error")
 	}
 }

@@ -35,14 +35,14 @@ func (h *MemberHandler) GetMembers(c fiber.Ctx) error {
 	// Get user ID from context
 	userID, authErr := requiredUserID(c)
 	if authErr != nil {
-		logger.Error("获取用户ID失败")
+		logger.Error("Failed to get user ID")
 		return authErr
 	}
 
 	members, err := h.networkService.GetNetworkMembers(networkID, userID)
 	if err != nil {
-		logger.Error("获取网络成员列表失败", zap.String("network_id", networkID), zap.Error(err))
-		return writeNetworkServiceError(c, err, "网络不存在", "无权限访问网络成员")
+		logger.Error("Failed to get network members", zap.String("network_id", networkID), zap.Error(err))
+		return writeNetworkServiceError(c, err, "Network not found", "Network member access denied")
 	}
 
 	return c.Status(fiber.StatusOK).JSON(members)
@@ -56,19 +56,19 @@ func (h *MemberHandler) GetMember(c fiber.Ctx) error {
 	// Get user ID from context
 	userID, authErr := requiredUserID(c)
 	if authErr != nil {
-		logger.Error("获取用户ID失败")
+		logger.Error("Failed to get user ID")
 		return authErr
 	}
 
 	member, err := h.networkService.GetNetworkMember(networkID, memberID, userID)
 	if err != nil {
-		logger.Error("获取网络成员失败", zap.String("network_id", networkID), zap.String("member_id", memberID), zap.Error(err))
-		return writeNetworkServiceError(c, err, "网络不存在", "无权限访问网络成员")
+		logger.Error("Failed to get network member", zap.String("network_id", networkID), zap.String("member_id", memberID), zap.Error(err))
+		return writeNetworkServiceError(c, err, "Network not found", "Network member access denied")
 	}
 
 	if member == nil {
-		logger.Warn("网络成员不存在", zap.String("network_id", networkID), zap.String("member_id", memberID))
-		return writeErrorResponse(c, fiber.StatusNotFound, "成员不存在")
+		logger.Warn("Network member not found", zap.String("network_id", networkID), zap.String("member_id", memberID))
+		return writeErrorResponseWithCode(c, fiber.StatusNotFound, "member.not_found", "Member not found")
 	}
 
 	return c.Status(fiber.StatusOK).JSON(member)
@@ -81,21 +81,21 @@ func (h *MemberHandler) UpdateMember(c fiber.Ctx) error {
 
 	var req zerotier.MemberUpdateRequest
 	if err := c.Bind().Body(&req); err != nil {
-		logger.Error("请求参数绑定失败", zap.String("network_id", networkID), zap.String("member_id", memberID), zap.Error(err))
+		logger.Error("Failed to bind request", zap.String("network_id", networkID), zap.String("member_id", memberID), zap.Error(err))
 		return writeErrorResponse(c, fiber.StatusBadRequest, err.Error())
 	}
 
 	// Get user ID from context
 	userID, authErr := requiredUserID(c)
 	if authErr != nil {
-		logger.Error("获取用户ID失败")
+		logger.Error("Failed to get user ID")
 		return authErr
 	}
 
 	member, err := h.networkService.UpdateNetworkMember(networkID, memberID, &req, userID)
 	if err != nil {
-		logger.Error("更新网络成员失败", zap.String("network_id", networkID), zap.String("member_id", memberID), zap.Error(err))
-		return writeNetworkServiceError(c, err, "网络不存在", "无权限更新网络成员")
+		logger.Error("Failed to update network member", zap.String("network_id", networkID), zap.String("member_id", memberID), zap.Error(err))
+		return writeNetworkServiceError(c, err, "Network not found", "Network member update access denied")
 	}
 
 	return c.Status(fiber.StatusOK).JSON(member)
@@ -109,15 +109,15 @@ func (h *MemberHandler) DeleteMember(c fiber.Ctx) error {
 	// Get user ID from context
 	userID, authErr := requiredUserID(c)
 	if authErr != nil {
-		logger.Error("获取用户ID失败")
+		logger.Error("Failed to get user ID")
 		return authErr
 	}
 
 	err := h.networkService.RemoveNetworkMember(networkID, memberID, userID)
 	if err != nil {
-		logger.Error("删除网络成员失败", zap.String("network_id", networkID), zap.String("member_id", memberID), zap.Error(err))
-		return writeNetworkServiceError(c, err, "网络不存在", "无权限删除网络成员")
+		logger.Error("Failed to delete network member", zap.String("network_id", networkID), zap.String("member_id", memberID), zap.Error(err))
+		return writeNetworkServiceError(c, err, "Network not found", "Network member delete access denied")
 	}
 
-	return c.Status(fiber.StatusOK).JSON(fiber.Map{"message": "成员删除成功"})
+	return writeMessageResponse(c, fiber.StatusOK, "member.delete_success", "Member deleted successfully", nil)
 }

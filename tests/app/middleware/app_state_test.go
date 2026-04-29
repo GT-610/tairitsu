@@ -34,7 +34,7 @@ func TestSetupOnly_BlocksAfterInitialization(t *testing.T) {
 
 	body, _ := io.ReadAll(resp.Body)
 	resp.Body.Close()
-	assert.Contains(t, string(body), "系统已初始化")
+	assert.Contains(t, string(body), "system.already_initialized")
 }
 
 func TestInitializedOnly_BlocksBeforeInitialization(t *testing.T) {
@@ -52,5 +52,5 @@ func TestInitializedOnly_BlocksBeforeInitialization(t *testing.T) {
 
 	body, _ := io.ReadAll(resp.Body)
 	resp.Body.Close()
-	assert.Contains(t, string(body), "系统尚未初始化")
+	assert.Contains(t, string(body), "system.setup_required")
 }

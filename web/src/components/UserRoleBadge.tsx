@@ -1,12 +1,14 @@
 import { Box } from '@mui/material'
 import { getUserRoleLabel } from '../utils/userPresentation'
 import type { User } from '../services/api'
+import { useTranslation } from '../i18n'
 
 interface UserRoleBadgeProps {
   role?: User['role'];
 }
 
 function UserRoleBadge({ role }: UserRoleBadgeProps) {
+  const { translateText } = useTranslation()
   const isAdmin = role === 'admin'
 
   return (
@@ -21,7 +23,7 @@ function UserRoleBadge({ role }: UserRoleBadgeProps) {
         fontWeight: 'bold',
       }}
     >
-      {getUserRoleLabel(role)}
+      {translateText(getUserRoleLabel(role))}
     </Box>
   )
 }

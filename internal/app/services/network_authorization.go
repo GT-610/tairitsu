@@ -7,20 +7,20 @@ import (
 )
 
 var (
-	ErrNetworkNotFound     = errors.New("网络不存在")
-	ErrNetworkAccessDenied = errors.New("无权限访问网络")
-	ErrMemberAccessDenied  = errors.New("无权限访问网络成员")
-	ErrViewerAccessDenied  = errors.New("无权限管理网络查看授权")
-	ErrViewerTargetInvalid = errors.New("只能授权普通用户查看网络")
-	ErrImportAccessDenied  = errors.New("只有管理员可以导入网络")
-	ErrImportOwnerRequired = errors.New("必须指定网络所有者")
-	ErrImportOwnerNotFound = errors.New("指定的网络所有者不存在")
+	ErrNetworkNotFound     = errors.New("network not found")
+	ErrNetworkAccessDenied = errors.New("network access denied")
+	ErrMemberAccessDenied  = errors.New("network member access denied")
+	ErrViewerAccessDenied  = errors.New("network viewer access denied")
+	ErrViewerTargetInvalid = errors.New("only regular users can be granted network viewer access")
+	ErrImportAccessDenied  = errors.New("only administrators can import networks")
+	ErrImportOwnerRequired = errors.New("network owner is required")
+	ErrImportOwnerNotFound = errors.New("specified network owner was not found")
 )
 
 func (s *NetworkService) getNetwork(networkID string) (*models.Network, error) {
 	db := s.getDB()
 	if db == nil {
-		return nil, errors.New("数据库未初始化")
+		return nil, errors.New("database is not initialized")
 	}
 
 	network, err := db.GetNetworkByID(networkID)
@@ -61,7 +61,7 @@ func (s *NetworkService) authorizeMemberReadAccess(networkID, userID string) (*m
 
 	db := s.getDB()
 	if db == nil {
-		return nil, errors.New("数据库未初始化")
+		return nil, errors.New("database is not initialized")
 	}
 	viewer, viewerErr := db.GetNetworkViewer(networkID, userID)
 	if viewerErr != nil {

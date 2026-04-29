@@ -5,8 +5,15 @@ import (
 	"crypto/cipher"
 	"crypto/rand"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"io"
+)
+
+var (
+	ErrEncryptFailed     = errors.New("crypto.encrypt_failed")
+	ErrDecryptFailed     = errors.New("crypto.decrypt_failed")
+	ErrInvalidCiphertext = errors.New("crypto.invalid_ciphertext")
 )
 
 // Encrypt 使用AES-GCM加密敏感信息
@@ -23,17 +30,17 @@ func Encrypt(text, key string) (string, error) {
 
 	block, err := aes.NewCipher([]byte(key))
 	if err != nil {
-		return "", fmt.Errorf("创建AES密码器失败: %w", err)
+		return "", fmt.Errorf("%w: create AES cipher: %v", ErrEncryptFailed, err)
 	}
 
 	gcm, err := cipher.NewGCM(block)
 	if err != nil {
-		return "", fmt.Errorf("创建GCM模式失败: %w", err)
+		return "", fmt.Errorf("%w: create GCM mode: %v", ErrEncryptFailed, err)
 	}
 
 	nonce := make([]byte, gcm.NonceSize())
 	if _, err = io.ReadFull(rand.Reader, nonce); err != nil {
-		return "", fmt.Errorf("生成随机数失败: %w", err)
+		return "", fmt.Errorf("%w: generate nonce: %v", ErrEncryptFailed, err)
 	}
 
 	ciphertext := gcm.Seal(nonce, nonce, []byte(text), nil)
@@ -54,27 +61,27 @@ func Decrypt(encryptedText, key string) (string, error) {
 
 	data, err := base64.StdEncoding.DecodeString(encryptedText)
 	if err != nil {
-		return "", fmt.Errorf("解码失败: %w", err)
+		return "", fmt.Errorf("%w: base64 decode: %v", ErrInvalidCiphertext, err)
 	}
 
 	block, err := aes.NewCipher([]byte(key))
 	if err != nil {
-		return "", fmt.Errorf("创建AES密码器失败: %w", err)
+		return "", fmt.Errorf("%w: create AES cipher: %v", ErrDecryptFailed, err)
 	}
 
 	gcm, err := cipher.NewGCM(block)
 	if err != nil {
-		return "", fmt.Errorf("创建GCM模式失败: %w", err)
+		return "", fmt.Errorf("%w: create GCM mode: %v", ErrDecryptFailed, err)
 	}
 
 	if len(data) < gcm.NonceSize() {
-		return "", fmt.Errorf("密文太短")
+		return "", ErrInvalidCiphertext
 	}
 
 	nonce, ciphertext := data[:gcm.NonceSize()], data[gcm.NonceSize():]
 	plaintext, err := gcm.Open(nil, nonce, ciphertext, nil)
 	if err != nil {
-		return "", fmt.Errorf("解密失败: %w", err)
+		return "", fmt.Errorf("%w: %v", ErrDecryptFailed, err)
 	}
 
 	return string(plaintext), nil

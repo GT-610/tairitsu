@@ -108,14 +108,14 @@ func TestNetworkServiceImportNetworks_PartialFailures(t *testing.T) {
 		OwnerID:       "user-1",
 		OwnerUsername: "user-1",
 		ReasonCode:    services.ImportReasonControllerNotFound,
-		ReasonMessage: "网络不存在于 ZeroTier 控制器中",
+		ReasonMessage: "Network does not exist in the ZeroTier controller",
 	})
 	assert.Contains(t, result.Skipped, services.ImportNetworkResultItem{
 		NetworkID:     "8056c2e21c000010",
 		Name:          "owned-by-other",
 		OwnerID:       "other-user",
 		ReasonCode:    services.ImportReasonAlreadyManaged,
-		ReasonMessage: "网络已由其他 owner 接管，已跳过",
+		ReasonMessage: "Network is already managed by another owner and was skipped",
 	})
 }
 
@@ -226,7 +226,7 @@ func TestNetworkServiceGetImportableNetworks_MarksOwnedNetworksAsNotImportable(t
 		Status:        services.ImportCandidateManaged,
 		CanImport:     false,
 		ReasonCode:    services.ImportReasonAlreadyManaged,
-		ReasonMessage: "网络已由其他 owner 接管",
+		ReasonMessage: "Network is already managed by another owner",
 		OwnerID:       "user-1",
 	})
 	assert.Contains(t, result.Candidates, services.ImportableNetworkCandidate{
@@ -235,7 +235,7 @@ func TestNetworkServiceGetImportableNetworks_MarksOwnedNetworksAsNotImportable(t
 		Status:        services.ImportCandidateAvailable,
 		CanImport:     true,
 		ReasonCode:    services.ImportReasonUnregistered,
-		ReasonMessage: "网络尚未登记到 Tairitsu，可直接接管",
+		ReasonMessage: "Network is not registered in Tairitsu and can be claimed directly",
 	})
 	assert.Equal(t, services.ImportableNetworksSummary{Total: 2, Available: 1, Managed: 1, Blocked: 0}, result.Summary)
 }
@@ -280,14 +280,14 @@ func TestNetworkServiceGetImportableNetworks_IncludesUnassignedAndBlockedCandida
 		Status:           services.ImportCandidateAvailable,
 		CanImport:        true,
 		ReasonCode:       services.ImportReasonUnassigned,
-		ReasonMessage:    "网络已登记但尚未分配 owner，可继续接管",
+		ReasonMessage:    "Network is registered but has no owner and can be claimed",
 	})
 	assert.Contains(t, result.Candidates, services.ImportableNetworkCandidate{
 		NetworkID:     "8056c2e21c000099",
 		Status:        services.ImportCandidateBlocked,
 		CanImport:     false,
 		ReasonCode:    services.ImportReasonControllerReadFailed,
-		ReasonMessage: "读取控制器网络详情失败，暂时无法导入",
+		ReasonMessage: "Controller network details could not be read, so this network cannot be imported yet",
 	})
 	assert.Equal(t, services.ImportableNetworksSummary{Total: 2, Available: 1, Managed: 0, Blocked: 1}, result.Summary)
 }

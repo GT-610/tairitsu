@@ -40,7 +40,7 @@ func TestAuthMiddleware_MissingToken(t *testing.T) {
 	// Read response body
 	body, _ := io.ReadAll(resp.Body)
 	resp.Body.Close()
-	assert.Contains(t, string(body), "缺少认证令牌")
+	assert.Contains(t, string(body), "auth.missing_token")
 }
 
 func TestAuthMiddleware_InvalidTokenFormat(t *testing.T) {
@@ -67,7 +67,7 @@ func TestAuthMiddleware_InvalidTokenFormat(t *testing.T) {
 	// Read response body
 	body, _ := io.ReadAll(resp.Body)
 	resp.Body.Close()
-	assert.Contains(t, string(body), "认证格式无效")
+	assert.Contains(t, string(body), "auth.invalid_format")
 }
 
 func TestAuthMiddleware_InvalidToken(t *testing.T) {
@@ -94,7 +94,7 @@ func TestAuthMiddleware_InvalidToken(t *testing.T) {
 	// Read response body
 	body, _ := io.ReadAll(resp.Body)
 	resp.Body.Close()
-	assert.Contains(t, string(body), "无效的认证令牌")
+	assert.Contains(t, string(body), "auth.invalid_token")
 }
 
 func TestAuthMiddleware_ValidToken(t *testing.T) {
@@ -175,7 +175,7 @@ func TestAdminRequired_NonAdminUser(t *testing.T) {
 	// Read response body
 	body, _ := io.ReadAll(resp.Body)
 	resp.Body.Close()
-	assert.Contains(t, string(body), "需要管理员权限")
+	assert.Contains(t, string(body), "auth.admin_required")
 }
 
 func TestAdminRequired_AdminUser(t *testing.T) {

@@ -14,10 +14,10 @@ func main() {
 
 	app, err := bootstrap.Build()
 	if err != nil {
-		logger.Fatal("应用初始化失败", zap.Error(err))
+		logger.Fatal("application initialization failed", zap.Error(err))
 	}
 
 	if err := app.Listen(); err != nil {
-		logger.Fatal("启动服务器失败", zap.Error(err))
+		logger.Fatal("failed to start server", zap.Error(err))
 	}
 }

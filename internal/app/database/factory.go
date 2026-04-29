@@ -50,12 +50,12 @@ func NewDatabase(config Config) (DBInterface, error) {
 
 		db, err := gorm.Open(sqlite.Open(config.Path), &gorm.Config{})
 		if err != nil {
-			return nil, fmt.Errorf("无法连接到SQLite数据库: %w", err)
+			return nil, fmt.Errorf("failed to connect to SQLite database: %w", err)
 		}
 
 		sqlDB, err := db.DB()
 		if err != nil {
-			return nil, fmt.Errorf("无法获取SQLite数据库实例: %w", err)
+			return nil, fmt.Errorf("failed to get SQLite database instance: %w", err)
 		}
 
 		// 设置连接池
@@ -71,12 +71,12 @@ func NewDatabase(config Config) (DBInterface, error) {
 
 		db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
 		if err != nil {
-			return nil, fmt.Errorf("无法连接到MySQL数据库: %w", err)
+			return nil, fmt.Errorf("failed to connect to MySQL database: %w", err)
 		}
 
 		sqlDB, err := db.DB()
 		if err != nil {
-			return nil, fmt.Errorf("无法获取MySQL数据库实例: %w", err)
+			return nil, fmt.Errorf("failed to get MySQL database instance: %w", err)
 		}
 
 		// 设置连接池
@@ -92,12 +92,12 @@ func NewDatabase(config Config) (DBInterface, error) {
 
 		db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 		if err != nil {
-			return nil, fmt.Errorf("无法连接到PostgreSQL数据库: %w", err)
+			return nil, fmt.Errorf("failed to connect to PostgreSQL database: %w", err)
 		}
 
 		sqlDB, err := db.DB()
 		if err != nil {
-			return nil, fmt.Errorf("无法获取PostgreSQL数据库实例: %w", err)
+			return nil, fmt.Errorf("failed to get PostgreSQL database instance: %w", err)
 		}
 
 		// 设置连接池
@@ -109,9 +109,9 @@ func NewDatabase(config Config) (DBInterface, error) {
 	default:
 		// 如果没有指定数据库类型，返回错误
 		if config.Type == "" {
-			return nil, fmt.Errorf("必须指定数据库类型")
+			return nil, fmt.Errorf("database type is required")
 		}
-		return nil, fmt.Errorf("不支持的数据库类型: %s", config.Type)
+		return nil, fmt.Errorf("unsupported database type: %s", config.Type)
 	}
 }
 
@@ -136,7 +136,7 @@ func LoadConfigFromApp(cfg *config.Config) Config {
 // ResetDatabase 重置数据库的通用处理函数
 // 注意：此操作将清空数据库中的所有数据，请谨慎使用
 func ResetDatabase(config Config) error {
-	logger.Info("开始重置数据库", zap.String("type", string(config.Type)))
+	logger.Info("starting database reset", zap.String("type", string(config.Type)))
 
 	switch config.Type {
 	case SQLite:
@@ -145,34 +145,34 @@ func ResetDatabase(config Config) error {
 			config.Path = "data/tairitsu.db"
 		}
 
-		logger.Info("重置SQLite数据库", zap.String("path", config.Path))
+		logger.Info("resetting SQLite database", zap.String("path", config.Path))
 
 		// 删除SQLite数据库文件以实现重置
 		err := os.Remove(config.Path)
 		if err != nil && !os.IsNotExist(err) {
-			logger.Error("删除SQLite数据库文件失败", zap.Error(err))
-			return fmt.Errorf("重置SQLite数据库失败: %w", err)
+			logger.Error("failed to delete SQLite database file", zap.Error(err))
+			return fmt.Errorf("failed to reset SQLite database: %w", err)
 		}
 
 		// 如果文件不存在，记录信息但不报错
 		if os.IsNotExist(err) {
-			logger.Info("SQLite数据库文件不存在，将创建新文件")
+			logger.Info("SQLite database file does not exist; a new file will be created")
 		}
 
-		logger.Info("SQLite数据库重置成功")
+		logger.Info("SQLite database reset successfully")
 		return nil
 
 	case MySQL:
-		logger.Warn("MySQL数据库重置当前不受支持")
-		return fmt.Errorf("当前仅支持 SQLite，MySQL 重置暂不支持")
+		logger.Warn("MySQL database reset is not currently supported")
+		return fmt.Errorf("only SQLite is currently supported; MySQL reset is not supported")
 
 	case PostgreSQL:
-		logger.Warn("PostgreSQL数据库重置当前不受支持")
-		return fmt.Errorf("当前仅支持 SQLite，PostgreSQL 重置暂不支持")
+		logger.Warn("PostgreSQL database reset is not currently supported")
+		return fmt.Errorf("only SQLite is currently supported; PostgreSQL reset is not supported")
 
 	default:
-		logger.Error("不支持的数据库类型", zap.String("type", string(config.Type)))
-		return fmt.Errorf("不支持的数据库类型: %s", config.Type)
+		logger.Error("unsupported database type", zap.String("type", string(config.Type)))
+		return fmt.Errorf("unsupported database type: %s", config.Type)
 	}
 }
 
@@ -183,7 +183,7 @@ func ensureSQLiteDir(path string) error {
 	}
 
 	if err := os.MkdirAll(dir, 0755); err != nil {
-		return fmt.Errorf("无法创建SQLite数据库目录: %w", err)
+		return fmt.Errorf("failed to create SQLite database directory: %w", err)
 	}
 
 	return nil
@@ -191,7 +191,7 @@ func ensureSQLiteDir(path string) error {
 
 func SaveConfigToApp(cfg *config.Config, dbConfig Config) error {
 	if cfg == nil {
-		return fmt.Errorf("配置未初始化")
+		return fmt.Errorf("configuration is not initialized")
 	}
 
 	// 更新数据库配置
@@ -203,7 +203,7 @@ func SaveConfigToApp(cfg *config.Config, dbConfig Config) error {
 	cfg.Database.Name = dbConfig.Name
 
 	if err := config.SetDatabasePasswordOn(cfg, dbConfig.Pass); err != nil {
-		return fmt.Errorf("保存数据库密码失败: %w", err)
+		return fmt.Errorf("failed to save database password: %w", err)
 	}
 
 	return config.SaveConfig(cfg)
