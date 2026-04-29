@@ -28,7 +28,7 @@ function ManagedRoutesSection({
   const unsaved = JSON.stringify(draftValue.routes) !== JSON.stringify(initialValue.routes)
 
   return (
-    <SettingsSectionCard title="Managed Routes" unsaved={unsaved}>
+    <SettingsSectionCard titleKey="Managed Routes" unsaved={unsaved}>
       <Typography variant="body1" sx={{ mb: 3 }}>
         {translateText('定义该网络还能到达的附加网段。主 IPv4/IPv6 子网由上面的分配区块维护，这里只管理额外的托管路由。')}
       </Typography>

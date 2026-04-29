@@ -26,7 +26,7 @@ function MulticastSettingsSection({
     draftValue.enableBroadcast !== initialValue.enableBroadcast
 
   return (
-    <SettingsSectionCard title="多播设置" unsaved={unsaved}>
+    <SettingsSectionCard titleKey="多播设置" unsaved={unsaved}>
       <Box sx={{ display: 'grid', gap: 3, gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' } }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
           <Typography variant="body1">{translateText('多播接收者限制')}</Typography>

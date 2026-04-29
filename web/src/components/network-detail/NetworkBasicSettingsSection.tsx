@@ -17,7 +17,7 @@ function NetworkBasicSettingsSection({ saving, initialValue, draftValue, onChang
   const unsaved = draftValue.name !== initialValue.name || draftValue.description !== initialValue.description
 
   return (
-    <SettingsSectionCard title="网络基本信息" unsaved={unsaved}>
+    <SettingsSectionCard titleKey="网络基本信息" unsaved={unsaved}>
       <Grid container spacing={3}>
         <Grid size={{ xs: 12 }}>
           <TextField

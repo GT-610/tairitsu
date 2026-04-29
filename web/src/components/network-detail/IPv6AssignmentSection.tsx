@@ -40,7 +40,7 @@ function IPv6AssignmentSection({
     JSON.stringify(draftValue.pools) !== JSON.stringify(initialValue.pools)
 
   return (
-    <SettingsSectionCard title="IPv6分配" unsaved={unsaved}>
+    <SettingsSectionCard titleKey="IPv6分配" unsaved={unsaved}>
       <Box sx={{ mb: 3 }}>
         <Typography variant="body1" sx={{ mb: 2 }}>
           {translateText('IPv6 默认不分配。只有自定义 IPv6 范围依赖手动填写子网；RFC4193 和 6PLANE 由控制器自动派生。')}

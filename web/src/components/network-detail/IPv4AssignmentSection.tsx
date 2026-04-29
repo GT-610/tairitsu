@@ -38,7 +38,7 @@ function IPv4AssignmentSection({
     JSON.stringify(draftValue.pools) !== JSON.stringify(initialValue.pools)
 
   return (
-    <SettingsSectionCard title="IPv4分配" unsaved={unsaved}>
+    <SettingsSectionCard titleKey="IPv4分配" unsaved={unsaved}>
       <Box sx={{ mb: 3 }}>
         <Typography variant="body1" sx={{ mb: 2 }}>
           {translateText('默认会以一个 IPv4 子网作为网络边界。自动分配地址池必须完全落在该子网内。')}

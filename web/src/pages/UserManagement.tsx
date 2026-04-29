@@ -502,10 +502,10 @@ function UserManagement() {
               {deleteResult?.user.username || translateText('该用户')} {translateText('已被删除。')}
             </Alert>
             <Typography variant="body2" color="text.secondary">
-              {translateText('转移网络：')}{deleteResult?.transferred_networks ?? 0}{translateText(' 个')}
+              {t('users.transferredNetworks', { count: deleteResult?.transferred_networks ?? 0 })}
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              {translateText('吊销会话：')}{deleteResult?.revoked_sessions ?? 0}{translateText(' 个')}
+              {t('users.revokedSessions', { count: deleteResult?.revoked_sessions ?? 0 })}
             </Typography>
             <Typography variant="body2" color="text.secondary">
               {translateText('这些网络现在已归当前管理员所有，可在网络列表中继续管理。')}

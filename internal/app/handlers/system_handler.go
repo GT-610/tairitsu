@@ -105,12 +105,12 @@ func (h *SystemHandler) UpdateRuntimeSettings(c fiber.Ctx) error {
 	var req services.RuntimeSettings
 	if err := c.Bind().Body(&req); err != nil {
 		logger.Error("Failed to bind instance settings request", zap.Error(err))
-		return writeErrorResponse(c, fiber.StatusBadRequest, err.Error())
+		return writeErrorResponseWithCode(c, fiber.StatusBadRequest, "system.invalid_request", "Invalid request body")
 	}
 
 	if err := h.setupService.UpdateRuntimeSettings(req); err != nil {
 		logger.Error("Failed to update instance settings", zap.Error(err))
-		return writeErrorResponse(c, fiber.StatusInternalServerError, err.Error())
+		return setupErrorResponse(c, fiber.StatusInternalServerError, err)
 	}
 
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
@@ -125,7 +125,7 @@ func (h *SystemHandler) ConfigureDatabase(c fiber.Ctx) error {
 	var dbConfig models.DatabaseConfig
 	if err := c.Bind().Body(&dbConfig); err != nil {
 		logger.Error("Failed to bind database configuration request", zap.Error(err))
-		return writeErrorResponse(c, fiber.StatusBadRequest, err.Error())
+		return writeErrorResponseWithCode(c, fiber.StatusBadRequest, "system.invalid_request", "Invalid request body")
 	}
 
 	logger.Info("Configuring database", zap.String("type", dbConfig.Type))
@@ -133,7 +133,11 @@ func (h *SystemHandler) ConfigureDatabase(c fiber.Ctx) error {
 	dbCfg, err := h.setupService.ConfigureDatabase(dbConfig)
 	if err != nil {
 		logger.Error("Database configuration failed", zap.Error(err))
-		return setupErrorResponse(c, fiber.StatusBadRequest, err)
+		status := fiber.StatusInternalServerError
+		if errors.Is(err, services.ErrSetupUnsupportedDatabase) {
+			status = fiber.StatusBadRequest
+		}
+		return setupErrorResponse(c, status, err)
 	}
 
 	logger.Info("SQLite database path set", zap.String("path", dbCfg.Path))
@@ -182,7 +186,7 @@ func (h *SystemHandler) SaveZeroTierConfig(c fiber.Ctx) error {
 
 	if err := c.Bind().Body(&req); err != nil {
 		logger.Error("Failed to bind ZeroTier configuration request", zap.Error(err))
-		return writeErrorResponse(c, fiber.StatusBadRequest, err.Error())
+		return writeErrorResponseWithCode(c, fiber.StatusBadRequest, "system.invalid_request", "Invalid request body")
 	}
 
 	logger.Info("Saving ZeroTier configuration", zap.String("controllerUrl", req.ControllerURL), zap.String("tokenPath", req.TokenPath))
@@ -231,7 +235,7 @@ func (h *SystemHandler) SetInitialized(c fiber.Ctx) error {
 
 	if err := c.Bind().Body(&req); err != nil {
 		logger.Error("Failed to bind initialization state request", zap.Error(err))
-		return writeErrorResponse(c, fiber.StatusBadRequest, err.Error())
+		return writeErrorResponseWithCode(c, fiber.StatusBadRequest, "system.invalid_request", "Invalid request body")
 	}
 
 	logger.Info("Setting system initialization state", zap.Bool("initialized", req.Initialized))

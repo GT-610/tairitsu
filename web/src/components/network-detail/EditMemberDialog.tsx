@@ -33,36 +33,36 @@ function parseMemberCreationTime(value?: string | number): Date | null {
   return date
 }
 
-function formatMemberTags(member: NetworkMemberDevice | null): string {
+function formatMemberTags(member: NetworkMemberDevice | null, t: (v: string) => string): string {
   if (!member || member.tags.length === 0) {
-    return '无'
+    return t('无')
   }
 
   return member.tags.map((tag) => `${tag.id}:${tag.value}`).join(', ')
 }
 
-function formatMemberCapabilities(member: NetworkMemberDevice | null): string {
+function formatMemberCapabilities(member: NetworkMemberDevice | null, t: (v: string) => string): string {
   if (!member || member.capabilities.length === 0) {
-    return '无'
+    return t('无')
   }
 
   return member.capabilities.join(', ')
 }
 
-function formatPeerLatency(value?: number): string {
+function formatPeerLatency(value: number | undefined, t: (v: string) => string): string {
   if (value === undefined || value === null || value < 0) {
-    return '未知'
+    return t('未知')
   }
 
   return `${value} ms`
 }
 
-function formatMemberVersion(member: NetworkMemberDevice | null): string {
+function formatMemberVersion(member: NetworkMemberDevice | null, t: (v: string) => string): string {
   if (!member) {
-    return '未知'
+    return t('未知')
   }
 
-  return member.peerVersion || member.clientVersion || '未知'
+  return member.peerVersion || member.clientVersion || t('未知')
 }
 
 function EditMemberDialog({
@@ -134,7 +134,7 @@ function EditMemberDialog({
               </Grid>
               <Grid size={{ xs: 12, sm: 6 }}>
                 <Typography variant="body2" color="text.secondary">{translateText('ZeroTier 版本')}</Typography>
-                <Typography variant="body1">{translateText(formatMemberVersion(selectedMember))}</Typography>
+                <Typography variant="body1">{formatMemberVersion(selectedMember, translateText)}</Typography>
               </Grid>
               <Grid size={{ xs: 12, sm: 6 }}>
                 <Typography variant="body2" color="text.secondary">{translateText('桥接模式')}</Typography>
@@ -146,11 +146,11 @@ function EditMemberDialog({
               </Grid>
               <Grid size={{ xs: 12 }}>
                 <Typography variant="body2" color="text.secondary">{translateText('能力')}</Typography>
-                <Typography variant="body1">{translateText(formatMemberCapabilities(selectedMember))}</Typography>
+                <Typography variant="body1">{formatMemberCapabilities(selectedMember, translateText)}</Typography>
               </Grid>
               <Grid size={{ xs: 12 }}>
                 <Typography variant="body2" color="text.secondary">{translateText('标签')}</Typography>
-                <Typography variant="body1">{translateText(formatMemberTags(selectedMember))}</Typography>
+                <Typography variant="body1">{formatMemberTags(selectedMember, translateText)}</Typography>
               </Grid>
               <Grid size={{ xs: 12, sm: 6 }}>
                 <Typography variant="body2" color="text.secondary">{translateText('Peer 角色')}</Typography>
@@ -162,7 +162,7 @@ function EditMemberDialog({
               </Grid>
               <Grid size={{ xs: 12, sm: 6 }}>
                 <Typography variant="body2" color="text.secondary">{translateText('延迟')}</Typography>
-                <Typography variant="body1">{translateText(formatPeerLatency(selectedMember?.peerLatency))}</Typography>
+                <Typography variant="body1">{formatPeerLatency(selectedMember?.peerLatency, translateText)}</Typography>
               </Grid>
             </Grid>
           </Paper>

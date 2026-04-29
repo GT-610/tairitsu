@@ -736,7 +736,7 @@ function NetworkDetail() {
                 onOpenMemberMenu={handleOpenMemberMenu}
               />
 
-              <SettingsSectionCard title="只读查看授权">
+              <SettingsSectionCard titleKey="只读查看授权">
                 <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                   {translateText('这里可以授予普通用户只读查看该网络成员设备的权限。被授权用户只能查看设备和元信息，不能修改任何内容。')}
                 </Typography>
@@ -903,7 +903,7 @@ function NetworkDetail() {
                 onSave={() => { void handleSaveMulticast() }}
               />
 
-              <SettingsSectionCard title="删除网络">
+              <SettingsSectionCard titleKey="删除网络">
                 <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                   {translateText('此操作不可恢复。删除网络将断开所有连接的设备，并永久删除网络配置。')}
                 </Typography>

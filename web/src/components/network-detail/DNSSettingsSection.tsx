@@ -30,7 +30,7 @@ function DNSSettingsSection({
     JSON.stringify(draftValue.servers) !== JSON.stringify(initialValue.servers)
 
   return (
-    <SettingsSectionCard title="DNS 设置" unsaved={unsaved}>
+    <SettingsSectionCard titleKey="DNS 设置" unsaved={unsaved}>
       <Typography variant="body1" sx={{ mb: 3 }}>
         {translateText('为网络内的自定义域名解析配置 DNS。每个网络只允许一个搜索域，但可以配置多个 DNS 服务器。')}
       </Typography>
