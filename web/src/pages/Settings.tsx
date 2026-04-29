@@ -73,7 +73,7 @@ function Settings() {
     }
 
     void loadSettings()
-  }, [translateText])
+  }, [])
 
   const resetPasswordDialog = () => {
     setOpenChangePasswordDialog(false)

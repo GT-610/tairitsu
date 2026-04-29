@@ -66,6 +66,7 @@ const en: Record<string, string> = {
   'messages.logoutCurrent': 'Current session signed out',
   'messages.sessionRemoved': 'Session removed',
   'messages.otherSessionsRemoved': 'Other sessions removed',
+  'ipv6.mustBeInSubnet': 'Must be within {{subnet}}',
 }
 
 const zh: Record<string, string> = {
@@ -110,6 +111,7 @@ const zh: Record<string, string> = {
   'messages.logoutCurrent': '已退出当前会话',
   'messages.sessionRemoved': '会话已移除',
   'messages.otherSessionsRemoved': '其他会话已移除',
+  'ipv6.mustBeInSubnet': '必须落在 {{subnet}} 内',
 }
 
 const messageCodes: Record<string, { en: string; 'zh-CN': string }> = {
@@ -152,6 +154,7 @@ const messageCodes: Record<string, { en: string; 'zh-CN': string }> = {
   'network.delete_success': { en: 'Network deleted successfully', 'zh-CN': '网络删除成功' },
   'network.viewer_added': { en: 'Read-only viewer access granted', 'zh-CN': '已授予只读查看权限' },
   'network.viewer_removed': { en: 'Read-only viewer access removed', 'zh-CN': '已移除只读查看权限' },
+  'ipv6.mustBeInSubnet': { en: 'Must be within {{subnet}}', 'zh-CN': '必须落在 {{subnet}} 内' },
   'member.not_found': { en: 'Member not found', 'zh-CN': '成员不存在' },
   'member.delete_success': { en: 'Member deleted successfully', 'zh-CN': '成员删除成功' },
   'system.already_initialized': { en: 'The system is already initialized. This endpoint is only available during first-time setup.', 'zh-CN': '系统已初始化，当前接口仅在首次设置期间可用' },

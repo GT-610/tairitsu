@@ -31,7 +31,7 @@ function IPv6AssignmentSection({
   onSetRange,
   onRemoveRange,
 }: IPv6AssignmentSectionProps) {
-  const { translateText } = useTranslation()
+  const { t, translateText } = useTranslation()
   const unsaved =
     draftValue.subnet !== initialValue.subnet ||
     draftValue.customAssign !== initialValue.customAssign ||
@@ -83,8 +83,8 @@ function IPv6AssignmentSection({
                 value={draftValue.poolStartDraft}
                 onChange={(e) => onChange({ ...draftValue, poolStartDraft: e.target.value })}
                 error={Boolean(draftValue.poolStartDraft || draftValue.poolEndDraft) && Boolean(draftRangeIssue)}
-                helperText={draftValue.subnet ? `${translateText('必须落在 ')}${draftValue.subnet}${translateText(' 内')}` : translateText('请先填写 IPv6 子网')}
-              />
+                helperText={draftValue.subnet ? t('ipv6.mustBeInSubnet', { subnet: draftValue.subnet }) : translateText('请先填写 IPv6 子网')}
+                />
               <TextField
                 fullWidth
                 label={translateText('结束 IPv6')}
@@ -92,7 +92,7 @@ function IPv6AssignmentSection({
                 value={draftValue.poolEndDraft}
                 onChange={(e) => onChange({ ...draftValue, poolEndDraft: e.target.value })}
                 error={Boolean(draftValue.poolStartDraft || draftValue.poolEndDraft) && Boolean(draftRangeIssue)}
-                helperText={draftValue.subnet ? `${translateText('必须落在 ')}${draftValue.subnet}${translateText(' 内')}` : translateText('请先填写 IPv6 子网')}
+                helperText={draftValue.subnet ? t('ipv6.mustBeInSubnet', { subnet: draftValue.subnet }) : translateText('请先填写 IPv6 子网')}
               />
             </Box>
 
@@ -104,8 +104,8 @@ function IPv6AssignmentSection({
               <Button variant="outlined" onClick={onSetRange} disabled={Boolean(draftRangeIssue)}>{translateText('设置范围')}</Button>
             </Box>
 
-            {Boolean(draftRangeIssue) && Boolean(draftValue.poolStartDraft || draftValue.poolEndDraft) && (
-              <Alert severity="warning" sx={{ mt: 2 }}>{draftRangeIssue ? translateText(draftRangeIssue) : ''}</Alert>
+            {draftRangeIssue && (draftValue.poolStartDraft || draftValue.poolEndDraft) && (
+              <Alert severity="warning" sx={{ mt: 2 }}>{translateText(draftRangeIssue)}</Alert>
             )}
 
             {draftValue.pools.length > 0 ? (

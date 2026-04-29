@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"errors"
+	"net/url"
 
 	"github.com/GT-610/tairitsu/internal/app/logger"
 	"github.com/GT-610/tairitsu/internal/app/models"
@@ -10,9 +11,28 @@ import (
 	"go.uber.org/zap"
 )
 
-func setupErrorResponse(c fiber.Ctx, status int, err error) error {
+func setupErrorResponse(c fiber.Ctx, _ int, err error) error {
 	code := "system.internal_error"
 	message := "Internal server error"
+	status := fiber.StatusInternalServerError
+
+	// Determine HTTP status based on error type
+	switch {
+	case errors.Is(err, services.ErrSetupUnsupportedDatabase),
+		errors.Is(err, services.ErrSetupInvalidConfig),
+		errors.Is(err, services.ErrSetupDatabaseConnectionFailed),
+		errors.Is(err, services.ErrSetupDatabaseInitialization),
+		errors.Is(err, services.ErrSetupDatabaseConfigSaveFailed):
+		status = fiber.StatusBadRequest
+	case errors.Is(err, services.ErrSetupAdminRequired):
+		status = fiber.StatusConflict
+	case errors.Is(err, services.ErrSetupZeroTierUnavailable),
+		errors.Is(err, services.ErrSetupZeroTierValidationFailed),
+		errors.Is(err, services.ErrSetupZeroTierClientCreateFailed):
+		status = fiber.StatusServiceUnavailable
+	}
+
+	// Map error to code and message
 	switch {
 	case errors.Is(err, services.ErrSetupUnsupportedDatabase):
 		code = "setup.unsupported_database"
@@ -128,27 +148,21 @@ func (h *SystemHandler) ConfigureDatabase(c fiber.Ctx) error {
 		return writeErrorResponseWithCode(c, fiber.StatusBadRequest, "system.invalid_request", "Invalid request body")
 	}
 
-	logger.Info("Configuring database", zap.String("type", dbConfig.Type))
+	logger.Info("Configuring database", zap.String("type", string(dbConfig.Type)))
 
 	dbCfg, err := h.setupService.ConfigureDatabase(dbConfig)
 	if err != nil {
 		logger.Error("Database configuration failed", zap.Error(err))
-		status := fiber.StatusInternalServerError
-		if errors.Is(err, services.ErrSetupUnsupportedDatabase) {
-			status = fiber.StatusBadRequest
-		}
-		return setupErrorResponse(c, status, err)
+		return setupErrorResponse(c, 0, err)
 	}
 
-	logger.Info("SQLite database path set", zap.String("path", dbCfg.Path))
+	logger.Info("Database configured successfully", zap.String("type", string(dbCfg.Type)))
 
-	logger.Info("Database configured successfully", zap.String("type", dbConfig.Type))
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
 		"message":      "Database configured successfully",
 		"message_code": "system.database_configured",
 		"config": fiber.Map{
 			"type": dbCfg.Type,
-			"path": dbCfg.Path,
 		},
 	})
 }
@@ -189,7 +203,13 @@ func (h *SystemHandler) SaveZeroTierConfig(c fiber.Ctx) error {
 		return writeErrorResponseWithCode(c, fiber.StatusBadRequest, "system.invalid_request", "Invalid request body")
 	}
 
-	logger.Info("Saving ZeroTier configuration", zap.String("controllerUrl", req.ControllerURL), zap.String("tokenPath", req.TokenPath))
+	// Sanitize: log only hostname from URL and whether token path is present
+	controllerHost := "invalid"
+	if u, err := url.Parse(req.ControllerURL); err == nil && u.Host != "" {
+		controllerHost = u.Host
+	}
+	tokenPresent := req.TokenPath != ""
+	logger.Info("Saving ZeroTier configuration", zap.String("controllerHost", controllerHost), zap.Bool("tokenPathPresent", tokenPresent))
 
 	status, err := h.setupService.SaveZeroTierConfig(req.ControllerURL, req.TokenPath)
 	if err != nil {
