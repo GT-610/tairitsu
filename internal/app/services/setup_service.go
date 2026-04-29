@@ -73,7 +73,7 @@ func (s *SetupService) ConfigureDatabase(dbConfig models.DatabaseConfig) (databa
 	if err := db.Init(); err != nil {
 		if closeErr := db.Close(); closeErr != nil {
 			logger.Warn("failed to close database after initialization error", zap.Error(closeErr))
-			return database.Config{}, fmt.Errorf("%w: %v; close database: %w", ErrSetupDatabaseInitialization, err, closeErr)
+			return database.Config{}, fmt.Errorf("%w: %v; close database: %v", ErrSetupDatabaseInitialization, err, closeErr)
 		}
 		return database.Config{}, fmt.Errorf("%w: %v", ErrSetupDatabaseInitialization, err)
 	}
@@ -85,7 +85,7 @@ func (s *SetupService) ConfigureDatabase(dbConfig models.DatabaseConfig) (databa
 	if err := s.stateService.SaveDatabaseConfig(dbCfg); err != nil {
 		if closeErr := db.Close(); closeErr != nil {
 			logger.Warn("failed to close database after save configuration error", zap.Error(closeErr))
-			return database.Config{}, fmt.Errorf("%w: %v; close database: %w", ErrSetupDatabaseConfigSaveFailed, err, closeErr)
+			return database.Config{}, fmt.Errorf("%w: %v; close database: %v", ErrSetupDatabaseConfigSaveFailed, err, closeErr)
 		}
 		return database.Config{}, fmt.Errorf("%w: %v", ErrSetupDatabaseConfigSaveFailed, err)
 	}

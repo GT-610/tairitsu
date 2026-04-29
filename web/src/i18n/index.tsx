@@ -651,6 +651,9 @@ function invertRawDictionary(dictionary: Record<string, string>, duplicateTarget
   const duplicates: string[] = []
 
   for (const [source, target] of Object.entries(dictionary)) {
+    if (source === target) {
+      continue
+    }
     if (Object.prototype.hasOwnProperty.call(inverted, target)) {
       if (!Object.prototype.hasOwnProperty.call(duplicateTargets, target)) {
         duplicates.push(target)
@@ -674,16 +677,19 @@ export function detectSystemLanguage(languages?: readonly string[]): Language {
     ? languages
     : [globalThis.navigator?.language, ...(globalThis.navigator?.languages ?? [])].filter(Boolean)
 
-  return candidates.some((language) => {
+  for (const language of candidates) {
     const normalized = language.toLowerCase()
     if (normalized === 'zh-tw' || normalized.startsWith('zh-tw-') ||
         normalized === 'zh-hk' || normalized.startsWith('zh-hk-') ||
         normalized === 'zh-mo' || normalized.startsWith('zh-mo-') ||
         normalized === 'zh-hant' || normalized.startsWith('zh-hant-')) {
-      return false
+      continue
     }
-    return normalized === 'zh' || normalized === 'zh-cn' || normalized === 'zh-hans' || normalized.startsWith('zh-hans-') || normalized.startsWith('zh-')
-  }) ? 'zh-CN' : 'en'
+    if (normalized === 'zh' || normalized === 'zh-cn' || normalized === 'zh-hans' || normalized.startsWith('zh-hans-') || normalized.startsWith('zh-')) {
+      return 'zh-CN'
+    }
+  }
+  return 'en'
 }
 
 export function normalizeLanguagePreference(value: unknown): LanguagePreference {
@@ -711,8 +717,8 @@ function storeLanguagePreference(preference: LanguagePreference) {
 }
 
 export function translateRawText(value: string, language: Language): string {
-  const normalized = value.replace(/\s+/g, ' ').trim()
-  if (!normalized) return value
+  const normalized = value.replace(/\s+/g, ' ')
+  if (!normalized.trim()) return value
 
   const dictionary = language === 'en' ? rawEn : rawZh
   const translated = dictionary[normalized]
@@ -762,7 +768,6 @@ export function translateRawText(value: string, language: Language): string {
     [/已删除用户 /g, 'Deleted user ', /Deleted user /g, '已删除用户 '],
     [/，并转移 /g, ' and transferred ', / and transferred /g, '，并转移 '],
     [/管理员身份已转让给 /g, 'Administrator role transferred to ', /Administrator role transferred to /g, '管理员身份已转让给 '],
-    [/ 个/g, ' sessions', / sessions/g, ' 个'],
   ]
 
   return rawReplacementPairs.reduce((result, [zhPattern, enText, enPattern, zhText]) => {
