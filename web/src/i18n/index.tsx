@@ -733,7 +733,6 @@ export function translateRawText(value: string, language: Language): string {
     [/内核:/g, 'Kernel:', /Kernel:/g, '内核:'],
     [/密码修改成功，并已移除其他会话 /g, 'Password updated successfully and removed ', /Password updated successfully and removed /g, '密码修改成功，并已移除其他会话 '],
     [/已移除其他会话 /g, 'Removed ', /Removed /g, '已移除其他会话 '],
-    [/ 个/g, ' sessions', / sessions/g, ' 个'],
     [/IP：/g, 'IP: ', /IP: /g, 'IP：'],
     [/客户端标识：/g, 'Client identity: ', /Client identity: /g, '客户端标识：'],
     [/持久登录/g, 'Remembered login', /Remembered login/g, '持久登录'],
@@ -760,6 +759,7 @@ export function translateRawText(value: string, language: Language): string {
     [/已删除用户 /g, 'Deleted user ', /Deleted user /g, '已删除用户 '],
     [/，并转移 /g, ' and transferred ', / and transferred /g, '，并转移 '],
     [/管理员身份已转让给 /g, 'Administrator role transferred to ', /Administrator role transferred to /g, '管理员身份已转让给 '],
+    [/ 个/g, ' sessions', / sessions/g, ' 个'],
   ]
 
   return rawReplacementPairs.reduce((result, [zhPattern, enText, enPattern, zhText]) => {

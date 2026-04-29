@@ -280,5 +280,5 @@ func TestSystemHandler_SetInitializedRejectsMissingAdmin(t *testing.T) {
 
 	var body map[string]any
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(&body))
-	assert.Contains(t, body["message"], "create the first administrator account first")
+	assert.Contains(t, body["message"], "Create the first administrator account first")
 }

@@ -11,7 +11,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func setupErrorResponse(c fiber.Ctx, _ int, err error) error {
+func setupErrorResponse(c fiber.Ctx, err error) error {
 	code := "system.internal_error"
 	message := "Internal server error"
 	status := fiber.StatusInternalServerError
@@ -19,12 +19,14 @@ func setupErrorResponse(c fiber.Ctx, _ int, err error) error {
 	// Determine HTTP status based on error type
 	switch {
 	case errors.Is(err, services.ErrSetupUnsupportedDatabase),
-		errors.Is(err, services.ErrSetupInvalidConfig),
-		errors.Is(err, services.ErrSetupDatabaseConnectionFailed),
+		errors.Is(err, services.ErrSetupInvalidConfig):
+		status = fiber.StatusBadRequest
+	case errors.Is(err, services.ErrSetupDatabaseConnectionFailed),
 		errors.Is(err, services.ErrSetupDatabaseInitialization),
 		errors.Is(err, services.ErrSetupDatabaseConfigSaveFailed):
-		status = fiber.StatusBadRequest
-	case errors.Is(err, services.ErrSetupAdminRequired):
+		status = fiber.StatusInternalServerError
+	case errors.Is(err, services.ErrSetupAdminRequired),
+		errors.Is(err, services.ErrSetupAlreadyInitialized):
 		status = fiber.StatusConflict
 	case errors.Is(err, services.ErrSetupZeroTierUnavailable),
 		errors.Is(err, services.ErrSetupZeroTierValidationFailed),
@@ -81,7 +83,7 @@ func setupErrorResponse(c fiber.Ctx, _ int, err error) error {
 		message = "Failed to update initialization state"
 	case errors.Is(err, services.ErrSetupAdminRequired):
 		code = "setup.admin_required"
-		message = "create the first administrator account first"
+		message = "Create the first administrator account first"
 	case errors.Is(err, services.ErrSetupZeroTierUnavailable):
 		code = "setup.zerotier_unavailable"
 		message = "ZeroTier controller is currently unavailable"
@@ -130,7 +132,7 @@ func (h *SystemHandler) UpdateRuntimeSettings(c fiber.Ctx) error {
 
 	if err := h.setupService.UpdateRuntimeSettings(req); err != nil {
 		logger.Error("Failed to update instance settings", zap.Error(err))
-		return setupErrorResponse(c, fiber.StatusInternalServerError, err)
+		return setupErrorResponse(c, err)
 	}
 
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
@@ -153,7 +155,7 @@ func (h *SystemHandler) ConfigureDatabase(c fiber.Ctx) error {
 	dbCfg, err := h.setupService.ConfigureDatabase(dbConfig)
 	if err != nil {
 		logger.Error("Database configuration failed", zap.Error(err))
-		return setupErrorResponse(c, 0, err)
+		return setupErrorResponse(c, err)
 	}
 
 	logger.Info("Database configured successfully", zap.String("type", string(dbCfg.Type)))
@@ -172,7 +174,7 @@ func (h *SystemHandler) TestZeroTierConnection(c fiber.Ctx) error {
 	ztStatus, err := h.setupService.TestZeroTierConnection()
 	if err != nil {
 		logger.Error("[ZeroTier] connection test failed", zap.Error(err))
-		return setupErrorResponse(c, fiber.StatusInternalServerError, err)
+		return setupErrorResponse(c, err)
 	}
 
 	logger.Info("[ZeroTier] connection test succeeded")
@@ -185,7 +187,7 @@ func (h *SystemHandler) InitZeroTierClient(c fiber.Ctx) error {
 	status, err := h.setupService.InitZTClientFromConfig()
 	if err != nil {
 		logger.Error("ZeroTier client initialization failed", zap.Error(err))
-		return setupErrorResponse(c, fiber.StatusInternalServerError, err)
+		return setupErrorResponse(c, err)
 	}
 
 	return writeMessageResponse(c, fiber.StatusOK, "system.zerotier_initialized", "ZeroTier client initialized successfully", fiber.Map{"status": status})
@@ -214,15 +216,17 @@ func (h *SystemHandler) SaveZeroTierConfig(c fiber.Ctx) error {
 	status, err := h.setupService.SaveZeroTierConfig(req.ControllerURL, req.TokenPath)
 	if err != nil {
 		logger.Error("Failed to save ZeroTier configuration", zap.Error(err))
-		return setupErrorResponse(c, fiber.StatusInternalServerError, err)
+		return setupErrorResponse(c, err)
 	}
 
 	logger.Info("ZeroTier configuration saved and validated")
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
 		"message":      "ZeroTier configuration saved successfully",
 		"message_code": "system.zerotier_configured",
-		"config":       req,
-		"status":       status,
+		"config": fiber.Map{
+			"controllerUrl": req.ControllerURL,
+		},
+		"status": status,
 	})
 }
 
@@ -234,7 +238,7 @@ func (h *SystemHandler) InitializeAdminCreation(c fiber.Ctx) error {
 	databaseType, err := h.setupService.InitializeAdminCreation()
 	if err != nil {
 		logger.Error("Failed to initialize administrator account creation step", zap.Error(err))
-		return setupErrorResponse(c, fiber.StatusInternalServerError, err)
+		return setupErrorResponse(c, err)
 	}
 
 	logger.Info("SQLite database reset successfully")
@@ -262,7 +266,7 @@ func (h *SystemHandler) SetInitialized(c fiber.Ctx) error {
 
 	if err := h.setupService.SetInitialized(req.Initialized); err != nil {
 		logger.Error("Failed to set initialization state", zap.Error(err))
-		return setupErrorResponse(c, fiber.StatusInternalServerError, err)
+		return setupErrorResponse(c, err)
 	}
 
 	return writeMessageResponse(c, fiber.StatusOK, "system.initialized_updated", "Initialization state updated successfully", nil)
