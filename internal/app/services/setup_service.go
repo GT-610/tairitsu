@@ -3,6 +3,7 @@ package services
 import (
 	"crypto/rand"
 	"encoding/base64"
+	"errors"
 	"fmt"
 
 	"github.com/GT-610/tairitsu/internal/app/config"
@@ -20,6 +21,26 @@ type SetupService struct {
 	networkService *NetworkService
 }
 
+var (
+	ErrSetupUnsupportedDatabase        = errors.New("setup.unsupported_database")
+	ErrSetupInvalidConfig              = errors.New("setup.invalid_config")
+	ErrSetupDatabaseConnectionFailed   = errors.New("setup.database_connection_failed")
+	ErrSetupDatabaseInitialization     = errors.New("setup.database_initialization_failed")
+	ErrSetupDatabaseConfigSaveFailed   = errors.New("setup.database_config_save_failed")
+	ErrSetupConfigSaveFailed           = errors.New("setup.config_save_failed")
+	ErrSetupZeroTierConfigSaveFailed   = errors.New("setup.zerotier_config_save_failed")
+	ErrSetupZeroTierClientCreateFailed = errors.New("setup.zerotier_client_create_failed")
+	ErrSetupZeroTierValidationFailed   = errors.New("setup.zerotier_validation_failed")
+	ErrSetupAlreadyInitialized         = errors.New("setup.already_initialized")
+	ErrSetupAdminStateCheckFailed      = errors.New("setup.admin_state_check_failed")
+	ErrSetupAdminCreationInitFailed    = errors.New("setup.admin_creation_init_failed")
+	ErrSetupDatabaseReopenFailed       = errors.New("setup.database_reopen_failed")
+	ErrSetupSecretGenerationFailed     = errors.New("setup.secret_generation_failed")
+	ErrSetupInitializationStateFailed  = errors.New("setup.initialization_state_failed")
+	ErrSetupAdminRequired              = errors.New("setup.admin_required")
+	ErrSetupZeroTierUnavailable        = errors.New("setup.zerotier_unavailable")
+)
+
 func NewSetupService(runtimeService *RuntimeService, stateService *StateService, userService *UserService, networkService *NetworkService) *SetupService {
 	return &SetupService{
 		runtimeService: runtimeService,
@@ -31,7 +52,7 @@ func NewSetupService(runtimeService *RuntimeService, stateService *StateService,
 
 func (s *SetupService) ConfigureDatabase(dbConfig models.DatabaseConfig) (database.Config, error) {
 	if dbConfig.Type != string(database.SQLite) {
-		return database.Config{}, fmt.Errorf("only SQLite is currently supported; use SQLite to complete initialization")
+		return database.Config{}, ErrSetupUnsupportedDatabase
 	}
 
 	dbCfg := database.Config{
@@ -46,15 +67,15 @@ func (s *SetupService) ConfigureDatabase(dbConfig models.DatabaseConfig) (databa
 
 	db, err := database.NewDatabase(dbCfg)
 	if err != nil {
-		return database.Config{}, fmt.Errorf("database connection failed: %w", err)
+		return database.Config{}, fmt.Errorf("%w: %v", ErrSetupDatabaseConnectionFailed, err)
 	}
 
 	if err := db.Init(); err != nil {
 		if closeErr := db.Close(); closeErr != nil {
 			logger.Warn("failed to close database after initialization error", zap.Error(closeErr))
-			return database.Config{}, fmt.Errorf("database initialization failed: %w; failed to close database: %w", err, closeErr)
+			return database.Config{}, fmt.Errorf("%w: %v; close database: %w", ErrSetupDatabaseInitialization, err, closeErr)
 		}
-		return database.Config{}, fmt.Errorf("database initialization failed: %w", err)
+		return database.Config{}, fmt.Errorf("%w: %v", ErrSetupDatabaseInitialization, err)
 	}
 
 	if dbCfg.Type == database.SQLite && dbCfg.Path == "" {
@@ -64,9 +85,9 @@ func (s *SetupService) ConfigureDatabase(dbConfig models.DatabaseConfig) (databa
 	if err := s.stateService.SaveDatabaseConfig(dbCfg); err != nil {
 		if closeErr := db.Close(); closeErr != nil {
 			logger.Warn("failed to close database after save configuration error", zap.Error(closeErr))
-			return database.Config{}, fmt.Errorf("failed to save database configuration: %w; failed to close database: %w", err, closeErr)
+			return database.Config{}, fmt.Errorf("%w: %v; close database: %w", ErrSetupDatabaseConfigSaveFailed, err, closeErr)
 		}
-		return database.Config{}, fmt.Errorf("failed to save database configuration: %w", err)
+		return database.Config{}, fmt.Errorf("%w: %v", ErrSetupDatabaseConfigSaveFailed, err)
 	}
 
 	s.runtimeService.BindDatabase(db)
@@ -75,17 +96,17 @@ func (s *SetupService) ConfigureDatabase(dbConfig models.DatabaseConfig) (databa
 
 func (s *SetupService) SaveZeroTierConfig(controllerURL, tokenPath string) (*zerotier.Status, error) {
 	if err := s.stateService.SaveZeroTierConfig(controllerURL, tokenPath); err != nil {
-		return nil, fmt.Errorf("failed to save ZeroTier configuration: %w", err)
+		return nil, fmt.Errorf("%w: %v", ErrSetupZeroTierConfigSaveFailed, err)
 	}
 
 	ztClient, err := s.stateService.CreateZTClient()
 	if err != nil {
-		return nil, fmt.Errorf("failed to create ZeroTier client: %w", err)
+		return nil, fmt.Errorf("%w: %v", ErrSetupZeroTierClientCreateFailed, err)
 	}
 
 	status, err := ztClient.GetStatus()
 	if err != nil {
-		return nil, fmt.Errorf("ZeroTier client validation failed: %w", err)
+		return nil, fmt.Errorf("%w: %v", ErrSetupZeroTierValidationFailed, err)
 	}
 
 	s.runtimeService.BindZTClient(ztClient)
@@ -95,12 +116,12 @@ func (s *SetupService) SaveZeroTierConfig(controllerURL, tokenPath string) (*zer
 func (s *SetupService) TestZeroTierConnection() (*zerotier.Status, error) {
 	ztClient, err := s.stateService.CreateZTClient()
 	if err != nil {
-		return nil, fmt.Errorf("failed to create ZeroTier client: %w", err)
+		return nil, fmt.Errorf("%w: %v", ErrSetupZeroTierClientCreateFailed, err)
 	}
 
 	status, err := ztClient.GetStatus()
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to ZeroTier controller: %w", err)
+		return nil, fmt.Errorf("%w: %v", ErrSetupZeroTierValidationFailed, err)
 	}
 
 	return status, nil
@@ -125,14 +146,14 @@ func (s *SetupService) UpdateRuntimeSettings(settings RuntimeSettings) error {
 func (s *SetupService) InitializeAdminCreation() (string, error) {
 	dbConfig := s.stateService.DatabaseConfig()
 	if dbConfig.Type == "" {
-		return "", fmt.Errorf("database configuration is incomplete; configure SQLite first")
+		return "", ErrSetupInvalidConfig
 	}
 	if dbConfig.Type != database.SQLite {
-		return "", fmt.Errorf("only SQLite is currently supported; %s initialization is not supported", dbConfig.Type)
+		return "", fmt.Errorf("%w: %s", ErrSetupUnsupportedDatabase, dbConfig.Type)
 	}
 
 	if s.stateService.IsInitialized() {
-		return "", fmt.Errorf("system is already initialized; cannot prepare first administrator creation again")
+		return "", ErrSetupAlreadyInitialized
 	}
 
 	resetDoneKey := "admin_creation_reset_done"
@@ -142,7 +163,7 @@ func (s *SetupService) InitializeAdminCreation() (string, error) {
 
 	hasAdmin, err := s.userService.HasAdminUser()
 	if err != nil {
-		return "", fmt.Errorf("failed to check administrator state before reset: %w", err)
+		return "", fmt.Errorf("%w: %v", ErrSetupAdminStateCheckFailed, err)
 	}
 	if hasAdmin {
 		config.SetTempSetting(resetDoneKey, "true")
@@ -152,11 +173,11 @@ func (s *SetupService) InitializeAdminCreation() (string, error) {
 	s.runtimeService.CloseCurrentDatabase()
 
 	if err := database.ResetDatabase(dbConfig); err != nil {
-		return "", fmt.Errorf("failed to initialize administrator account creation step: %w", err)
+		return "", fmt.Errorf("%w: %v", ErrSetupAdminCreationInitFailed, err)
 	}
 
 	if err := s.runtimeService.ReopenConfiguredDatabase(); err != nil {
-		return "", fmt.Errorf("failed to reinitialize database after reset: %w", err)
+		return "", fmt.Errorf("%w: %v", ErrSetupDatabaseReopenFailed, err)
 	}
 
 	config.SetTempSetting(resetDoneKey, "true")
@@ -173,7 +194,7 @@ func (s *SetupService) SetInitialized(initialized bool) error {
 		if cfg.Security.JWTSecret == "" {
 			secret, err := generateRandomSecret(32)
 			if err != nil {
-				return fmt.Errorf("failed to generate JWT secret: %w", err)
+				return fmt.Errorf("%w: JWT secret: %v", ErrSetupSecretGenerationFailed, err)
 			}
 			cfg.Security.JWTSecret = secret
 			logger.Info("generated new JWT secret")
@@ -182,19 +203,19 @@ func (s *SetupService) SetInitialized(initialized bool) error {
 		if cfg.Security.SessionSecret == "" {
 			secret, err := generateRandomSecret(32)
 			if err != nil {
-				return fmt.Errorf("failed to generate session secret: %w", err)
+				return fmt.Errorf("%w: session secret: %v", ErrSetupSecretGenerationFailed, err)
 			}
 			cfg.Security.SessionSecret = secret
 			logger.Info("generated new session secret")
 		}
 
 		if err := s.stateService.SaveConfig(); err != nil {
-			return fmt.Errorf("failed to save config: %w", err)
+			return fmt.Errorf("%w: %v", ErrSetupConfigSaveFailed, err)
 		}
 	}
 
 	if err := s.stateService.SetInitialized(initialized); err != nil {
-		return fmt.Errorf("failed to set initialization state: %w", err)
+		return fmt.Errorf("%w: %v", ErrSetupInitializationStateFailed, err)
 	}
 
 	return nil
@@ -202,33 +223,33 @@ func (s *SetupService) SetInitialized(initialized bool) error {
 
 func (s *SetupService) validateInitializationReady() error {
 	if !s.stateService.DatabaseConfigured() {
-		return fmt.Errorf("database configuration is incomplete; configure SQLite first")
+		return ErrSetupInvalidConfig
 	}
 
 	if s.runtimeService.CurrentDatabase() == nil {
 		if err := s.runtimeService.ReopenConfiguredDatabase(); err != nil {
-			return fmt.Errorf("database is not ready: %w", err)
+			return fmt.Errorf("%w: %v", ErrSetupDatabaseReopenFailed, err)
 		}
 	}
 
 	hasAdmin, err := s.userService.HasAdminUser()
 	if err != nil {
-		return fmt.Errorf("failed to confirm administrator state: %w", err)
+		return fmt.Errorf("%w: %v", ErrSetupAdminStateCheckFailed, err)
 	}
 	if !hasAdmin {
-		return fmt.Errorf("create the first administrator account first")
+		return ErrSetupAdminRequired
 	}
 
 	if _, err := s.stateService.CreateZTClient(); err != nil {
-		return fmt.Errorf("ZeroTier configuration is incomplete: %w", err)
+		return fmt.Errorf("%w: %v", ErrSetupZeroTierClientCreateFailed, err)
 	}
 
 	status, err := s.runtimeService.InitZTClientFromConfig()
 	if err != nil {
-		return fmt.Errorf("ZeroTier connection validation failed: %w", err)
+		return fmt.Errorf("%w: %v", ErrSetupZeroTierValidationFailed, err)
 	}
 	if status == nil || !status.Online {
-		return fmt.Errorf("ZeroTier controller is currently unavailable")
+		return ErrSetupZeroTierUnavailable
 	}
 
 	return nil

@@ -132,7 +132,7 @@ function generateRandomIPv4Subnet(): string {
 }
 
 function NetworkDetail() {
-  const { translateText } = useTranslation()
+  const { formatDateTime, translateText } = useTranslation()
   const { id } = useParams<{ id: string }>()
   const [network, setNetwork] = useState<Network | null>(null)
   const [loading, setLoading] = useState(true)
@@ -788,7 +788,7 @@ function NetworkDetail() {
                         <Box>
                           <Typography variant="body1">{viewer.username}</Typography>
                           <Typography variant="body2" color="text.secondary">
-                            {translateText('授权时间：')}{viewer.created_at ? new Date(viewer.created_at).toLocaleString() : '-'}
+                            {translateText('授权时间：')}{viewer.created_at ? formatDateTime(viewer.created_at) : '-'}
                           </Typography>
                         </Box>
                         <Button

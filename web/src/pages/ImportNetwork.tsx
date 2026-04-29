@@ -64,7 +64,7 @@ function statusLabel(status: ImportableNetworkCandidate['status']) {
 function candidateSecondary(candidate: ImportableNetworkCandidate, translateText: (value: string) => string) {
   const parts = [
     candidate.reason_message ? translateText(candidate.reason_message) : '',
-    candidate.owner_username ? `Owner: ${candidate.owner_username}` : '',
+    candidate.owner_username ? `${translateText('所有者')}: ${candidate.owner_username}` : '',
     typeof candidate.member_count === 'number' ? `${translateText('成员')} ${candidate.member_count}` : '',
     candidate.controller_status ? `${translateText('状态')} ${candidate.controller_status}` : '',
   ].filter(Boolean)

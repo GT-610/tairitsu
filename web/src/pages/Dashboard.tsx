@@ -280,10 +280,10 @@ function Dashboard() {
                   {translateText('操作系统信息')}
                 </Typography>
                 <Typography variant="body1">
-                  {systemStats.osName || 'Unknown'}
+                  {systemStats.osName || translateText('Unknown')}
                 </Typography>
                 <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                  {translateText('平台:')}{systemStats.platform || ''} {systemStats.platformVersion || ''} | {translateText('内核:')}{systemStats.kernelVersion || ''}
+                  {translateText('平台:')} {systemStats.platform || translateText('Unknown')} {systemStats.platformVersion || ''} | {translateText('内核:')} {systemStats.kernelVersion || translateText('Unknown')}
                 </Typography>
               </Box>
 

@@ -1,12 +1,73 @@
 package handlers
 
 import (
+	"errors"
+
 	"github.com/GT-610/tairitsu/internal/app/logger"
 	"github.com/GT-610/tairitsu/internal/app/models"
 	"github.com/GT-610/tairitsu/internal/app/services"
 	"github.com/gofiber/fiber/v3"
 	"go.uber.org/zap"
 )
+
+func setupErrorResponse(c fiber.Ctx, status int, err error) error {
+	code := "system.internal_error"
+	message := "Internal server error"
+	switch {
+	case errors.Is(err, services.ErrSetupUnsupportedDatabase):
+		code = "setup.unsupported_database"
+		message = "Only SQLite is currently supported"
+	case errors.Is(err, services.ErrSetupInvalidConfig):
+		code = "setup.invalid_config"
+		message = "Setup configuration is incomplete"
+	case errors.Is(err, services.ErrSetupDatabaseConnectionFailed):
+		code = "setup.database_connection_failed"
+		message = "Database connection failed"
+	case errors.Is(err, services.ErrSetupDatabaseInitialization):
+		code = "setup.database_initialization_failed"
+		message = "Database initialization failed"
+	case errors.Is(err, services.ErrSetupDatabaseConfigSaveFailed):
+		code = "setup.database_config_save_failed"
+		message = "Failed to save database configuration"
+	case errors.Is(err, services.ErrSetupConfigSaveFailed):
+		code = "setup.config_save_failed"
+		message = "Failed to save setup configuration"
+	case errors.Is(err, services.ErrSetupZeroTierConfigSaveFailed):
+		code = "setup.zerotier_config_save_failed"
+		message = "Failed to save ZeroTier configuration"
+	case errors.Is(err, services.ErrSetupZeroTierClientCreateFailed):
+		code = "setup.zerotier_client_create_failed"
+		message = "Failed to create ZeroTier client"
+	case errors.Is(err, services.ErrSetupZeroTierValidationFailed):
+		code = "setup.zerotier_validation_failed"
+		message = "ZeroTier controller validation failed"
+	case errors.Is(err, services.ErrSetupAlreadyInitialized):
+		code = "setup.already_initialized"
+		message = "System is already initialized"
+	case errors.Is(err, services.ErrSetupAdminStateCheckFailed):
+		code = "setup.admin_state_check_failed"
+		message = "Failed to confirm administrator state"
+	case errors.Is(err, services.ErrSetupAdminCreationInitFailed):
+		code = "setup.admin_creation_init_failed"
+		message = "Failed to initialize administrator account creation"
+	case errors.Is(err, services.ErrSetupDatabaseReopenFailed):
+		code = "setup.database_reopen_failed"
+		message = "Failed to reopen configured database"
+	case errors.Is(err, services.ErrSetupSecretGenerationFailed):
+		code = "setup.secret_generation_failed"
+		message = "Failed to generate secure secret"
+	case errors.Is(err, services.ErrSetupInitializationStateFailed):
+		code = "setup.initialization_state_failed"
+		message = "Failed to update initialization state"
+	case errors.Is(err, services.ErrSetupAdminRequired):
+		code = "setup.admin_required"
+		message = "create the first administrator account first"
+	case errors.Is(err, services.ErrSetupZeroTierUnavailable):
+		code = "setup.zerotier_unavailable"
+		message = "ZeroTier controller is currently unavailable"
+	}
+	return writeErrorResponseWithCode(c, status, code, message)
+}
 
 // SystemHandler handles system-related API endpoints and operations
 type SystemHandler struct {
@@ -72,7 +133,7 @@ func (h *SystemHandler) ConfigureDatabase(c fiber.Ctx) error {
 	dbCfg, err := h.setupService.ConfigureDatabase(dbConfig)
 	if err != nil {
 		logger.Error("Database configuration failed", zap.Error(err))
-		return writeErrorResponse(c, fiber.StatusBadRequest, err.Error())
+		return setupErrorResponse(c, fiber.StatusBadRequest, err)
 	}
 
 	logger.Info("SQLite database path set", zap.String("path", dbCfg.Path))
@@ -93,7 +154,7 @@ func (h *SystemHandler) TestZeroTierConnection(c fiber.Ctx) error {
 	ztStatus, err := h.setupService.TestZeroTierConnection()
 	if err != nil {
 		logger.Error("[ZeroTier] connection test failed", zap.Error(err))
-		return writeErrorResponse(c, fiber.StatusInternalServerError, err.Error())
+		return setupErrorResponse(c, fiber.StatusInternalServerError, err)
 	}
 
 	logger.Info("[ZeroTier] connection test succeeded")
@@ -106,7 +167,7 @@ func (h *SystemHandler) InitZeroTierClient(c fiber.Ctx) error {
 	status, err := h.setupService.InitZTClientFromConfig()
 	if err != nil {
 		logger.Error("ZeroTier client initialization failed", zap.Error(err))
-		return writeErrorResponse(c, fiber.StatusInternalServerError, err.Error())
+		return setupErrorResponse(c, fiber.StatusInternalServerError, err)
 	}
 
 	return writeMessageResponse(c, fiber.StatusOK, "system.zerotier_initialized", "ZeroTier client initialized successfully", fiber.Map{"status": status})
@@ -129,7 +190,7 @@ func (h *SystemHandler) SaveZeroTierConfig(c fiber.Ctx) error {
 	status, err := h.setupService.SaveZeroTierConfig(req.ControllerURL, req.TokenPath)
 	if err != nil {
 		logger.Error("Failed to save ZeroTier configuration", zap.Error(err))
-		return writeErrorResponse(c, fiber.StatusInternalServerError, err.Error())
+		return setupErrorResponse(c, fiber.StatusInternalServerError, err)
 	}
 
 	logger.Info("ZeroTier configuration saved and validated")
@@ -149,7 +210,7 @@ func (h *SystemHandler) InitializeAdminCreation(c fiber.Ctx) error {
 	databaseType, err := h.setupService.InitializeAdminCreation()
 	if err != nil {
 		logger.Error("Failed to initialize administrator account creation step", zap.Error(err))
-		return writeErrorResponse(c, fiber.StatusInternalServerError, err.Error())
+		return setupErrorResponse(c, fiber.StatusInternalServerError, err)
 	}
 
 	logger.Info("SQLite database reset successfully")
@@ -177,7 +238,7 @@ func (h *SystemHandler) SetInitialized(c fiber.Ctx) error {
 
 	if err := h.setupService.SetInitialized(req.Initialized); err != nil {
 		logger.Error("Failed to set initialization state", zap.Error(err))
-		return writeErrorResponse(c, fiber.StatusInternalServerError, err.Error())
+		return setupErrorResponse(c, fiber.StatusInternalServerError, err)
 	}
 
 	return writeMessageResponse(c, fiber.StatusOK, "system.initialized_updated", "Initialization state updated successfully", nil)

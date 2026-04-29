@@ -29,7 +29,7 @@ function OneTimePasswordDialog({
             {translateText('该密码只会展示这一次。关闭后将无法再次查看，请立即通过其他方式安全告知用户。')}
           </Alert>
           <Typography variant="body2" color="text.secondary">
-            {translateText(subjectLabel)}：{username || translateText('未知用户')}
+            {subjectLabel}：{username || translateText('未知用户')}
           </Typography>
           <TextField
             label={translateText('临时密码')}
@@ -38,7 +38,7 @@ function OneTimePasswordDialog({
             InputProps={{ readOnly: true }}
           />
           <Typography variant="body2" color="text.secondary">
-            {translateText(footerText)}
+            {footerText}
           </Typography>
         </Stack>
       </DialogContent>

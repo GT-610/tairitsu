@@ -35,12 +35,11 @@ import { getErrorMessage } from '../services/errors';
 import { useAuth } from '../services/auth';
 import UserRoleBadge from '../components/UserRoleBadge';
 import OneTimePasswordDialog from '../components/user-management/OneTimePasswordDialog';
-import { buildCreateUserSuccessMessage, buildDeleteUserSuccessMessage, buildResetPasswordSuccessMessage } from '../utils/userGovernance';
 import { formatUserTime } from '../utils/userPresentation';
 import { useTranslation } from '../i18n';
 
 function UserManagement() {
-  const { translateText } = useTranslation();
+  const { t, translateText } = useTranslation();
   const navigate = useNavigate();
   const { refreshUser } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
@@ -91,7 +90,8 @@ function UserManagement() {
     };
 
     void fetchData();
-  }, [translateText]);
+    // Fetch user/runtime data on mount only; language switches should not reset unsaved runtime settings.
+  }, []);
 
   const transferCandidates = users.filter((candidate) => candidate.id !== currentUser?.id && candidate.role !== 'admin');
   const runtimeSettingsUnsaved = runtimeSettings.allow_public_registration !== initialRuntimeSettings.allow_public_registration;
@@ -111,7 +111,7 @@ function UserManagement() {
       setCreateUsernameError('');
       setCreateResult(response.data);
       setMessage({
-        text: translateText(buildCreateUserSuccessMessage(response.data)),
+        text: t('users.createSuccess', { name: response.data.user.username }),
         severity: 'success',
       });
     } catch (error: unknown) {
@@ -132,7 +132,7 @@ function UserManagement() {
       setResetTarget(null);
       setResetResult(response.data);
       setMessage({
-        text: translateText(buildResetPasswordSuccessMessage(response.data)),
+        text: t('users.resetPasswordSuccess', { name: response.data.user.username, count: response.data.revoked_sessions }),
         severity: 'success',
       });
     } catch (error: unknown) {
@@ -157,7 +157,7 @@ function UserManagement() {
       setDeleteTarget(null);
       setDeleteResult(response.data);
       setMessage({
-        text: translateText(buildDeleteUserSuccessMessage(response.data)),
+        text: t('users.deleteSuccess', { name: response.data.user.username, count: response.data.transferred_networks }),
         severity: 'success',
       });
     } catch (error: unknown) {
@@ -217,7 +217,7 @@ function UserManagement() {
       refreshUser(refreshedProfile.data);
       void navigate('/networks', {
         replace: true,
-        state: { message: translateText(`管理员身份已转让给 ${nextAdmin.username}`) },
+        state: { message: t('users.transferAdminSuccess', { name: nextAdmin.username }) },
       });
     } catch (error: unknown) {
       setMessage({ text: getErrorMessage(error, translateText('转让管理员身份失败')), severity: 'error' });

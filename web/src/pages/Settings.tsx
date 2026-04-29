@@ -142,7 +142,7 @@ function Settings() {
       setMessage({
         severity: 'success',
         text: response.data.revoked_other_sessions > 0
-          ? translateText(`密码修改成功，并已移除其他会话 ${response.data.revoked_other_sessions} 个`)
+          ? t('password.changedWithRevoked', { count: response.data.revoked_other_sessions })
           : translateText('密码修改成功'),
       })
       resetPasswordDialog()
@@ -190,7 +190,7 @@ function Settings() {
       setRevokingOtherSessions(true)
       const response = await authAPI.revokeOtherSessions()
       await reloadSessions()
-      setMessage({ severity: 'success', text: response.data.count > 0 ? translateText(`已移除其他会话 ${response.data.count} 个`) : translateText('没有其他可移除的会话') })
+      setMessage({ severity: 'success', text: response.data.count > 0 ? t('sessions.otherRemovedWithCount', { count: response.data.count }) : translateText('没有其他可移除的会话') })
     } catch (error: unknown) {
       setMessage({ severity: 'error', text: getErrorMessage(error, translateText('移除其他会话失败')) })
     } finally {

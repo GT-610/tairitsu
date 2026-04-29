@@ -11,14 +11,15 @@ interface DeleteMemberDialogProps {
 }
 
 function DeleteMemberDialog({ open, saving, selectedMember, onClose, onConfirm }: DeleteMemberDialogProps) {
-  const { translateText } = useTranslation()
+  const { t, translateText } = useTranslation()
+  const memberName = selectedMember?.name || selectedMember?.id || translateText('未知')
 
   return (
     <Dialog open={open} onClose={onClose}>
       <DialogTitle>{translateText('确认移除成员')}</DialogTitle>
       <DialogContent>
         <DialogContentText>
-          {translateText('确定要将成员')} "{selectedMember?.name || selectedMember?.id}" {translateText('从网络中移除吗？此操作会删除该成员在当前网络中的记录。')}
+          {t('network.removeMemberConfirm', { name: memberName })}
         </DialogContentText>
       </DialogContent>
       <DialogActions>

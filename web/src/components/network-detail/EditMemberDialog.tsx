@@ -13,9 +13,9 @@ interface EditMemberDialogProps {
   onSave: () => void;
 }
 
-function formatMemberCreationTime(value?: string | number): string {
+function parseMemberCreationTime(value?: string | number): Date | null {
   if (value === undefined || value === null || value === '') {
-    return '未知'
+    return null
   }
 
   const normalizedValue = typeof value === 'string' && /^\d+$/.test(value)
@@ -27,10 +27,10 @@ function formatMemberCreationTime(value?: string | number): string {
     : new Date(normalizedValue)
 
   if (Number.isNaN(date.getTime()) || date.getFullYear() <= 1) {
-    return '未知'
+    return null
   }
 
-  return date.toLocaleString()
+  return date
 }
 
 function formatMemberTags(member: NetworkMemberDevice | null): string {
@@ -75,8 +75,9 @@ function EditMemberDialog({
   onMemberFormChange,
   onSave,
 }: EditMemberDialogProps) {
-  const { translateText } = useTranslation()
+  const { formatDateTime, translateText } = useTranslation()
   const updateIps = (ipAssignments: string[]) => onMemberFormChange({ ...memberForm, ipAssignments })
+  const memberCreationTime = parseMemberCreationTime(selectedMember?.creationTime)
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
@@ -129,7 +130,7 @@ function EditMemberDialog({
               </Grid>
               <Grid size={{ xs: 12, sm: 6 }}>
                 <Typography variant="body2" color="text.secondary">{translateText('加入时间')}</Typography>
-                <Typography variant="body1">{translateText(formatMemberCreationTime(selectedMember?.creationTime))}</Typography>
+                <Typography variant="body1">{memberCreationTime ? formatDateTime(memberCreationTime) : translateText('未知')}</Typography>
               </Grid>
               <Grid size={{ xs: 12, sm: 6 }}>
                 <Typography variant="body2" color="text.secondary">{translateText('ZeroTier 版本')}</Typography>
