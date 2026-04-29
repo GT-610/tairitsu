@@ -23,7 +23,14 @@ func setupErrorResponse(c fiber.Ctx, err error) error {
 		status = fiber.StatusBadRequest
 	case errors.Is(err, services.ErrSetupDatabaseConnectionFailed),
 		errors.Is(err, services.ErrSetupDatabaseInitialization),
-		errors.Is(err, services.ErrSetupDatabaseConfigSaveFailed):
+		errors.Is(err, services.ErrSetupDatabaseConfigSaveFailed),
+		errors.Is(err, services.ErrSetupConfigSaveFailed),
+		errors.Is(err, services.ErrSetupZeroTierConfigSaveFailed),
+		errors.Is(err, services.ErrSetupAdminStateCheckFailed),
+		errors.Is(err, services.ErrSetupAdminCreationInitFailed),
+		errors.Is(err, services.ErrSetupDatabaseReopenFailed),
+		errors.Is(err, services.ErrSetupSecretGenerationFailed),
+		errors.Is(err, services.ErrSetupInitializationStateFailed):
 		status = fiber.StatusInternalServerError
 	case errors.Is(err, services.ErrSetupAdminRequired),
 		errors.Is(err, services.ErrSetupAlreadyInitialized):
@@ -135,11 +142,7 @@ func (h *SystemHandler) UpdateRuntimeSettings(c fiber.Ctx) error {
 		return setupErrorResponse(c, err)
 	}
 
-	return c.Status(fiber.StatusOK).JSON(fiber.Map{
-		"message":      "Instance settings updated successfully",
-		"message_code": "system.settings_updated",
-		"settings":     req,
-	})
+	return writeMessageResponse(c, fiber.StatusOK, "system.settings_updated", "Instance settings updated successfully", fiber.Map{"settings": req})
 }
 
 // ConfigureDatabase configures the database connection settings
@@ -241,7 +244,7 @@ func (h *SystemHandler) InitializeAdminCreation(c fiber.Ctx) error {
 		return setupErrorResponse(c, err)
 	}
 
-	logger.Info("SQLite database reset successfully")
+	logger.Info("Database reset successfully", zap.String("type", databaseType))
 
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
 		"message":      "Administrator account creation step initialized successfully",

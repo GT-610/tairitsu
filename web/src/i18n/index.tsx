@@ -676,7 +676,10 @@ export function detectSystemLanguage(languages?: readonly string[]): Language {
 
   return candidates.some((language) => {
     const normalized = language.toLowerCase()
-    if (normalized === 'zh-tw' || normalized === 'zh-hk' || normalized === 'zh-mo' || normalized === 'zh-hant' || normalized.startsWith('zh-hant-')) {
+    if (normalized === 'zh-tw' || normalized.startsWith('zh-tw-') ||
+        normalized === 'zh-hk' || normalized.startsWith('zh-hk-') ||
+        normalized === 'zh-mo' || normalized.startsWith('zh-mo-') ||
+        normalized === 'zh-hant' || normalized.startsWith('zh-hant-')) {
       return false
     }
     return normalized === 'zh' || normalized === 'zh-cn' || normalized === 'zh-hans' || normalized.startsWith('zh-hans-') || normalized.startsWith('zh-')
@@ -796,11 +799,16 @@ function legacyTranslationRoots(root: ParentNode): Element[] {
   const roots: Element[] = []
   if (root instanceof Element && root.matches(legacyTranslationSelector)) {
     roots.push(root)
+  } else if (root instanceof Element) {
+    const ancestor = root.closest(legacyTranslationSelector)
+    if (ancestor) {
+      roots.push(ancestor)
+    }
   }
   if (root instanceof Element || root instanceof Document) {
     roots.push(...Array.from(root.querySelectorAll(legacyTranslationSelector)))
   }
-  return roots
+  return [...new Set(roots)]
 }
 
 function isInLegacyTranslationRoot(node: Node): boolean {
@@ -864,6 +872,8 @@ function RuntimeTextTranslator({ language }: { language: Language }) {
       queuedMutations = []
       cancelScheduledWork = null
 
+      const attributeList = ['placeholder', 'aria-label', 'title']
+
       try {
         for (const mutation of mutations) {
           mutation.addedNodes.forEach((node) => {
@@ -880,6 +890,15 @@ function RuntimeTextTranslator({ language }: { language: Language }) {
             const translated = translateRawText(mutation.target.nodeValue ?? '', language)
             if (translated !== mutation.target.nodeValue) {
               mutation.target.nodeValue = translated
+            }
+          }
+          if (mutation.type === 'attributes' && mutation.attributeName && attributeList.includes(mutation.attributeName)) {
+            const target = mutation.target as HTMLElement
+            if (target instanceof HTMLElement && isInLegacyTranslationRoot(target)) {
+              const value = target.getAttribute(mutation.attributeName)
+              if (value) {
+                target.setAttribute(mutation.attributeName, translateRawText(value, language))
+              }
             }
           }
         }
@@ -910,6 +929,8 @@ function RuntimeTextTranslator({ language }: { language: Language }) {
       childList: true,
       subtree: true,
       characterData: true,
+      attributes: true,
+      attributeFilter: ['placeholder', 'aria-label', 'title'],
     })
     return () => {
       observer.disconnect()
