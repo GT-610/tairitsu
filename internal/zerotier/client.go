@@ -322,7 +322,6 @@ type MemberConfig struct {
 	ActiveBridge    bool     `json:"activeBridge"`
 	IPAssignments   []string `json:"ipAssignments"`
 	Tags            []Tag    `json:"tags"`
-	NATTraversal    bool     `json:"natTraversal"`
 	Capabilities    []int    `json:"capabilities"`
 	NoAutoAssignIPs bool     `json:"noAutoAssignIps"`
 }
@@ -340,13 +339,9 @@ type Peer struct {
 }
 
 type PeerPath struct {
-	Active        bool   `json:"active"`
-	Address       string `json:"address"`
-	Expired       bool   `json:"expired"`
-	LastReceive   int64  `json:"lastReceive"`
-	LastSend      int64  `json:"lastSend"`
-	Preferred     bool   `json:"preferred"`
-	TrustedPathID int    `json:"trustedPathId"`
+	Active    bool   `json:"active"`
+	Address   string `json:"address"`
+	Preferred bool   `json:"preferred"`
 }
 
 // Status ZeroTier状态
