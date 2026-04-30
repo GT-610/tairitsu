@@ -9,15 +9,10 @@ package mkworld
 import (
 	"crypto/rand"
 	"crypto/sha512"
-	"encoding/binary"
-	"errors"
 
 	"golang.org/x/crypto/curve25519"
 	"golang.org/x/crypto/ed25519"
-	"golang.org/x/crypto/salsa20"
 )
-
-var ErrSigningFailed = errors.New("failed to sign message")
 
 func SignMessage(pub [ZT_C25519_PUBLIC_KEY_LEN]byte, priv [ZT_C25519_PRIVATE_KEY_LEN]byte, msg []byte) ([ZT_C25519_SIGNATURE_LEN]byte, error) {
 	var sigBuf [ZT_C25519_SIGNATURE_LEN]byte
@@ -51,42 +46,4 @@ func GenerateDualPair() (pub [64]byte, priv [64]byte) {
 	copy(priv[32:64], k0priv[:])
 
 	return
-}
-
-func ComputeZeroTierIdentityMemoryHardHash(publicKey []byte) []byte {
-	s512 := sha512.Sum512(publicKey)
-
-	const ztIdentityGenMemory = 2097152
-	var genmem [ztIdentityGenMemory]byte
-	var s20key [32]byte
-	var s20ctr [16]byte
-	var s20ctri uint64
-	copy(s20key[:], s512[0:32])
-	copy(s20ctr[0:8], s512[32:40])
-
-	salsa20.XORKeyStream(genmem[0:64], genmem[0:64], s20ctr[:], &s20key)
-	s20ctri++
-	for i := 64; i < ztIdentityGenMemory; i += 64 {
-		binary.LittleEndian.PutUint64(s20ctr[8:16], s20ctri)
-		salsa20.XORKeyStream(genmem[i:i+64], genmem[i-64:i], s20ctr[:], &s20key)
-		s20ctri++
-	}
-
-	var tmp [8]byte
-	for i := 0; i < ztIdentityGenMemory; {
-		idx1 := uint(binary.BigEndian.Uint64(genmem[i:])&7) * 8
-		i += 8
-		idx2 := (uint(binary.BigEndian.Uint64(genmem[i:])) % uint(ztIdentityGenMemory/8)) * 8
-		i += 8
-		gm := genmem[idx2 : idx2+8]
-		d := s512[idx1 : idx1+8]
-		copy(tmp[:], gm)
-		copy(gm, d)
-		copy(d, tmp[:])
-		binary.LittleEndian.PutUint64(s20ctr[8:16], s20ctri)
-		salsa20.XORKeyStream(s512[:], s512[:], s20ctr[:], &s20key)
-		s20ctri++
-	}
-
-	return s512[:]
 }
