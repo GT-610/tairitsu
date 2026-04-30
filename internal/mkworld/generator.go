@@ -11,17 +11,11 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 )
-
-type PlanetConfig struct {
-	Comments  string   `json:"comments"`
-	Endpoints []string `json:"endpoints"`
-}
 
 type RootNodeConfig struct {
 	IdentityPublic string   `json:"identity_public"`
@@ -283,26 +277,6 @@ func generatePlanetID() (uint64, error) {
 	}
 }
 
-type PlanetFile struct {
-	Path        string
-	Content     []byte
-	PlanetID    uint64
-	PlanetBirth uint64
-	NodeID      string
-}
-
-func ReadPlanetFile(path string) (*PlanetFile, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read planet file: %w", err)
-	}
-	return &PlanetFile{Path: path, Content: data}, nil
-}
-
-func SavePlanetFile(data []byte, path string) error {
-	return os.WriteFile(path, data, 0644)
-}
-
 func CreateSigningKeys(prevPath, curPath string) error {
 	prevPub, prevPriv := GenerateDualPair()
 
@@ -363,22 +337,6 @@ func ReadSigningKeys(prevPath, curPath string) (prevPub, curPub [ZT_C25519_PUBLI
 	return
 }
 
-func ReadIdentityPublic(path string) (string, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return "", fmt.Errorf("failed to read identity.public: %w", err)
-	}
-	return string(data), nil
-}
-
 func EnsureDirectory(path string) error {
 	return os.MkdirAll(filepath.Dir(path), 0755)
-}
-
-func ReadIdentityFromReader(r io.Reader) (string, error) {
-	data, err := io.ReadAll(r)
-	if err != nil {
-		return "", fmt.Errorf("failed to read identity: %w", err)
-	}
-	return string(data), nil
 }

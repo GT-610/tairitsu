@@ -9,7 +9,7 @@ import {
   parseIPv6CIDR,
 } from './networkAddressUtils'
 
-export function isIPv4PoolCoveredByRoutes(pool: IpAssignmentPool, routes: Route[]): boolean {
+function isIPv4PoolCoveredByRoutes(pool: IpAssignmentPool, routes: Route[]): boolean {
   const start = parseIPv4Address(pool.ipRangeStart)
   const end = parseIPv4Address(pool.ipRangeEnd)
   if (start === null || end === null || start > end) return false
@@ -21,7 +21,7 @@ export function isIPv4PoolCoveredByRoutes(pool: IpAssignmentPool, routes: Route[
   })
 }
 
-export function isIPv6PoolInsideSubnet(pool: IpAssignmentPool, subnet: string): boolean {
+function isIPv6PoolInsideSubnet(pool: IpAssignmentPool, subnet: string): boolean {
   const parsedSubnet = parseIPv6CIDR(subnet)
   const start = parseIPv6Address(pool.ipRangeStart)
   const end = parseIPv6Address(pool.ipRangeEnd)
@@ -31,7 +31,7 @@ export function isIPv6PoolInsideSubnet(pool: IpAssignmentPool, subnet: string): 
   return (start & mask) === parsedSubnet.network && (end & mask) === parsedSubnet.network
 }
 
-export function isIPv4PoolInsideSubnet(pool: IpAssignmentPool, subnet: string): boolean {
+function isIPv4PoolInsideSubnet(pool: IpAssignmentPool, subnet: string): boolean {
   return isIPv4PoolCoveredByRoutes(pool, [{ target: subnet }])
 }
 
@@ -157,7 +157,7 @@ export function getIPv6ConfigurationIssues(ipv6Subnet: string, enabled: boolean,
   return [...rangeIssues, ...getIPv6PoolOverlapIssues(ipv6Pools)]
 }
 
-export function isValidRouteVia(via: string): boolean {
+function isValidRouteVia(via: string): boolean {
   const trimmed = via.trim()
   if (trimmed === '') return true
   return parseIPv4Address(trimmed) !== null || parseIPv6Address(trimmed) !== null

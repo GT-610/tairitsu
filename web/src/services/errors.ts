@@ -14,7 +14,7 @@ export function toError(error: unknown): Error {
   return new Error(String(error));
 }
 
-export function isAxiosError<T = ErrorResponseData>(error: unknown): error is AxiosError<T> {
+function isAxiosError<T = ErrorResponseData>(error: unknown): error is AxiosError<T> {
   return axios.isAxiosError<T>(error);
 }
 

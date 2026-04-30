@@ -41,14 +41,12 @@ type ZeroTierConfig struct {
 
 // ServerConfig Server configuration
 type ServerConfig struct {
-	Port int    `json:"port"`
-	Host string `json:"host"`
+	Port int `json:"port"`
 }
 
 // SecurityConfig Security configuration
 type SecurityConfig struct {
-	JWTSecret     string `json:"jwt_secret"`
-	SessionSecret string `json:"session_secret"`
+	JWTSecret string `json:"jwt_secret"`
 }
 
 type RegistrationConfig struct {
@@ -156,11 +154,9 @@ func createDefaultConfig() *Config {
 		ZeroTier:    ZeroTierConfig{},
 		Server: ServerConfig{
 			Port: 8080,
-			Host: "0.0.0.0",
 		},
 		Security: SecurityConfig{
-			JWTSecret:     "", // Empty initially, force user to generate during first setup
-			SessionSecret: "", // Empty initially, force user to generate during first setup
+			JWTSecret: "", // Empty initially, force user to generate during first setup
 		},
 		Registration: RegistrationConfig{
 			AllowPublicRegistration: boolPtr(true),
@@ -187,9 +183,6 @@ func loadEnvConfig(cfg *Config) {
 	}
 	if jwt := viper.GetString("JWT_SECRET"); jwt != "" {
 		cfg.Security.JWTSecret = jwt
-	}
-	if session := viper.GetString("SESSION_SECRET"); session != "" {
-		cfg.Security.SessionSecret = session
 	}
 
 	// Read ZT_TOKEN_PATH and try to read token from file
@@ -305,11 +298,6 @@ func SetDatabasePasswordOn(cfg *Config, password string) error {
 	return nil
 }
 
-// encryptSensitiveData Encrypt sensitive data
-func encryptSensitiveData(data string) (string, error) {
-	return encryptSensitiveDataWithConfig(AppConfig, data)
-}
-
 func encryptSensitiveDataWithConfig(cfg *Config, data string) (string, error) {
 	if cfg == nil {
 		return "", fmt.Errorf("configuration not loaded")
@@ -322,11 +310,6 @@ func encryptSensitiveDataWithConfig(cfg *Config, data string) (string, error) {
 	}
 
 	return "encrypted:" + encrypted, nil
-}
-
-// decryptSensitiveData Decrypt sensitive data
-func decryptSensitiveData(data string) (string, error) {
-	return decryptSensitiveDataWithConfig(AppConfig, data)
 }
 
 func decryptSensitiveDataWithConfig(cfg *Config, data string) (string, error) {

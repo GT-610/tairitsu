@@ -1,11 +1,11 @@
 import type { ImportableNetworkCandidate, ImportNetworksResponse } from '../services/api'
 
-export type ImportResultFeedback = {
+type ImportResultFeedback = {
   severity: 'success' | 'warning' | 'error'
   text: string
 }
 
-export type ImportResultAlertPresentation = ImportResultFeedback & {
+type ImportResultAlertPresentation = ImportResultFeedback & {
   showSuccessIcon: boolean
 }
 

@@ -3,7 +3,7 @@ import api, { authAPI, User, UserSession } from './api';
 import { clearPersistedAuthState, restoreAuthState } from './authStorage';
 
 // 定义Auth上下文类型
-export interface AuthContextType {
+interface AuthContextType {
   user: User | null;
   token: string | null;
   session: UserSession | null;
