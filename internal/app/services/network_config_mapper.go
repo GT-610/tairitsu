@@ -65,13 +65,6 @@ func ExtractManagedRoutes(routes []zerotier.Route) []zerotier.Route {
 	return managedRoutes
 }
 
-func MergeAssignmentPools(ipv4Pools, ipv6Pools []zerotier.IpAssignmentPool) []zerotier.IpAssignmentPool {
-	merged := make([]zerotier.IpAssignmentPool, 0, len(ipv4Pools)+len(ipv6Pools))
-	merged = append(merged, cloneAssignmentPools(ipv4Pools)...)
-	merged = append(merged, cloneAssignmentPools(ipv6Pools)...)
-	return merged
-}
-
 func BuildManagedRoutes(primaryIPv4, primaryIPv6 *zerotier.Route, managedRoutes []zerotier.Route) []zerotier.Route {
 	routes := make([]zerotier.Route, 0, len(managedRoutes)+2)
 	if primaryIPv4 != nil {

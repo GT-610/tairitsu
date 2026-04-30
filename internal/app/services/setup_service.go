@@ -200,15 +200,6 @@ func (s *SetupService) SetInitialized(initialized bool) error {
 			logger.Info("generated new JWT secret")
 		}
 
-		if cfg.Security.SessionSecret == "" {
-			secret, err := generateRandomSecret(32)
-			if err != nil {
-				return fmt.Errorf("%w: session secret: %v", ErrSetupSecretGenerationFailed, err)
-			}
-			cfg.Security.SessionSecret = secret
-			logger.Info("generated new session secret")
-		}
-
 		if err := s.stateService.SaveConfig(); err != nil {
 			return fmt.Errorf("%w: %v", ErrSetupConfigSaveFailed, err)
 		}
