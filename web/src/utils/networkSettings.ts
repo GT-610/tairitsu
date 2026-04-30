@@ -65,31 +65,11 @@ export function getInitialMulticastSettings(network: Network): MulticastSettings
   }
 }
 
-export function getInitialManagedRoutes(network: Network): Route[] {
-  return getManagedRoutes(network.config.routes || [])
-}
-
 export function getInitialManagedRoutesSettings(network: Network): ManagedRoutesSettingsDraft {
   return {
     routes: getManagedRoutes(network.config.routes || []),
     routeDraft: { target: '', via: '' },
   }
-}
-
-export function areIpPoolsEqual(a: IpAssignmentPool[], b: IpAssignmentPool[]): boolean {
-  if (a.length !== b.length) return false
-  return a.every((pool, index) =>
-    pool.ipRangeStart === b[index]?.ipRangeStart &&
-    pool.ipRangeEnd === b[index]?.ipRangeEnd
-  )
-}
-
-export function areRoutesEqual(a: Route[], b: Route[]): boolean {
-  if (a.length !== b.length) return false
-  return a.every((route, index) =>
-    route.target === b[index]?.target &&
-    (route.via || '') === (b[index]?.via || '')
-  )
 }
 
 export function buildMergedRoutes(

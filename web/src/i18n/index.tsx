@@ -3,7 +3,7 @@ import { createTheme, ThemeProvider } from '@mui/material/styles'
 import type { ThemeOptions } from '@mui/material/styles'
 import { enUS, zhCN } from '@mui/material/locale'
 
-export type Language = 'en' | 'zh-CN'
+type Language = 'en' | 'zh-CN'
 export type LanguagePreference = 'system' | Language
 
 const STORAGE_KEY = 'tairitsu.language'
@@ -696,11 +696,11 @@ export function normalizeLanguagePreference(value: unknown): LanguagePreference 
   return value === 'en' || value === 'zh-CN' || value === 'system' ? value : 'system'
 }
 
-export function resolveLanguage(preference: LanguagePreference): Language {
+function resolveLanguage(preference: LanguagePreference): Language {
   return preference === 'system' ? detectSystemLanguage() : preference
 }
 
-export function getStoredLanguagePreference(): LanguagePreference {
+function getStoredLanguagePreference(): LanguagePreference {
   try {
     return normalizeLanguagePreference(localStorage.getItem(STORAGE_KEY))
   } catch {

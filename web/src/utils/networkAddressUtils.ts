@@ -1,6 +1,6 @@
 import type { IpAssignmentPool, Network, Route } from '../services/api'
 
-export type ParsedIPv6CIDR = {
+type ParsedIPv6CIDR = {
   network: bigint;
   prefix: number;
 }
@@ -37,7 +37,7 @@ export function parseIPv4CIDR(target: string): { network: number; mask: number }
   }
 }
 
-export function formatIPv4Address(value: number): string {
+function formatIPv4Address(value: number): string {
   return [
     (value >>> 24) & 255,
     (value >>> 16) & 255,
@@ -75,7 +75,7 @@ export function parseIPv6Address(value: string): bigint | null {
   return result
 }
 
-export function formatIPv6Address(value: bigint): string {
+function formatIPv6Address(value: bigint): string {
   const groups: string[] = []
   for (let i = 7; i >= 0; i -= 1) {
     const group = Number((value >> BigInt(i * 16)) & 0xffffn)
@@ -115,7 +115,7 @@ export function normalizeIPv4CIDR(target: string): string | null {
   return `${formatIPv4Address(parsed.network)}/${prefix}`
 }
 
-export function getCIDRPrefix(target: string): number | null {
+function getCIDRPrefix(target: string): number | null {
   const prefixText = target.trim().split('/')[1]
   if (!prefixText || !/^\d+$/.test(prefixText)) return null
   const prefix = Number(prefixText)

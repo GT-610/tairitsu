@@ -2,13 +2,13 @@ export function normalizePlanetEndpoints(values: string[]): string[] {
   return values.map((value) => value.trim()).filter(Boolean)
 }
 
-export interface PlanetIdentitySummary {
+interface PlanetIdentitySummary {
   address: string;
   publicKey: string;
   publicKeyBytes: number;
 }
 
-export interface PlanetRootNodeDraft {
+interface PlanetRootNodeDraft {
   identityPublic: string;
   endpoints: string[];
 }

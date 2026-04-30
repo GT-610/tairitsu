@@ -1,6 +1,6 @@
 import type { UserSession } from '../services/api'
 
-export interface SessionPresentation {
+interface SessionPresentation {
   title: string
   subtitle: string
   status: {
