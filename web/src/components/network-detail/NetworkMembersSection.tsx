@@ -20,6 +20,15 @@ interface NetworkMembersSectionProps {
   readOnly?: boolean;
 }
 
+const summaryCardSx = {
+  height: '100%',
+  bgcolor: 'background.paper',
+  border: 1,
+  borderColor: 'divider',
+  display: 'flex',
+  flexDirection: 'column',
+}
+
 function NetworkMembersSection({
   memberDevices,
   pendingMembers,
@@ -66,7 +75,7 @@ function NetworkMembersSection({
       <Paper elevation={3} sx={{ p: 3, mb: 4 }}>
         <Grid container spacing={3}>
           <Grid size={{ xs: 12, sm: 4 }}>
-            <Card sx={{ height: '100%', backgroundColor: '#2c3e50', display: 'flex', flexDirection: 'column' }}>
+            <Card sx={summaryCardSx}>
               <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
                 <Typography variant="h6" color="text.secondary" gutterBottom>
                   {translateText('设备总数')}
@@ -78,7 +87,7 @@ function NetworkMembersSection({
             </Card>
           </Grid>
           <Grid size={{ xs: 12, sm: 4 }}>
-            <Card sx={{ height: '100%', backgroundColor: '#2c3e50', display: 'flex', flexDirection: 'column' }}>
+            <Card sx={summaryCardSx}>
               <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
                 <Typography variant="h6" color="text.secondary" gutterBottom>
                   {translateText('已授权设备')}
@@ -90,7 +99,7 @@ function NetworkMembersSection({
             </Card>
           </Grid>
           <Grid size={{ xs: 12, sm: 4 }}>
-            <Card sx={{ height: '100%', backgroundColor: '#2c3e50', display: 'flex', flexDirection: 'column' }}>
+            <Card sx={summaryCardSx}>
               <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
                 <Typography variant="h6" color="text.secondary" gutterBottom>
                   {translateText('待授权设备')}

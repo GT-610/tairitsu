@@ -1,33 +1,47 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { createTheme, ThemeProvider } from '@mui/material/styles'
-import type { ThemeOptions } from '@mui/material/styles'
+import type { PaletteMode, ThemeOptions } from '@mui/material/styles'
 import { enUS, zhCN } from '@mui/material/locale'
 
 type Language = 'en' | 'zh-CN'
 export type LanguagePreference = 'system' | Language
+export type ThemePreference = 'system' | PaletteMode
 
-const STORAGE_KEY = 'tairitsu.language'
+const LANGUAGE_STORAGE_KEY = 'tairitsu.language'
+const THEME_STORAGE_KEY = 'tairitsu.theme'
 
-const baseTheme: ThemeOptions = {
+function buildThemeOptions(mode: PaletteMode): ThemeOptions {
+  return {
   palette: {
-    mode: 'dark',
+      mode,
     primary: {
-      main: '#64b5f6',
+        main: mode === 'dark' ? '#64b5f6' : '#1976d2',
     },
     secondary: {
-      main: '#ff8a65',
+        main: mode === 'dark' ? '#ff8a65' : '#d84315',
     },
-    background: {
-      default: '#121212',
-      paper: '#1e1e1e',
+      ...(mode === 'dark'
+        ? {
+            background: {
+              default: '#121212',
+              paper: '#1e1e1e',
+            },
+          }
+        : {}),
     },
-  },
+  }
 }
 
 const en: Record<string, string> = {
   'language.system': 'Follow system',
   'language.en': 'English',
   'language.zh-CN': 'Simplified Chinese',
+  'theme.system': 'Follow system',
+  'theme.light': 'Light',
+  'theme.dark': 'Dark',
+  'theme.toggleToLight': 'Switch to light theme',
+  'theme.toggleToDark': 'Switch to dark theme',
+  'theme.toggleToSystem': 'Follow system theme',
   'settings.language.title': 'Language',
   'settings.language.description': 'Choose the display language for this browser.',
   'settings.language.current': 'Current language',
@@ -73,6 +87,12 @@ const zh: Record<string, string> = {
   'language.system': '跟随系统',
   'language.en': 'English',
   'language.zh-CN': '简体中文',
+  'theme.system': '跟随系统',
+  'theme.light': '浅色',
+  'theme.dark': '深色',
+  'theme.toggleToLight': '切换到浅色主题',
+  'theme.toggleToDark': '切换到深色主题',
+  'theme.toggleToSystem': '跟随系统主题',
   'settings.language.title': '语言',
   'settings.language.description': '选择此浏览器使用的显示语言。',
   'settings.language.current': '当前语言',
@@ -696,13 +716,28 @@ export function normalizeLanguagePreference(value: unknown): LanguagePreference 
   return value === 'en' || value === 'zh-CN' || value === 'system' ? value : 'system'
 }
 
+export function normalizeThemePreference(value: unknown): ThemePreference {
+  return value === 'light' || value === 'dark' || value === 'system' ? value : 'system'
+}
+
 function resolveLanguage(preference: LanguagePreference): Language {
   return preference === 'system' ? detectSystemLanguage() : preference
 }
 
+export function detectSystemThemeMode(prefersDark?: boolean): PaletteMode {
+  if (typeof prefersDark === 'boolean') {
+    return prefersDark ? 'dark' : 'light'
+  }
+  return globalThis.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+}
+
+function resolveThemeMode(preference: ThemePreference): PaletteMode {
+  return preference === 'system' ? detectSystemThemeMode() : preference
+}
+
 function getStoredLanguagePreference(): LanguagePreference {
   try {
-    return normalizeLanguagePreference(localStorage.getItem(STORAGE_KEY))
+    return normalizeLanguagePreference(localStorage.getItem(LANGUAGE_STORAGE_KEY))
   } catch {
     return 'system'
   }
@@ -710,10 +745,32 @@ function getStoredLanguagePreference(): LanguagePreference {
 
 function storeLanguagePreference(preference: LanguagePreference) {
   try {
-    localStorage.setItem(STORAGE_KEY, preference)
+    localStorage.setItem(LANGUAGE_STORAGE_KEY, preference)
   } catch {
     // Storage may be unavailable in private or test environments.
   }
+}
+
+function getStoredThemePreference(): ThemePreference {
+  try {
+    return normalizeThemePreference(localStorage.getItem(THEME_STORAGE_KEY))
+  } catch {
+    return 'system'
+  }
+}
+
+function storeThemePreference(preference: ThemePreference) {
+  try {
+    localStorage.setItem(THEME_STORAGE_KEY, preference)
+  } catch {
+    // Storage may be unavailable in private or test environments.
+  }
+}
+
+function nextThemePreference(preference: ThemePreference): ThemePreference {
+  if (preference === 'system') return 'light'
+  if (preference === 'light') return 'dark'
+  return 'system'
 }
 
 export function translateRawText(value: string, language: Language): string {
@@ -783,6 +840,10 @@ interface TranslationContextValue {
   language: Language
   preference: LanguagePreference
   setPreference: (preference: LanguagePreference) => void
+  themePreference: ThemePreference
+  resolvedThemeMode: PaletteMode
+  setThemePreference: (preference: ThemePreference) => void
+  cycleThemePreference: () => void
   t: (key: string, params?: Record<string, string | number>) => string
   formatDateTime: (value: string | number | Date) => string
   translateText: (value: string) => string
@@ -949,15 +1010,25 @@ function RuntimeTextTranslator({ language }: { language: Language }) {
 
 export function LanguageProvider({ children }: { children: React.ReactNode }) {
   const [preference, setPreferenceState] = useState<LanguagePreference>(() => getStoredLanguagePreference())
+  const [themePreference, setThemePreferenceState] = useState<ThemePreference>(() => getStoredThemePreference())
   const [systemLanguageTick, setSystemLanguageTick] = useState(0)
+  const [systemThemeTick, setSystemThemeTick] = useState(0)
   const language = useMemo(
     () => (preference === 'system' ? detectSystemLanguage() : preference),
     [preference, systemLanguageTick],
+  )
+  const resolvedThemeMode = useMemo(
+    () => resolveThemeMode(themePreference),
+    [themePreference, systemThemeTick],
   )
 
   useEffect(() => {
     document.documentElement.lang = language === 'zh-CN' ? 'zh-CN' : 'en'
   }, [language])
+
+  useEffect(() => {
+    document.documentElement.style.colorScheme = resolvedThemeMode
+  }, [resolvedThemeMode])
 
   useEffect(() => {
     if (preference !== 'system') return
@@ -969,10 +1040,37 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     }
   }, [preference])
 
+  useEffect(() => {
+    if (themePreference !== 'system') return
+
+    const mediaQuery = globalThis.matchMedia?.('(prefers-color-scheme: dark)')
+    if (!mediaQuery) return
+
+    const onThemeChange = () => setSystemThemeTick((current) => current + 1)
+    mediaQuery.addEventListener('change', onThemeChange)
+    return () => {
+      mediaQuery.removeEventListener('change', onThemeChange)
+    }
+  }, [themePreference])
+
   const setPreference = useCallback((nextPreference: LanguagePreference) => {
     const normalized = normalizeLanguagePreference(nextPreference)
     storeLanguagePreference(normalized)
     setPreferenceState(normalized)
+  }, [])
+
+  const setThemePreference = useCallback((nextPreference: ThemePreference) => {
+    const normalized = normalizeThemePreference(nextPreference)
+    storeThemePreference(normalized)
+    setThemePreferenceState(normalized)
+  }, [])
+
+  const cycleThemePreference = useCallback(() => {
+    setThemePreferenceState((current) => {
+      const nextPreference = nextThemePreference(current)
+      storeThemePreference(nextPreference)
+      return nextPreference
+    })
   }, [])
 
   const value = useMemo<TranslationContextValue>(() => {
@@ -981,6 +1079,10 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
       language,
       preference,
       setPreference,
+      themePreference,
+      resolvedThemeMode,
+      setThemePreference,
+      cycleThemePreference,
       t: (key, params) => interpolate(dictionary[key] ?? en[key] ?? key, params),
       formatDateTime: (valueToFormat) => new Intl.DateTimeFormat(language === 'zh-CN' ? 'zh-CN' : 'en', {
         dateStyle: 'medium',
@@ -988,11 +1090,11 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
       }).format(new Date(valueToFormat)),
       translateText: (valueToTranslate) => translateRawText(valueToTranslate, language),
     }
-  }, [language, preference, setPreference])
+  }, [cycleThemePreference, language, preference, resolvedThemeMode, setPreference, setThemePreference, themePreference])
 
   const theme = useMemo(
-    () => createTheme(baseTheme, language === 'zh-CN' ? zhCN : enUS),
-    [language],
+    () => createTheme(buildThemeOptions(resolvedThemeMode), language === 'zh-CN' ? zhCN : enUS),
+    [language, resolvedThemeMode],
   )
 
   return (
