@@ -1,7 +1,9 @@
 import { describe, expect, test } from 'bun:test'
 import {
+  detectSystemThemeMode,
   detectSystemLanguage,
   normalizeLanguagePreference,
+  normalizeThemePreference,
   translateMessageCode,
   translateRawText,
 } from './index'
@@ -24,6 +26,31 @@ describe('i18n language resolution', () => {
     expect(normalizeLanguagePreference('en')).toBe('en')
     expect(normalizeLanguagePreference('zh-CN')).toBe('zh-CN')
     expect(normalizeLanguagePreference('fr')).toBe('system')
+  })
+
+  test('normalizes stored theme preferences', () => {
+    expect(normalizeThemePreference('system')).toBe('system')
+    expect(normalizeThemePreference('light')).toBe('light')
+    expect(normalizeThemePreference('dark')).toBe('dark')
+    expect(normalizeThemePreference('midnight')).toBe('system')
+  })
+
+  test('detects system theme mode from preference state', () => {
+    expect(detectSystemThemeMode(true)).toBe('dark')
+    expect(detectSystemThemeMode(false)).toBe('light')
+  })
+
+  test('detects system theme mode from matchMedia when no argument', () => {
+    const originalMatchMedia = globalThis.matchMedia
+    try {
+      globalThis.matchMedia = () => ({ matches: true })
+      expect(detectSystemThemeMode()).toBe('dark')
+
+      globalThis.matchMedia = () => ({ matches: false })
+      expect(detectSystemThemeMode()).toBe('light')
+    } finally {
+      globalThis.matchMedia = originalMatchMedia
+    }
   })
 
   test('translates raw UI copy and backend message codes', () => {

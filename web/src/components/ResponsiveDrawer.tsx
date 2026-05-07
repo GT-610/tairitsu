@@ -17,6 +17,9 @@ import DashboardIcon from '@mui/icons-material/Dashboard';
 import LanguageIcon from '@mui/icons-material/Language';
 import SettingsIcon from '@mui/icons-material/Settings';
 import AccountCircle from '@mui/icons-material/AccountCircle';
+import BrightnessAutoIcon from '@mui/icons-material/BrightnessAuto';
+import DarkModeIcon from '@mui/icons-material/DarkMode';
+import LightModeIcon from '@mui/icons-material/LightMode';
 import ImportExportIcon from '@mui/icons-material/ImportExport';
 import GroupIcon from '@mui/icons-material/Group';
 import PublicIcon from '@mui/icons-material/Public';
@@ -95,12 +98,28 @@ interface ResponsiveDrawerProps {
 }
 
 export default function ResponsiveDrawer({ window, children, title = 'Tairitsu', user, onLogout }: ResponsiveDrawerProps) {
-  const { translateText } = useTranslation();
+  const { cycleThemePreference, t, themePreference, translateText } = useTranslation();
   const [mobileOpen, setMobileOpen] = React.useState<boolean>(false);
   const [isClosing, setIsClosing] = React.useState<boolean>(false);
   const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
   const [openConfirmDialog, setOpenConfirmDialog] = React.useState<boolean>(false);
   const location = useLocation();
+  const ThemeIcon = themePreference === 'system'
+    ? BrightnessAutoIcon
+    : themePreference === 'light'
+      ? LightModeIcon
+      : DarkModeIcon;
+  const currentThemeLabel = themePreference === 'system'
+    ? t('theme.system')
+    : themePreference === 'light'
+      ? t('theme.light')
+      : t('theme.dark');
+  const themeToggleLabel = themePreference === 'system'
+    ? t('theme.toggleToLight')
+    : themePreference === 'light'
+      ? t('theme.toggleToDark')
+      : t('theme.toggleToSystem');
+  const themeButtonLabel = `${currentThemeLabel}. ${themeToggleLabel}`;
 
   const handleDrawerClose = () => {
     setIsClosing(true);
@@ -203,7 +222,7 @@ export default function ResponsiveDrawer({ window, children, title = 'Tairitsu',
         <Toolbar>
           <IconButton
             color="inherit"
-            aria-label={translateText('navigation.openDrawer')}
+            aria-label={t('navigation.openDrawer')}
             edge="start"
             onClick={handleDrawerToggle}
             sx={{ mr: 2, display: { sm: 'none' } }}
@@ -214,9 +233,18 @@ export default function ResponsiveDrawer({ window, children, title = 'Tairitsu',
             {title}
           </Typography>
           {user && (
-            <div>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <IconButton
+                color="inherit"
+                aria-label={themeButtonLabel}
+                title={themeButtonLabel}
+                onClick={cycleThemePreference}
+                size="large"
+              >
+                <ThemeIcon />
+              </IconButton>
               <Button
-                aria-label={translateText('user.accountMenu')}
+                aria-label={t('user.accountMenu')}
                 aria-controls="menu-appbar"
                 aria-haspopup="true"
                 onClick={handleMenu}
@@ -241,14 +269,14 @@ export default function ResponsiveDrawer({ window, children, title = 'Tairitsu',
                   </MenuItem>
                 </MenuList>
               </Menu>
-            </div>
+            </Box>
           )}
         </Toolbar>
       </AppBar>
       <Box
         component="nav"
         sx={{ width: { sm: drawerWidth }, flexShrink: { sm: 0 } }}
-        aria-label={translateText('navigation.menu')}
+        aria-label={t('navigation.menu')}
       >
         {/* The implementation can be swapped with js to avoid SEO duplication of links. */}
         <Drawer

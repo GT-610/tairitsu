@@ -21,6 +21,15 @@ type DisplayNetwork = {
   detailPath: string;
 }
 
+const summaryCardSx = {
+  height: '100%',
+  bgcolor: 'background.paper',
+  border: 1,
+  borderColor: 'divider',
+  display: 'flex',
+  flexDirection: 'column',
+}
+
 function getNavigationMessage(state: unknown): string {
   if (!state || typeof state !== 'object' || !('message' in state)) {
     return ''
@@ -228,7 +237,7 @@ function Networks() {
       <Paper elevation={3} sx={{ p: 3, mb: 4 }}>
         <Grid container spacing={3}>
           <Grid size={{ xs: 12, sm: 6, md: 4 }}>
-            <Card sx={{ height: '100%', backgroundColor: '#2c3e50', display: 'flex', flexDirection: 'column' }}>
+            <Card sx={summaryCardSx}>
               <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
                 <Typography variant="h6" color="text.secondary" gutterBottom>
                   {translateText('总网络数')}
@@ -240,7 +249,7 @@ function Networks() {
             </Card>
           </Grid>
           <Grid size={{ xs: 12, sm: 6, md: 4 }}>
-            <Card sx={{ height: '100%', backgroundColor: '#2c3e50', display: 'flex', flexDirection: 'column' }}>
+            <Card sx={summaryCardSx}>
               <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
                 <Typography variant="h6" color="text.secondary" gutterBottom>
                   {translateText('我拥有')}
@@ -252,7 +261,7 @@ function Networks() {
             </Card>
           </Grid>
           <Grid size={{ xs: 12, sm: 6, md: 4 }}>
-            <Card sx={{ height: '100%', backgroundColor: '#2c3e50', display: 'flex', flexDirection: 'column' }}>
+            <Card sx={summaryCardSx}>
               <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
                 <Typography variant="h6" color="text.secondary" gutterBottom>
                   {translateText('共享给我')}
@@ -401,7 +410,7 @@ function Networks() {
           left: '50%',
           transform: 'translate(-50%, -50%)',
           width: { xs: '90%', sm: 600 },
-          bgcolor: '#1e1e1e',
+          bgcolor: 'background.paper',
           borderRadius: 2,
           boxShadow: 24,
           p: 4,
