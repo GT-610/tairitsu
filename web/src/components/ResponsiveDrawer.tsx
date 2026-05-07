@@ -222,7 +222,7 @@ export default function ResponsiveDrawer({ window, children, title = 'Tairitsu',
         <Toolbar>
           <IconButton
             color="inherit"
-            aria-label={translateText('navigation.openDrawer')}
+            aria-label={t('navigation.openDrawer')}
             edge="start"
             onClick={handleDrawerToggle}
             sx={{ mr: 2, display: { sm: 'none' } }}
@@ -244,7 +244,7 @@ export default function ResponsiveDrawer({ window, children, title = 'Tairitsu',
                 <ThemeIcon />
               </IconButton>
               <Button
-                aria-label={translateText('user.accountMenu')}
+                aria-label={t('user.accountMenu')}
                 aria-controls="menu-appbar"
                 aria-haspopup="true"
                 onClick={handleMenu}
@@ -276,7 +276,7 @@ export default function ResponsiveDrawer({ window, children, title = 'Tairitsu',
       <Box
         component="nav"
         sx={{ width: { sm: drawerWidth }, flexShrink: { sm: 0 } }}
-        aria-label={translateText('navigation.menu')}
+        aria-label={t('navigation.menu')}
       >
         {/* The implementation can be swapped with js to avoid SEO duplication of links. */}
         <Drawer

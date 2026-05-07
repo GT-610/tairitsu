@@ -40,6 +40,19 @@ describe('i18n language resolution', () => {
     expect(detectSystemThemeMode(false)).toBe('light')
   })
 
+  test('detects system theme mode from matchMedia when no argument', () => {
+    const originalMatchMedia = globalThis.matchMedia
+    try {
+      globalThis.matchMedia = () => ({ matches: true })
+      expect(detectSystemThemeMode()).toBe('dark')
+
+      globalThis.matchMedia = () => ({ matches: false })
+      expect(detectSystemThemeMode()).toBe('light')
+    } finally {
+      globalThis.matchMedia = originalMatchMedia
+    }
+  })
+
   test('translates raw UI copy and backend message codes', () => {
     expect(translateRawText('设置', 'en')).toBe('Settings')
     expect(translateRawText('Settings', 'zh-CN')).toBe('设置')
