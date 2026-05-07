@@ -15,7 +15,7 @@ function buildThemeOptions(mode: PaletteMode): ThemeOptions {
   palette: {
       mode,
     primary: {
-        main: mode === 'dark' ? '#64b5f6' : '#1976d2',
+        main: mode === 'dark' ? '#64b5f6' : '#9c27b0',
     },
     secondary: {
         main: mode === 'dark' ? '#ff8a65' : '#d84315',
