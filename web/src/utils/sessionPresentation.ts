@@ -61,9 +61,6 @@ function resolveSessionStatus(sessionItem: UserSession): SessionPresentation['st
   if (sessionItem.revokedAt) {
     return { label: '已移除', severity: 'warning' }
   }
-  if (new Date(sessionItem.expiresAt).getTime() <= Date.now()) {
-    return { label: '已过期', severity: 'error' }
-  }
   return { label: '其他会话', severity: 'info' }
 }
 

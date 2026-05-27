@@ -54,9 +54,7 @@ function Settings() {
   const [loadingSessions, setLoadingSessions] = useState(false)
   const [revokingSessionId, setRevokingSessionId] = useState('')
   const [revokingOtherSessions, setRevokingOtherSessions] = useState(false)
-  const visibleSessions = sessions.filter(
-    (sessionItem) => !sessionItem.revokedAt && new Date(sessionItem.expiresAt).getTime() > Date.now(),
-  )
+  const visibleSessions = sessions.filter((sessionItem) => !sessionItem.revokedAt)
   const otherVisibleSessionCount = visibleSessions.filter((sessionItem) => !sessionItem.current).length
 
   useEffect(() => {
