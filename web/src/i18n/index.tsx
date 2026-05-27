@@ -631,7 +631,7 @@ const rawEn: Record<string, string> = {
   '可接管网络': 'Claimable Networks',
   '这些网络尚未纳入 Tairitsu 或尚未分配 owner，可直接选择并分配给目标 owner。': 'These networks are not yet managed by Tairitsu or have no owner. You can select them and assign them to the target owner.',
   '已选 ': 'Selected ',
-  '当前没有待接管网络，控制器中的网络都已经被 Tairitsu 管理或需要人工处理。': 'No networks are waiting to be claimed. Controller networks are already managed by Tairitsu or need manual attention.',
+  '当前没有待接管网络。': 'No networks are waiting to be claimed.',
   '取消全选': 'Clear selection',
   '全选可接管网络': 'Select all claimable',
   '接管中...': 'Claiming...',

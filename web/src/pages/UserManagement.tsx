@@ -241,9 +241,6 @@ function UserManagement() {
           {translateText('用户管理')}
         </Typography>
         <Stack direction="row" spacing={2} alignItems="center">
-          <Typography variant="body2" color="text.secondary">
-            {translateText('当前系统仅保留一个管理员。你可以创建普通用户、重置普通用户密码，或将管理员身份转让给某个普通用户。')}
-          </Typography>
           <Button variant="contained" onClick={() => setOpenCreateDialog(true)} disabled={updating}>
             {translateText('创建用户')}
           </Button>
