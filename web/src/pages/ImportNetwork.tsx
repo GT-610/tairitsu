@@ -358,7 +358,7 @@ function ImportNetwork() {
             <CircularProgress />
           </Box>
         ) : availableCandidates.length === 0 ? (
-          <Alert severity="success">{translateText('当前没有待接管网络，控制器中的网络都已经被 Tairitsu 管理或需要人工处理。')}</Alert>
+          <Alert severity="success">{translateText('当前没有待接管网络。')}</Alert>
         ) : (
           <>
             <Stack direction="row" spacing={1.5} sx={{ mb: 2 }}>
@@ -426,7 +426,7 @@ function ImportNetwork() {
           {translateText('已被 Tairitsu 接管')}
         </Typography>
         {managedCandidates.length === 0 ? (
-          <Typography variant="body2" color="text.secondary">{translateText('当前没有已接管网络。')}</Typography>
+          <Alert severity="success">{translateText('当前没有已接管网络。')}</Alert>
         ) : (
           <List dense>
             {managedCandidates.map((candidate) => (
@@ -449,7 +449,7 @@ function ImportNetwork() {
           {translateText('这些网络不会出现在当前导入批次中，通常是因为控制器详情读取失败或状态异常。请先排查控制器连通性，再刷新列表重试。')}
         </Typography>
         {blockedCandidates.length === 0 ? (
-          <Typography variant="body2" color="text.secondary">{translateText('当前没有需要人工处理的网络。')}</Typography>
+          <Alert severity="success">{translateText('当前没有需要人工处理的网络。')}</Alert>
         ) : (
           <List dense>
             {blockedCandidates.map((candidate) => (

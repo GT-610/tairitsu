@@ -299,7 +299,7 @@ function Settings() {
                 {translateText('登录会话')}
               </Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                {translateText('当前页面展示的是服务端登记的登录会话。移除其他会话后，对应设备会在下一次请求时失效。')}
+                {translateText('当前页面展示的是服务端登记的登录会话。移除其他会话后，对应设备会在下一次请求时失效。过期会话不会展示。')}
               </Typography>
               <Stack spacing={2}>
                 {visibleSessions.length === 0 && !loadingSessions && (
@@ -315,7 +315,6 @@ function Settings() {
                     <CardContent>
                       {(() => {
                         const presentation = formatSessionPresentation(sessionItem)
-                        const disabledAction = presentation.status.label === '已过期'
                         return (
                           <Stack spacing={1.5}>
                             <Stack direction="row" spacing={1.5} justifyContent="space-between" alignItems="flex-start">
@@ -355,7 +354,7 @@ function Settings() {
                           <Button
                             variant="outlined"
                                 color={sessionItem.current ? 'warning' : 'error'}
-                                disabled={disabledAction || revokingSessionId === sessionItem.id}
+                                disabled={revokingSessionId === sessionItem.id}
                             onClick={() => { void handleRevokeSession(sessionItem) }}
                           >
                                 {revokingSessionId === sessionItem.id ? translateText('处理中...') : sessionItem.current ? translateText('退出当前会话') : translateText('移除此会话')}

@@ -12,6 +12,7 @@ import {
   Container,
   Grid} from '@mui/material';
 import { LockOutlined } from '@mui/icons-material';
+import { useTheme } from '@mui/material/styles';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../services/auth';
 import { authAPI, systemAPI } from '../services/api';
@@ -60,6 +61,8 @@ function Login() {
   const navigate = useNavigate();
   // Auth service hook for login functionality
   const { login } = useAuth();
+  // Theme hook for dynamic styling
+  const theme = useTheme();
 
   useEffect(() => {
     const loadSetupStatus = async () => {
@@ -154,7 +157,7 @@ function Login() {
 
   // Styling for the login lock icon avatar
   const avatarStyle = {
-    backgroundColor: '#1976d2',
+    backgroundColor: theme.palette.primary.main,
     width: 56,
     height: 56,
     display: 'flex',
@@ -177,7 +180,7 @@ function Login() {
       }}>
         <Paper elevation={3} style={paperStyle}>
           <Box sx={avatarStyle}>
-            <LockOutlined fontSize="large" />
+            <LockOutlined fontSize="large" sx={{ color: theme.palette.primary.contrastText }} />
           </Box>
           
           <Typography variant="h5" component="h1" gutterBottom align="center">

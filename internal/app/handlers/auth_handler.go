@@ -209,8 +209,12 @@ func (h *AuthHandler) ListSessions(c fiber.Ctx) error {
 		return writeUserServiceError(c, err)
 	}
 
+	now := time.Now()
 	responses := make([]models.SessionResponse, 0, len(sessions))
 	for _, session := range sessions {
+		if session.RevokedAt == nil && now.After(session.ExpiresAt) {
+			continue
+		}
 		responses = append(responses, session.ToResponse(session.ID == currentSessionID))
 	}
 
