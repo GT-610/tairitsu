@@ -233,7 +233,7 @@ const rawEn: Record<string, string> = {
   '关闭后，未登录用户将不能继续公开创建账号，但 setup 阶段的首个管理员创建逻辑不受影响。': 'When disabled, unauthenticated users can no longer create accounts publicly. First administrator creation during setup is not affected.',
   '重置': 'Reset',
   '管理员职责': 'Administrator Role',
-  '当前系统保持单管理员模型。你可以在这里把管理员身份转让给某个普通用户，转让后自己会自动降为普通用户。': 'The system keeps a single-administrator model. You can transfer the administrator role to a regular user here; after transfer, your own account becomes a regular user.',
+  '你可以在这里把管理员身份转让给某个普通用户，转让后自己会自动降为普通用户。': 'The system keeps a single-administrator model. You can transfer the administrator role to a regular user here; after transfer, your own account becomes a regular user.',
   '当前管理员：': 'Current administrator: ',
   '所有者': 'Owner',
   '新的管理员': 'New administrator',

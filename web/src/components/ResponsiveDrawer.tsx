@@ -54,11 +54,6 @@ const mainMenuItems: MenuItemType[] = [
     icon: <LanguageIcon />
   },
   {
-    text: '个人信息',
-    path: '/profile',
-    icon: <AccountCircle />
-  },
-  {
     text: '设置',
     path: '/settings',
     icon: <SettingsIcon />

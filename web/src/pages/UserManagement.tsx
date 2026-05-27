@@ -315,10 +315,9 @@ function UserManagement() {
             {translateText('管理员职责')}
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            {translateText('当前系统保持单管理员模型。你可以在这里把管理员身份转让给某个普通用户，转让后自己会自动降为普通用户。')}
+            {translateText('你可以在这里把管理员身份转让给某个普通用户，转让后自己会自动降为普通用户。')}
           </Typography>
           <Stack spacing={2}>
-            <Alert severity="info">{translateText('当前管理员：')}{currentUser?.username || translateText('未知用户')}</Alert>
             <FormControl fullWidth>
               <InputLabel id="transfer-admin-label">{translateText('新的管理员')}</InputLabel>
               <Select

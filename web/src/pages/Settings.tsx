@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import {
   Alert,
+  Avatar,
   Box,
   Button,
   Card,
@@ -13,6 +14,7 @@ import {
   Divider,
   FormControl,
   FormControlLabel,
+  Grid,
   InputLabel,
   MenuItem,
   Select,
@@ -26,7 +28,7 @@ import { getErrorMessage } from '../services/errors'
 import { useAuth } from '../services/auth'
 import { useNavigate } from 'react-router-dom'
 import { formatSessionPresentation, formatSessionTime, hasDisplayableSessionTime } from '../utils/sessionPresentation'
-import { getUserRoleLabel } from '../utils/userPresentation'
+import { formatUserTime, getUserRoleLabel, hasDisplayableUserTime } from '../utils/userPresentation'
 import { useTranslation, type LanguagePreference } from '../i18n'
 
 function Settings() {
@@ -246,24 +248,45 @@ function Settings() {
               <Typography variant="h6" gutterBottom>
                 {translateText('账户安全')}
               </Typography>
-              <Stack spacing={2.5} sx={{ mb: 3 }}>
-                <Box>
-                  <Typography variant="body2" color="text.secondary">
-                    {translateText('当前账号')}
-                  </Typography>
-                  <Typography variant="body1">
-                    {user?.username || translateText('未知用户')}
-                  </Typography>
-                </Box>
-                <Box>
-                  <Typography variant="body2" color="text.secondary">
-                    {translateText('当前角色')}
-                  </Typography>
-                  <Typography variant="body1">
-                    {translateText(getUserRoleLabel(user?.role))}
-                  </Typography>
-                </Box>
-              </Stack>
+              <Grid container spacing={3} sx={{ mb: 3 }}>
+                <Grid size={{ xs: 12, md: 4 }}>
+                  <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+                    <Avatar sx={{ width: 100, height: 100, fontSize: 40 }}>
+                      {user?.username?.[0]?.toUpperCase() || 'U'}
+                    </Avatar>
+                    <Typography variant="h5">
+                      {user?.username || translateText('未知用户')}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      {translateText(getUserRoleLabel(user?.role))}
+                    </Typography>
+                  </Box>
+                </Grid>
+                <Grid size={{ xs: 12, md: 8 }}>
+                  <Box sx={{ display: 'grid', gap: 2 }}>
+                    {hasDisplayableUserTime(user?.createdAt) && (
+                      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 2fr' }, gap: 2 }}>
+                        <Typography variant="body2" color="text.secondary">
+                          {translateText('创建时间')}
+                        </Typography>
+                        <Typography variant="body1">
+                          {formatUserTime(user?.createdAt)}
+                        </Typography>
+                      </Box>
+                    )}
+                    {hasDisplayableUserTime(user?.updatedAt) && (
+                      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 2fr' }, gap: 2 }}>
+                        <Typography variant="body2" color="text.secondary">
+                          {translateText('更新时间')}
+                        </Typography>
+                        <Typography variant="body1">
+                          {formatUserTime(user?.updatedAt)}
+                        </Typography>
+                      </Box>
+                    )}
+                  </Box>
+                </Grid>
+              </Grid>
 
               <Divider sx={{ mb: 3 }} />
 
