@@ -323,7 +323,7 @@ const rawEn: Record<string, string> = {
   '退出其他设备': 'Sign out other devices',
   '你可以在这里修改密码，并管理当前账户的登录会话。退出其他设备会吊销同一账户在其他浏览器或机器上的登录状态。': 'Change your password and manage login sessions for this account. Signing out other devices revokes this account on other browsers or machines.',
   '登录会话': 'Login Sessions',
-  '当前页面展示的是服务端登记的登录会话。移除其他会话后，对应设备会在下一次请求时失效。': 'This page shows sessions registered on the server. Removed sessions become invalid on their next request.',
+  '当前页面展示的是服务端登记的登录会话。移除其他会话后，对应设备会在下一次请求时失效。过期会话不会展示。': 'This page shows sessions registered on the server. Removed sessions become invalid on their next request. Expired sessions are hidden.',
   '当前没有可展示的登录会话。': 'No login sessions to display.',
   '当前会话': 'Current session',
   '其他会话': 'Other session',
