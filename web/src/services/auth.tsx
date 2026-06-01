@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useMemo, ReactNode } from 'react';
 import api, { authAPI, User, UserSession } from './api';
 import { clearPersistedAuthState, restoreAuthState } from './authStorage';
 
@@ -38,16 +38,15 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   }, []);
 
   // 登录函数
-  const login = (userData: User, authToken: string, userSession: UserSession) => {
+  const login = useCallback((userData: User, authToken: string, userSession: UserSession) => {
     setUser(userData);
     setToken(authToken);
     setSession(userSession);
-    // 更新API实例的默认请求头
     api.defaults.headers.common['Authorization'] = `Bearer ${authToken}`;
     return { success: true, user: userData, token: authToken, session: userSession };
-  };
+  }, []);
 
-  const refreshUser = (userData: User) => {
+  const refreshUser = useCallback((userData: User) => {
     setUser(userData);
 
     if (localStorage.getItem('token')) {
@@ -55,17 +54,10 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     } else if (sessionStorage.getItem('token')) {
       sessionStorage.setItem('user', JSON.stringify(userData));
     }
-  };
+  }, []);
 
   // 登出函数
-  const clearAuthState = () => {
-    setUser(null);
-    setToken(null);
-    setSession(null);
-    clearPersistedAuthState();
-  };
-
-  const logout = async () => {
+  const logout = useCallback(async () => {
     try {
       if (token) {
         await authAPI.logout();
@@ -73,17 +65,20 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     } catch {
       // Ignore logout API failures and still clear local auth state.
     } finally {
-      clearAuthState();
+      setUser(null);
+      setToken(null);
+      setSession(null);
+      clearPersistedAuthState();
     }
-  };
+  }, [token]);
 
   // 检查是否已认证
-  const isAuthenticated = (): boolean => {
+  const isAuthenticated = useCallback((): boolean => {
     return !!user && !!token;
-  };
+  }, [user, token]);
 
   // 上下文值
-  const value: AuthContextType = {
+  const value = useMemo<AuthContextType>(() => ({
     user,
     token,
     session,
@@ -91,7 +86,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     refreshUser,
     logout,
     isAuthenticated
-  };
+  }), [user, token, session, login, refreshUser, logout, isAuthenticated]);
 
   return (
     <AuthContext.Provider value={value}>
