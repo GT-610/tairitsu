@@ -377,16 +377,6 @@ func (s *Status) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// NewClient 创建新的ZeroTier客户端
-func NewClient() (*Client, error) {
-	cfg, err := config.Current()
-	if err != nil {
-		return nil, err
-	}
-
-	return NewClientWithConfig(cfg)
-}
-
 func NewClientWithConfig(cfg *config.Config) (*Client, error) {
 	if cfg == nil {
 		return nil, fmt.Errorf("配置未加载")
@@ -476,27 +466,6 @@ func (c *Client) GetStatus() (*Status, error) {
 	}
 
 	return &status, nil
-}
-
-// GetNetworks 获取所有网络列表
-func (c *Client) GetNetworks() ([]Network, error) {
-	networkIDs, err := c.GetNetworkIDs()
-	if err != nil {
-		return nil, err
-	}
-
-	networks := make([]Network, 0)
-	for _, id := range networkIDs {
-		network, err := c.GetNetwork(id)
-		if err != nil {
-			return nil, fmt.Errorf("获取网络 %s 详情失败: %w", id, err)
-		}
-		if network != nil {
-			networks = append(networks, *network)
-		}
-	}
-
-	return networks, nil
 }
 
 // GetNetworkIDs 只获取网络ID列表（轻量级）
@@ -613,25 +582,6 @@ func looksLikeNetworkID(id string) bool {
 	return true
 }
 
-// GetNetworkStatus 获取网络状态
-func (c *Client) GetNetworkStatus(networkID string) (string, error) {
-	endpoint := fmt.Sprintf("/controller/network/%s/status", networkID)
-	respBody, err := c.doRequest("GET", endpoint, nil)
-	if err != nil {
-		return "", err
-	}
-
-	// 解析响应获取状态
-	var status struct {
-		Status string `json:"status"`
-	}
-	if err := json.Unmarshal(respBody, &status); err != nil {
-		return "", fmt.Errorf("解析网络状态失败: %w; 响应预览: %s", err, responsePreview(respBody))
-	}
-
-	return status.Status, nil
-}
-
 // GetNetwork 获取单个网络详情
 func (c *Client) GetNetwork(networkID string) (*Network, error) {
 	endpoint := fmt.Sprintf("/controller/network/%s", networkID)
@@ -661,22 +611,6 @@ func (c *Client) CreateNetwork(network *Network) (*Network, error) {
 	}
 
 	return &createdNetwork, nil
-}
-
-// UpdateNetwork 更新网络配置
-func (c *Client) UpdateNetwork(networkID string, network *Network) (*Network, error) {
-	endpoint := fmt.Sprintf("/controller/network/%s", networkID)
-	respBody, err := c.doRequest("POST", endpoint, network)
-	if err != nil {
-		return nil, err
-	}
-
-	var updatedNetwork Network
-	if err := json.Unmarshal(respBody, &updatedNetwork); err != nil {
-		return nil, fmt.Errorf("解析更新网络响应失败: %w; 响应预览: %s", err, responsePreview(respBody))
-	}
-
-	return &updatedNetwork, nil
 }
 
 // PartialUpdateNetwork 部分更新网络配置

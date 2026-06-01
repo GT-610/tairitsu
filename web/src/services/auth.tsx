@@ -7,7 +7,6 @@ interface AuthContextType {
   user: User | null;
   token: string | null;
   session: UserSession | null;
-  isLoading: boolean;
   login: (userData: User, authToken: string, userSession: UserSession) => { success: boolean; user: User; token: string; session: UserSession };
   refreshUser: (userData: User) => void;
   logout: () => Promise<void>;
@@ -27,7 +26,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [session, setSession] = useState<UserSession | null>(null);
-  const [isLoading] = useState<boolean>(false);
 
   // 在应用启动时从存储中恢复认证状态
   useEffect(() => {
@@ -89,7 +87,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     user,
     token,
     session,
-    isLoading,
     login,
     refreshUser,
     logout,

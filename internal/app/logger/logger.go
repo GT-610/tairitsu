@@ -96,11 +96,6 @@ func InitLogger(level string) {
 	defer logger.Sync()
 }
 
-// GetLogger 获取全局日志记录器实例
-func GetLogger() *zap.Logger {
-	return ensureLogger()
-}
-
 // Debug 记录Debug级别日志
 func Debug(msg string, fields ...zap.Field) {
 	ensureLogger().WithOptions(zap.AddCallerSkip(1)).Debug(msg, fields...)

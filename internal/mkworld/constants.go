@@ -20,7 +20,6 @@ var (
 	ErrNoRootNodes            = errors.New("at least one root node is required")
 	ErrReservedPlanetID       = errors.New("planet id is reserved")
 	ErrInvalidBirthTime       = errors.New("birth time is invalid")
-	ErrUnknown                = errors.New("unknown error")
 )
 
 const (

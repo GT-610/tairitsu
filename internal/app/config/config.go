@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 	"sync"
 
@@ -355,42 +354,11 @@ func boolPtr(value bool) *bool {
 	return &value
 }
 
-// Current returns the currently loaded config instance.
-func Current() (*Config, error) {
-	if AppConfig == nil {
-		return nil, fmt.Errorf("configuration is not loaded")
-	}
-	return AppConfig, nil
-}
-
-// ServerAddress returns the configured server listen address.
-func ServerAddress() (string, error) {
-	cfg, err := Current()
-	if err != nil {
-		return "", err
-	}
-	return ServerAddressFrom(cfg), nil
-}
-
 func ServerAddressFrom(cfg *Config) string {
 	if cfg == nil {
 		return ":8080"
 	}
 	return fmt.Sprintf(":%d", cfg.Server.Port)
-}
-
-// ZeroTierSettings returns the currently configured ZeroTier settings.
-func ZeroTierSettings() (ZeroTierConfig, error) {
-	cfg, err := Current()
-	if err != nil {
-		return ZeroTierConfig{}, err
-	}
-	return cfg.ZeroTier, nil
-}
-
-// ConfigPath returns the absolute path for the config file location.
-func ConfigPath() (string, error) {
-	return filepath.Abs(configFilePath)
 }
 
 // GetTempSetting Get temporary setting
