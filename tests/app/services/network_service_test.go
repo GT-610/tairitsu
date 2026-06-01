@@ -615,7 +615,7 @@ func TestZTClientGetMembersReturnsPreviewOnUnexpectedShape(t *testing.T) {
 	members, err := client.GetMembers("8056c2e21c000009")
 	require.Nil(t, members)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "响应预览")
+	assert.Contains(t, err.Error(), "preview")
 	assert.Contains(t, err.Error(), "\"unexpected\"")
 }
 

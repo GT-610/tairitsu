@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 	"sync"
 
@@ -14,23 +13,14 @@ import (
 
 // DatabaseConfig Database configuration
 type DatabaseConfig struct {
-	Type DatabaseType `json:"type"`
-	Path string       `json:"path"`
-	Host string       `json:"host"`
-	Port int          `json:"port"`
-	User string       `json:"user"`
-	Pass string       `json:"pass"` // Encrypted password
-	Name string       `json:"name"`
+	Type string `json:"type"`
+	Path string `json:"path"`
+	Host string `json:"host"`
+	Port int    `json:"port"`
+	User string `json:"user"`
+	Pass string `json:"pass"` // Encrypted password
+	Name string `json:"name"`
 }
-
-// DatabaseType Database type
-type DatabaseType string
-
-const (
-	SQLite     DatabaseType = "sqlite"
-	PostgreSQL DatabaseType = "postgresql"
-	MySQL      DatabaseType = "mysql"
-)
 
 // ZeroTierConfig ZeroTier configuration
 type ZeroTierConfig struct {
@@ -355,42 +345,11 @@ func boolPtr(value bool) *bool {
 	return &value
 }
 
-// Current returns the currently loaded config instance.
-func Current() (*Config, error) {
-	if AppConfig == nil {
-		return nil, fmt.Errorf("configuration is not loaded")
-	}
-	return AppConfig, nil
-}
-
-// ServerAddress returns the configured server listen address.
-func ServerAddress() (string, error) {
-	cfg, err := Current()
-	if err != nil {
-		return "", err
-	}
-	return ServerAddressFrom(cfg), nil
-}
-
 func ServerAddressFrom(cfg *Config) string {
 	if cfg == nil {
 		return ":8080"
 	}
 	return fmt.Sprintf(":%d", cfg.Server.Port)
-}
-
-// ZeroTierSettings returns the currently configured ZeroTier settings.
-func ZeroTierSettings() (ZeroTierConfig, error) {
-	cfg, err := Current()
-	if err != nil {
-		return ZeroTierConfig{}, err
-	}
-	return cfg.ZeroTier, nil
-}
-
-// ConfigPath returns the absolute path for the config file location.
-func ConfigPath() (string, error) {
-	return filepath.Abs(configFilePath)
 }
 
 // GetTempSetting Get temporary setting

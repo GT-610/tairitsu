@@ -93,6 +93,7 @@ func (s *handlerStateDBStub) HasAdminUser() (bool, error) {
 	}
 	return false, nil
 }
+func (s *handlerStateDBStub) Ping() error  { return nil }
 func (s *handlerStateDBStub) Close() error { return nil }
 
 func TestSystemHandler_GetSystemStatus_Uninitialized(t *testing.T) {
@@ -106,7 +107,7 @@ func TestSystemHandler_GetSystemStatus_Uninitialized(t *testing.T) {
 	config.AppConfig = &config.Config{
 		Initialized: false,
 		Database: config.DatabaseConfig{
-			Type: config.SQLite,
+			Type: string(database.SQLite),
 			Path: "data/setup.db",
 		},
 		ZeroTier: config.ZeroTierConfig{
@@ -153,7 +154,7 @@ func TestSystemHandler_GetSystemStatus_Initialized(t *testing.T) {
 			AllowPublicRegistration: boolPtr(false),
 		},
 		Database: config.DatabaseConfig{
-			Type: config.SQLite,
+			Type: string(database.SQLite),
 			Path: "data/test.db",
 		},
 	}
@@ -256,7 +257,7 @@ func TestSystemHandler_SetInitializedRejectsMissingAdmin(t *testing.T) {
 	config.AppConfig = &config.Config{
 		Initialized: false,
 		Database: config.DatabaseConfig{
-			Type: config.SQLite,
+			Type: string(database.SQLite),
 			Path: "data/test.db",
 		},
 	}

@@ -32,7 +32,6 @@ function Loading() {
     </Box>
   );
 }
-// import './App.css';
 
 function AppContent() {
   const { user, isAuthenticated } = useAuth();

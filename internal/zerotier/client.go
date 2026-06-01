@@ -58,7 +58,7 @@ type NetworkResponse struct {
 func (n *Network) UnmarshalJSON(data []byte) error {
 	var resp NetworkResponse
 	if err := json.Unmarshal(data, &resp); err != nil {
-		return fmt.Errorf("解析网络JSON失败: %w", err)
+		return fmt.Errorf("failed to unmarshal network JSON: %w", err)
 	}
 
 	n.ID = resp.ID
@@ -138,7 +138,7 @@ func (d *DNSConfig) UnmarshalJSON(data []byte) error {
 	type dnsAlias DNSConfig
 	var alias dnsAlias
 	if err := json.Unmarshal(data, &alias); err != nil {
-		return fmt.Errorf("解析 DNS 配置失败: %w", err)
+		return fmt.Errorf("failed to unmarshal DNS config: %w", err)
 	}
 
 	*d = DNSConfig(alias)
@@ -240,7 +240,7 @@ type memberAlias struct {
 func (m *Member) UnmarshalJSON(data []byte) error {
 	var raw memberAlias
 	if err := json.Unmarshal(data, &raw); err != nil {
-		return fmt.Errorf("解析成员JSON失败: %w", err)
+		return fmt.Errorf("failed to unmarshal member JSON: %w", err)
 	}
 
 	m.ID = raw.ID
@@ -365,7 +365,7 @@ type statusAlias struct {
 func (s *Status) UnmarshalJSON(data []byte) error {
 	var raw statusAlias
 	if err := json.Unmarshal(data, &raw); err != nil {
-		return fmt.Errorf("解析状态JSON失败: %w", err)
+		return fmt.Errorf("failed to unmarshal status JSON: %w", err)
 	}
 
 	s.Version = raw.Version
@@ -377,32 +377,27 @@ func (s *Status) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// NewClient 创建新的ZeroTier客户端
-func NewClient() (*Client, error) {
-	cfg, err := config.Current()
-	if err != nil {
-		return nil, err
-	}
-
-	return NewClientWithConfig(cfg)
-}
-
 func NewClientWithConfig(cfg *config.Config) (*Client, error) {
 	if cfg == nil {
-		return nil, fmt.Errorf("配置未加载")
+		return nil, fmt.Errorf("configuration not loaded")
 	}
 
 	if err := config.LoadTokenFromPathInto(cfg, cfg.ZeroTier.TokenPath); err != nil && strings.TrimSpace(cfg.ZeroTier.Token) == "" {
-		return nil, fmt.Errorf("加载ZeroTier令牌失败: %w", err)
+		return nil, fmt.Errorf("failed to load ZeroTier token: %w", err)
 	}
 
 	token, err := config.GetZTTokenFrom(cfg)
 	if err != nil {
-		return nil, fmt.Errorf("获取ZeroTier令牌失败: %w", err)
+		return nil, fmt.Errorf("failed to get ZeroTier token: %w", err)
 	}
 
 	httpClient := &http.Client{
 		Timeout: 10 * time.Second,
+		Transport: &http.Transport{
+			MaxIdleConns:        20,
+			MaxIdleConnsPerHost: 10,
+			IdleConnTimeout:     90 * time.Second,
+		},
 	}
 
 	baseURL := cfg.ZeroTier.URL
@@ -427,7 +422,7 @@ func (c *Client) doRequest(method, endpoint string, body interface{}) ([]byte, e
 	if body != nil {
 		jsonData, err := json.Marshal(body)
 		if err != nil {
-			return nil, fmt.Errorf("序列化请求体失败: %w", err)
+			return nil, fmt.Errorf("failed to serialize request body: %w", err)
 		}
 		bodyReader = bytes.NewBuffer(jsonData)
 	}
@@ -435,7 +430,7 @@ func (c *Client) doRequest(method, endpoint string, body interface{}) ([]byte, e
 	// 创建请求
 	req, err := http.NewRequest(method, url, bodyReader)
 	if err != nil {
-		return nil, fmt.Errorf("创建请求失败: %w", err)
+		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
 	// 设置请求头
@@ -445,19 +440,19 @@ func (c *Client) doRequest(method, endpoint string, body interface{}) ([]byte, e
 	// 发送请求
 	resp, err := c.HTTPClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("发送请求失败: %w", err)
+		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
 	defer resp.Body.Close()
 
 	// 读取响应体
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("读取响应体失败: %w", err)
+		return nil, fmt.Errorf("failed to read response body: %w", err)
 	}
 
 	// 检查响应状态
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
-		return nil, fmt.Errorf("请求失败 (状态码: %d): %s", resp.StatusCode, string(respBody))
+		return nil, fmt.Errorf("request failed (status %d): %s", resp.StatusCode, string(respBody))
 	}
 
 	return respBody, nil
@@ -472,31 +467,10 @@ func (c *Client) GetStatus() (*Status, error) {
 
 	var status Status
 	if err := json.Unmarshal(respBody, &status); err != nil {
-		return nil, fmt.Errorf("解析状态响应失败: %w; 响应预览: %s", err, responsePreview(respBody))
+		return nil, fmt.Errorf("failed to unmarshal status response: %w; preview: %s", err, responsePreview(respBody))
 	}
 
 	return &status, nil
-}
-
-// GetNetworks 获取所有网络列表
-func (c *Client) GetNetworks() ([]Network, error) {
-	networkIDs, err := c.GetNetworkIDs()
-	if err != nil {
-		return nil, err
-	}
-
-	networks := make([]Network, 0)
-	for _, id := range networkIDs {
-		network, err := c.GetNetwork(id)
-		if err != nil {
-			return nil, fmt.Errorf("获取网络 %s 详情失败: %w", id, err)
-		}
-		if network != nil {
-			networks = append(networks, *network)
-		}
-	}
-
-	return networks, nil
 }
 
 // GetNetworkIDs 只获取网络ID列表（轻量级）
@@ -508,7 +482,7 @@ func (c *Client) GetNetworkIDs() ([]string, error) {
 
 	networkIDs, err := parseNetworkIDs(respBody)
 	if err != nil {
-		return nil, fmt.Errorf("解析网络ID列表失败: %w; 响应预览: %s", err, responsePreview(respBody))
+		return nil, fmt.Errorf("failed to parse network ID list: %w; preview: %s", err, responsePreview(respBody))
 	}
 
 	return networkIDs, nil
@@ -531,7 +505,7 @@ func parseNetworkIDs(data []byte) ([]string, error) {
 	case map[string]any:
 		return parseNetworkIDsFromObject(value), nil
 	default:
-		return nil, fmt.Errorf("不支持的网络列表格式")
+		return nil, fmt.Errorf("unsupported network list format")
 	}
 }
 
@@ -613,25 +587,6 @@ func looksLikeNetworkID(id string) bool {
 	return true
 }
 
-// GetNetworkStatus 获取网络状态
-func (c *Client) GetNetworkStatus(networkID string) (string, error) {
-	endpoint := fmt.Sprintf("/controller/network/%s/status", networkID)
-	respBody, err := c.doRequest("GET", endpoint, nil)
-	if err != nil {
-		return "", err
-	}
-
-	// 解析响应获取状态
-	var status struct {
-		Status string `json:"status"`
-	}
-	if err := json.Unmarshal(respBody, &status); err != nil {
-		return "", fmt.Errorf("解析网络状态失败: %w; 响应预览: %s", err, responsePreview(respBody))
-	}
-
-	return status.Status, nil
-}
-
 // GetNetwork 获取单个网络详情
 func (c *Client) GetNetwork(networkID string) (*Network, error) {
 	endpoint := fmt.Sprintf("/controller/network/%s", networkID)
@@ -642,7 +597,7 @@ func (c *Client) GetNetwork(networkID string) (*Network, error) {
 
 	var network Network
 	if err := json.Unmarshal(respBody, &network); err != nil {
-		return nil, fmt.Errorf("解析网络详情失败: %w; 响应预览: %s", err, responsePreview(respBody))
+		return nil, fmt.Errorf("failed to unmarshal network detail: %w; preview: %s", err, responsePreview(respBody))
 	}
 
 	return &network, nil
@@ -657,26 +612,10 @@ func (c *Client) CreateNetwork(network *Network) (*Network, error) {
 
 	var createdNetwork Network
 	if err := json.Unmarshal(respBody, &createdNetwork); err != nil {
-		return nil, fmt.Errorf("解析创建网络响应失败: %w; 响应预览: %s", err, responsePreview(respBody))
+		return nil, fmt.Errorf("failed to unmarshal create network response: %w; preview: %s", err, responsePreview(respBody))
 	}
 
 	return &createdNetwork, nil
-}
-
-// UpdateNetwork 更新网络配置
-func (c *Client) UpdateNetwork(networkID string, network *Network) (*Network, error) {
-	endpoint := fmt.Sprintf("/controller/network/%s", networkID)
-	respBody, err := c.doRequest("POST", endpoint, network)
-	if err != nil {
-		return nil, err
-	}
-
-	var updatedNetwork Network
-	if err := json.Unmarshal(respBody, &updatedNetwork); err != nil {
-		return nil, fmt.Errorf("解析更新网络响应失败: %w; 响应预览: %s", err, responsePreview(respBody))
-	}
-
-	return &updatedNetwork, nil
 }
 
 // PartialUpdateNetwork 部分更新网络配置
@@ -689,7 +628,7 @@ func (c *Client) PartialUpdateNetwork(networkID string, updateReq *NetworkUpdate
 
 	var updatedNetwork Network
 	if err := json.Unmarshal(respBody, &updatedNetwork); err != nil {
-		return nil, fmt.Errorf("解析更新网络响应失败: %w; 响应预览: %s", err, responsePreview(respBody))
+		return nil, fmt.Errorf("failed to unmarshal update network response: %w; preview: %s", err, responsePreview(respBody))
 	}
 
 	return &updatedNetwork, nil
@@ -724,7 +663,7 @@ func (c *Client) GetMembers(networkID string) ([]Member, error) {
 	for _, memberID := range memberIDs {
 		member, detailErr := c.GetMember(networkID, memberID)
 		if detailErr != nil {
-			return nil, fmt.Errorf("获取成员 %s 详情失败: %w", memberID, detailErr)
+			return nil, fmt.Errorf("failed to get member %s detail: %w", memberID, detailErr)
 		}
 		if member != nil {
 			members = append(members, *member)
@@ -748,7 +687,7 @@ func (c *Client) GetMember(networkID, memberID string) (*Member, error) {
 
 	var member Member
 	if err := json.Unmarshal(respBody, &member); err != nil {
-		return nil, fmt.Errorf("解析成员详情失败: %w; 响应预览: %s", err, responsePreview(respBody))
+		return nil, fmt.Errorf("failed to unmarshal member detail: %w; preview: %s", err, responsePreview(respBody))
 	}
 
 	return &member, nil
@@ -763,7 +702,7 @@ func (c *Client) GetPeers() ([]Peer, error) {
 
 	peers, err := parsePeerList(respBody)
 	if err != nil {
-		return nil, fmt.Errorf("解析 peer 列表失败: %w; 响应预览: %s", err, responsePreview(respBody))
+		return nil, fmt.Errorf("failed to unmarshal peer list: %w; preview: %s", err, responsePreview(respBody))
 	}
 
 	sort.Slice(peers, func(i, j int) bool {
@@ -783,7 +722,7 @@ func (c *Client) UpdateMember(networkID, memberID string, member *MemberUpdateRe
 
 	var updatedMember Member
 	if err := json.Unmarshal(respBody, &updatedMember); err != nil {
-		return nil, fmt.Errorf("解析更新成员响应失败: %w; 响应预览: %s", err, responsePreview(respBody))
+		return nil, fmt.Errorf("failed to unmarshal update member response: %w; preview: %s", err, responsePreview(respBody))
 	}
 
 	return &updatedMember, nil
@@ -804,7 +743,7 @@ func parseMemberList(respBody []byte) ([]Member, error) {
 
 	var memberMap map[string]Member
 	if err := json.Unmarshal(respBody, &memberMap); err != nil {
-		return nil, fmt.Errorf("解析成员列表失败: %w; 响应预览: %s", err, responsePreview(respBody))
+		return nil, fmt.Errorf("failed to unmarshal member list: %w; preview: %s", err, responsePreview(respBody))
 	}
 
 	members = make([]Member, 0, len(memberMap))
@@ -825,7 +764,7 @@ func parseMemberList(respBody []byte) ([]Member, error) {
 func parseMemberIndexList(respBody []byte) ([]string, error) {
 	var memberIndex map[string]int
 	if err := json.Unmarshal(respBody, &memberIndex); err != nil {
-		return nil, fmt.Errorf("解析成员索引失败: %w; 响应预览: %s", err, responsePreview(respBody))
+		return nil, fmt.Errorf("failed to parse member index: %w; preview: %s", err, responsePreview(respBody))
 	}
 
 	memberIDs := make([]string, 0, len(memberIndex))

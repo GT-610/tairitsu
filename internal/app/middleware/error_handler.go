@@ -46,18 +46,3 @@ func ErrorHandler() fiber.Handler {
 		return nil
 	}
 }
-
-// CORS 跨域中间件
-func CORS() fiber.Handler {
-	return func(c fiber.Ctx) error {
-		c.Set("Access-Control-Allow-Origin", "*")
-		c.Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		c.Set("Access-Control-Allow-Headers", "Origin, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
-
-		if c.Method() == "OPTIONS" {
-			return c.SendStatus(http.StatusNoContent)
-		}
-
-		return c.Next()
-	}
-}

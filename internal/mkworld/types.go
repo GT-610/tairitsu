@@ -17,9 +17,8 @@ import (
 type ZtWorldType uint8
 
 const (
-	ZT_WORLD_TYPE_NULL ZtWorldType = iota
-	ZT_WORLD_TYPE_PLANET
-	ZT_WORLD_TYPE_MOON = 127
+	ZT_WORLD_TYPE_PLANET ZtWorldType = 1
+	ZT_WORLD_TYPE_MOON   ZtWorldType = 127
 )
 
 type ZtWorldID uint64
@@ -77,27 +76,6 @@ type ZtWorldPlanetNodeIdentity struct {
 
 func (id *ZtWorldPlanetNodeIdentity) ZtNodeAddressString() string {
 	return hex.EncodeToString(id.ZtNodeAddress[:])
-}
-
-func (id *ZtWorldPlanetNodeIdentity) FromString(data string) error {
-	parts := strings.Split(data, ":")
-	if len(parts) < 2 {
-		return ErrInvalidIdentity
-	}
-
-	addrBytes, err := hex.DecodeString(parts[0])
-	if err != nil || len(addrBytes) != 5 {
-		return ErrInvalidIdentity
-	}
-	copy(id.ZtNodeAddress[:], addrBytes)
-
-	pubBytes, err := hex.DecodeString(parts[2])
-	if err != nil || len(pubBytes) != ZT_C25519_PUBLIC_KEY_LEN {
-		return ErrInvalidIdentity
-	}
-	copy(id.PublicKey[:], pubBytes)
-
-	return nil
 }
 
 func (id *ZtWorldPlanetNodeIdentity) Serialize() ([]byte, error) {

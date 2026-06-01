@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import api, { type SetupStatus } from '../services/api'
 import { clearPersistedAuthState } from '../services/authStorage'
@@ -44,6 +44,8 @@ export function useSetupGate() {
 export function useUnauthorizedRedirect() {
   const navigate = useNavigate()
   const location = useLocation()
+  const locationRef = useRef(location)
+  locationRef.current = location
 
   useEffect(() => {
     const interceptor = api.interceptors.response.use(
@@ -51,7 +53,7 @@ export function useUnauthorizedRedirect() {
       (error) => {
         if (hasStatus(error, 401)) {
           clearPersistedAuthState()
-          if (location.pathname !== '/login') {
+          if (locationRef.current.pathname !== '/login') {
             void navigate('/login')
           }
         }
@@ -63,5 +65,5 @@ export function useUnauthorizedRedirect() {
     return () => {
       api.interceptors.response.eject(interceptor)
     }
-  }, [location.pathname, navigate])
+  }, [navigate])
 }

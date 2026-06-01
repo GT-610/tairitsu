@@ -484,8 +484,6 @@ export const networkAPI = {
 export const memberAPI = {
   // Get network members
   getMembers: (networkId: string) => api.get<Member[]>(`/networks/${networkId}/members`),
-  // Get a single member
-  getMember: (networkId: string, memberId: string) => api.get<Member>(`/networks/${networkId}/members/${memberId}`),
   // Update a member
   updateMember: (networkId: string, memberId: string, data: { authorized?: boolean; name?: string; activeBridge?: boolean; noAutoAssignIps?: boolean; ipAssignments?: string[] }) => api.put<Member>(`/networks/${networkId}/members/${memberId}`, data),
   // Delete a member

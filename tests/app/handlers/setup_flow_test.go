@@ -29,7 +29,7 @@ func TestSetupFlow_ResetDatabaseThenRegisterAdmin(t *testing.T) {
 	config.AppConfig = &config.Config{
 		Initialized: false,
 		Database: config.DatabaseConfig{
-			Type: config.SQLite,
+			Type: string(database.SQLite),
 			Path: dbPath,
 		},
 		Security: config.SecurityConfig{

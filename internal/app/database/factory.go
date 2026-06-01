@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
@@ -48,7 +49,7 @@ func NewDatabase(config Config) (DBInterface, error) {
 			return nil, err
 		}
 
-		db, err := gorm.Open(sqlite.Open(config.Path), &gorm.Config{})
+		db, err := gorm.Open(sqlite.Open(config.Path+"?_journal_mode=WAL&_busy_timeout=5000"), &gorm.Config{})
 		if err != nil {
 			return nil, fmt.Errorf("failed to connect to SQLite database: %w", err)
 		}
@@ -61,6 +62,8 @@ func NewDatabase(config Config) (DBInterface, error) {
 		// 设置连接池
 		sqlDB.SetMaxIdleConns(10)
 		sqlDB.SetMaxOpenConns(100)
+		sqlDB.SetConnMaxLifetime(time.Hour)
+		sqlDB.SetConnMaxIdleTime(30 * time.Minute)
 
 		return &GormDB{db: db}, nil
 
@@ -82,6 +85,8 @@ func NewDatabase(config Config) (DBInterface, error) {
 		// 设置连接池
 		sqlDB.SetMaxIdleConns(10)
 		sqlDB.SetMaxOpenConns(100)
+		sqlDB.SetConnMaxLifetime(time.Hour)
+		sqlDB.SetConnMaxIdleTime(30 * time.Minute)
 
 		return &GormDB{db: db}, nil
 
@@ -103,6 +108,8 @@ func NewDatabase(config Config) (DBInterface, error) {
 		// 设置连接池
 		sqlDB.SetMaxIdleConns(10)
 		sqlDB.SetMaxOpenConns(100)
+		sqlDB.SetConnMaxLifetime(time.Hour)
+		sqlDB.SetConnMaxIdleTime(30 * time.Minute)
 
 		return &GormDB{db: db}, nil
 
@@ -195,7 +202,7 @@ func SaveConfigToApp(cfg *config.Config, dbConfig Config) error {
 	}
 
 	// 更新数据库配置
-	cfg.Database.Type = config.DatabaseType(dbConfig.Type)
+	cfg.Database.Type = string(dbConfig.Type)
 	cfg.Database.Path = dbConfig.Path
 	cfg.Database.Host = dbConfig.Host
 	cfg.Database.Port = dbConfig.Port
