@@ -1,34 +1,23 @@
-## Build instructions
-1. Go Build binary should be in `./build` folder. DON'T BUILD ELSEWHERE.
-2. Frontend uses `bun`, not `npm`/`node`. Use `bun install`, `bun run dev`, `bun run lint`, and `bun run build`.
-3. Frontend dev server has hot reload, no need to rerun it after source changes.
+## Build
+- Go binary output: `./build` folder only.
+- Frontend: use `bun`, `node`, or `deno` — no runtime-specific APIs are used. Pick whichever is available.
+- Frontend dev server has hot reload; no restart needed after source changes.
 
-## Code writing expectations
-1. Prefer the best maintainable end state over superficial uniformity. Do not refactor only to make styles look the same.
-2. Frontend and backend are version-locked and shipped together. Do not keep legacy compatibility layers, old payload fallbacks, or duplicate request/response formats unless explicitly requested.
-3. Keep responsibilities clear:
-   - Backend owns protocol adaptation, ZeroTier field compatibility, permission rules, response shaping, and stable API semantics.
-   - Frontend owns presentation, interaction state, and UI-only derived text.
-   - Do not let the frontend guess semantics that the backend can return directly.
-4. Only show information that is trustworthy:
-   - If data can be derived from the official API, it may be displayed.
-   - If a value is missing, zero-valued, or not reliably available, hide it or mark it unavailable instead of fabricating a plausible-looking display.
-   - Do not render zero-value timestamps or pseudo activity times as real user-facing times.
-5. Remove dead code, obsolete routes, unused compatibility helpers, and duplicated UI flows when they no longer serve the current product path.
-6. Avoid placeholder product UI:
-   - Do not add fake entry points, fake toggles, or “coming soon” interactions that look usable.
-   - Experimental features must be clearly marked as experimental.
-7. When cleaning code, prefer deleting obsolete logic over adding another abstraction layer around it.
-8. Keep public docs user-facing. Internal notes, audits, temporary plans, and work-in-progress materials should stay out of public docs when they must be kept locally.
+## Code expectations
+- Maintainable end state over superficial uniformity.
+- Frontend and backend are version-locked and shipped together; no legacy compatibility layers unless explicitly requested.
+- Responsibilities: backend owns protocol adaptation, ZeroTier field compatibility, permissions, response shaping, and stable API semantics. Frontend owns presentation, interaction state, and UI-only derived text.
+- Only display trustworthy data. Hide or mark unavailable anything missing, zero-valued, or unreliable. Never fabricate timestamps or pseudo activity.
+- Remove dead code, obsolete routes, unused helpers, and duplicated UI flows when they no longer serve the product path.
+- Prefer deleting obsolete logic over wrapping it in another abstraction.
+- No fake toggles, placeholder entry points, or "coming soon" UI. Experimental features must be clearly labeled.
+- Keep public docs user-facing; internal notes and WIP materials stay out of public docs.
 
 ## Docker test environment
-1. Docker-related local test data lives under `build/.docker`.
-2. ZeroTier container data directory is `build/.docker/zerotier-one`.
-3. Tairitsu local persistent data directory is `build/.docker/tairitsu-data`.
-4. Do not place ad-hoc Docker test data outside `build/.docker` unless explicitly requested.
-
-## ZeroTier container testing
-1. Prefer mounting `build/.docker/zerotier-one` to `/var/lib/zerotier-one` in the ZeroTier container.
-2. If Tairitsu backend runs on the host, the setup wizard's ZeroTier token path should use the host path, e.g. `/root/code/tairitsu/build/.docker/zerotier-one/authtoken.secret`.
-3. If Tairitsu runs in Docker on the same network as ZeroTier, the setup wizard can use container paths like `/var/lib/zerotier-one/authtoken.secret` and service URL like `http://zerotier:9993`.
-4. For local controller API access from Tairitsu, `build/.docker/zerotier-one/local.conf` should allow management access, e.g. via `allowManagementFrom`.
+- All local Docker test data: `build/.docker/`
+- ZeroTier data: `build/.docker/zerotier-one/`
+- Tairitsu persistent data: `build/.docker/tairitsu-data/`
+- ZeroTier container: mount `build/.docker/zerotier-one` → `/var/lib/zerotier-one`
+- Host Tairitsu backend: use host path for ZeroTier token, e.g. `.../build/.docker/zerotier-one/authtoken.secret`
+- Docker Tairitsu + ZeroTier on same network: use container paths, e.g. `http://zerotier:9993`
+- Local controller API access: ensure `build/.docker/zerotier-one/local.conf` has `allowManagementFrom` configured
