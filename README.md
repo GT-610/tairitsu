@@ -83,7 +83,7 @@ Open `http://<host>:3000` and complete the setup wizard:
 Prerequisites:
 
 - Go 1.25 or later with CGO enabled
-- Node.js / Deno / Bun latest 
+- Node.js or Bun latest
 - A local or Dockerized ZeroTier controller
 
 Build backend:
@@ -96,8 +96,8 @@ Run frontend:
 
 ```bash
 cd web
-npm install # or: deno/bun install
-npm run dev # or: deno/bun run dev
+npm install # or: bun install
+npm run dev # or: bun run dev
 ```
 
 ## License

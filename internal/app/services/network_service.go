@@ -19,7 +19,11 @@ type memberStatsSetter interface {
 }
 
 func (s *NetworkService) fillMemberStats(nIDs []string, targets []memberStatsSetter) {
-	if s.ztClient == nil || len(nIDs) == 0 {
+	s.mutex.RLock()
+	zt := s.ztClient
+	s.mutex.RUnlock()
+
+	if zt == nil || len(nIDs) == 0 {
 		return
 	}
 	var wg sync.WaitGroup
@@ -31,7 +35,7 @@ func (s *NetworkService) fillMemberStats(nIDs []string, targets []memberStatsSet
 			limiter <- struct{}{}
 			defer func() { <-limiter }()
 
-			members, err := s.ztClient.GetMembers(networkID)
+			members, err := zt.GetMembers(networkID)
 			if err != nil {
 				logger.Warn("service: failed to get network member counts", zap.String("network_id", networkID), zap.Error(err))
 				return

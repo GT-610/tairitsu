@@ -7,6 +7,7 @@ interface AuthContextType {
   user: User | null;
   token: string | null;
   session: UserSession | null;
+  isHydrated: boolean;
   login: (userData: User, authToken: string, userSession: UserSession) => { success: boolean; user: User; token: string; session: UserSession };
   refreshUser: (userData: User) => void;
   logout: () => Promise<void>;
@@ -26,6 +27,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [session, setSession] = useState<UserSession | null>(null);
+  const [isHydrated, setIsHydrated] = useState(false);
 
   // 在应用启动时从存储中恢复认证状态
   useEffect(() => {
@@ -35,6 +37,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       setToken(restored.token);
       setSession(restored.session);
     }
+    setIsHydrated(true);
   }, []);
 
   // 登录函数
@@ -82,11 +85,12 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     user,
     token,
     session,
+    isHydrated,
     login,
     refreshUser,
     logout,
     isAuthenticated
-  }), [user, token, session, login, refreshUser, logout, isAuthenticated]);
+  }), [user, token, session, isHydrated, login, refreshUser, logout, isAuthenticated]);
 
   return (
     <AuthContext.Provider value={value}>
