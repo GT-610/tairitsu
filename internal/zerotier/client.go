@@ -393,6 +393,11 @@ func NewClientWithConfig(cfg *config.Config) (*Client, error) {
 
 	httpClient := &http.Client{
 		Timeout: 10 * time.Second,
+		Transport: &http.Transport{
+			MaxIdleConns:        20,
+			MaxIdleConnsPerHost: 10,
+			IdleConnTimeout:     90 * time.Second,
+		},
 	}
 
 	baseURL := cfg.ZeroTier.URL

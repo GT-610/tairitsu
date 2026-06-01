@@ -748,6 +748,11 @@ func (s *SQLiteDB) DeleteNetworkViewer(networkID, userID string) error {
 	return nil
 }
 
+// Ping checks if the database connection is alive.
+func (s *SQLiteDB) Ping() error {
+	return s.db.Ping()
+}
+
 // Close 关闭数据库连接
 func (s *SQLiteDB) Close() error {
 	return s.db.Close()

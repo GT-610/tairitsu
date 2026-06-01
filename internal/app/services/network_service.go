@@ -119,7 +119,7 @@ func (s *NetworkService) GetRuntimeStatus() *RuntimeStatus {
 	}
 
 	if db := s.getDB(); db != nil {
-		if _, err := db.GetAllUsers(); err != nil {
+		if err := db.Ping(); err != nil {
 			runtimeStatus.DatabaseStatus = "error"
 			runtimeStatus.DatabaseError = err.Error()
 		} else {

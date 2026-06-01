@@ -388,19 +388,17 @@ func (s *UserService) TransferAdmin(currentAdminID, targetUserID string) (*model
 	targetUser.Role = "admin"
 	targetUser.UpdatedAt = now
 
-	if err := db.UpdateUser(currentAdmin); err != nil {
-		logger.Error("service: administrator transfer failed while demoting previous administrator", zap.String("user_id", currentAdminID), zap.Error(err))
-		return nil, fmt.Errorf("failed to update previous administrator: %w", err)
-	}
-
-	if err := db.UpdateUser(targetUser); err != nil {
-		logger.Error("service: administrator transfer failed while promoting target user", zap.String("user_id", targetUserID), zap.Error(err))
-		currentAdmin.Role = "admin"
-		currentAdmin.UpdatedAt = time.Now()
-		if rollbackErr := db.UpdateUser(currentAdmin); rollbackErr != nil {
-			logger.Error("service: administrator transfer failed while rolling back previous administrator role", zap.String("user_id", currentAdminID), zap.Error(rollbackErr))
+	if err := db.WithTransaction(func(tx database.DBInterface) error {
+		if err := tx.UpdateUser(currentAdmin); err != nil {
+			return fmt.Errorf("failed to update previous administrator: %w", err)
 		}
-		return nil, fmt.Errorf("failed to update target administrator: %w", err)
+		if err := tx.UpdateUser(targetUser); err != nil {
+			return fmt.Errorf("failed to update target administrator: %w", err)
+		}
+		return nil
+	}); err != nil {
+		logger.Error("service: administrator transfer failed", zap.String("from_user_id", currentAdminID), zap.String("to_user_id", targetUserID), zap.Error(err))
+		return nil, err
 	}
 
 	logger.Info("service: administrator role transferred successfully",

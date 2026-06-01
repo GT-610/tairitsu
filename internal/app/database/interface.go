@@ -40,6 +40,9 @@ type DBInterface interface {
 	// 检查是否已存在管理员用户
 	HasAdminUser() (bool, error)
 
+	// 检查数据库连接是否存活
+	Ping() error
+
 	// 关闭数据库连接
 	Close() error
 }

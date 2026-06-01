@@ -93,6 +93,7 @@ func (s *handlerStateDBStub) HasAdminUser() (bool, error) {
 	}
 	return false, nil
 }
+func (s *handlerStateDBStub) Ping() error  { return nil }
 func (s *handlerStateDBStub) Close() error { return nil }
 
 func TestSystemHandler_GetSystemStatus_Uninitialized(t *testing.T) {

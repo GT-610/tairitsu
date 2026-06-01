@@ -71,10 +71,37 @@ type RateLimiter struct {
 
 // NewRateLimiter 创建新的速率限制器
 func NewRateLimiter(capacity, refillRate int) *RateLimiter {
-	return &RateLimiter{
+	rl := &RateLimiter{
 		buckets:    make(map[string]*TokenBucket),
 		capacity:   capacity,
 		refillRate: refillRate,
+	}
+	go rl.cleanupLoop()
+	return rl
+}
+
+const cleanupInterval = 5 * time.Minute
+const bucketStaleThreshold = 10 * time.Minute
+
+func (rl *RateLimiter) cleanupLoop() {
+	ticker := time.NewTicker(cleanupInterval)
+	defer ticker.Stop()
+	for range ticker.C {
+		rl.cleanupStale()
+	}
+}
+
+func (rl *RateLimiter) cleanupStale() {
+	rl.bucketMutex.Lock()
+	defer rl.bucketMutex.Unlock()
+	now := time.Now()
+	for ip, bucket := range rl.buckets {
+		bucket.refillMutex.Lock()
+		stale := now.Sub(bucket.lastRefill) > bucketStaleThreshold
+		bucket.refillMutex.Unlock()
+		if stale {
+			delete(rl.buckets, ip)
+		}
 	}
 }
 

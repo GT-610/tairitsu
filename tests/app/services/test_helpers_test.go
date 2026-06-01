@@ -81,4 +81,5 @@ func (s *stateServiceDBStub) HasAdminUser() (bool, error) {
 	}
 	return false, nil
 }
+func (s *stateServiceDBStub) Ping() error  { return nil }
 func (s *stateServiceDBStub) Close() error { return nil }

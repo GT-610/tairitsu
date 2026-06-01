@@ -90,6 +90,7 @@ func (d *txFailingDB) DeleteNetworkViewer(networkID, userID string) error {
 	return d.inner.DeleteNetworkViewer(networkID, userID)
 }
 func (d *txFailingDB) HasAdminUser() (bool, error)   { return d.inner.HasAdminUser() }
+func (d *txFailingDB) Ping() error                  { return d.inner.Ping() }
 func (d *txFailingDB) Close() error                  { return d.inner.Close() }
 
 func TestUserServiceRegisterReturnsSentinelForDuplicateUsername(t *testing.T) {

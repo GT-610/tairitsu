@@ -228,6 +228,15 @@ func (g *GormDB) DeleteNetworkViewer(networkID, userID string) error {
 	return g.db.Delete(&models.NetworkViewer{}, "network_id = ? AND user_id = ?", networkID, userID).Error
 }
 
+// Ping checks if the database connection is alive.
+func (g *GormDB) Ping() error {
+	sqlDB, err := g.db.DB()
+	if err != nil {
+		return err
+	}
+	return sqlDB.Ping()
+}
+
 // Close 关闭数据库连接
 func (g *GormDB) Close() error {
 	sqlDB, err := g.db.DB()
