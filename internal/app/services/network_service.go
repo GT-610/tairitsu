@@ -14,6 +14,42 @@ import (
 
 const networkMemberStatsConcurrency = 4
 
+type memberStatsSetter interface {
+	SetMemberStats(memberCount, authorizedCount, pendingCount int)
+}
+
+func (s *NetworkService) fillMemberStats(nIDs []string, targets []memberStatsSetter) {
+	if s.ztClient == nil || len(nIDs) == 0 {
+		return
+	}
+	var wg sync.WaitGroup
+	limiter := make(chan struct{}, min(networkMemberStatsConcurrency, len(nIDs)))
+	for i, nID := range nIDs {
+		wg.Add(1)
+		go func(index int, networkID string) {
+			defer wg.Done()
+			limiter <- struct{}{}
+			defer func() { <-limiter }()
+
+			members, err := s.ztClient.GetMembers(networkID)
+			if err != nil {
+				logger.Warn("service: failed to get network member counts", zap.String("network_id", networkID), zap.Error(err))
+				return
+			}
+			authorized, pending := 0, 0
+			for _, m := range members {
+				if m.Config.Authorized {
+					authorized++
+				} else {
+					pending++
+				}
+			}
+			targets[index].SetMemberStats(len(members), authorized, pending)
+		}(i, nID)
+	}
+	wg.Wait()
+}
+
 type NetworkService struct {
 	ztClient *zerotier.Client
 	db       database.DBInterface
@@ -131,6 +167,12 @@ type NetworkSummary struct {
 	UpdatedAt             time.Time `json:"updated_at"`
 }
 
+func (n *NetworkSummary) SetMemberStats(memberCount, authorizedCount, pendingCount int) {
+	n.MemberCount = memberCount
+	n.AuthorizedMemberCount = authorizedCount
+	n.PendingMemberCount = pendingCount
+}
+
 type SharedNetworkSummary struct {
 	ID                    string    `json:"id"`
 	Name                  string    `json:"name"`
@@ -142,6 +184,12 @@ type SharedNetworkSummary struct {
 	PendingMemberCount    int       `json:"pending_member_count"`
 	CreatedAt             time.Time `json:"created_at"`
 	UpdatedAt             time.Time `json:"updated_at"`
+}
+
+func (n *SharedNetworkSummary) SetMemberStats(memberCount, authorizedCount, pendingCount int) {
+	n.MemberCount = memberCount
+	n.AuthorizedMemberCount = authorizedCount
+	n.PendingMemberCount = pendingCount
 }
 
 type NetworkViewerSummary struct {
@@ -192,39 +240,15 @@ func (s *NetworkService) GetAllNetworks(ownerID string) ([]NetworkSummary, error
 		}
 	}
 
-	if s.ztClient != nil {
-		var wg sync.WaitGroup
-		limiter := make(chan struct{}, min(networkMemberStatsConcurrency, len(ownedNetworks)))
-
-		for i, net := range ownedNetworks {
-			wg.Add(1)
-			go func(index int, networkID string) {
-				defer wg.Done()
-
-				limiter <- struct{}{}
-				defer func() {
-					<-limiter
-				}()
-
-				members, err := s.ztClient.GetMembers(networkID)
-				if err != nil {
-					logger.Warn("service: failed to get network member counts", zap.String("network_id", networkID), zap.Error(err))
-					return
-				}
-
-				networkSummaries[index].MemberCount = len(members)
-				for _, member := range members {
-					if member.Config.Authorized {
-						networkSummaries[index].AuthorizedMemberCount++
-					} else {
-						networkSummaries[index].PendingMemberCount++
-					}
-				}
-			}(i, net.ID)
-		}
-
-		wg.Wait()
+	networkIDs := make([]string, len(ownedNetworks))
+	for i, net := range ownedNetworks {
+		networkIDs[i] = net.ID
 	}
+	targets := make([]memberStatsSetter, len(networkSummaries))
+	for i := range networkSummaries {
+		targets[i] = &networkSummaries[i]
+	}
+	s.fillMemberStats(networkIDs, targets)
 
 	return networkSummaries, nil
 }
@@ -273,34 +297,15 @@ func (s *NetworkService) GetSharedNetworks(userID string) ([]SharedNetworkSummar
 		}
 	}
 
-	if s.ztClient != nil {
-		var wg sync.WaitGroup
-		limiter := make(chan struct{}, min(networkMemberStatsConcurrency, len(sharedNetworks)))
-		for i, net := range sharedNetworks {
-			wg.Add(1)
-			go func(index int, networkID string) {
-				defer wg.Done()
-				limiter <- struct{}{}
-				defer func() { <-limiter }()
-
-				members, memberErr := s.ztClient.GetMembers(networkID)
-				if memberErr != nil {
-					logger.Warn("service: failed to get shared network member counts", zap.String("network_id", networkID), zap.Error(memberErr))
-					return
-				}
-
-				summaries[index].MemberCount = len(members)
-				for _, member := range members {
-					if member.Config.Authorized {
-						summaries[index].AuthorizedMemberCount++
-					} else {
-						summaries[index].PendingMemberCount++
-					}
-				}
-			}(i, net.ID)
-		}
-		wg.Wait()
+	sharedIDs := make([]string, len(sharedNetworks))
+	for i, net := range sharedNetworks {
+		sharedIDs[i] = net.ID
 	}
+	targets := make([]memberStatsSetter, len(summaries))
+	for i := range summaries {
+		targets[i] = &summaries[i]
+	}
+	s.fillMemberStats(sharedIDs, targets)
 
 	return summaries, nil
 }

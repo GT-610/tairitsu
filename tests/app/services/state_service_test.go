@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/GT-610/tairitsu/internal/app/config"
+	"github.com/GT-610/tairitsu/internal/app/database"
 	"github.com/GT-610/tairitsu/internal/app/models"
 	"github.com/GT-610/tairitsu/internal/app/services"
 	"github.com/stretchr/testify/assert"
@@ -24,7 +25,7 @@ func TestStateService_GetSetupStatus_Uninitialized(t *testing.T) {
 			TokenPath: "/tmp/authtoken.secret",
 		},
 		Database: config.DatabaseConfig{
-			Type: config.SQLite,
+			Type: string(database.SQLite),
 			Path: "data/test.db",
 		},
 	}
@@ -59,7 +60,7 @@ func TestStateService_GetSetupStatus_InitializedWithAdminAndOfflineZT(t *testing
 	config.AppConfig = &config.Config{
 		Initialized: true,
 		Database: config.DatabaseConfig{
-			Type: config.SQLite,
+			Type: string(database.SQLite),
 			Path: "data/test.db",
 		},
 	}

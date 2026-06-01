@@ -195,7 +195,7 @@ func SaveConfigToApp(cfg *config.Config, dbConfig Config) error {
 	}
 
 	// 更新数据库配置
-	cfg.Database.Type = config.DatabaseType(dbConfig.Type)
+	cfg.Database.Type = string(dbConfig.Type)
 	cfg.Database.Path = dbConfig.Path
 	cfg.Database.Host = dbConfig.Host
 	cfg.Database.Port = dbConfig.Port

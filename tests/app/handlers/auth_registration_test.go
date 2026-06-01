@@ -29,7 +29,7 @@ func TestAuthHandler_RegisterRejectsWhenPublicRegistrationDisabled(t *testing.T)
 			AllowPublicRegistration: boolPtr(false),
 		},
 		Database: config.DatabaseConfig{
-			Type: config.SQLite,
+			Type: string(database.SQLite),
 			Path: dbPath,
 		},
 		Security: config.SecurityConfig{

@@ -21,7 +21,7 @@ func TestStateServiceWithConfigUsesBoundConfig(t *testing.T) {
 	boundConfig := &config.Config{
 		Initialized: true,
 		Database: config.DatabaseConfig{
-			Type: config.SQLite,
+			Type: string(database.SQLite),
 			Path: filepath.Join(t.TempDir(), "state.db"),
 		},
 	}
@@ -42,7 +42,7 @@ func TestStateServiceSetInitializedPersistsBoundConfig(t *testing.T) {
 	boundConfig := &config.Config{
 		Initialized: false,
 		Database: config.DatabaseConfig{
-			Type: config.SQLite,
+			Type: string(database.SQLite),
 			Path: filepath.Join(t.TempDir(), "persist.db"),
 		},
 	}
@@ -63,7 +63,7 @@ func TestStateServiceDatabaseConfigUsesBoundConfig(t *testing.T) {
 
 	boundConfig := &config.Config{
 		Database: config.DatabaseConfig{
-			Type: config.SQLite,
+			Type: string(database.SQLite),
 			Path: filepath.Join(t.TempDir(), "bound.db"),
 		},
 	}
@@ -95,7 +95,7 @@ func TestStateServiceSaveDatabaseConfigPersistsBoundConfig(t *testing.T) {
 		Path: filepath.Join(t.TempDir(), "saved.db"),
 	}))
 
-	assert.Equal(t, config.SQLite, boundConfig.Database.Type)
+	assert.Equal(t, string(database.SQLite), boundConfig.Database.Type)
 	assert.NotEmpty(t, boundConfig.Database.Path)
 	assert.Empty(t, config.AppConfig.Database.Path)
 }

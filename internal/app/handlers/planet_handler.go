@@ -66,24 +66,14 @@ type GenerateSigningKeysResponse struct {
 	CurrentKeyPath  string `json:"current_key_path"`
 }
 
-type ErrorResponse struct {
-	Error   string `json:"error"`
-	Details string `json:"details,omitempty"`
-}
-
 func GeneratePlanetHandler(c fiber.Ctx) error {
 	var req GeneratePlanetRequest
 	if err := c.Bind().JSON(&req); err != nil {
-		return c.Status(400).JSON(ErrorResponse{
-			Error:   "Invalid request body",
-			Details: err.Error(),
-		})
+		return writeErrorResponse(c, fiber.StatusBadRequest, "Invalid request body: "+err.Error())
 	}
 
 	if len(req.RootNodes) == 0 {
-		return c.Status(400).JSON(ErrorResponse{
-			Error: "root_nodes is required",
-		})
+		return writeErrorResponse(c, fiber.StatusBadRequest, "root_nodes is required")
 	}
 
 	rootNodes := make([]mkworld.RootNodeConfig, 0, len(req.RootNodes))
@@ -117,14 +107,9 @@ func GeneratePlanetHandler(c fiber.Ctx) error {
 			errors.Is(err, mkworld.ErrReservedPlanetID),
 			errors.Is(err, mkworld.ErrInvalidBirthTime),
 			errors.Is(err, mkworld.ErrInvalidSigningKeys):
-			return c.Status(fiber.StatusBadRequest).JSON(ErrorResponse{
-				Error: err.Error(),
-			})
+			return writeErrorResponse(c, fiber.StatusBadRequest, err.Error())
 		default:
-			return c.Status(500).JSON(ErrorResponse{
-				Error:   "Failed to generate planet",
-				Details: err.Error(),
-			})
+			return writeErrorResponse(c, fiber.StatusInternalServerError, "Failed to generate planet: "+err.Error())
 		}
 	}
 
@@ -152,11 +137,7 @@ func GetIdentityHandler(c fiber.Ctx) error {
 				"identity_path": identityPath,
 			})
 		}
-		return c.Status(500).JSON(fiber.Map{
-			"error":         "Failed to read identity.public",
-			"details":       err.Error(),
-			"identity_path": identityPath,
-		})
+		return writeErrorResponse(c, fiber.StatusInternalServerError, "Failed to read identity.public: "+err.Error())
 	}
 
 	return c.JSON(IdentityInfoResponse{
@@ -174,16 +155,10 @@ func GetSigningKeysInfoHandler(c fiber.Ctx) error {
 	_, prevErr := os.Stat(prevPath)
 	_, curErr := os.Stat(curPath)
 	if prevErr != nil && !os.IsNotExist(prevErr) {
-		return c.Status(500).JSON(ErrorResponse{
-			Error:   "Failed to inspect previous signing key",
-			Details: prevErr.Error(),
-		})
+		return writeErrorResponse(c, fiber.StatusInternalServerError, "Failed to inspect previous signing key: "+prevErr.Error())
 	}
 	if curErr != nil && !os.IsNotExist(curErr) {
-		return c.Status(500).JSON(ErrorResponse{
-			Error:   "Failed to inspect current signing key",
-			Details: curErr.Error(),
-		})
+		return writeErrorResponse(c, fiber.StatusInternalServerError, "Failed to inspect current signing key: "+curErr.Error())
 	}
 	prevExists := prevErr == nil
 	curExists := curErr == nil
@@ -206,10 +181,7 @@ func GenerateSigningKeysHandler(c fiber.Ctx) error {
 
 	err := mkworld.CreateSigningKeys(prevPath, curPath)
 	if err != nil {
-		return c.Status(500).JSON(ErrorResponse{
-			Error:   "Failed to generate signing keys",
-			Details: err.Error(),
-		})
+		return writeErrorResponse(c, fiber.StatusInternalServerError, "Failed to generate signing keys: "+err.Error())
 	}
 
 	return c.JSON(GenerateSigningKeysResponse{

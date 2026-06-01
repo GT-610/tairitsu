@@ -13,23 +13,14 @@ import (
 
 // DatabaseConfig Database configuration
 type DatabaseConfig struct {
-	Type DatabaseType `json:"type"`
-	Path string       `json:"path"`
-	Host string       `json:"host"`
-	Port int          `json:"port"`
-	User string       `json:"user"`
-	Pass string       `json:"pass"` // Encrypted password
-	Name string       `json:"name"`
+	Type string `json:"type"`
+	Path string `json:"path"`
+	Host string `json:"host"`
+	Port int    `json:"port"`
+	User string `json:"user"`
+	Pass string `json:"pass"` // Encrypted password
+	Name string `json:"name"`
 }
-
-// DatabaseType Database type
-type DatabaseType string
-
-const (
-	SQLite     DatabaseType = "sqlite"
-	PostgreSQL DatabaseType = "postgresql"
-	MySQL      DatabaseType = "mysql"
-)
 
 // ZeroTierConfig ZeroTier configuration
 type ZeroTierConfig struct {
