@@ -14,6 +14,10 @@ import (
 
 func TestGetIdentityHandler_ReadsIdentityPublic(t *testing.T) {
 	tempDir := t.TempDir()
+	origBase := allowedBasePath
+	allowedBasePath = tempDir
+	defer func() { allowedBasePath = origBase }()
+
 	identityPath := filepath.Join(tempDir, "identity.public")
 	if err := os.WriteFile(identityPath, []byte("f76fd3000b:0:542c89e34a369c2281ed940d05beeffdbaa66930f17b875e9172e43d0ba30b6a39708507f4d64e66cde4a1040d2a995d01209d685ca6c4adb4a5c880af1e9715\n"), 0644); err != nil {
 		t.Fatalf("write identity.public: %v", err)
@@ -45,6 +49,9 @@ func TestGetIdentityHandler_ReadsIdentityPublic(t *testing.T) {
 
 func TestGetIdentityHandler_ReturnsNotFoundForMissingIdentity(t *testing.T) {
 	tempDir := t.TempDir()
+	origBase := allowedBasePath
+	allowedBasePath = tempDir
+	defer func() { allowedBasePath = origBase }()
 
 	app := fiber.New()
 	app.Get("/identity", GetIdentityHandler)
@@ -132,6 +139,10 @@ func TestGeneratePlanetHandler_RejectsDuplicateRootIdentity(t *testing.T) {
 
 func TestGetSigningKeysInfoHandler_ReturnsStatus(t *testing.T) {
 	tempDir := t.TempDir()
+	origBase := allowedBasePath
+	allowedBasePath = tempDir
+	defer func() { allowedBasePath = origBase }()
+
 	prevPath := filepath.Join(tempDir, "previous.c25519")
 	curPath := filepath.Join(tempDir, "current.c25519")
 	if err := os.WriteFile(prevPath, []byte("ready"), 0644); err != nil {

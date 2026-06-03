@@ -19,6 +19,20 @@ import (
 	"go.uber.org/zap"
 )
 
+const defaultZTPath = "/var/lib/zerotier-one"
+
+var allowedBasePath = defaultZTPath
+
+func sanitizeZTPath(userPath string) (string, error) {
+	cleaned := filepath.Clean(userPath)
+	baseClean := filepath.Clean(allowedBasePath)
+	rel, err := filepath.Rel(baseClean, cleaned)
+	if err != nil || strings.HasPrefix(rel, "..") {
+		return "", fmt.Errorf("path %q is not within the allowed ZeroTier directory", userPath)
+	}
+	return cleaned, nil
+}
+
 type GeneratePlanetRequest struct {
 	RootNodes       []PlanetRootNodeRequest `json:"root_nodes"`
 	SigningKeyPath  string                  `json:"signing_key_path"`
@@ -129,8 +143,12 @@ func GeneratePlanetHandler(c fiber.Ctx) error {
 }
 
 func GetIdentityHandler(c fiber.Ctx) error {
-	ztPath := c.Query("path", "/var/lib/zerotier-one")
-	identityPath := filepath.Join(ztPath, "identity.public")
+	ztPath := c.Query("path", defaultZTPath)
+	safePath, err := sanitizeZTPath(ztPath)
+	if err != nil {
+		return writeErrorResponse(c, fiber.StatusBadRequest, err.Error())
+	}
+	identityPath := filepath.Join(safePath, "identity.public")
 
 	identityPublic, err := os.ReadFile(identityPath)
 	if err != nil {
@@ -152,9 +170,13 @@ func GetIdentityHandler(c fiber.Ctx) error {
 }
 
 func GetSigningKeysInfoHandler(c fiber.Ctx) error {
-	ztPath := c.Query("path", "/var/lib/zerotier-one")
-	prevPath := filepath.Join(ztPath, "previous.c25519")
-	curPath := filepath.Join(ztPath, "current.c25519")
+	ztPath := c.Query("path", defaultZTPath)
+	safePath, err := sanitizeZTPath(ztPath)
+	if err != nil {
+		return writeErrorResponse(c, fiber.StatusBadRequest, err.Error())
+	}
+	prevPath := filepath.Join(safePath, "previous.c25519")
+	curPath := filepath.Join(safePath, "current.c25519")
 
 	_, prevErr := os.Stat(prevPath)
 	_, curErr := os.Stat(curPath)
@@ -181,11 +203,15 @@ func GetSigningKeysInfoHandler(c fiber.Ctx) error {
 }
 
 func GenerateSigningKeysHandler(c fiber.Ctx) error {
-	ztPath := c.Query("path", "/var/lib/zerotier-one")
-	prevPath := filepath.Join(ztPath, "previous.c25519")
-	curPath := filepath.Join(ztPath, "current.c25519")
+	ztPath := c.Query("path", defaultZTPath)
+	safePath, err := sanitizeZTPath(ztPath)
+	if err != nil {
+		return writeErrorResponse(c, fiber.StatusBadRequest, err.Error())
+	}
+	prevPath := filepath.Join(safePath, "previous.c25519")
+	curPath := filepath.Join(safePath, "current.c25519")
 
-	err := mkworld.CreateSigningKeys(prevPath, curPath)
+	err = mkworld.CreateSigningKeys(prevPath, curPath)
 	if err != nil {
 		logger.Error("failed to generate signing keys", zap.String("path", ztPath), zap.Error(err))
 		return writeErrorResponse(c, fiber.StatusInternalServerError, "Failed to generate signing keys")
