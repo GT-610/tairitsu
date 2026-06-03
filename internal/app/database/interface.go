@@ -17,6 +17,7 @@ type DBInterface interface {
 	GetUserByID(id string) (*models.User, error)
 	GetUserByUsername(username string) (*models.User, error)
 	GetAllUsers() ([]*models.User, error)
+	GetUsersByIDs(ids []string) ([]*models.User, error)
 	UpdateUser(user *models.User) error
 	DeleteUser(id string) error
 	CreateSession(session *models.Session) error
@@ -36,6 +37,7 @@ type DBInterface interface {
 	GetNetworkViewers(networkID string) ([]*models.NetworkViewer, error)
 	GetSharedNetworksByUserID(userID string) ([]*models.Network, error)
 	DeleteNetworkViewer(networkID, userID string) error
+	DeleteAllNetworkViewers(networkID string) error
 
 	// Check whether an admin user already exists
 	HasAdminUser() (bool, error)

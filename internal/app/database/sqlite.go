@@ -249,6 +249,62 @@ func (s *SQLiteDB) GetAllUsers() ([]*models.User, error) {
 	return users, nil
 }
 
+// GetUsersByIDs retrieves users by a list of IDs in a single query
+func (s *SQLiteDB) GetUsersByIDs(ids []string) ([]*models.User, error) {
+	if len(ids) == 0 {
+		return []*models.User{}, nil
+	}
+	query := `SELECT id, username, password, role, created_at, updated_at FROM users WHERE id IN (` + placeholders(len(ids)) + `)`
+	args := make([]interface{}, len(ids))
+	for i, id := range ids {
+		args[i] = id
+	}
+	var (
+		rows *sql.Rows
+		err  error
+	)
+	if s.tx != nil {
+		rows, err = s.tx.Query(query, args...)
+	} else {
+		s.mu.RLock()
+		defer s.mu.RUnlock()
+		rows, err = s.db.Query(query, args...)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to query users by IDs: %w", err)
+	}
+	defer rows.Close()
+
+	var users []*models.User
+	for rows.Next() {
+		var user models.User
+		err := rows.Scan(&user.ID, &user.Username, &user.Password, &user.Role, &user.CreatedAt, &user.UpdatedAt)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan user data: %w", err)
+		}
+		users = append(users, &user)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("failed to iterate users: %w", err)
+	}
+	return users, nil
+}
+
+// placeholders generates N comma-separated ? placeholders
+func placeholders(n int) string {
+	if n <= 0 {
+		return ""
+	}
+	b := make([]byte, 0, 2*n-1)
+	for i := 0; i < n; i++ {
+		if i > 0 {
+			b = append(b, ',')
+		}
+		b = append(b, '?')
+	}
+	return string(b)
+}
+
 // UpdateUser updates a user
 func (s *SQLiteDB) UpdateUser(user *models.User) error {
 	query := `
@@ -744,6 +800,22 @@ func (s *SQLiteDB) DeleteNetworkViewer(networkID, userID string) error {
 	}
 	if err != nil {
 		return fmt.Errorf("failed to delete network viewer grant: %w", err)
+	}
+	return nil
+}
+
+func (s *SQLiteDB) DeleteAllNetworkViewers(networkID string) error {
+	query := `DELETE FROM network_viewers WHERE network_id = ?`
+	var err error
+	if s.tx != nil {
+		_, err = s.tx.Exec(query, networkID)
+	} else {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		_, err = s.db.Exec(query, networkID)
+	}
+	if err != nil {
+		return fmt.Errorf("failed to delete all network viewer grants: %w", err)
 	}
 	return nil
 }

@@ -71,6 +71,19 @@ func (g *GormDB) GetAllUsers() ([]*models.User, error) {
 	return users, nil
 }
 
+// GetUsersByIDs retrieves users by a list of IDs in a single query
+func (g *GormDB) GetUsersByIDs(ids []string) ([]*models.User, error) {
+	if len(ids) == 0 {
+		return []*models.User{}, nil
+	}
+	var users []*models.User
+	result := g.db.Where("id IN ?", ids).Find(&users)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	return users, nil
+}
+
 // UpdateUser updates a user
 func (g *GormDB) UpdateUser(user *models.User) error {
 	result := g.db.Save(user)
@@ -226,6 +239,10 @@ func (g *GormDB) GetSharedNetworksByUserID(userID string) ([]*models.Network, er
 
 func (g *GormDB) DeleteNetworkViewer(networkID, userID string) error {
 	return g.db.Delete(&models.NetworkViewer{}, "network_id = ? AND user_id = ?", networkID, userID).Error
+}
+
+func (g *GormDB) DeleteAllNetworkViewers(networkID string) error {
+	return g.db.Delete(&models.NetworkViewer{}, "network_id = ?", networkID).Error
 }
 
 // Ping checks if the database connection is alive.

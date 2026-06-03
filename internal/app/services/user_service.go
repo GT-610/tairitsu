@@ -201,11 +201,11 @@ func (s *UserService) GetUserByID(id string) (*models.User, error) {
 	return user, nil
 }
 
-func (s *UserService) GetAllUsers() []*models.User {
+func (s *UserService) GetAllUsers() ([]*models.User, error) {
 	db := s.getDB()
 	if db == nil {
-		logger.Warn("service: database is not initialized; returning empty user list")
-		return []*models.User{}
+		logger.Warn("service: database is not initialized")
+		return nil, fmt.Errorf("database is not initialized")
 	}
 
 	logger.Info("service: getting all users")
@@ -213,10 +213,10 @@ func (s *UserService) GetAllUsers() []*models.User {
 	users, err := db.GetAllUsers()
 	if err != nil {
 		logger.Error("service: failed to get all users", zap.Error(err))
-		return []*models.User{}
+		return nil, fmt.Errorf("failed to get all users: %w", err)
 	}
 
-	return users
+	return users, nil
 }
 
 func (s *UserService) HasAdminUser() (bool, error) {
@@ -335,24 +335,6 @@ func (s *UserService) changePassword(userID, oldPassword, newPassword, currentSe
 
 	logger.Info("service: password changed successfully", zap.String("user_id", userID))
 	return revokedSessions, nil
-}
-
-func (s *UserService) UpdateUserRole(userID, role string) (*models.User, error) {
-	if role != "admin" && role != "user" {
-		return nil, ErrInvalidUserRole
-	}
-
-	user, err := s.GetUserByID(userID)
-	if err != nil {
-		return nil, err
-	}
-
-	user.Role = role
-	if err := s.UpdateUser(user); err != nil {
-		return nil, err
-	}
-
-	return user, nil
 }
 
 func (s *UserService) TransferAdmin(currentAdminID, targetUserID string) (*models.User, error) {

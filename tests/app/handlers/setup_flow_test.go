@@ -76,7 +76,8 @@ func TestSetupFlow_ResetDatabaseThenRegisterAdmin(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, fiber.StatusCreated, registerResp.StatusCode)
 
-	users := userService.GetAllUsers()
+	users, err := userService.GetAllUsers()
+	require.NoError(t, err)
 	require.Len(t, users, 1)
 	assert.Equal(t, "admin", users[0].Username)
 	assert.Equal(t, "admin", users[0].Role)
@@ -87,7 +88,8 @@ func TestSetupFlow_ResetDatabaseThenRegisterAdmin(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, fiber.StatusOK, secondInitResp.StatusCode)
 
-	usersAfterSecondInit := userService.GetAllUsers()
+	usersAfterSecondInit, err := userService.GetAllUsers()
+	require.NoError(t, err)
 	require.Len(t, usersAfterSecondInit, 1)
 	assert.Equal(t, "admin", usersAfterSecondInit[0].Username)
 }

@@ -42,11 +42,3 @@ func TestTempSettings(t *testing.T) {
 	// Assert - Should return empty string for non-existent key
 	assert.Empty(t, nonExistentValue)
 }
-
-func TestIsInitialized_Default(t *testing.T) {
-	// Act
-	isInitialized := config.IsInitialized()
-
-	// Assert
-	assert.False(t, isInitialized)
-}

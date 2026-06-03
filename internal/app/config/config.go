@@ -316,14 +316,6 @@ func decryptSensitiveDataWithConfig(cfg *Config, data string) (string, error) {
 	return crypto.Decrypt(encryptedData, key)
 }
 
-// IsInitialized Check if initialized
-func IsInitialized() bool {
-	if AppConfig == nil {
-		return false
-	}
-	return AppConfig.Initialized
-}
-
 func AllowPublicRegistration(cfg *Config) bool {
 	if cfg == nil || cfg.Registration.AllowPublicRegistration == nil {
 		return true

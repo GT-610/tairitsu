@@ -3,7 +3,9 @@ package services
 import (
 	"github.com/GT-610/tairitsu/internal/app/config"
 	"github.com/GT-610/tairitsu/internal/app/database"
+	"github.com/GT-610/tairitsu/internal/app/logger"
 	"github.com/GT-610/tairitsu/internal/zerotier"
+	"go.uber.org/zap"
 )
 
 type SetupStatus struct {
@@ -37,10 +39,6 @@ type RuntimeSettings struct {
 type StateService struct {
 	cfg          *config.Config
 	globalBacked bool
-}
-
-func NewStateService() *StateService {
-	return &StateService{globalBacked: true}
 }
 
 func NewStateServiceWithConfig(cfg *config.Config) *StateService {
@@ -145,7 +143,10 @@ func (s *StateService) GetSetupStatus(userService *UserService, networkService *
 	}
 
 	if databaseConfigured && userService != nil {
-		users := userService.GetAllUsers()
+		users, err := userService.GetAllUsers()
+		if err != nil {
+			logger.Warn("GetSetupStatus: GetAllUsers failed", zap.Error(err))
+		}
 		for _, user := range users {
 			if user.Role == "admin" {
 				status.HasAdmin = true

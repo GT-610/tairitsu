@@ -37,6 +37,9 @@ func (d *txFailingDB) GetUserByUsername(username string) (*models.User, error) {
 	return d.inner.GetUserByUsername(username)
 }
 func (d *txFailingDB) GetAllUsers() ([]*models.User, error) { return d.inner.GetAllUsers() }
+func (d *txFailingDB) GetUsersByIDs(ids []string) ([]*models.User, error) {
+	return d.inner.GetUsersByIDs(ids)
+}
 func (d *txFailingDB) UpdateUser(user *models.User) error   { return d.inner.UpdateUser(user) }
 func (d *txFailingDB) DeleteUser(id string) error {
 	if d.failDeleteUser {
@@ -89,6 +92,9 @@ func (d *txFailingDB) GetSharedNetworksByUserID(userID string) ([]*models.Networ
 func (d *txFailingDB) DeleteNetworkViewer(networkID, userID string) error {
 	return d.inner.DeleteNetworkViewer(networkID, userID)
 }
+func (d *txFailingDB) DeleteAllNetworkViewers(networkID string) error {
+	return d.inner.DeleteAllNetworkViewers(networkID)
+}
 func (d *txFailingDB) HasAdminUser() (bool, error)   { return d.inner.HasAdminUser() }
 func (d *txFailingDB) Ping() error                  { return d.inner.Ping() }
 func (d *txFailingDB) Close() error                  { return d.inner.Close() }
@@ -133,17 +139,6 @@ func TestUserServiceLoginReturnsSentinelForInvalidCredentials(t *testing.T) {
 
 	_, err := service.Login(&models.LoginRequest{Username: "missing", Password: "secret123"})
 	require.ErrorIs(t, err, appservices.ErrInvalidCredentials)
-}
-
-func TestUserServiceUpdateUserRoleValidatesRoleAndMissingUser(t *testing.T) {
-	db := newTestSQLiteDB(t)
-	service := appservices.NewUserService(db)
-
-	_, err := service.UpdateUserRole("missing", "super-admin")
-	require.ErrorIs(t, err, appservices.ErrInvalidUserRole)
-
-	_, err = service.UpdateUserRole("missing", "admin")
-	require.ErrorIs(t, err, appservices.ErrUserNotFound)
 }
 
 func TestUserServiceChangePasswordReturnsSentinelForWrongPassword(t *testing.T) {
@@ -203,18 +198,6 @@ func TestUserServiceChangePasswordAndRevokeOtherSessionsRollsBackOnSessionFailur
 	reloadedOtherSession, err := db.GetSessionByID(otherSession.ID)
 	require.NoError(t, err)
 	assert.Nil(t, reloadedOtherSession.RevokedAt)
-}
-
-func TestUserServiceUpdateUserRoleUpdatesStoredUser(t *testing.T) {
-	db := newTestSQLiteDB(t)
-	service := appservices.NewUserService(db)
-
-	user, err := service.Register(&models.RegisterRequest{Username: "user-1", Password: "secret123"}, "user")
-	require.NoError(t, err)
-
-	updated, err := service.UpdateUserRole(user.ID, "admin")
-	require.NoError(t, err)
-	assert.Equal(t, "admin", updated.Role)
 }
 
 func TestUserServiceTransferAdminTransfersSingleAdminRole(t *testing.T) {

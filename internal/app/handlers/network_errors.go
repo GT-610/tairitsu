@@ -3,8 +3,10 @@ package handlers
 import (
 	"errors"
 
+	"github.com/GT-610/tairitsu/internal/app/logger"
 	"github.com/GT-610/tairitsu/internal/app/services"
 	"github.com/gofiber/fiber/v3"
+	"go.uber.org/zap"
 )
 
 func writeNetworkServiceError(c fiber.Ctx, err error, notFoundMessage string, forbiddenMessage string) error {
@@ -24,6 +26,7 @@ func writeNetworkServiceError(c fiber.Ctx, err error, notFoundMessage string, fo
 	case errors.Is(err, services.ErrViewerTargetInvalid):
 		return writeErrorResponseWithCode(c, fiber.StatusBadRequest, "network.viewer_target_invalid", err.Error())
 	default:
-		return writeErrorResponseWithCode(c, fiber.StatusInternalServerError, "system.internal_error", err.Error())
+		logger.Error("unhandled network service error", zap.Error(err))
+		return writeErrorResponseWithCode(c, fiber.StatusInternalServerError, "system.internal_error", "Internal Server Error")
 	}
 }
