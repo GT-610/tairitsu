@@ -2,7 +2,7 @@ package models
 
 import "time"
 
-// NetworkViewer 表示网络的只读成员设备查看授权
+// NetworkViewer grants read-only member visibility on a network to a user.
 type NetworkViewer struct {
 	NetworkID  string    `json:"network_id" gorm:"primaryKey;index"`
 	UserID     string    `json:"user_id" gorm:"primaryKey;index"`

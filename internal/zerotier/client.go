@@ -11,9 +11,10 @@ import (
 	"time"
 
 	"github.com/GT-610/tairitsu/internal/app/config"
+	"github.com/GT-610/tairitsu/internal/app/logger"
 )
 
-// Client ZeroTier API客户端
+// Client is a ZeroTier controller API client.
 type Client struct {
 	BaseURL    string
 	Token      string
@@ -22,7 +23,7 @@ type Client struct {
 
 const responsePreviewLimit = 160
 
-// Network 网络结构
+// Network represents a ZeroTier network.
 type Network struct {
 	ID          string        `json:"id"`
 	Name        string        `json:"name"`
@@ -33,7 +34,7 @@ type Network struct {
 	Status      string        `json:"status"`
 }
 
-// NetworkResponse ZeroTier API返回的扁平网络结构（用于自定义解析）
+// NetworkResponse is the raw flat network structure returned by the ZeroTier API (used for custom unmarshalling).
 type NetworkResponse struct {
 	ID                         string             `json:"id"`
 	Name                       string             `json:"name"`
@@ -86,7 +87,7 @@ func (n *Network) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// NetworkUpdateRequest 部分更新网络请求（不强制要求必填字段）
+// NetworkUpdateRequest is a partial network update request (no required fields).
 type NetworkUpdateRequest struct {
 	Name                 string             `json:"name,omitempty"`
 	Description          string             `json:"description,omitempty"`
@@ -102,7 +103,7 @@ type NetworkUpdateRequest struct {
 	V6AssignMode         *V6AssignmentMode  `json:"v6AssignMode,omitempty"`
 }
 
-// NetworkConfig 网络配置
+// NetworkConfig holds the network configuration fields.
 type NetworkConfig struct {
 	Private                    bool               `json:"private"`
 	AllowPassivePortForwarding bool               `json:"allowPassivePortForwarding"`
@@ -145,32 +146,32 @@ func (d *DNSConfig) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// V6AssignmentMode IPv6分配模式
+// V6AssignmentMode represents IPv6 assignment mode.
 type V6AssignmentMode struct {
 	ZT      bool `json:"zt"`
 	Plane6  bool `json:"6plane"`
 	Rfc4193 bool `json:"rfc4193"`
 }
 
-// IpAssignmentPool IP分配池
+// IpAssignmentPool defines an IP address range for assignment.
 type IpAssignmentPool struct {
 	IpRangeStart string `json:"ipRangeStart"`
 	IpRangeEnd   string `json:"ipRangeEnd"`
 }
 
-// Route 路由
+// Route represents a network route.
 type Route struct {
 	Target string `json:"target"`
 	Via    string `json:"via,omitempty"`
 }
 
-// Tag 标签
+// Tag represents a network tag.
 type Tag struct {
 	ID    int `json:"id"`
 	Value int `json:"value"`
 }
 
-// Rule 规则
+// Rule represents a network rule.
 type Rule struct {
 	Not       bool   `json:"not"`
 	Or        bool   `json:"or,omitempty"`
@@ -183,12 +184,12 @@ type Rule struct {
 	Action    string `json:"action"`
 }
 
-// AssignmentMode 分配模式
+// AssignmentMode represents IPv4 assignment mode.
 type AssignmentMode struct {
 	ZT bool `json:"zt"`
 }
 
-// Member 网络成员
+// Member represents a network member.
 type Member struct {
 	ID              string       `json:"id"`
 	Address         string       `json:"address"`
@@ -316,7 +317,7 @@ type MemberUpdateRequest struct {
 	NoAutoAssignIPs *bool    `json:"noAutoAssignIps,omitempty"`
 }
 
-// MemberConfig 成员配置
+// MemberConfig holds member configuration fields.
 type MemberConfig struct {
 	Authorized      bool     `json:"authorized"`
 	ActiveBridge    bool     `json:"activeBridge"`
@@ -344,7 +345,7 @@ type PeerPath struct {
 	Preferred bool   `json:"preferred"`
 }
 
-// Status ZeroTier状态
+// Status represents the ZeroTier controller status.
 type Status struct {
 	Version     string `json:"version"`
 	Address     string `json:"address"`
@@ -403,6 +404,7 @@ func NewClientWithConfig(cfg *config.Config) (*Client, error) {
 	baseURL := cfg.ZeroTier.URL
 	if baseURL == "" {
 		baseURL = "http://localhost:9993"
+		logger.Warn("ZeroTier URL not configured, falling back to default; this will not work if ZeroTier runs in a separate container")
 	}
 
 	return &Client{
@@ -412,12 +414,10 @@ func NewClientWithConfig(cfg *config.Config) (*Client, error) {
 	}, nil
 }
 
-// doRequest 执行HTTP请求
+// doRequest executes an HTTP request against the ZeroTier controller.
 func (c *Client) doRequest(method, endpoint string, body interface{}) ([]byte, error) {
-	// 构建URL
 	url := fmt.Sprintf("%s%s", c.BaseURL, endpoint)
 
-	// 创建请求体
 	var bodyReader io.Reader
 	if body != nil {
 		jsonData, err := json.Marshal(body)
@@ -427,30 +427,25 @@ func (c *Client) doRequest(method, endpoint string, body interface{}) ([]byte, e
 		bodyReader = bytes.NewBuffer(jsonData)
 	}
 
-	// 创建请求
 	req, err := http.NewRequest(method, url, bodyReader)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
-	// 设置请求头
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-ZT1-Auth", c.Token)
 
-	// 发送请求
 	resp, err := c.HTTPClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
 	defer resp.Body.Close()
 
-	// 读取响应体
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response body: %w", err)
 	}
 
-	// 检查响应状态
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
 		return nil, fmt.Errorf("request failed (status %d): %s", resp.StatusCode, string(respBody))
 	}
@@ -458,7 +453,7 @@ func (c *Client) doRequest(method, endpoint string, body interface{}) ([]byte, e
 	return respBody, nil
 }
 
-// GetStatus 获取ZeroTier控制器状态
+// GetStatus retrieves the ZeroTier controller status.
 func (c *Client) GetStatus() (*Status, error) {
 	respBody, err := c.doRequest("GET", "/status", nil)
 	if err != nil {
@@ -473,7 +468,7 @@ func (c *Client) GetStatus() (*Status, error) {
 	return &status, nil
 }
 
-// GetNetworkIDs 只获取网络ID列表（轻量级）
+// GetNetworkIDs retrieves only the network ID list (lightweight).
 func (c *Client) GetNetworkIDs() ([]string, error) {
 	respBody, err := c.doRequest("GET", "/controller/network", nil)
 	if err != nil {
@@ -587,7 +582,7 @@ func looksLikeNetworkID(id string) bool {
 	return true
 }
 
-// GetNetwork 获取单个网络详情
+// GetNetwork retrieves a single network by ID.
 func (c *Client) GetNetwork(networkID string) (*Network, error) {
 	endpoint := fmt.Sprintf("/controller/network/%s", networkID)
 	respBody, err := c.doRequest("GET", endpoint, nil)
@@ -603,7 +598,7 @@ func (c *Client) GetNetwork(networkID string) (*Network, error) {
 	return &network, nil
 }
 
-// CreateNetwork 创建新网络
+// CreateNetwork creates a new network.
 func (c *Client) CreateNetwork(network *Network) (*Network, error) {
 	respBody, err := c.doRequest("POST", "/controller/network", network)
 	if err != nil {
@@ -618,7 +613,7 @@ func (c *Client) CreateNetwork(network *Network) (*Network, error) {
 	return &createdNetwork, nil
 }
 
-// PartialUpdateNetwork 部分更新网络配置
+// PartialUpdateNetwork partially updates a network configuration.
 func (c *Client) PartialUpdateNetwork(networkID string, updateReq *NetworkUpdateRequest) (*Network, error) {
 	endpoint := fmt.Sprintf("/controller/network/%s", networkID)
 	respBody, err := c.doRequest("POST", endpoint, updateReq)
@@ -634,14 +629,14 @@ func (c *Client) PartialUpdateNetwork(networkID string, updateReq *NetworkUpdate
 	return &updatedNetwork, nil
 }
 
-// DeleteNetwork 删除网络
+// DeleteNetwork deletes a network by ID.
 func (c *Client) DeleteNetwork(networkID string) error {
 	endpoint := fmt.Sprintf("/controller/network/%s", networkID)
 	_, err := c.doRequest("DELETE", endpoint, nil)
 	return err
 }
 
-// GetMembers 获取网络成员列表
+// GetMembers retrieves all members of a network.
 func (c *Client) GetMembers(networkID string) ([]Member, error) {
 	endpoint := fmt.Sprintf("/controller/network/%s/member", networkID)
 	respBody, err := c.doRequest("GET", endpoint, nil)
@@ -677,7 +672,7 @@ func (c *Client) GetMembers(networkID string) ([]Member, error) {
 	return members, nil
 }
 
-// GetMember 获取单个成员详情
+// GetMember retrieves a single member by network ID and member ID.
 func (c *Client) GetMember(networkID, memberID string) (*Member, error) {
 	endpoint := fmt.Sprintf("/controller/network/%s/member/%s", networkID, memberID)
 	respBody, err := c.doRequest("GET", endpoint, nil)
@@ -693,7 +688,7 @@ func (c *Client) GetMember(networkID, memberID string) (*Member, error) {
 	return &member, nil
 }
 
-// GetPeers 获取所有对等节点信息
+// GetPeers retrieves all peer nodes.
 func (c *Client) GetPeers() ([]Peer, error) {
 	respBody, err := c.doRequest("GET", "/peer", nil)
 	if err != nil {
@@ -712,7 +707,7 @@ func (c *Client) GetPeers() ([]Peer, error) {
 	return peers, nil
 }
 
-// UpdateMember 更新成员配置
+// UpdateMember updates a member's configuration.
 func (c *Client) UpdateMember(networkID, memberID string, member *MemberUpdateRequest) (*Member, error) {
 	endpoint := fmt.Sprintf("/controller/network/%s/member/%s", networkID, memberID)
 	respBody, err := c.doRequest("POST", endpoint, member)
@@ -728,7 +723,7 @@ func (c *Client) UpdateMember(networkID, memberID string, member *MemberUpdateRe
 	return &updatedMember, nil
 }
 
-// DeleteMember 移除网络成员
+// DeleteMember removes a member from a network.
 func (c *Client) DeleteMember(networkID, memberID string) error {
 	endpoint := fmt.Sprintf("/controller/network/%s/member/%s", networkID, memberID)
 	_, err := c.doRequest("DELETE", endpoint, nil)

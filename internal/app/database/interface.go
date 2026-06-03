@@ -4,15 +4,15 @@ import (
 	"github.com/GT-610/tairitsu/internal/app/models"
 )
 
-// DBInterface 定义数据库接口，支持多种数据库后端
+// DBInterface defines the database interface, supporting multiple database backends
 type DBInterface interface {
-	// 初始化数据库
+	// Initialize the database
 	Init() error
 
-	// 在事务中执行数据库操作
+	// Execute database operations within a transaction
 	WithTransaction(fn func(DBInterface) error) error
 
-	// 用户相关操作
+	// User operations
 	CreateUser(user *models.User) error
 	GetUserByID(id string) (*models.User, error)
 	GetUserByUsername(username string) (*models.User, error)
@@ -24,7 +24,7 @@ type DBInterface interface {
 	GetSessionsByUserID(userID string) ([]*models.Session, error)
 	UpdateSession(session *models.Session) error
 
-	// 网络相关操作
+	// Network operations
 	CreateNetwork(network *models.Network) error
 	GetNetworkByID(id string) (*models.Network, error)
 	GetNetworksByOwnerID(ownerID string) ([]*models.Network, error)
@@ -37,12 +37,12 @@ type DBInterface interface {
 	GetSharedNetworksByUserID(userID string) ([]*models.Network, error)
 	DeleteNetworkViewer(networkID, userID string) error
 
-	// 检查是否已存在管理员用户
+	// Check whether an admin user already exists
 	HasAdminUser() (bool, error)
 
-	// 检查数据库连接是否存活
+	// Check whether the database connection is alive
 	Ping() error
 
-	// 关闭数据库连接
+	// Close the database connection
 	Close() error
 }

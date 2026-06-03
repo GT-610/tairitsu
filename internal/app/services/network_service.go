@@ -158,7 +158,7 @@ func (s *NetworkService) GetRuntimeStatus() *RuntimeStatus {
 	return runtimeStatus
 }
 
-// NetworkSummary 网络摘要信息（从数据库获取）
+// NetworkSummary contains summary information for a network (retrieved from database)
 type NetworkSummary struct {
 	ID                    string    `json:"id"`
 	Name                  string    `json:"name"`
@@ -205,7 +205,7 @@ type NetworkViewerSummary struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
-// NetworkDetail 网络详情（包含控制器信息和数据库描述）
+// NetworkDetail contains detailed network information (includes controller data and database description)
 type NetworkDetail struct {
 	*zerotier.Network
 	DBDescription string            `json:"db_description"`
@@ -401,7 +401,7 @@ func (s *NetworkService) CreateNetwork(network *zerotier.Network, ownerID string
 	return createdNetwork, nil
 }
 
-// UpdateNetwork 更新网络 with ownership check and private network enforcement
+// UpdateNetwork updates a network with ownership check and private network enforcement
 func (s *NetworkService) UpdateNetwork(id string, updateReq *zerotier.NetworkUpdateRequest, userID string) (*zerotier.Network, error) {
 	if s.ztClient == nil {
 		logger.Warn("service: ZeroTier client is not initialized")
@@ -463,7 +463,7 @@ func (s *NetworkService) UpdateNetworkMetadata(id string, name string, descripti
 		return nil, err
 	}
 
-	// 更新控制器中的网络名称（名称同步更新）
+	// Update network name in the controller (name is synced to the controller)
 	updateReq := NormalizeNetworkUpdateRequest(&zerotier.NetworkUpdateRequest{
 		Name: name,
 	})
@@ -473,7 +473,7 @@ func (s *NetworkService) UpdateNetworkMetadata(id string, name string, descripti
 		return nil, err
 	}
 
-	// 更新数据库中的名称和描述（描述只更新数据库）
+	// Update name and description in the database (description is database-only)
 	ownedNetwork.Name = name
 	ownedNetwork.Description = description
 	if err := db.UpdateNetwork(ownedNetwork); err != nil {
@@ -486,7 +486,7 @@ func (s *NetworkService) UpdateNetworkMetadata(id string, name string, descripti
 	return updatedNetwork, nil
 }
 
-// DeleteNetwork 删除网络 with ownership check
+// DeleteNetwork deletes a network with ownership check
 func (s *NetworkService) DeleteNetwork(networkID string, userID string) error {
 	if s.ztClient == nil {
 		logger.Warn("service: ZeroTier client is not initialized")
@@ -534,7 +534,7 @@ func (s *NetworkService) DeleteNetwork(networkID string, userID string) error {
 	return nil
 }
 
-// GetNetworkMembers 获取网络中的所有成员 with ownership check
+// GetNetworkMembers retrieves all members in a network with ownership check
 func (s *NetworkService) GetNetworkMembers(networkID string, userID string) ([]zerotier.Member, error) {
 	if s.ztClient == nil {
 		logger.Warn("service: ZeroTier client is not initialized")
@@ -558,7 +558,7 @@ func (s *NetworkService) GetNetworkMembers(networkID string, userID string) ([]z
 	return members, nil
 }
 
-// GetNetworkMember 获取网络中的特定成员 with ownership check
+// GetNetworkMember retrieves a specific member in a network with ownership check
 func (s *NetworkService) GetNetworkMember(networkID, memberID string, userID string) (*zerotier.Member, error) {
 	if s.ztClient == nil {
 		logger.Warn("service: ZeroTier client is not initialized")
@@ -587,7 +587,7 @@ func (s *NetworkService) GetNetworkMember(networkID, memberID string, userID str
 	return member, nil
 }
 
-// UpdateNetworkMember 更新网络成员 with ownership check
+// UpdateNetworkMember updates a network member with ownership check
 func (s *NetworkService) UpdateNetworkMember(networkID, memberID string, member *zerotier.MemberUpdateRequest, userID string) (*zerotier.Member, error) {
 	if s.ztClient == nil {
 		logger.Warn("service: ZeroTier client is not initialized")
@@ -680,7 +680,7 @@ func enrichMemberPeerFields(member *zerotier.Member, peer zerotier.Peer) {
 	}
 }
 
-// RemoveNetworkMember 从网络中移除成员 with ownership check
+// RemoveNetworkMember removes a member from a network with ownership check
 func (s *NetworkService) RemoveNetworkMember(networkID, memberID string, userID string) error {
 	if s.ztClient == nil {
 		logger.Warn("service: ZeroTier client is not initialized")
@@ -829,7 +829,7 @@ func (s *NetworkService) RevokeNetworkViewer(networkID, targetUserID, ownerID st
 	return db.DeleteNetworkViewer(network.ID, targetUserID)
 }
 
-// SetZTClient 设置ZeroTier客户端
+// SetZTClient sets the ZeroTier client
 func (s *NetworkService) SetZTClient(client *zerotier.Client) {
 	if client == nil {
 		logger.Warn("service: attempted to set an empty ZeroTier client")
@@ -911,7 +911,7 @@ type ImportNetworksResult struct {
 	Skipped     []ImportNetworkResultItem `json:"skipped"`
 }
 
-// GetImportableNetworks 获取控制器接管候选列表
+// GetImportableNetworks retrieves the list of controller takeover candidates
 func (s *NetworkService) GetImportableNetworks() (*ImportableNetworksResult, error) {
 	db := s.getDB()
 	if db == nil {
@@ -993,7 +993,7 @@ func (s *NetworkService) GetImportableNetworks() (*ImportableNetworksResult, err
 	return result, nil
 }
 
-// ImportNetworks 导入指定的网络
+// ImportNetworks imports the specified networks
 func (s *NetworkService) ImportNetworks(networkIDs []string, ownerID string, actorRole string) (*ImportNetworksResult, error) {
 	if s.ztClient == nil {
 		logger.Warn("service: ZeroTier client is not initialized")
@@ -1035,20 +1035,20 @@ func (s *NetworkService) ImportNetworks(networkIDs []string, ownerID string, act
 		return nil, err
 	}
 
-	// 创建网络ID到数据库记录的映射
+	// Build a mapping from network ID to database record
 	dbNetworkMap := make(map[string]*models.Network)
 	for _, net := range dbNetworks {
 		dbNetworkMap[net.ID] = net
 	}
 
-	// 获取所有ZeroTier网络ID列表
+	// Retrieve all ZeroTier network IDs from the controller
 	ztNetworkIDs, err := s.ztClient.GetNetworkIDs()
 	if err != nil {
 		logger.Error("service: failed to get ZeroTier network ID list", zap.Error(err))
 		return nil, err
 	}
 
-	// 创建ZeroTier网络ID集合
+	// Build a set of ZeroTier network IDs
 	ztNetworkSet := make(map[string]bool)
 	for _, id := range ztNetworkIDs {
 		ztNetworkSet[id] = true
@@ -1097,7 +1097,7 @@ func (s *NetworkService) ImportNetworks(networkIDs []string, ownerID string, act
 		dbNet, dbExists := dbNetworkMap[networkID]
 
 		if !dbExists {
-			// 从ZeroTier获取完整网络信息
+			// Fetch full network details from ZeroTier
 			ztNet, err := s.ztClient.GetNetwork(networkID)
 			if err != nil {
 				logger.Error("Failed to read network details", zap.String("network_id", networkID), zap.Error(err))
@@ -1111,7 +1111,7 @@ func (s *NetworkService) ImportNetworks(networkIDs []string, ownerID string, act
 				continue
 			}
 
-			// 创建新记录，包含完整信息
+			// Create a new record with complete information
 			newNetwork := &models.Network{
 				ID:          networkID,
 				Name:        ztNet.Name,

@@ -8,19 +8,19 @@ import (
 	"go.uber.org/zap"
 )
 
-// NetworkHandler 网络处理器
+// NetworkHandler handles network-related HTTP requests
 type NetworkHandler struct {
 	networkService *services.NetworkService
 }
 
-// NewNetworkHandler 创建网络处理器实例
+// NewNetworkHandler creates a new network handler instance
 func NewNetworkHandler(networkService *services.NetworkService) *NetworkHandler {
 	return &NetworkHandler{
 		networkService: networkService,
 	}
 }
 
-// GetStatus 获取ZeroTier网络状态
+// GetStatus retrieves the ZeroTier network status
 func (h *NetworkHandler) GetStatus(c fiber.Ctx) error {
 	logger.Info("Getting ZeroTier network status")
 
@@ -31,7 +31,7 @@ func (h *NetworkHandler) GetStatus(c fiber.Ctx) error {
 	return c.Status(fiber.StatusOK).JSON(status)
 }
 
-// GetNetworks 获取当前用户的所有网络
+// GetNetworks retrieves all networks owned by the current user
 func (h *NetworkHandler) GetNetworks(c fiber.Ctx) error {
 	logger.Info("Getting networks for current user")
 
@@ -69,7 +69,7 @@ func (h *NetworkHandler) GetSharedNetworks(c fiber.Ctx) error {
 	return c.Status(fiber.StatusOK).JSON(networks)
 }
 
-// GetNetwork 获取特定网络
+// GetNetwork retrieves a specific network
 func (h *NetworkHandler) GetNetwork(c fiber.Ctx) error {
 	id := c.Params("id")
 	logger.Info("Getting network", zap.String("network_id", id))
@@ -92,7 +92,7 @@ func (h *NetworkHandler) GetNetwork(c fiber.Ctx) error {
 	return c.Status(fiber.StatusOK).JSON(network)
 }
 
-// CreateNetwork 创建新网络
+// CreateNetwork creates a new network
 func (h *NetworkHandler) CreateNetwork(c fiber.Ctx) error {
 	var req zerotier.Network
 	if err := c.Bind().Body(&req); err != nil {
@@ -120,7 +120,7 @@ func (h *NetworkHandler) CreateNetwork(c fiber.Ctx) error {
 	return c.Status(fiber.StatusCreated).JSON(network)
 }
 
-// UpdateNetwork 更新网络
+// UpdateNetwork updates a network
 func (h *NetworkHandler) UpdateNetwork(c fiber.Ctx) error {
 	id := c.Params("id")
 
@@ -150,8 +150,8 @@ func (h *NetworkHandler) UpdateNetwork(c fiber.Ctx) error {
 	return c.Status(fiber.StatusOK).JSON(network)
 }
 
-// UpdateNetworkMetadata 更新网络元数据（名称和描述）
-// 名称同步更新控制器和数据库，描述仅更新数据库
+// UpdateNetworkMetadata updates network metadata (name and description)
+// Name is synced to both the controller and the database; description is database-only
 func (h *NetworkHandler) UpdateNetworkMetadata(c fiber.Ctx) error {
 	id := c.Params("id")
 
@@ -184,7 +184,7 @@ func (h *NetworkHandler) UpdateNetworkMetadata(c fiber.Ctx) error {
 	return c.Status(fiber.StatusOK).JSON(network)
 }
 
-// DeleteNetwork 删除网络
+// DeleteNetwork deletes a network
 func (h *NetworkHandler) DeleteNetwork(c fiber.Ctx) error {
 	id := c.Params("id")
 	logger.Info("Deleting network", zap.String("network_id", id))
@@ -207,7 +207,7 @@ func (h *NetworkHandler) DeleteNetwork(c fiber.Ctx) error {
 	return writeMessageResponse(c, fiber.StatusOK, "network.delete_success", "Network deleted successfully", nil)
 }
 
-// GetImportableNetworks 获取可导入的网络列表
+// GetImportableNetworks retrieves the list of importable networks
 func (h *NetworkHandler) GetImportableNetworks(c fiber.Ctx) error {
 	logger.Info("Getting importable networks")
 
@@ -228,7 +228,7 @@ func (h *NetworkHandler) GetImportableNetworks(c fiber.Ctx) error {
 	return c.Status(fiber.StatusOK).JSON(importableNetworks)
 }
 
-// ImportNetworks 导入指定的网络
+// ImportNetworks imports the specified networks
 func (h *NetworkHandler) ImportNetworks(c fiber.Ctx) error {
 	logger.Info("Importing networks")
 

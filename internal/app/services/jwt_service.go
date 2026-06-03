@@ -51,10 +51,10 @@ func (s *JWTService) GenerateToken(user *models.User, sessionID string) (string,
 		},
 	}
 
-	// 创建令牌
+	// Create the token
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 
-	// 签名令牌
+	// Sign the token
 	tokenString, err := token.SignedString([]byte(s.secretKey))
 	if err != nil {
 		return "", err
@@ -63,11 +63,11 @@ func (s *JWTService) GenerateToken(user *models.User, sessionID string) (string,
 	return tokenString, nil
 }
 
-// ValidateToken 验证JWT令牌
+// ValidateToken validates a JWT token
 func (s *JWTService) ValidateToken(tokenString string) (*JWTClaims, error) {
-	// 解析令牌
+	// Parse the token
 	token, err := jwt.ParseWithClaims(tokenString, &JWTClaims{}, func(token *jwt.Token) (interface{}, error) {
-		// 验证签名方法
+		// Verify the signing method
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, errors.New("invalid signing method")
 		}
@@ -78,7 +78,7 @@ func (s *JWTService) ValidateToken(tokenString string) (*JWTClaims, error) {
 		return nil, err
 	}
 
-	// 验证声明
+	// Validate claims
 	if claims, ok := token.Claims.(*JWTClaims); ok && token.Valid {
 		return claims, nil
 	}

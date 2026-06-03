@@ -8,7 +8,7 @@ import (
 	"go.uber.org/zap"
 )
 
-// MemberHandler 成员处理器
+// MemberHandler handles member-related HTTP requests
 type MemberHandler struct {
 	networkService *services.NetworkService
 }
@@ -21,14 +21,14 @@ func memberRouteNetworkID(c fiber.Ctx) string {
 	return networkID
 }
 
-// NewMemberHandler 创建成员处理器实例
+// NewMemberHandler creates a new member handler instance
 func NewMemberHandler(networkService *services.NetworkService) *MemberHandler {
 	return &MemberHandler{
 		networkService: networkService,
 	}
 }
 
-// GetMembers 获取网络中的所有成员
+// GetMembers retrieves all members in a network
 func (h *MemberHandler) GetMembers(c fiber.Ctx) error {
 	networkID := memberRouteNetworkID(c)
 
@@ -48,7 +48,7 @@ func (h *MemberHandler) GetMembers(c fiber.Ctx) error {
 	return c.Status(fiber.StatusOK).JSON(members)
 }
 
-// GetMember 获取网络中的特定成员
+// GetMember retrieves a specific member in a network
 func (h *MemberHandler) GetMember(c fiber.Ctx) error {
 	networkID := memberRouteNetworkID(c)
 	memberID := c.Params("memberId")
@@ -74,7 +74,7 @@ func (h *MemberHandler) GetMember(c fiber.Ctx) error {
 	return c.Status(fiber.StatusOK).JSON(member)
 }
 
-// UpdateMember 更新网络成员
+// UpdateMember updates a network member
 func (h *MemberHandler) UpdateMember(c fiber.Ctx) error {
 	networkID := memberRouteNetworkID(c)
 	memberID := c.Params("memberId")
@@ -101,7 +101,7 @@ func (h *MemberHandler) UpdateMember(c fiber.Ctx) error {
 	return c.Status(fiber.StatusOK).JSON(member)
 }
 
-// DeleteMember 删除网络成员
+// DeleteMember deletes a network member
 func (h *MemberHandler) DeleteMember(c fiber.Ctx) error {
 	networkID := memberRouteNetworkID(c)
 	memberID := c.Params("memberId")
