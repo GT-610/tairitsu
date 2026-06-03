@@ -19,14 +19,14 @@ type JWTClaims struct {
 
 // JWTService handles JWT token generation, validation, and parsing
 type JWTService struct {
-	secretKey    string        // Secret key used for signing tokens
+	secretKey    []byte        // Secret key used for signing tokens
 	accessExpiry time.Duration // Default expiration time for access tokens
 }
 
 // NewJWTService creates a new JWT service instance with the provided secret key
 func NewJWTService(secretKey string) *JWTService {
 	return &JWTService{
-		secretKey:    secretKey,
+		secretKey:    []byte(secretKey),
 		accessExpiry: time.Hour * 24, // 24 hours expiration time
 	}
 }
@@ -38,24 +38,21 @@ func (s *JWTService) AccessExpiry() time.Duration {
 
 // GenerateToken creates a new JWT token for the given user
 func (s *JWTService) GenerateToken(user *models.User, sessionID string) (string, error) {
-	// Create claims
+	now := time.Now()
 	claims := JWTClaims{
 		UserID:    user.ID,
 		Username:  user.Username,
 		Role:      user.Role,
 		SessionID: sessionID,
 		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(s.accessExpiry)),
-			IssuedAt:  jwt.NewNumericDate(time.Now()),
-			NotBefore: jwt.NewNumericDate(time.Now()),
+			ExpiresAt: jwt.NewNumericDate(now.Add(s.accessExpiry)),
+			IssuedAt:  jwt.NewNumericDate(now),
+			NotBefore: jwt.NewNumericDate(now),
 		},
 	}
 
-	// Create the token
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-
-	// Sign the token
-	tokenString, err := token.SignedString([]byte(s.secretKey))
+	tokenString, err := token.SignedString(s.secretKey)
 	if err != nil {
 		return "", err
 	}
@@ -67,11 +64,10 @@ func (s *JWTService) GenerateToken(user *models.User, sessionID string) (string,
 func (s *JWTService) ValidateToken(tokenString string) (*JWTClaims, error) {
 	// Parse the token
 	token, err := jwt.ParseWithClaims(tokenString, &JWTClaims{}, func(token *jwt.Token) (interface{}, error) {
-		// Verify the signing method
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, errors.New("invalid signing method")
 		}
-		return []byte(s.secretKey), nil
+		return s.secretKey, nil
 	})
 
 	if err != nil {

@@ -125,7 +125,7 @@ type DNSConfig struct {
 }
 
 func (d *DNSConfig) UnmarshalJSON(data []byte) error {
-	trimmed := strings.TrimSpace(string(data))
+	trimmed := string(bytes.TrimSpace(data))
 	if trimmed == "" || trimmed == "null" {
 		*d = DNSConfig{}
 		return nil
@@ -441,7 +441,7 @@ func (c *Client) doRequest(method, endpoint string, body interface{}) ([]byte, e
 	}
 	defer resp.Body.Close()
 
-	respBody, err := io.ReadAll(resp.Body)
+	respBody, err := io.ReadAll(io.LimitReader(resp.Body, 10<<20))
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response body: %w", err)
 	}
@@ -484,7 +484,7 @@ func (c *Client) GetNetworkIDs() ([]string, error) {
 }
 
 func parseNetworkIDs(data []byte) ([]string, error) {
-	trimmed := strings.TrimSpace(string(data))
+	trimmed := string(bytes.TrimSpace(data))
 	if trimmed == "" || trimmed == "null" {
 		return []string{}, nil
 	}
@@ -794,12 +794,12 @@ func parsePeerList(respBody []byte) ([]Peer, error) {
 }
 
 func responsePreview(respBody []byte) string {
-	preview := strings.TrimSpace(string(respBody))
-	if preview == "" {
+	preview := bytes.TrimSpace(respBody)
+	if len(preview) == 0 {
 		return "<empty>"
 	}
 	if len(preview) > responsePreviewLimit {
-		return preview[:responsePreviewLimit] + "..."
+		return string(preview[:responsePreviewLimit]) + "..."
 	}
-	return preview
+	return string(preview)
 }

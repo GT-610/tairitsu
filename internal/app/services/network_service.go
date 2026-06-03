@@ -277,15 +277,17 @@ func (s *NetworkService) GetSharedNetworks(userID string) ([]SharedNetworkSummar
 	for _, network := range sharedNetworks {
 		ownerIDs[network.OwnerID] = struct{}{}
 	}
-	ownersByID := make(map[string]string, len(ownerIDs))
-	for ownerID := range ownerIDs {
-		owner, ownerErr := db.GetUserByID(ownerID)
-		if ownerErr != nil {
-			return nil, ownerErr
-		}
-		if owner != nil {
-			ownersByID[ownerID] = owner.Username
-		}
+	ids := make([]string, 0, len(ownerIDs))
+	for id := range ownerIDs {
+		ids = append(ids, id)
+	}
+	owners, ownerErr := db.GetUsersByIDs(ids)
+	if ownerErr != nil {
+		return nil, ownerErr
+	}
+	ownersByID := make(map[string]string, len(owners))
+	for _, owner := range owners {
+		ownersByID[owner.ID] = owner.Username
 	}
 
 	summaries := make([]SharedNetworkSummary, len(sharedNetworks))
@@ -514,17 +516,8 @@ func (s *NetworkService) DeleteNetwork(networkID string, userID string) error {
 	}
 
 	if err := db.WithTransaction(func(tx database.DBInterface) error {
-		viewers, txErr := tx.GetNetworkViewers(networkID)
-		if txErr != nil {
-			return txErr
-		}
-		for _, viewer := range viewers {
-			if viewer == nil {
-				continue
-			}
-			if deleteErr := tx.DeleteNetworkViewer(networkID, viewer.UserID); deleteErr != nil {
-				return deleteErr
-			}
+		if deleteErr := tx.DeleteAllNetworkViewers(networkID); deleteErr != nil {
+			return deleteErr
 		}
 		return tx.DeleteNetwork(networkID)
 	}); err != nil {
@@ -720,22 +713,33 @@ func (s *NetworkService) GetNetworkViewers(networkID, ownerID string) ([]Network
 	}
 
 	summaries := make([]NetworkViewerSummary, 0, len(viewers))
-	for _, viewer := range viewers {
-		user, userErr := db.GetUserByID(viewer.UserID)
+	if len(viewers) > 0 {
+		viewerIDs := make([]string, len(viewers))
+		for i, v := range viewers {
+			viewerIDs[i] = v.UserID
+		}
+		users, userErr := db.GetUsersByIDs(viewerIDs)
 		if userErr != nil {
 			return nil, userErr
 		}
-		if user == nil {
-			continue
+		usersByID := make(map[string]*models.User, len(users))
+		for _, u := range users {
+			usersByID[u.ID] = u
 		}
-		summaries = append(summaries, NetworkViewerSummary{
-			ID:        user.ID,
-			Username:  user.Username,
-			Role:      user.Role,
-			GrantedBy: viewer.GrantedBy,
-			CreatedAt: viewer.CreatedAt,
-			UpdatedAt: viewer.UpdatedAt,
-		})
+		for _, viewer := range viewers {
+			user := usersByID[viewer.UserID]
+			if user == nil {
+				continue
+			}
+			summaries = append(summaries, NetworkViewerSummary{
+				ID:        user.ID,
+				Username:  user.Username,
+				Role:      user.Role,
+				GrantedBy: viewer.GrantedBy,
+				CreatedAt: viewer.CreatedAt,
+				UpdatedAt: viewer.UpdatedAt,
+			})
+		}
 	}
 
 	return summaries, nil

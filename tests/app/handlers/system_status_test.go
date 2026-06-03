@@ -46,6 +46,18 @@ func (s *handlerStateDBStub) GetUserByUsername(username string) (*models.User, e
 	return nil, nil
 }
 func (s *handlerStateDBStub) GetAllUsers() ([]*models.User, error) { return s.users, nil }
+func (s *handlerStateDBStub) GetUsersByIDs(ids []string) ([]*models.User, error) {
+	var result []*models.User
+	for _, user := range s.users {
+		for _, id := range ids {
+			if user.ID == id {
+				result = append(result, user)
+				break
+			}
+		}
+	}
+	return result, nil
+}
 func (s *handlerStateDBStub) UpdateUser(user *models.User) error   { return nil }
 func (s *handlerStateDBStub) DeleteUser(id string) error           { return nil }
 func (s *handlerStateDBStub) CreateSession(session *models.Session) error {
@@ -85,6 +97,7 @@ func (s *handlerStateDBStub) GetSharedNetworksByUserID(userID string) ([]*models
 	return []*models.Network{}, nil
 }
 func (s *handlerStateDBStub) DeleteNetworkViewer(networkID, userID string) error { return nil }
+func (s *handlerStateDBStub) DeleteAllNetworkViewers(networkID string) error    { return nil }
 func (s *handlerStateDBStub) HasAdminUser() (bool, error) {
 	for _, user := range s.users {
 		if user.Role == "admin" {

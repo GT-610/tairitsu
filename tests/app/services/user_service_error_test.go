@@ -37,6 +37,9 @@ func (d *txFailingDB) GetUserByUsername(username string) (*models.User, error) {
 	return d.inner.GetUserByUsername(username)
 }
 func (d *txFailingDB) GetAllUsers() ([]*models.User, error) { return d.inner.GetAllUsers() }
+func (d *txFailingDB) GetUsersByIDs(ids []string) ([]*models.User, error) {
+	return d.inner.GetUsersByIDs(ids)
+}
 func (d *txFailingDB) UpdateUser(user *models.User) error   { return d.inner.UpdateUser(user) }
 func (d *txFailingDB) DeleteUser(id string) error {
 	if d.failDeleteUser {
@@ -88,6 +91,9 @@ func (d *txFailingDB) GetSharedNetworksByUserID(userID string) ([]*models.Networ
 }
 func (d *txFailingDB) DeleteNetworkViewer(networkID, userID string) error {
 	return d.inner.DeleteNetworkViewer(networkID, userID)
+}
+func (d *txFailingDB) DeleteAllNetworkViewers(networkID string) error {
+	return d.inner.DeleteAllNetworkViewers(networkID)
 }
 func (d *txFailingDB) HasAdminUser() (bool, error)   { return d.inner.HasAdminUser() }
 func (d *txFailingDB) Ping() error                  { return d.inner.Ping() }
