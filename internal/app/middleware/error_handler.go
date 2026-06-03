@@ -10,7 +10,7 @@ import (
 	"go.uber.org/zap"
 )
 
-// ErrorResponse 错误响应结构
+// ErrorResponse represents an error response structure
 type ErrorResponse struct {
 	Error     string `json:"error"`
 	Message   string `json:"message,omitempty"`
@@ -18,7 +18,7 @@ type ErrorResponse struct {
 	Code      int    `json:"code,omitempty"`
 }
 
-// ErrorHandler 全局错误处理中间件
+// ErrorHandler is the global error handling middleware
 func ErrorHandler() fiber.Handler {
 	return func(c fiber.Ctx) error {
 		err := c.Next()
@@ -35,7 +35,7 @@ func ErrorHandler() fiber.Handler {
 				})
 			}
 
-			// 响应错误
+			// Return error response
 			return c.Status(fiber.StatusInternalServerError).JSON(ErrorResponse{
 				Error:     "Internal Server Error",
 				Message:   "Internal Server Error",

@@ -2,7 +2,7 @@ package models
 
 import "time"
 
-// Session 登录会话模型
+// Session represents an authenticated user session.
 type Session struct {
 	ID         string     `json:"id" gorm:"primaryKey"`
 	UserID     string     `json:"user_id" gorm:"index;not null"`
@@ -16,12 +16,12 @@ type Session struct {
 	UpdatedAt  time.Time  `json:"updated_at"`
 }
 
-// TableName 指定表名
+// TableName returns the database table name for Session.
 func (Session) TableName() string {
 	return "sessions"
 }
 
-// SessionResponse 会话响应
+// SessionResponse is the API response shape for a session.
 type SessionResponse struct {
 	ID         string     `json:"id"`
 	UserAgent  string     `json:"userAgent"`
@@ -35,7 +35,7 @@ type SessionResponse struct {
 	Current    bool       `json:"current"`
 }
 
-// ToResponse 转换为会话响应
+// ToResponse converts a Session to a SessionResponse.
 func (s *Session) ToResponse(current bool) SessionResponse {
 	return SessionResponse{
 		ID:         s.ID,

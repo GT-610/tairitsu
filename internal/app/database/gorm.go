@@ -8,34 +8,34 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-// GormDB 是基于GORM的数据库实现
+// GormDB is the GORM-based database implementation
 type GormDB struct {
 	db *gorm.DB
 }
 
-// Init 初始化数据库
+// Init initializes the database
 func (g *GormDB) Init() error {
-	// 自动迁移用户模型
+	// Auto-migrate user models
 	if err := g.db.AutoMigrate(&models.User{}, &models.Network{}, &models.Session{}, &models.NetworkViewer{}); err != nil {
 		return fmt.Errorf("failed to auto-migrate models: %w", err)
 	}
 	return nil
 }
 
-// WithTransaction 在事务中执行数据库操作
+// WithTransaction executes database operations within a transaction
 func (g *GormDB) WithTransaction(fn func(DBInterface) error) error {
 	return g.db.Transaction(func(tx *gorm.DB) error {
 		return fn(&GormDB{db: tx})
 	})
 }
 
-// CreateUser 创建用户
+// CreateUser creates a new user
 func (g *GormDB) CreateUser(user *models.User) error {
 	result := g.db.Create(user)
 	return result.Error
 }
 
-// GetUserByID 根据ID获取用户
+// GetUserByID retrieves a user by ID
 func (g *GormDB) GetUserByID(id string) (*models.User, error) {
 	var user models.User
 	result := g.db.First(&user, "id = ?", id)
@@ -48,7 +48,7 @@ func (g *GormDB) GetUserByID(id string) (*models.User, error) {
 	return &user, nil
 }
 
-// GetUserByUsername 根据用户名获取用户
+// GetUserByUsername retrieves a user by username
 func (g *GormDB) GetUserByUsername(username string) (*models.User, error) {
 	var user models.User
 	result := g.db.First(&user, "username = ?", username)
@@ -61,7 +61,7 @@ func (g *GormDB) GetUserByUsername(username string) (*models.User, error) {
 	return &user, nil
 }
 
-// GetAllUsers 获取所有用户
+// GetAllUsers retrieves all users
 func (g *GormDB) GetAllUsers() ([]*models.User, error) {
 	var users []*models.User
 	result := g.db.Find(&users)
@@ -71,25 +71,25 @@ func (g *GormDB) GetAllUsers() ([]*models.User, error) {
 	return users, nil
 }
 
-// UpdateUser 更新用户
+// UpdateUser updates a user
 func (g *GormDB) UpdateUser(user *models.User) error {
 	result := g.db.Save(user)
 	return result.Error
 }
 
-// DeleteUser 删除用户
+// DeleteUser deletes a user
 func (g *GormDB) DeleteUser(id string) error {
 	result := g.db.Delete(&models.User{}, "id = ?", id)
 	return result.Error
 }
 
-// CreateSession 创建会话
+// CreateSession creates a new session
 func (g *GormDB) CreateSession(session *models.Session) error {
 	result := g.db.Create(session)
 	return result.Error
 }
 
-// GetSessionByID 根据ID获取会话
+// GetSessionByID retrieves a session by ID
 func (g *GormDB) GetSessionByID(id string) (*models.Session, error) {
 	var session models.Session
 	result := g.db.First(&session, "id = ?", id)
@@ -102,7 +102,7 @@ func (g *GormDB) GetSessionByID(id string) (*models.Session, error) {
 	return &session, nil
 }
 
-// GetSessionsByUserID 获取用户会话列表
+// GetSessionsByUserID retrieves all sessions for a user
 func (g *GormDB) GetSessionsByUserID(userID string) ([]*models.Session, error) {
 	var sessions []*models.Session
 	result := g.db.Where("user_id = ?", userID).Order("last_seen_at desc").Find(&sessions)
@@ -112,13 +112,13 @@ func (g *GormDB) GetSessionsByUserID(userID string) ([]*models.Session, error) {
 	return sessions, nil
 }
 
-// UpdateSession 更新会话
+// UpdateSession updates a session
 func (g *GormDB) UpdateSession(session *models.Session) error {
 	result := g.db.Save(session)
 	return result.Error
 }
 
-// HasAdminUser 检查是否已存在管理员用户
+// HasAdminUser checks whether an admin user already exists
 func (g *GormDB) HasAdminUser() (bool, error) {
 	var count int64
 	result := g.db.Model(&models.User{}).Where("role = ?", "admin").Count(&count)
@@ -128,13 +128,13 @@ func (g *GormDB) HasAdminUser() (bool, error) {
 	return count > 0, nil
 }
 
-// CreateNetwork 创建网络
+// CreateNetwork creates a new network
 func (g *GormDB) CreateNetwork(network *models.Network) error {
 	result := g.db.Create(network)
 	return result.Error
 }
 
-// GetNetworkByID 根据ID获取网络
+// GetNetworkByID retrieves a network by ID
 func (g *GormDB) GetNetworkByID(id string) (*models.Network, error) {
 	var network models.Network
 	result := g.db.First(&network, "id = ?", id)
@@ -147,7 +147,7 @@ func (g *GormDB) GetNetworkByID(id string) (*models.Network, error) {
 	return &network, nil
 }
 
-// GetNetworksByOwnerID 根据所有者ID获取网络列表
+// GetNetworksByOwnerID retrieves all networks owned by the given user
 func (g *GormDB) GetNetworksByOwnerID(ownerID string) ([]*models.Network, error) {
 	var networks []*models.Network
 	result := g.db.Where("owner_id = ?", ownerID).Find(&networks)
@@ -157,7 +157,7 @@ func (g *GormDB) GetNetworksByOwnerID(ownerID string) ([]*models.Network, error)
 	return networks, nil
 }
 
-// GetAllNetworks 获取所有网络
+// GetAllNetworks retrieves all networks
 func (g *GormDB) GetAllNetworks() ([]*models.Network, error) {
 	var networks []*models.Network
 	result := g.db.Find(&networks)
@@ -167,13 +167,13 @@ func (g *GormDB) GetAllNetworks() ([]*models.Network, error) {
 	return networks, nil
 }
 
-// UpdateNetwork 更新网络
+// UpdateNetwork updates a network
 func (g *GormDB) UpdateNetwork(network *models.Network) error {
 	result := g.db.Save(network)
 	return result.Error
 }
 
-// DeleteNetwork 删除网络
+// DeleteNetwork deletes a network
 func (g *GormDB) DeleteNetwork(id string) error {
 	result := g.db.Delete(&models.Network{}, "id = ?", id)
 	return result.Error
@@ -237,7 +237,7 @@ func (g *GormDB) Ping() error {
 	return sqlDB.Ping()
 }
 
-// Close 关闭数据库连接
+// Close closes the database connection
 func (g *GormDB) Close() error {
 	sqlDB, err := g.db.DB()
 	if err != nil {

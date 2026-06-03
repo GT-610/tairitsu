@@ -16,11 +16,11 @@ var (
 	ErrInvalidCiphertext = errors.New("crypto.invalid_ciphertext")
 )
 
-// Encrypt 使用AES-GCM加密敏感信息
+// Encrypt encrypts sensitive data using AES-GCM
 func Encrypt(text, key string) (string, error) {
-	// 确保key长度为32字节（256位）
+	// Ensure key length is 32 bytes (256 bits)
 	if len(key) < 32 {
-		// 填充key到32字节
+		// Pad key to 32 bytes
 		for len(key) < 32 {
 			key += "0"
 		}
@@ -47,11 +47,11 @@ func Encrypt(text, key string) (string, error) {
 	return base64.StdEncoding.EncodeToString(ciphertext), nil
 }
 
-// Decrypt 解密敏感信息
+// Decrypt decrypts sensitive data
 func Decrypt(encryptedText, key string) (string, error) {
-	// 确保key长度为32字节（256位）
+	// Ensure key length is 32 bytes (256 bits)
 	if len(key) < 32 {
-		// 填充key到32字节
+		// Pad key to 32 bytes
 		for len(key) < 32 {
 			key += "0"
 		}

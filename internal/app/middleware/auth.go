@@ -9,10 +9,10 @@ import (
 	"go.uber.org/zap"
 )
 
-// AuthMiddleware 认证中间件
+// AuthMiddleware is the authentication middleware
 func AuthMiddleware(jwtService *services.JWTService, sessionService *services.SessionService) fiber.Handler {
 	return func(c fiber.Ctx) error {
-		// 从请求头获取令牌
+		// Extract the token from the request header
 		authHeader := c.Get("Authorization")
 		if authHeader == "" {
 			return c.Status(fiber.StatusUnauthorized).JSON(ErrorResponse{
@@ -23,7 +23,7 @@ func AuthMiddleware(jwtService *services.JWTService, sessionService *services.Se
 			})
 		}
 
-		// 检查Bearer前缀
+		// Check for Bearer prefix
 		parts := strings.SplitN(authHeader, " ", 2)
 		if !(len(parts) == 2 && parts[0] == "Bearer") {
 			return c.Status(fiber.StatusUnauthorized).JSON(ErrorResponse{
@@ -34,7 +34,7 @@ func AuthMiddleware(jwtService *services.JWTService, sessionService *services.Se
 			})
 		}
 
-		// 验证令牌
+		// Validate the token
 		claims, err := jwtService.ValidateToken(parts[1])
 		if err != nil {
 			return c.Status(fiber.StatusUnauthorized).JSON(ErrorResponse{
@@ -45,7 +45,7 @@ func AuthMiddleware(jwtService *services.JWTService, sessionService *services.Se
 			})
 		}
 
-		// 将用户信息存储到上下文
+		// Store user info in the context
 		if sessionService != nil {
 			session, err := sessionService.ValidateSession(claims.UserID, claims.SessionID)
 			if err != nil {
@@ -68,7 +68,7 @@ func AuthMiddleware(jwtService *services.JWTService, sessionService *services.Se
 	}
 }
 
-// AdminRequired 管理员权限中间件
+// AdminRequired is the admin authorization middleware
 func AdminRequired() fiber.Handler {
 	return func(c fiber.Ctx) error {
 		role, exists := c.Locals("role").(string)

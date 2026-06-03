@@ -8,30 +8,30 @@ import (
 	"go.uber.org/zap"
 )
 
-// Logger 自定义日志中间件
+// Logger is the custom logging middleware
 func Logger() fiber.Handler {
 	return func(c fiber.Ctx) error {
-		// 开始时间
+		// Start time
 		startTime := time.Now()
 
-		// 处理请求
+		// Process the request
 		err := c.Next()
 
-		// 结束时间
+		// End time
 		endTime := time.Now()
-		// 执行时间
+		// Latency
 		latency := endTime.Sub(startTime)
 
-		// 请求方法
+		// Request method
 		method := c.Method()
-		// 请求路由
+		// Request path
 		path := c.Path()
-		// 状态码
+		// Status code
 		statusCode := c.Response().StatusCode()
-		// 客户端IP
+		// Client IP
 		clientIP := c.IP()
 
-		// 日志格式
+		// Log format
 		logger.Info("FIBER Request",
 			zap.String("method", method),
 			zap.Int("status", statusCode),

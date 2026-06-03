@@ -16,7 +16,7 @@ import (
 	"go.uber.org/zap"
 )
 
-// DatabaseType 数据库类型
+// DatabaseType represents the type of database
 type DatabaseType string
 
 const (
@@ -25,22 +25,22 @@ const (
 	MySQL      DatabaseType = "mysql"
 )
 
-// Config 数据库配置
+// Config holds the database configuration
 type Config struct {
 	Type DatabaseType
-	Path string // SQLite数据库路径
-	Host string // PostgreSQL/MySQL主机
-	Port int    // PostgreSQL/MySQL端口
-	User string // PostgreSQL/MySQL用户
-	Pass string // PostgreSQL/MySQL密码
-	Name string // PostgreSQL/MySQL数据库名
+	Path string // SQLite database path
+	Host string // PostgreSQL/MySQL host
+	Port int    // PostgreSQL/MySQL port
+	User string // PostgreSQL/MySQL user
+	Pass string // PostgreSQL/MySQL password
+	Name string // PostgreSQL/MySQL database name
 }
 
-// NewDatabase 根据配置创建数据库实例
+// NewDatabase creates a database instance based on the given configuration
 func NewDatabase(config Config) (DBInterface, error) {
 	switch config.Type {
 	case SQLite:
-		// 如果没有指定路径，使用默认路径
+		// Use default path if none is specified
 		if config.Path == "" {
 			config.Path = "data/tairitsu.db"
 		}
@@ -59,7 +59,7 @@ func NewDatabase(config Config) (DBInterface, error) {
 			return nil, fmt.Errorf("failed to get SQLite database instance: %w", err)
 		}
 
-		// 设置连接池
+		// Configure connection pool
 		sqlDB.SetMaxIdleConns(10)
 		sqlDB.SetMaxOpenConns(100)
 		sqlDB.SetConnMaxLifetime(time.Hour)
@@ -68,7 +68,7 @@ func NewDatabase(config Config) (DBInterface, error) {
 		return &GormDB{db: db}, nil
 
 	case MySQL:
-		// 构建DSN
+		// Build DSN
 		dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?charset=utf8mb4&parseTime=True&loc=Local",
 			config.User, config.Pass, config.Host, config.Port, config.Name)
 
@@ -82,7 +82,7 @@ func NewDatabase(config Config) (DBInterface, error) {
 			return nil, fmt.Errorf("failed to get MySQL database instance: %w", err)
 		}
 
-		// 设置连接池
+		// Configure connection pool
 		sqlDB.SetMaxIdleConns(10)
 		sqlDB.SetMaxOpenConns(100)
 		sqlDB.SetConnMaxLifetime(time.Hour)
@@ -91,7 +91,7 @@ func NewDatabase(config Config) (DBInterface, error) {
 		return &GormDB{db: db}, nil
 
 	case PostgreSQL:
-		// 构建DSN
+		// Build DSN
 		dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%d sslmode=disable TimeZone=Asia/Shanghai",
 			config.Host, config.User, config.Pass, config.Name, config.Port)
 
@@ -105,7 +105,7 @@ func NewDatabase(config Config) (DBInterface, error) {
 			return nil, fmt.Errorf("failed to get PostgreSQL database instance: %w", err)
 		}
 
-		// 设置连接池
+		// Configure connection pool
 		sqlDB.SetMaxIdleConns(10)
 		sqlDB.SetMaxOpenConns(100)
 		sqlDB.SetConnMaxLifetime(time.Hour)
@@ -114,7 +114,7 @@ func NewDatabase(config Config) (DBInterface, error) {
 		return &GormDB{db: db}, nil
 
 	default:
-		// 如果没有指定数据库类型，返回错误
+		// Return error if database type is not specified
 		if config.Type == "" {
 			return nil, fmt.Errorf("database type is required")
 		}
@@ -140,28 +140,28 @@ func LoadConfigFromApp(cfg *config.Config) Config {
 	}
 }
 
-// ResetDatabase 重置数据库的通用处理函数
-// 注意：此操作将清空数据库中的所有数据，请谨慎使用
+// ResetDatabase is the generic handler for resetting a database.
+// WARNING: This operation will delete all data in the database. Use with caution.
 func ResetDatabase(config Config) error {
 	logger.Info("starting database reset", zap.String("type", string(config.Type)))
 
 	switch config.Type {
 	case SQLite:
-		// 如果没有指定路径，使用默认路径
+		// Use default path if none is specified
 		if config.Path == "" {
 			config.Path = "data/tairitsu.db"
 		}
 
 		logger.Info("resetting SQLite database", zap.String("path", config.Path))
 
-		// 删除SQLite数据库文件以实现重置
+		// Delete the SQLite database file to reset it
 		err := os.Remove(config.Path)
 		if err != nil && !os.IsNotExist(err) {
 			logger.Error("failed to delete SQLite database file", zap.Error(err))
 			return fmt.Errorf("failed to reset SQLite database: %w", err)
 		}
 
-		// 如果文件不存在，记录信息但不报错
+		// Log info if file does not exist, but don't treat it as an error
 		if os.IsNotExist(err) {
 			logger.Info("SQLite database file does not exist; a new file will be created")
 		}
@@ -201,7 +201,7 @@ func SaveConfigToApp(cfg *config.Config, dbConfig Config) error {
 		return fmt.Errorf("configuration is not initialized")
 	}
 
-	// 更新数据库配置
+	// Update database configuration
 	cfg.Database.Type = string(dbConfig.Type)
 	cfg.Database.Path = dbConfig.Path
 	cfg.Database.Host = dbConfig.Host

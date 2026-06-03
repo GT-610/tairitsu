@@ -17,9 +17,9 @@ func ensureLogger() *zap.Logger {
 	return logger
 }
 
-// InitLogger 初始化日志记录器
+// InitLogger initializes the logger
 func InitLogger(level string) {
-	// 设置日志级别
+	// Set the log level
 	var zapLevel zapcore.Level
 	switch level {
 	case "debug":
@@ -34,16 +34,16 @@ func InitLogger(level string) {
 		zapLevel = zap.InfoLevel
 	}
 
-	// 创建日志轮转配置
+	// Configure log rotation
 	logWriter := zapcore.AddSync(&lumberjack.Logger{
 		Filename:   "./logs/tairitsu.log",
-		MaxSize:    10,   // 每个日志文件最大10MB
-		MaxBackups: 5,    // 最多保留5个备份文件
-		MaxAge:     30,   // 最多保留30天
-		Compress:   true, // 压缩旧的日志文件
+		MaxSize:    10,   // Max 10MB per log file
+		MaxBackups: 5,    // Keep at most 5 backup files
+		MaxAge:     30,   // Retain logs for up to 30 days
+		Compress:   true, // Compress old log files
 	})
 
-	// 创建编码器配置
+	// Configure the encoder
 	encoderConfig := zapcore.EncoderConfig{
 		TimeKey:        "ts",
 		LevelKey:       "level",
@@ -59,14 +59,14 @@ func InitLogger(level string) {
 		EncodeCaller:   zapcore.ShortCallerEncoder,
 	}
 
-	// 创建核心配置
+	// Create the core
 	core := zapcore.NewCore(
 		zapcore.NewJSONEncoder(encoderConfig),
 		logWriter,
 		zapLevel,
 	)
 
-	// 根据环境变量决定是否添加控制台输出
+	// Add console output based on the environment
 	var cores []zapcore.Core
 	cores = append(cores, core)
 
@@ -89,34 +89,38 @@ func InitLogger(level string) {
 		cores = append(cores, zapcore.NewCore(consoleEncoder, zapcore.AddSync(os.Stdout), zapLevel))
 	}
 
-	// 创建组合核心
+	// Create the combined core
 	logger = zap.New(zapcore.NewTee(cores...), zap.AddCaller(), zap.Development())
-
-	// 确保日志被刷新
-	defer logger.Sync()
 }
 
-// Debug 记录Debug级别日志
+// Sync flushes any buffered log entries. Call this at application shutdown.
+func Sync() {
+	if logger != nil {
+		_ = logger.Sync()
+	}
+}
+
+// Debug logs a message at Debug level
 func Debug(msg string, fields ...zap.Field) {
 	ensureLogger().WithOptions(zap.AddCallerSkip(1)).Debug(msg, fields...)
 }
 
-// Info 记录Info级别日志
+// Info logs a message at Info level
 func Info(msg string, fields ...zap.Field) {
 	ensureLogger().WithOptions(zap.AddCallerSkip(1)).Info(msg, fields...)
 }
 
-// Warn 记录Warn级别日志
+// Warn logs a message at Warn level
 func Warn(msg string, fields ...zap.Field) {
 	ensureLogger().WithOptions(zap.AddCallerSkip(1)).Warn(msg, fields...)
 }
 
-// Error 记录Error级别日志
+// Error logs a message at Error level
 func Error(msg string, fields ...zap.Field) {
 	ensureLogger().WithOptions(zap.AddCallerSkip(1)).Error(msg, fields...)
 }
 
-// Fatal 记录Fatal级别日志
+// Fatal logs a message at Fatal level
 func Fatal(msg string, fields ...zap.Field) {
 	ensureLogger().WithOptions(zap.AddCallerSkip(1)).Fatal(msg, fields...)
 }

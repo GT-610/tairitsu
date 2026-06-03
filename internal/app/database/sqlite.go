@@ -11,7 +11,7 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
-// SQLiteDB SQLite数据库实现
+// SQLiteDB is the SQLite database implementation
 type SQLiteDB struct {
 	db   *sql.DB
 	path string
@@ -19,15 +19,15 @@ type SQLiteDB struct {
 	tx   *sql.Tx
 }
 
-// NewSQLiteDB 创建新的SQLite数据库实例
+// NewSQLiteDB creates a new SQLite database instance
 func NewSQLiteDB(dbPath string) (*SQLiteDB, error) {
-	// 确保数据库目录存在
+	// Ensure the database directory exists
 	dir := filepath.Dir(dbPath)
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create database directory: %w", err)
 	}
 
-	// 连接数据库
+	// Connect to the database
 	db, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to SQLite database: %w", err)
@@ -40,9 +40,9 @@ func NewSQLiteDB(dbPath string) (*SQLiteDB, error) {
 	}, nil
 }
 
-// Init 初始化数据库表结构
+// Init initializes the database schema
 func (s *SQLiteDB) Init() error {
-	// 创建用户表
+	// Create users table
 	createUsersTable := `
 	CREATE TABLE IF NOT EXISTS users (
 		id TEXT PRIMARY KEY,
@@ -58,7 +58,7 @@ func (s *SQLiteDB) Init() error {
 		return fmt.Errorf("failed to create users table: %w", err)
 	}
 
-	// 创建网络表
+	// Create networks table
 	createNetworkTable := `
 	CREATE TABLE IF NOT EXISTS networks (
 		id TEXT PRIMARY KEY,
@@ -111,7 +111,7 @@ func (s *SQLiteDB) Init() error {
 	return nil
 }
 
-// WithTransaction 在事务中执行数据库操作
+// WithTransaction executes database operations within a transaction
 func (s *SQLiteDB) WithTransaction(fn func(DBInterface) error) error {
 	if s.tx != nil {
 		return fn(s)
@@ -146,7 +146,7 @@ func (s *SQLiteDB) WithTransaction(fn func(DBInterface) error) error {
 	return nil
 }
 
-// CreateUser 创建用户
+// CreateUser creates a new user
 func (s *SQLiteDB) CreateUser(user *models.User) error {
 	query := `
 	INSERT INTO users (id, username, password, role, created_at, updated_at)
@@ -169,7 +169,7 @@ func (s *SQLiteDB) CreateUser(user *models.User) error {
 	return nil
 }
 
-// GetUserByID 根据ID获取用户
+// GetUserByID retrieves a user by ID
 func (s *SQLiteDB) GetUserByID(id string) (*models.User, error) {
 	query := `SELECT id, username, password, role, created_at, updated_at FROM users WHERE id = ?`
 	var row *sql.Row
@@ -193,7 +193,7 @@ func (s *SQLiteDB) GetUserByID(id string) (*models.User, error) {
 	return &user, nil
 }
 
-// GetUserByUsername 根据用户名获取用户
+// GetUserByUsername retrieves a user by username
 func (s *SQLiteDB) GetUserByUsername(username string) (*models.User, error) {
 	query := `SELECT id, username, password, role, created_at, updated_at FROM users WHERE username = ?`
 	var row *sql.Row
@@ -217,7 +217,7 @@ func (s *SQLiteDB) GetUserByUsername(username string) (*models.User, error) {
 	return &user, nil
 }
 
-// GetAllUsers 获取所有用户
+// GetAllUsers retrieves all users
 func (s *SQLiteDB) GetAllUsers() ([]*models.User, error) {
 	query := `SELECT id, username, password, role, created_at, updated_at FROM users`
 	var (
@@ -249,7 +249,7 @@ func (s *SQLiteDB) GetAllUsers() ([]*models.User, error) {
 	return users, nil
 }
 
-// UpdateUser 更新用户
+// UpdateUser updates a user
 func (s *SQLiteDB) UpdateUser(user *models.User) error {
 	query := `
 	UPDATE users 
@@ -271,7 +271,7 @@ func (s *SQLiteDB) UpdateUser(user *models.User) error {
 	return nil
 }
 
-// DeleteUser 删除用户
+// DeleteUser deletes a user
 func (s *SQLiteDB) DeleteUser(id string) error {
 	query := `DELETE FROM users WHERE id = ?`
 	var err error
@@ -289,7 +289,7 @@ func (s *SQLiteDB) DeleteUser(id string) error {
 	return nil
 }
 
-// CreateSession 创建会话
+// CreateSession creates a new session
 func (s *SQLiteDB) CreateSession(session *models.Session) error {
 	query := `
 	INSERT INTO sessions (id, user_id, user_agent, ip_address, remember_me, last_seen_at, expires_at, revoked_at, created_at, updated_at)
@@ -334,7 +334,7 @@ func (s *SQLiteDB) CreateSession(session *models.Session) error {
 	return nil
 }
 
-// GetSessionByID 根据ID获取会话
+// GetSessionByID retrieves a session by ID
 func (s *SQLiteDB) GetSessionByID(id string) (*models.Session, error) {
 	query := `SELECT id, user_id, user_agent, ip_address, remember_me, last_seen_at, expires_at, revoked_at, created_at, updated_at FROM sessions WHERE id = ?`
 	var row *sql.Row
@@ -369,7 +369,7 @@ func (s *SQLiteDB) GetSessionByID(id string) (*models.Session, error) {
 	return &session, nil
 }
 
-// GetSessionsByUserID 获取用户会话列表
+// GetSessionsByUserID retrieves all sessions for a user
 func (s *SQLiteDB) GetSessionsByUserID(userID string) ([]*models.Session, error) {
 	query := `SELECT id, user_id, user_agent, ip_address, remember_me, last_seen_at, expires_at, revoked_at, created_at, updated_at FROM sessions WHERE user_id = ? ORDER BY last_seen_at DESC`
 	var (
@@ -412,7 +412,7 @@ func (s *SQLiteDB) GetSessionsByUserID(userID string) ([]*models.Session, error)
 	return sessions, nil
 }
 
-// UpdateSession 更新会话
+// UpdateSession updates a session
 func (s *SQLiteDB) UpdateSession(session *models.Session) error {
 	query := `
 	UPDATE sessions
@@ -454,7 +454,7 @@ func (s *SQLiteDB) UpdateSession(session *models.Session) error {
 	return nil
 }
 
-// HasAdminUser 检查是否已存在管理员用户
+// HasAdminUser checks whether an admin user already exists
 func (s *SQLiteDB) HasAdminUser() (bool, error) {
 	query := `SELECT COUNT(*) FROM users WHERE role = 'admin'`
 	var row *sql.Row
@@ -475,7 +475,7 @@ func (s *SQLiteDB) HasAdminUser() (bool, error) {
 	return count > 0, nil
 }
 
-// CreateNetwork 创建网络
+// CreateNetwork creates a new network
 func (s *SQLiteDB) CreateNetwork(network *models.Network) error {
 	query := `
 	INSERT INTO networks (id, name, description, owner_id, created_at, updated_at)
@@ -496,7 +496,7 @@ func (s *SQLiteDB) CreateNetwork(network *models.Network) error {
 	return nil
 }
 
-// GetNetworkByID 根据ID获取网络
+// GetNetworkByID retrieves a network by ID
 func (s *SQLiteDB) GetNetworkByID(id string) (*models.Network, error) {
 	query := `SELECT id, name, description, owner_id, created_at, updated_at FROM networks WHERE id = ?`
 	var row *sql.Row
@@ -520,7 +520,7 @@ func (s *SQLiteDB) GetNetworkByID(id string) (*models.Network, error) {
 	return &network, nil
 }
 
-// GetNetworksByOwnerID 根据所有者ID获取网络列表
+// GetNetworksByOwnerID retrieves all networks owned by the given user
 func (s *SQLiteDB) GetNetworksByOwnerID(ownerID string) ([]*models.Network, error) {
 	query := `SELECT id, name, description, owner_id, created_at, updated_at FROM networks WHERE owner_id = ?`
 	var (
@@ -552,7 +552,7 @@ func (s *SQLiteDB) GetNetworksByOwnerID(ownerID string) ([]*models.Network, erro
 	return networks, nil
 }
 
-// GetAllNetworks 获取所有网络
+// GetAllNetworks retrieves all networks
 func (s *SQLiteDB) GetAllNetworks() ([]*models.Network, error) {
 	query := `SELECT id, name, description, owner_id, created_at, updated_at FROM networks`
 	var (
@@ -584,7 +584,7 @@ func (s *SQLiteDB) GetAllNetworks() ([]*models.Network, error) {
 	return networks, nil
 }
 
-// UpdateNetwork 更新网络
+// UpdateNetwork updates a network
 func (s *SQLiteDB) UpdateNetwork(network *models.Network) error {
 	query := `
 	UPDATE networks 
@@ -606,7 +606,7 @@ func (s *SQLiteDB) UpdateNetwork(network *models.Network) error {
 	return nil
 }
 
-// DeleteNetwork 删除网络
+// DeleteNetwork deletes a network
 func (s *SQLiteDB) DeleteNetwork(id string) error {
 	query := `DELETE FROM networks WHERE id = ?`
 	var err error
@@ -753,7 +753,7 @@ func (s *SQLiteDB) Ping() error {
 	return s.db.Ping()
 }
 
-// Close 关闭数据库连接
+// Close closes the database connection
 func (s *SQLiteDB) Close() error {
 	return s.db.Close()
 }

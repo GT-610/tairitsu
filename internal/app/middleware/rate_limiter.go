@@ -9,41 +9,41 @@ import (
 	"go.uber.org/zap"
 )
 
-// RateLimiter 速率限制中间件
-// 使用令牌桶算法实现API速率限制
+// RateLimiter middleware for API rate limiting.
+// Uses the token bucket algorithm.
 
-// TokenBucket 令牌桶结构
+// TokenBucket represents a token bucket structure
 type TokenBucket struct {
-	capacity    int        // 桶容量
-	tokens      int        // 当前令牌数
-	refillRate  int        // 每秒补充令牌数
-	lastRefill  time.Time  // 上次补充令牌时间
-	refillMutex sync.Mutex // 补充令牌的互斥锁
+	capacity    int        // Bucket capacity
+	tokens      int        // Current number of tokens
+	refillRate  int        // Tokens added per second
+	lastRefill  time.Time  // Last time tokens were refilled
+	refillMutex sync.Mutex // Mutex for refilling tokens
 }
 
-// NewTokenBucket 创建新的令牌桶
+// NewTokenBucket creates a new token bucket
 func NewTokenBucket(capacity, refillRate int) *TokenBucket {
 	return &TokenBucket{
 		capacity:   capacity,
-		tokens:     capacity, // 初始填满令牌
+		tokens:     capacity, // Initially full
 		refillRate: refillRate,
 		lastRefill: time.Now(),
 	}
 }
 
-// GetToken 尝试获取一个令牌
-// 返回true表示获取成功，false表示失败
+// GetToken attempts to acquire a token.
+// Returns true on success, false on failure.
 func (tb *TokenBucket) GetToken() bool {
 	tb.refillMutex.Lock()
 	defer tb.refillMutex.Unlock()
 
-	// 补充令牌
+	// Refill tokens
 	now := time.Now()
 	duration := now.Sub(tb.lastRefill)
 	tokensToAdd := int(duration.Seconds()) * tb.refillRate
 
 	if tokensToAdd > 0 {
-		// 更新令牌数，不超过容量
+		// Update token count, capped at capacity
 		newTokens := tb.tokens + tokensToAdd
 		if newTokens > tb.capacity {
 			newTokens = tb.capacity
@@ -52,7 +52,7 @@ func (tb *TokenBucket) GetToken() bool {
 		tb.lastRefill = now
 	}
 
-	// 尝试获取令牌
+	// Attempt to acquire a token
 	if tb.tokens > 0 {
 		tb.tokens--
 		return true
@@ -61,15 +61,15 @@ func (tb *TokenBucket) GetToken() bool {
 	return false
 }
 
-// RateLimiter 速率限制器
+// RateLimiter is the rate limiter
 type RateLimiter struct {
-	buckets     map[string]*TokenBucket // IP地址到令牌桶的映射
-	bucketMutex sync.RWMutex            // 访问buckets的互斥锁
-	capacity    int                     // 默认桶容量
-	refillRate  int                     // 默认每秒补充令牌数
+	buckets     map[string]*TokenBucket // IP address to token bucket mapping
+	bucketMutex sync.RWMutex            // Mutex for accessing buckets
+	capacity    int                     // Default bucket capacity
+	refillRate  int                     // Default tokens added per second
 }
 
-// NewRateLimiter 创建新的速率限制器
+// NewRateLimiter creates a new rate limiter
 func NewRateLimiter(capacity, refillRate int) *RateLimiter {
 	rl := &RateLimiter{
 		buckets:    make(map[string]*TokenBucket),
@@ -105,7 +105,7 @@ func (rl *RateLimiter) cleanupStale() {
 	}
 }
 
-// GetBucket 获取或创建IP对应的令牌桶
+// GetBucket retrieves or creates the token bucket for the given IP
 func (rl *RateLimiter) GetBucket(ip string) *TokenBucket {
 	rl.bucketMutex.RLock()
 	bucket, exists := rl.buckets[ip]
@@ -115,11 +115,11 @@ func (rl *RateLimiter) GetBucket(ip string) *TokenBucket {
 		return bucket
 	}
 
-	// 创建新的令牌桶
+	// Create a new token bucket
 	newBucket := NewTokenBucket(rl.capacity, rl.refillRate)
 
 	rl.bucketMutex.Lock()
-	// 再次检查，防止竞态条件
+	// Double-check to prevent race conditions
 	if bucket, exists := rl.buckets[ip]; exists {
 		rl.bucketMutex.Unlock()
 		return bucket
@@ -131,29 +131,29 @@ func (rl *RateLimiter) GetBucket(ip string) *TokenBucket {
 	return newBucket
 }
 
-// DefaultRateLimiter 默认速率限制器实例
-var DefaultRateLimiter = NewRateLimiter(100, 10) // 默认100个令牌，每秒补充10个
+// DefaultRateLimiter is the default rate limiter instance
+var DefaultRateLimiter = NewRateLimiter(100, 10) // 100 tokens, refills 10 per second
 
-// RateLimit API速率限制中间件
+// RateLimit is the API rate limiting middleware
 func RateLimit() fiber.Handler {
 	return func(c fiber.Ctx) error {
-		// 获取客户端IP
+		// Get client IP
 		clientIP := c.IP()
 
-		// 获取或创建令牌桶
+		// Get or create token bucket
 		bucket := DefaultRateLimiter.GetBucket(clientIP)
 
-		// 尝试获取令牌
+	// Attempt to acquire a token
 		if !bucket.GetToken() {
-			// 记录速率限制日志（如果日志系统已初始化）
+			// Log rate limit event (if logger is initialized)
 			defer func() {
 				if r := recover(); r != nil {
-					// 忽略日志初始化失败的情况
+					// Ignore logger initialization failures
 				}
 			}()
 			logger.Warn("API rate limit triggered", zap.String("client_ip", clientIP), zap.String("path", c.Path()))
 
-			// 返回429 Too Many Requests
+			// Return 429 Too Many Requests
 			return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
 				"error":      "Too many requests. Please try again later.",
 				"message":    "Too many requests. Please try again later.",
@@ -162,7 +162,7 @@ func RateLimit() fiber.Handler {
 			})
 		}
 
-		// 继续处理请求
+		// Continue processing the request
 		return c.Next()
 	}
 }

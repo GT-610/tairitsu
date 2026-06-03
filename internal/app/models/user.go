@@ -4,30 +4,30 @@ import (
 	"time"
 )
 
-// User 用户模型
+// User represents a user account.
 type User struct {
 	ID        string    `json:"id"`
 	Username  string    `json:"username" binding:"required"`
-	Password  string    `json:"-" binding:"required"` // 密码不返回给客户端
+	Password  string    `json:"-" binding:"required"` // Password is never returned to the client
 	Role      string    `json:"role"`                 // admin, user
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
-// LoginRequest 登录请求
+// LoginRequest represents a login request payload.
 type LoginRequest struct {
 	Username   string `json:"username" binding:"required"`
 	Password   string `json:"password" binding:"required"`
 	RememberMe bool   `json:"remember_me"`
 }
 
-// RegisterRequest 注册请求
+// RegisterRequest represents a registration request payload.
 type RegisterRequest struct {
 	Username string `json:"username" binding:"required"`
 	Password string `json:"password" binding:"required,min=6"`
 }
 
-// ChangePasswordRequest 修改密码请求
+// ChangePasswordRequest represents a password change request payload.
 type ChangePasswordRequest struct {
 	CurrentPassword     string `json:"current_password" binding:"required"`
 	NewPassword         string `json:"new_password" binding:"required,min=6"`
@@ -35,7 +35,7 @@ type ChangePasswordRequest struct {
 	LogoutOtherSessions bool   `json:"logout_other_sessions"`
 }
 
-// UserResponse 用户响应
+// UserResponse is the API response shape for a user.
 type UserResponse struct {
 	ID        string    `json:"id"`
 	Username  string    `json:"username"`
@@ -44,7 +44,7 @@ type UserResponse struct {
 	UpdatedAt time.Time `json:"updatedAt"`
 }
 
-// ToResponse 转换为用户响应
+// ToResponse converts a User to a UserResponse.
 func (u *User) ToResponse() UserResponse {
 	return UserResponse{
 		ID:        u.ID,
