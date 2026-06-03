@@ -17,6 +17,7 @@ import DashboardIcon from '@mui/icons-material/Dashboard';
 import LanguageIcon from '@mui/icons-material/Language';
 import SettingsIcon from '@mui/icons-material/Settings';
 import AccountCircle from '@mui/icons-material/AccountCircle';
+import VolunteerActivismIcon from '@mui/icons-material/VolunteerActivism';
 import BrightnessAutoIcon from '@mui/icons-material/BrightnessAuto';
 import DarkModeIcon from '@mui/icons-material/DarkMode';
 import LightModeIcon from '@mui/icons-material/LightMode';
@@ -98,6 +99,7 @@ export default function ResponsiveDrawer({ window, children, title = 'Tairitsu',
   const [isClosing, setIsClosing] = React.useState<boolean>(false);
   const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
   const [openConfirmDialog, setOpenConfirmDialog] = React.useState<boolean>(false);
+  const [openSponsorDialog, setOpenSponsorDialog] = React.useState<boolean>(false);
   const location = useLocation();
   const ThemeIcon = themePreference === 'system'
     ? BrightnessAutoIcon
@@ -227,6 +229,15 @@ export default function ResponsiveDrawer({ window, children, title = 'Tairitsu',
           <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
             {title}
           </Typography>
+          <IconButton
+            color="inherit"
+            aria-label={t('sponsor.button')}
+            title={t('sponsor.button')}
+            onClick={() => setOpenSponsorDialog(true)}
+            size="large"
+          >
+            <VolunteerActivismIcon />
+          </IconButton>
           {user && (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
               <IconButton
@@ -330,6 +341,48 @@ export default function ResponsiveDrawer({ window, children, title = 'Tairitsu',
           </Button>
           <Button onClick={handleConfirmLogout} color="primary" autoFocus>
             {translateText('确认')}
+          </Button>
+        </DialogActions>
+      </Dialog>
+      <Dialog
+        open={openSponsorDialog}
+        onClose={() => setOpenSponsorDialog(false)}
+        aria-labelledby="sponsor-dialog-title"
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle id="sponsor-dialog-title">
+          {translateText('支持 Tairitsu')}
+        </DialogTitle>
+        <DialogContent>
+          <DialogContentText component="div" sx={{ whiteSpace: 'pre-line' }}>
+            {translateText('Tairitsu 是我开发的第一个开源生产环境项目。项目的发展离不开社区和用户的支持。')}
+            {'\n\n'}
+            {translateText('如果你觉得 Tairitsu 对你有帮助，欢迎通过以下方式支持项目：')}
+            {'\n\n'}
+            {translateText('• 前往 GitHub 仓库点击 Star，让更多人发现这个项目')}
+            {'\n'}
+            {translateText('• 通过 GitHub 仓库上的 Sponsor 按钮赞助我，支持项目的持续开发')}
+            {'\n\n'}
+            {translateText('使用过程中遇到问题或有好的建议，也欢迎提交 Issue 或 Pull Request！')}
+            {'\n\n'}
+            <Box component="span">
+              {translateText('GitHub 仓库：')}
+              <Box
+                component="a"
+                href="https://github.com/GT-610/tairitsu"
+                target="_blank"
+                rel="noopener noreferrer"
+                sx={{ color: 'primary.main', textDecoration: 'underline' }}
+              >
+                https://github.com/GT-610/tairitsu
+              </Box>
+            </Box>
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenSponsorDialog(false)} color="primary" autoFocus>
+            {translateText('确定')}
           </Button>
         </DialogActions>
       </Dialog>

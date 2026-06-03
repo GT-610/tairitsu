@@ -81,6 +81,7 @@ const en: Record<string, string> = {
   'messages.sessionRemoved': 'Session removed',
   'messages.otherSessionsRemoved': 'Other sessions removed',
   'ipv6.mustBeInSubnet': 'Must be within {{subnet}}',
+  'sponsor.button': 'Sponsor',
 }
 
 const zh: Record<string, string> = {
@@ -132,6 +133,7 @@ const zh: Record<string, string> = {
   'messages.sessionRemoved': '会话已移除',
   'messages.otherSessionsRemoved': '其他会话已移除',
   'ipv6.mustBeInSubnet': '必须落在 {{subnet}} 内',
+  'sponsor.button': '赞助',
 }
 
 const messageCodes: Record<string, { en: string; 'zh-CN': string }> = {
@@ -655,6 +657,13 @@ const rawEn: Record<string, string> = {
   '读取控制器网络详情失败，暂时无法导入': 'Controller network details could not be read, so this network cannot be imported yet',
   '已跳过': 'Skipped',
   '导入失败': 'Import failed',
+  '支持 Tairitsu': 'Support Tairitsu',
+  'Tairitsu 是我开发的第一个开源生产环境项目。项目的发展离不开社区和用户的支持。': 'Tairitsu is my first open-source production project. Its growth depends on the support of the community and users.',
+  '如果你觉得 Tairitsu 对你有帮助，欢迎通过以下方式支持项目：': 'If you find Tairitsu helpful, please consider supporting the project in the following ways:',
+  '• 前往 GitHub 仓库点击 Star，让更多人发现这个项目': '• Star the GitHub repo to help others discover the project',
+  '• 通过 GitHub Sponsor 赞助我，支持项目的持续开发': '• Sponsor me on GitHub to support ongoing development',
+  '使用过程中遇到问题或有好的建议？欢迎提交 Issue 或 Pull Request！': 'Found a bug or have a suggestion? Feel free to open an Issue or Pull Request!',
+  'GitHub 仓库：': 'GitHub repo:',
 }
 
 const rawZhDuplicateTargets: Record<string, string> = {
