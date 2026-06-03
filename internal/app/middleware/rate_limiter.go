@@ -143,14 +143,8 @@ func RateLimit() fiber.Handler {
 		// Get or create token bucket
 		bucket := DefaultRateLimiter.GetBucket(clientIP)
 
-	// Attempt to acquire a token
+		// Attempt to acquire a token
 		if !bucket.GetToken() {
-			// Log rate limit event (if logger is initialized)
-			defer func() {
-				if r := recover(); r != nil {
-					// Ignore logger initialization failures
-				}
-			}()
 			logger.Warn("API rate limit triggered", zap.String("client_ip", clientIP), zap.String("path", c.Path()))
 
 			// Return 429 Too Many Requests

@@ -40,3 +40,4 @@ vendor/
 /go
 configs/
 data/
+web/
