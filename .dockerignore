@@ -40,4 +40,5 @@ vendor/
 /go
 configs/
 data/
-web/
+web/node_modules/
+web/dist/

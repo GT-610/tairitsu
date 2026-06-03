@@ -284,6 +284,9 @@ func (s *SQLiteDB) GetUsersByIDs(ids []string) ([]*models.User, error) {
 		}
 		users = append(users, &user)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("failed to iterate users: %w", err)
+	}
 	return users, nil
 }
 

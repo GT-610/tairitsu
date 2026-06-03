@@ -3,7 +3,9 @@ package services
 import (
 	"github.com/GT-610/tairitsu/internal/app/config"
 	"github.com/GT-610/tairitsu/internal/app/database"
+	"github.com/GT-610/tairitsu/internal/app/logger"
 	"github.com/GT-610/tairitsu/internal/zerotier"
+	"go.uber.org/zap"
 )
 
 type SetupStatus struct {
@@ -142,13 +144,14 @@ func (s *StateService) GetSetupStatus(userService *UserService, networkService *
 
 	if databaseConfigured && userService != nil {
 		users, err := userService.GetAllUsers()
-		if err == nil {
-			for _, user := range users {
-				if user.Role == "admin" {
-					status.HasAdmin = true
-					status.AdminUsername = user.Username
-					break
-				}
+		if err != nil {
+			logger.Warn("GetSetupStatus: GetAllUsers failed", zap.Error(err))
+		}
+		for _, user := range users {
+			if user.Role == "admin" {
+				status.HasAdmin = true
+				status.AdminUsername = user.Username
+				break
 			}
 		}
 	}

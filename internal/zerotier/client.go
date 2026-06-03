@@ -441,9 +441,14 @@ func (c *Client) doRequest(method, endpoint string, body interface{}) ([]byte, e
 	}
 	defer resp.Body.Close()
 
-	respBody, err := io.ReadAll(io.LimitReader(resp.Body, 10<<20))
+	const maxBodySize = 10 << 20
+	lr := &io.LimitedReader{R: resp.Body, N: int64(maxBodySize + 1)}
+	respBody, err := io.ReadAll(lr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+	if len(respBody) > maxBodySize {
+		return nil, fmt.Errorf("response too large: exceeds %d bytes limit", maxBodySize)
 	}
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
