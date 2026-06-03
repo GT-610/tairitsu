@@ -11,6 +11,7 @@ import (
 // main is the application entry point
 func main() {
 	fmt.Println("Tairitsu - ZeroTier Controller Interface")
+	defer logger.Sync()
 
 	app, err := bootstrap.Build()
 	if err != nil {

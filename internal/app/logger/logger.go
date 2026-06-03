@@ -91,9 +91,13 @@ func InitLogger(level string) {
 
 	// Create the combined core
 	logger = zap.New(zapcore.NewTee(cores...), zap.AddCaller(), zap.Development())
+}
 
-	// Flush buffered log entries
-	defer logger.Sync()
+// Sync flushes any buffered log entries. Call this at application shutdown.
+func Sync() {
+	if logger != nil {
+		_ = logger.Sync()
+	}
 }
 
 // Debug logs a message at Debug level
