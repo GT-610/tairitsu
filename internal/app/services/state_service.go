@@ -39,10 +39,6 @@ type StateService struct {
 	globalBacked bool
 }
 
-func NewStateService() *StateService {
-	return &StateService{globalBacked: true}
-}
-
 func NewStateServiceWithConfig(cfg *config.Config) *StateService {
 	return &StateService{cfg: cfg}
 }

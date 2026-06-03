@@ -337,24 +337,6 @@ func (s *UserService) changePassword(userID, oldPassword, newPassword, currentSe
 	return revokedSessions, nil
 }
 
-func (s *UserService) UpdateUserRole(userID, role string) (*models.User, error) {
-	if role != "admin" && role != "user" {
-		return nil, ErrInvalidUserRole
-	}
-
-	user, err := s.GetUserByID(userID)
-	if err != nil {
-		return nil, err
-	}
-
-	user.Role = role
-	if err := s.UpdateUser(user); err != nil {
-		return nil, err
-	}
-
-	return user, nil
-}
-
 func (s *UserService) TransferAdmin(currentAdminID, targetUserID string) (*models.User, error) {
 	db := s.getDB()
 	if db == nil {

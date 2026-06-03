@@ -31,7 +31,7 @@ func TestStateService_GetSetupStatus_Uninitialized(t *testing.T) {
 	}
 	config.SetTempSetting("admin_creation_reset_done", "true")
 
-	stateService := services.NewStateService()
+	stateService := services.NewStateServiceWithConfig(config.AppConfig)
 	status := stateService.GetSetupStatus(nil, nil)
 
 	assert.False(t, status.Initialized)
@@ -72,7 +72,7 @@ func TestStateService_GetSetupStatus_InitializedWithAdminAndOfflineZT(t *testing
 	})
 	networkService := services.NewNetworkService(nil, nil)
 
-	stateService := services.NewStateService()
+	stateService := services.NewStateServiceWithConfig(config.AppConfig)
 	status := stateService.GetSetupStatus(userService, networkService)
 
 	assert.True(t, status.Initialized)

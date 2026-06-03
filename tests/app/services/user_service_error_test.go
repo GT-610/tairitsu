@@ -141,17 +141,6 @@ func TestUserServiceLoginReturnsSentinelForInvalidCredentials(t *testing.T) {
 	require.ErrorIs(t, err, appservices.ErrInvalidCredentials)
 }
 
-func TestUserServiceUpdateUserRoleValidatesRoleAndMissingUser(t *testing.T) {
-	db := newTestSQLiteDB(t)
-	service := appservices.NewUserService(db)
-
-	_, err := service.UpdateUserRole("missing", "super-admin")
-	require.ErrorIs(t, err, appservices.ErrInvalidUserRole)
-
-	_, err = service.UpdateUserRole("missing", "admin")
-	require.ErrorIs(t, err, appservices.ErrUserNotFound)
-}
-
 func TestUserServiceChangePasswordReturnsSentinelForWrongPassword(t *testing.T) {
 	db := newTestSQLiteDB(t)
 	service := appservices.NewUserService(db)
@@ -209,18 +198,6 @@ func TestUserServiceChangePasswordAndRevokeOtherSessionsRollsBackOnSessionFailur
 	reloadedOtherSession, err := db.GetSessionByID(otherSession.ID)
 	require.NoError(t, err)
 	assert.Nil(t, reloadedOtherSession.RevokedAt)
-}
-
-func TestUserServiceUpdateUserRoleUpdatesStoredUser(t *testing.T) {
-	db := newTestSQLiteDB(t)
-	service := appservices.NewUserService(db)
-
-	user, err := service.Register(&models.RegisterRequest{Username: "user-1", Password: "secret123"}, "user")
-	require.NoError(t, err)
-
-	updated, err := service.UpdateUserRole(user.ID, "admin")
-	require.NoError(t, err)
-	assert.Equal(t, "admin", updated.Role)
 }
 
 func TestUserServiceTransferAdminTransfersSingleAdminRole(t *testing.T) {

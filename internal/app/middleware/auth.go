@@ -68,32 +68,7 @@ func AuthMiddleware(jwtService *services.JWTService, sessionService *services.Se
 	}
 }
 
-// AdminRequired is the admin authorization middleware
-func AdminRequired() fiber.Handler {
-	return func(c fiber.Ctx) error {
-		role, exists := c.Locals("role").(string)
-		if !exists {
-			return c.Status(fiber.StatusForbidden).JSON(ErrorResponse{
-				Error:     "Forbidden",
-				Message:   "Authentication required",
-				ErrorCode: "auth.required",
-				Code:      fiber.StatusForbidden,
-			})
-		}
-
-		if role != "admin" {
-			return c.Status(fiber.StatusForbidden).JSON(ErrorResponse{
-				Error:     "Forbidden",
-				Message:   "Administrator permission required",
-				ErrorCode: "auth.admin_required",
-				Code:      fiber.StatusForbidden,
-			})
-		}
-
-		return c.Next()
-	}
-}
-
+// AdminRequiredWithUserService is the admin authorization middleware
 func AdminRequiredWithUserService(userService *services.UserService) fiber.Handler {
 	return func(c fiber.Ctx) error {
 		userID, exists := c.Locals("user_id").(string)
