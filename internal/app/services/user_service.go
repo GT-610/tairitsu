@@ -201,11 +201,11 @@ func (s *UserService) GetUserByID(id string) (*models.User, error) {
 	return user, nil
 }
 
-func (s *UserService) GetAllUsers() []*models.User {
+func (s *UserService) GetAllUsers() ([]*models.User, error) {
 	db := s.getDB()
 	if db == nil {
-		logger.Warn("service: database is not initialized; returning empty user list")
-		return []*models.User{}
+		logger.Warn("service: database is not initialized")
+		return nil, fmt.Errorf("database is not initialized")
 	}
 
 	logger.Info("service: getting all users")
@@ -213,10 +213,10 @@ func (s *UserService) GetAllUsers() []*models.User {
 	users, err := db.GetAllUsers()
 	if err != nil {
 		logger.Error("service: failed to get all users", zap.Error(err))
-		return []*models.User{}
+		return nil, fmt.Errorf("failed to get all users: %w", err)
 	}
 
-	return users
+	return users, nil
 }
 
 func (s *UserService) HasAdminUser() (bool, error) {

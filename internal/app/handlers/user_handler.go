@@ -25,7 +25,11 @@ func (h *UserHandler) GetAllUsers(c fiber.Ctx) error {
 	logger.Info("Getting all users")
 
 	// Get all users from service
-	users := h.userService.GetAllUsers()
+	users, err := h.userService.GetAllUsers()
+	if err != nil {
+		logger.Error("failed to get all users", zap.Error(err))
+		return writeErrorResponse(c, fiber.StatusInternalServerError, "Failed to retrieve users")
+	}
 
 	// Convert users to response format
 	var userResponses []models.UserResponse

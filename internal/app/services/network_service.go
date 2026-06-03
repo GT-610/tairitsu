@@ -439,6 +439,7 @@ func (s *NetworkService) UpdateNetwork(id string, updateReq *zerotier.NetworkUpd
 	if updateReq.Name != "" || updateReq.Description != "" {
 		if err := db.UpdateNetwork(ownedNetwork); err != nil {
 			logger.Error("service: failed to update network information in database", zap.String("network_id", id), zap.Error(err))
+			return nil, fmt.Errorf("failed to sync network to database after controller update: %w", err)
 		}
 	}
 
@@ -528,7 +529,7 @@ func (s *NetworkService) DeleteNetwork(networkID string, userID string) error {
 		return tx.DeleteNetwork(networkID)
 	}); err != nil {
 		logger.Error("service: failed to delete network and viewer grants from database", zap.String("network_id", networkID), zap.Error(err))
-		// Continue anyway, as ZeroTier deletion was successful
+		return fmt.Errorf("ZeroTier network deleted but database cleanup failed: %w", err)
 	}
 
 	return nil

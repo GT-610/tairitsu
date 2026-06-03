@@ -145,12 +145,14 @@ func (s *StateService) GetSetupStatus(userService *UserService, networkService *
 	}
 
 	if databaseConfigured && userService != nil {
-		users := userService.GetAllUsers()
-		for _, user := range users {
-			if user.Role == "admin" {
-				status.HasAdmin = true
-				status.AdminUsername = user.Username
-				break
+		users, err := userService.GetAllUsers()
+		if err == nil {
+			for _, user := range users {
+				if user.Role == "admin" {
+					status.HasAdmin = true
+					status.AdminUsername = user.Username
+					break
+				}
 			}
 		}
 	}
