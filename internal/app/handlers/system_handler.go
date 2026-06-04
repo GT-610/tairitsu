@@ -3,6 +3,7 @@ package handlers
 import (
 	"errors"
 	"net/url"
+	"strings"
 
 	"github.com/GT-610/tairitsu/internal/app/logger"
 	"github.com/GT-610/tairitsu/internal/app/models"
@@ -10,6 +11,16 @@ import (
 	"github.com/gofiber/fiber/v3"
 	"go.uber.org/zap"
 )
+
+func sanitizeErrorDetail(err error) string {
+	msg := err.Error()
+	// Errors are wrapped as "setup.xxx: <internal detail>".
+	// Strip everything after the first colon to avoid leaking internals.
+	if idx := strings.IndexByte(msg, ':'); idx > 0 {
+		return strings.TrimSpace(msg[:idx])
+	}
+	return "setup failed"
+}
 
 func setupErrorResponse(c fiber.Ctx, err error) error {
 	code := "system.internal_error"
@@ -95,7 +106,7 @@ func setupErrorResponse(c fiber.Ctx, err error) error {
 		code = "setup.zerotier_unavailable"
 		message = "ZeroTier controller is currently unavailable"
 	}
-	return writeErrorResponseWithCode(c, status, code, message)
+	return writeErrorResponseWithDetail(c, status, code, message, sanitizeErrorDetail(err))
 }
 
 // SystemHandler handles system-related API endpoints and operations

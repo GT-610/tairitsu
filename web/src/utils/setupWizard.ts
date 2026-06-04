@@ -8,6 +8,9 @@ export const setupWizardDatabaseStepCopy = {
 }
 
 export function getInitialSetupWizardStep(status: SetupStatus): number {
+  if (!status.zerotierConfigured && !status.databaseConfigured && !status.hasAdmin) {
+    return 0
+  }
   if (!status.zerotierConfigured) {
     return 1
   }

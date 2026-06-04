@@ -598,6 +598,31 @@ const rawEn: Record<string, string> = {
   '完成初始化': 'Finish setup',
   '已保存': 'Saved',
   '未知步骤': 'Unknown step',
+  '当前步骤状态：': 'Current step status: ',
+  '本向导会依次完成 ZeroTier 控制器连接、SQLite 配置、首个管理员创建，以及运行态切换。': 'This wizard will walk you through connecting a ZeroTier controller, configuring SQLite, creating the first administrator, and switching to runtime mode.',
+  '这一步会测试连接并保存配置。刷新页面后，已保存的控制器地址和 token 路径会自动回显。': 'This step will test the connection and save the configuration. After refreshing the page, the saved controller URL and token path will be restored automatically.',
+  'ZeroTier 控制器 URL': 'ZeroTier Controller URL',
+  '例如 /var/lib/zerotier-one/authtoken.secret': 'e.g. /var/lib/zerotier-one/authtoken.secret',
+  '当前控制器状态：': 'Current controller status: ',
+  '密码长度为 6 至 32 个字符': 'Password must be 6 to 32 characters',
+  '用户名长度不超过 16 个字符': 'Username must be 16 characters or fewer',
+  '首个管理员创建环境已准备完成，可以直接提交账号信息。': 'The environment for creating the first administrator is ready. You can submit the account information directly.',
+  '请确认以下信息。点击"完成初始化"后，系统会校验关键配置并切换到运行态。': 'Please confirm the information below. After clicking "Finish setup", the system will verify the configuration and switch to runtime mode.',
+  'ZeroTier 控制器：': 'ZeroTier Controller: ',
+  'SQLite 路径：': 'SQLite path: ',
+  '首个管理员：': 'First admin: ',
+  '尚未创建': 'Not yet created',
+  '当前仅支持 SQLite。PostgreSQL 等其他数据库将在后续版本推出。': 'Currently only SQLite is supported.',
+  '留空则使用默认值 data/tairitsu.db': 'Leave empty to use the default value data/tairitsu.db',
+  '获取初始化状态失败': 'Failed to load setup status',
+  '操作失败': 'Operation failed',
+  '请输入用户名': 'Please enter a username',
+  '初始化状态尚未生效，请稍后重试': 'Initialization state has not taken effect yet. Please try again later.',
+  '系统初始化完成，正在进入登录页面...': 'Setup complete. Redirecting to the login page...',
+  'ZeroTier 控制器连接成功并已保存：': 'ZeroTier controller connected and saved: ',
+  'SQLite 配置已保存：': 'SQLite configuration saved: ',
+  '首个管理员': 'First administrator',
+  '创建成功': 'created successfully',
   '数据库类型': 'Database type',
   'SQLite 文件路径': 'SQLite file path',
   '认证令牌文件路径': 'Auth token file path',
@@ -843,6 +868,10 @@ export function translateRawText(value: string, language: Language): string {
 
 export function translateMessageCode(code: string, language = resolveLanguage(getStoredLanguagePreference())): string | null {
   return messageCodes[code]?.[language] ?? null
+}
+
+export function getDetailSeparator(language = resolveLanguage(getStoredLanguagePreference())): string {
+  return language === 'zh-CN' ? '：' : ': '
 }
 
 interface TranslationContextValue {
