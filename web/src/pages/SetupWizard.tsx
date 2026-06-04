@@ -20,7 +20,7 @@ import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import { useTranslation, type LanguagePreference } from '../i18n';
 import { authAPI, systemAPI, type DatabaseSetupConfig, type SetupStatus, type ZeroTierSetupConfig } from '../services/api';
 import { getErrorMessage } from '../services/errors';
-import { getInitialSetupWizardStep, setupWizardDatabaseStepCopy } from '../utils/setupWizard';
+import { getInitialSetupWizardStep } from '../utils/setupWizard';
 
 interface AdminData {
   username: string;
@@ -271,11 +271,8 @@ function SetupWizard() {
               {translateText('配置数据库')}
             </Typography>
             <Typography variant="body1" paragraph>
-              {translateText(setupWizardDatabaseStepCopy.description)}
+              {translateText('当前仅支持 SQLite。PostgreSQL 等其他数据库将在后续版本推出。')}
             </Typography>
-            <Alert severity="info" sx={{ mb: 2 }}>
-              {translateText(setupWizardDatabaseStepCopy.supportAlert)}
-            </Alert>
             <TextField
               margin="normal"
               fullWidth
@@ -283,18 +280,19 @@ function SetupWizard() {
               label={translateText('数据库类型')}
               value={dbConfig.type}
               disabled
-              helperText={translateText(setupWizardDatabaseStepCopy.databaseTypeHelperText)}
             />
             <TextField
               margin="normal"
+              required
               fullWidth
               id="path"
               label={translateText('SQLite 文件路径')}
               name="path"
+              autoComplete="file-path"
               value={dbConfig.path}
               onChange={(event) => setDbConfig((previous) => ({ ...previous, path: event.target.value }))}
               disabled={loading}
-              helperText={translateText(setupWizardDatabaseStepCopy.databasePathHelperText)}
+              helperText={translateText('留空则使用默认值 data/tairitsu.db')}
             />
             {renderMessages()}
           </Paper>
