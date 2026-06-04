@@ -612,7 +612,7 @@ const rawEn: Record<string, string> = {
   'SQLite 路径：': 'SQLite path: ',
   '首个管理员：': 'First admin: ',
   '尚未创建': 'Not yet created',
-  '当前仅支持 SQLite。PostgreSQL 等其他数据库将在后续版本推出。': 'Currently only SQLite is supported. Other databases such as PostgreSQL will be available in future versions.',
+  '当前仅支持 SQLite。PostgreSQL 等其他数据库将在后续版本推出。': 'Currently only SQLite is supported.',
   '留空则使用默认值 data/tairitsu.db': 'Leave empty to use the default value data/tairitsu.db',
   '获取初始化状态失败': 'Failed to load setup status',
   '操作失败': 'Operation failed',
@@ -868,6 +868,10 @@ export function translateRawText(value: string, language: Language): string {
 
 export function translateMessageCode(code: string, language = resolveLanguage(getStoredLanguagePreference())): string | null {
   return messageCodes[code]?.[language] ?? null
+}
+
+export function getDetailSeparator(language = resolveLanguage(getStoredLanguagePreference())): string {
+  return language === 'zh-CN' ? '：' : ': '
 }
 
 interface TranslationContextValue {

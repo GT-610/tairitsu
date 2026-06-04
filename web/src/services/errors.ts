@@ -1,5 +1,5 @@
 import axios, { type AxiosError } from 'axios';
-import { translateMessageCode } from '../i18n';
+import { getDetailSeparator, translateMessageCode } from '../i18n';
 
 interface ErrorResponseData {
   message?: string;
@@ -20,6 +20,8 @@ function isAxiosError<T = ErrorResponseData>(error: unknown): error is AxiosErro
 }
 
 export function getErrorMessage(error: unknown, fallback: string): string {
+  const sep = getDetailSeparator();
+
   if (isAxiosError(error)) {
     const responseCode = error.response?.data?.error_code;
     const responseDetail = error.response?.data?.detail;
@@ -28,7 +30,7 @@ export function getErrorMessage(error: unknown, fallback: string): string {
       const translatedMessage = translateMessageCode(responseCode);
       if (translatedMessage) {
         if (typeof responseDetail === 'string' && responseDetail.trim() !== '') {
-          return `${translatedMessage}：${responseDetail}`;
+          return `${translatedMessage}${sep}${responseDetail}`;
         }
         return translatedMessage;
       }
@@ -37,7 +39,7 @@ export function getErrorMessage(error: unknown, fallback: string): string {
     const responseMessage = error.response?.data?.message;
     if (typeof responseMessage === 'string' && responseMessage.trim() !== '') {
       if (typeof responseDetail === 'string' && responseDetail.trim() !== '') {
-        return `${responseMessage}：${responseDetail}`;
+        return `${responseMessage}${sep}${responseDetail}`;
       }
       return responseMessage;
     }

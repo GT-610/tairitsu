@@ -40,7 +40,7 @@ const defaultZtConfig: ZeroTierSetupConfig = {
 };
 
 function SetupWizard() {
-  const { preference, setPreference, translateText } = useTranslation();
+  const { preference, setPreference, t, translateText } = useTranslation();
 
   const steps = [
     translateText('欢迎使用 Tairitsu'),
@@ -135,7 +135,15 @@ function SetupWizard() {
           setError(translateText('请输入用户名'));
           return;
         }
+        if (adminData.username.trim().length > 16) {
+          setError(translateText('用户名长度不超过 16 个字符'));
+          return;
+        }
         if (!adminData.password || adminData.password.length < 6) {
+          setError(translateText('密码长度为 6 至 32 个字符'));
+          return;
+        }
+        if (adminData.password.length > 32) {
           setError(translateText('密码长度为 6 至 32 个字符'));
           return;
         }
@@ -283,7 +291,6 @@ function SetupWizard() {
             />
             <TextField
               margin="normal"
-              required
               fullWidth
               id="path"
               label={translateText('SQLite 文件路径')}
@@ -370,16 +377,16 @@ function SetupWizard() {
           </Typography>
           <Box sx={{ flex: 1, display: 'flex', justifyContent: 'flex-end' }}>
             <FormControl size="small" sx={{ minWidth: 120 }}>
-              <InputLabel id="setup-language-label">Language</InputLabel>
+              <InputLabel id="setup-language-label">{t('settings.language.title')}</InputLabel>
               <Select<LanguagePreference>
                 labelId="setup-language-label"
-                label="Language"
+                label={t('settings.language.title')}
                 value={preference}
                 onChange={(event) => setPreference(event.target.value)}
               >
-                <MenuItem value="system">System</MenuItem>
-                <MenuItem value="en">English</MenuItem>
-                <MenuItem value="zh-CN">简体中文</MenuItem>
+                <MenuItem value="system">{t('language.system')}</MenuItem>
+                <MenuItem value="en">{t('language.en')}</MenuItem>
+                <MenuItem value="zh-CN">{t('language.zh-CN')}</MenuItem>
               </Select>
             </FormControl>
           </Box>
