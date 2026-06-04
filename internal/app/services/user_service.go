@@ -53,6 +53,9 @@ func normalizeUsername(username string) (string, error) {
 	if normalized == "" {
 		return "", ErrInvalidUsername
 	}
+	if len(normalized) > 16 {
+		return "", ErrInvalidUsername
+	}
 	return normalized, nil
 }
 

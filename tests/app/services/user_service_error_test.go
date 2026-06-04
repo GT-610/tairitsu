@@ -121,6 +121,23 @@ func TestUserServiceRegisterRejectsEmptyOrWhitespaceUsername(t *testing.T) {
 	require.ErrorIs(t, err, appservices.ErrInvalidUsername)
 }
 
+func TestUserServiceRegisterRejectsTooLongUsername(t *testing.T) {
+	db := newTestSQLiteDB(t)
+	service := appservices.NewUserService(db)
+
+	_, err := service.Register(&models.RegisterRequest{Username: "a1234567890123456", Password: "secret123"}, "user")
+	require.ErrorIs(t, err, appservices.ErrInvalidUsername)
+}
+
+func TestUserServiceRegisterAcceptsMaxLengthUsername(t *testing.T) {
+	db := newTestSQLiteDB(t)
+	service := appservices.NewUserService(db)
+
+	user, err := service.Register(&models.RegisterRequest{Username: "a123456789012345", Password: "secret123"}, "user")
+	require.NoError(t, err)
+	assert.Equal(t, "a123456789012345", user.Username)
+}
+
 func TestUserServiceRegisterNormalizesUsernameBeforeCheckingDuplicates(t *testing.T) {
 	db := newTestSQLiteDB(t)
 	service := appservices.NewUserService(db)
