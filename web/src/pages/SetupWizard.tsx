@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   Box,
@@ -42,13 +42,13 @@ const defaultZtConfig: ZeroTierSetupConfig = {
 function SetupWizard() {
   const { preference, setPreference, t, translateText } = useTranslation();
 
-  const steps = [
+  const steps = useMemo(() => [
     translateText('欢迎使用 Tairitsu'),
     translateText('配置 ZeroTier 控制器'),
     translateText('配置数据库'),
     translateText('创建管理员账户'),
     translateText('完成设置'),
-  ];
+  ], [translateText]);
   const [activeStep, setActiveStep] = useState(0);
   const [status, setStatus] = useState<SetupStatus | null>(null);
   const [initialLoading, setInitialLoading] = useState(true);
