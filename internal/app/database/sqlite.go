@@ -113,6 +113,10 @@ func (s *SQLiteDB) Init() error {
 }
 
 func (s *SQLiteDB) WithTransaction(fn func(DBInterface) error) error {
+	if s.tx != nil {
+		return fn(s)
+	}
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 

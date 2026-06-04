@@ -188,8 +188,10 @@ func (s *SessionService) RevokeOtherSessions(userID, currentSessionID string) (i
 	return count, nil
 }
 
-func (s *SessionService) StartCleanup(ctx context.Context) {
+func (s *SessionService) StartCleanup(ctx context.Context) <-chan struct{} {
+	done := make(chan struct{})
 	go func() {
+		defer close(done)
 		ticker := time.NewTicker(time.Hour)
 		defer ticker.Stop()
 		for {
@@ -201,14 +203,16 @@ func (s *SessionService) StartCleanup(ctx context.Context) {
 			}
 		}
 	}()
+	return done
 }
 
 func (s *SessionService) cleanupExpired() {
-	if s.db == nil {
+	db := s.getDB()
+	if db == nil {
 		return
 	}
 	cutoff := time.Now().Add(-24 * time.Hour)
-	if err := s.db.DeleteExpiredSessions(cutoff); err != nil {
+	if err := db.DeleteExpiredSessions(cutoff); err != nil {
 		logger.Warn("session cleanup failed", zap.Error(err))
 	}
 }

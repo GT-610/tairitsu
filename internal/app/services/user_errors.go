@@ -5,6 +5,7 @@ import "errors"
 var (
 	ErrUserDBUnavailable          = errors.New("database is not configured; complete initial setup first")
 	ErrInvalidUsername            = errors.New("username is required")
+	ErrUsernameTooLong            = errors.New("username is too long")
 	ErrUsernameExists             = errors.New("username already exists")
 	ErrInvalidCredentials         = errors.New("username or password is incorrect")
 	ErrUserNotFound               = errors.New("user not found")
@@ -41,6 +42,10 @@ func IsUsernameExists(err error) bool {
 
 func IsInvalidUsername(err error) bool {
 	return errors.Is(err, ErrInvalidUsername)
+}
+
+func IsUsernameTooLong(err error) bool {
+	return errors.Is(err, ErrUsernameTooLong)
 }
 
 func IsOldPasswordIncorrect(err error) bool {

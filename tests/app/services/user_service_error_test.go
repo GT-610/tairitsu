@@ -129,7 +129,7 @@ func TestUserServiceRegisterRejectsTooLongUsername(t *testing.T) {
 	service := appservices.NewUserService(db)
 
 	_, err := service.Register(&models.RegisterRequest{Username: "a1234567890123456", Password: "secret123"}, "user")
-	require.ErrorIs(t, err, appservices.ErrInvalidUsername)
+	require.ErrorIs(t, err, appservices.ErrUsernameTooLong)
 }
 
 func TestUserServiceRegisterAcceptsMaxLengthUsername(t *testing.T) {

@@ -3,6 +3,7 @@ package bootstrap
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/GT-610/tairitsu/internal/app/assembly"
 	"github.com/GT-610/tairitsu/internal/app/config"
@@ -15,12 +16,13 @@ import (
 )
 
 type App struct {
-	Config       *config.Config
-	Database     database.DBInterface
-	ZTClient     *zerotier.Client
-	Dependencies *assembly.Dependencies
-	Router       *fiber.App
-	cancel       context.CancelFunc
+	Config         *config.Config
+	Database       database.DBInterface
+	ZTClient       *zerotier.Client
+	Dependencies   *assembly.Dependencies
+	Router         *fiber.App
+	cancel         context.CancelFunc
+	cleanupDone    <-chan struct{}
 }
 
 func Build() (*App, error) {
@@ -54,7 +56,7 @@ func Build() (*App, error) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	app.cancel = cancel
-	app.Dependencies.Services.Session.StartCleanup(ctx)
+	app.cleanupDone = app.Dependencies.Services.Session.StartCleanup(ctx)
 
 	logger.Info("application assembly completed")
 	return app, nil
@@ -82,9 +84,14 @@ func (a *App) Shutdown() {
 		a.cancel()
 	}
 	if a.Router != nil {
-		if err := a.Router.Shutdown(); err != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if err := a.Router.ShutdownWithContext(ctx); err != nil {
 			logger.Error("failed to shutdown HTTP server", zap.Error(err))
 		}
+	}
+	if a.cleanupDone != nil {
+		<-a.cleanupDone
 	}
 	if a.Database != nil {
 		if err := a.Database.Close(); err != nil {
