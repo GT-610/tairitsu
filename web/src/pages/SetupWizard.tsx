@@ -136,7 +136,7 @@ function SetupWizard() {
           return;
         }
         if (!adminData.password || adminData.password.length < 6) {
-          setError(translateText('密码长度至少为6位'));
+          setError(translateText('密码长度为 6 至 32 个字符'));
           return;
         }
 
@@ -303,9 +303,6 @@ function SetupWizard() {
             <Typography variant="h5" gutterBottom>
               {translateText('创建管理员账户')}
             </Typography>
-            <Typography variant="body1" paragraph>
-              {translateText('这一步仅用于首次部署。若你已经创建过管理员，刷新后会自动进入完成步骤，不会重复重置数据库。')}
-            </Typography>
             <TextField
               margin="normal"
               required
@@ -317,6 +314,7 @@ function SetupWizard() {
               value={adminData.username}
               onChange={(event) => setAdminData((previous) => ({ ...previous, username: event.target.value }))}
               disabled={loading || !!status?.hasAdmin}
+              helperText={translateText('用户名长度不超过 16 个字符')}
             />
             <TextField
               margin="normal"
@@ -330,7 +328,7 @@ function SetupWizard() {
               value={adminData.password}
               onChange={(event) => setAdminData((previous) => ({ ...previous, password: event.target.value }))}
               disabled={loading || !!status?.hasAdmin}
-              helperText={translateText('密码长度至少为6位')}
+              helperText={translateText('密码长度为 6 至 32 个字符')}
             />
             {status?.adminCreationPrepared && !status?.hasAdmin && (
               <Alert severity="info" sx={{ mt: 2 }}>
