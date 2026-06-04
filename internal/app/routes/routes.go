@@ -12,6 +12,7 @@ import (
 func SetupRoutes(router *fiber.App, dependencies *assembly.Dependencies) {
 	// Apply middleware
 	router.Use(middleware.Logger())
+	router.Use(middleware.SecurityHeaders())
 	router.Use(cors.New())
 	router.Use(middleware.RateLimit())
 	router.Use(middleware.ErrorHandler())
