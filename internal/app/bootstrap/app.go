@@ -1,6 +1,7 @@
 package bootstrap
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/GT-610/tairitsu/internal/app/assembly"
@@ -19,6 +20,7 @@ type App struct {
 	ZTClient     *zerotier.Client
 	Dependencies *assembly.Dependencies
 	Router       *fiber.App
+	cancel       context.CancelFunc
 }
 
 func Build() (*App, error) {
@@ -50,6 +52,10 @@ func Build() (*App, error) {
 	app.Router = fiber.New()
 	routes.SetupRoutes(app.Router, app.Dependencies)
 
+	ctx, cancel := context.WithCancel(context.Background())
+	app.cancel = cancel
+	app.Dependencies.Services.Session.StartCleanup(ctx)
+
 	logger.Info("application assembly completed")
 	return app, nil
 }
@@ -72,6 +78,9 @@ func (a *App) Listen() error {
 
 func (a *App) Shutdown() {
 	logger.Info("shutting down application")
+	if a.cancel != nil {
+		a.cancel()
+	}
 	if a.Router != nil {
 		if err := a.Router.Shutdown(); err != nil {
 			logger.Error("failed to shutdown HTTP server", zap.Error(err))

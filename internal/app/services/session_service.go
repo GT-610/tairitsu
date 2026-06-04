@@ -1,13 +1,16 @@
 package services
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"time"
 
 	"github.com/GT-610/tairitsu/internal/app/database"
+	"github.com/GT-610/tairitsu/internal/app/logger"
 	"github.com/GT-610/tairitsu/internal/app/models"
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 )
 
 const sessionTouchInterval = 5 * time.Minute
@@ -183,4 +186,29 @@ func (s *SessionService) RevokeOtherSessions(userID, currentSessionID string) (i
 	}
 
 	return count, nil
+}
+
+func (s *SessionService) StartCleanup(ctx context.Context) {
+	go func() {
+		ticker := time.NewTicker(time.Hour)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				s.cleanupExpired()
+			}
+		}
+	}()
+}
+
+func (s *SessionService) cleanupExpired() {
+	if s.db == nil {
+		return
+	}
+	cutoff := time.Now().Add(-24 * time.Hour)
+	if err := s.db.DeleteExpiredSessions(cutoff); err != nil {
+		logger.Warn("session cleanup failed", zap.Error(err))
+	}
 }

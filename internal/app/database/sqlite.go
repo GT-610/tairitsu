@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 
 	"github.com/GT-610/tairitsu/internal/app/models"
 	_ "github.com/mattn/go-sqlite3"
@@ -111,12 +112,7 @@ func (s *SQLiteDB) Init() error {
 	return nil
 }
 
-// WithTransaction executes database operations within a transaction
 func (s *SQLiteDB) WithTransaction(fn func(DBInterface) error) error {
-	if s.tx != nil {
-		return fn(s)
-	}
-
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -507,6 +503,22 @@ func (s *SQLiteDB) UpdateSession(session *models.Session) error {
 		return fmt.Errorf("failed to update session: %w", err)
 	}
 
+	return nil
+}
+
+func (s *SQLiteDB) DeleteExpiredSessions(before time.Time) error {
+	query := `DELETE FROM sessions WHERE (revoked_at IS NOT NULL AND revoked_at < ?) OR (expires_at < ?)`
+	var err error
+	if s.tx != nil {
+		_, err = s.tx.Exec(query, before, before)
+	} else {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		_, err = s.db.Exec(query, before, before)
+	}
+	if err != nil {
+		return fmt.Errorf("failed to delete expired sessions: %w", err)
+	}
 	return nil
 }
 

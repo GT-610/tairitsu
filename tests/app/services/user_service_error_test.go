@@ -95,6 +95,9 @@ func (d *txFailingDB) DeleteNetworkViewer(networkID, userID string) error {
 func (d *txFailingDB) DeleteAllNetworkViewers(networkID string) error {
 	return d.inner.DeleteAllNetworkViewers(networkID)
 }
+func (d *txFailingDB) DeleteExpiredSessions(before time.Time) error {
+	return d.inner.DeleteExpiredSessions(before)
+}
 func (d *txFailingDB) HasAdminUser() (bool, error)   { return d.inner.HasAdminUser() }
 func (d *txFailingDB) Ping() error                  { return d.inner.Ping() }
 func (d *txFailingDB) Close() error                  { return d.inner.Close() }
