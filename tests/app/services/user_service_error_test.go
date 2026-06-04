@@ -141,6 +141,23 @@ func TestUserServiceRegisterAcceptsMaxLengthUsername(t *testing.T) {
 	assert.Equal(t, "a123456789012345", user.Username)
 }
 
+func TestUserServiceRegisterRejectsTooShortPassword(t *testing.T) {
+	db := newTestSQLiteDB(t)
+	service := appservices.NewUserService(db)
+
+	_, err := service.Register(&models.RegisterRequest{Username: "alice", Password: "short"}, "user")
+	require.ErrorIs(t, err, appservices.ErrPasswordTooShort)
+}
+
+func TestUserServiceRegisterRejectsTooLongPassword(t *testing.T) {
+	db := newTestSQLiteDB(t)
+	service := appservices.NewUserService(db)
+
+	longPassword := "a12345678901234567890123456789012x"
+	_, err := service.Register(&models.RegisterRequest{Username: "alice", Password: longPassword}, "user")
+	require.ErrorIs(t, err, appservices.ErrPasswordTooLong)
+}
+
 func TestUserServiceRegisterNormalizesUsernameBeforeCheckingDuplicates(t *testing.T) {
 	db := newTestSQLiteDB(t)
 	service := appservices.NewUserService(db)

@@ -18,6 +18,8 @@ func writeUserServiceError(c fiber.Ctx, err error) error {
 		return writeErrorResponseWithCode(c, fiber.StatusBadRequest, "user.invalid_username", err.Error())
 	case services.IsUsernameTooLong(err):
 		return writeErrorResponseWithCode(c, fiber.StatusBadRequest, "user.username_too_long", err.Error())
+	case services.IsPasswordTooShort(err), services.IsPasswordTooLong(err):
+		return writeErrorResponseWithCode(c, fiber.StatusBadRequest, "user.invalid_password", err.Error())
 	case services.IsInvalidCredentials(err):
 		return writeErrorResponseWithCode(c, fiber.StatusUnauthorized, "user.invalid_credentials", err.Error())
 	case services.IsPublicRegistrationDisabled(err):
