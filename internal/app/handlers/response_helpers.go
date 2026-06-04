@@ -17,6 +17,15 @@ func writeErrorResponseWithCode(c fiber.Ctx, status int, code string, message st
 	})
 }
 
+func writeErrorResponseWithDetail(c fiber.Ctx, status int, code string, message string, detail string) error {
+	return c.Status(status).JSON(fiber.Map{
+		"message":    message,
+		"error_code": code,
+		"code":       status,
+		"detail":     detail,
+	})
+}
+
 func writeMessageResponse(c fiber.Ctx, status int, code string, message string, extra fiber.Map) error {
 	body := fiber.Map{
 		"message":      message,

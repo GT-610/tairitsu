@@ -95,7 +95,7 @@ func setupErrorResponse(c fiber.Ctx, err error) error {
 		code = "setup.zerotier_unavailable"
 		message = "ZeroTier controller is currently unavailable"
 	}
-	return writeErrorResponseWithCode(c, status, code, message)
+	return writeErrorResponseWithDetail(c, status, code, message, err.Error())
 }
 
 // SystemHandler handles system-related API endpoints and operations

@@ -20,7 +20,7 @@ import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import { useTranslation, type LanguagePreference } from '../i18n';
 import { authAPI, systemAPI, type DatabaseSetupConfig, type SetupStatus, type ZeroTierSetupConfig } from '../services/api';
 import { getErrorMessage } from '../services/errors';
-import { getInitialSetupWizardStep, isSetupStepSaved, setupWizardDatabaseStepCopy } from '../utils/setupWizard';
+import { getInitialSetupWizardStep, setupWizardDatabaseStepCopy } from '../utils/setupWizard';
 
 interface AdminData {
   username: string;
@@ -175,8 +175,6 @@ function SetupWizard() {
     setActiveStep((previous) => Math.max(previous - 1, 0));
   };
 
-  const stepSaved = status ? isSetupStepSaved(status, activeStep) : false;
-  const stepStatusText = activeStep === 0 ? '' : stepSaved ? translateText('已保存') : translateText('未保存');
   const nextDisabled = loading || initialLoading || (activeStep === 4 && status?.initialized === true);
 
   if (initialLoading) {
@@ -189,11 +187,6 @@ function SetupWizard() {
 
   const renderMessages = () => (
     <>
-      {activeStep > 0 && (
-        <Alert severity={stepSaved ? 'success' : 'info'} sx={{ mt: 2 }}>
-          当前步骤状态：{stepStatusText}
-        </Alert>
-      )}
       {error && (
         <Alert severity="error" sx={{ mt: 2 }}>
           {error}

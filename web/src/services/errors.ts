@@ -4,6 +4,7 @@ import { translateMessageCode } from '../i18n';
 interface ErrorResponseData {
   message?: string;
   error_code?: string;
+  detail?: string;
 }
 
 export function toError(error: unknown): Error {
@@ -21,15 +22,23 @@ function isAxiosError<T = ErrorResponseData>(error: unknown): error is AxiosErro
 export function getErrorMessage(error: unknown, fallback: string): string {
   if (isAxiosError(error)) {
     const responseCode = error.response?.data?.error_code;
+    const responseDetail = error.response?.data?.detail;
+
     if (typeof responseCode === 'string' && responseCode.trim() !== '') {
       const translatedMessage = translateMessageCode(responseCode);
       if (translatedMessage) {
+        if (typeof responseDetail === 'string' && responseDetail.trim() !== '') {
+          return `${translatedMessage}：${responseDetail}`;
+        }
         return translatedMessage;
       }
     }
 
     const responseMessage = error.response?.data?.message;
     if (typeof responseMessage === 'string' && responseMessage.trim() !== '') {
+      if (typeof responseDetail === 'string' && responseDetail.trim() !== '') {
+        return `${responseMessage}：${responseDetail}`;
+      }
       return responseMessage;
     }
 
