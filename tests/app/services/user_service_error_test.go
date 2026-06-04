@@ -95,6 +95,9 @@ func (d *txFailingDB) DeleteNetworkViewer(networkID, userID string) error {
 func (d *txFailingDB) DeleteAllNetworkViewers(networkID string) error {
 	return d.inner.DeleteAllNetworkViewers(networkID)
 }
+func (d *txFailingDB) DeleteExpiredSessions(before time.Time) error {
+	return d.inner.DeleteExpiredSessions(before)
+}
 func (d *txFailingDB) HasAdminUser() (bool, error)   { return d.inner.HasAdminUser() }
 func (d *txFailingDB) Ping() error                  { return d.inner.Ping() }
 func (d *txFailingDB) Close() error                  { return d.inner.Close() }
@@ -119,6 +122,40 @@ func TestUserServiceRegisterRejectsEmptyOrWhitespaceUsername(t *testing.T) {
 
 	_, err = service.Register(&models.RegisterRequest{Username: "   ", Password: "secret123"}, "user")
 	require.ErrorIs(t, err, appservices.ErrInvalidUsername)
+}
+
+func TestUserServiceRegisterRejectsTooLongUsername(t *testing.T) {
+	db := newTestSQLiteDB(t)
+	service := appservices.NewUserService(db)
+
+	_, err := service.Register(&models.RegisterRequest{Username: "a1234567890123456", Password: "secret123"}, "user")
+	require.ErrorIs(t, err, appservices.ErrUsernameTooLong)
+}
+
+func TestUserServiceRegisterAcceptsMaxLengthUsername(t *testing.T) {
+	db := newTestSQLiteDB(t)
+	service := appservices.NewUserService(db)
+
+	user, err := service.Register(&models.RegisterRequest{Username: "a123456789012345", Password: "secret123"}, "user")
+	require.NoError(t, err)
+	assert.Equal(t, "a123456789012345", user.Username)
+}
+
+func TestUserServiceRegisterRejectsTooShortPassword(t *testing.T) {
+	db := newTestSQLiteDB(t)
+	service := appservices.NewUserService(db)
+
+	_, err := service.Register(&models.RegisterRequest{Username: "alice", Password: "short"}, "user")
+	require.ErrorIs(t, err, appservices.ErrPasswordTooShort)
+}
+
+func TestUserServiceRegisterRejectsTooLongPassword(t *testing.T) {
+	db := newTestSQLiteDB(t)
+	service := appservices.NewUserService(db)
+
+	longPassword := "a12345678901234567890123456789012x"
+	_, err := service.Register(&models.RegisterRequest{Username: "alice", Password: longPassword}, "user")
+	require.ErrorIs(t, err, appservices.ErrPasswordTooLong)
 }
 
 func TestUserServiceRegisterNormalizesUsernameBeforeCheckingDuplicates(t *testing.T) {

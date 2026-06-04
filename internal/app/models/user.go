@@ -24,13 +24,13 @@ type LoginRequest struct {
 // RegisterRequest represents a registration request payload.
 type RegisterRequest struct {
 	Username string `json:"username" binding:"required"`
-	Password string `json:"password" binding:"required,min=6"`
+	Password string `json:"password" binding:"required,min=6,max=32"`
 }
 
 // ChangePasswordRequest represents a password change request payload.
 type ChangePasswordRequest struct {
 	CurrentPassword     string `json:"current_password" binding:"required"`
-	NewPassword         string `json:"new_password" binding:"required,min=6"`
+	NewPassword         string `json:"new_password" binding:"required,min=6,max=32"`
 	ConfirmPassword     string `json:"confirm_password" binding:"required"`
 	LogoutOtherSessions bool   `json:"logout_other_sessions"`
 }

@@ -12,6 +12,7 @@ import (
 func SetupRoutes(router *fiber.App, dependencies *assembly.Dependencies) {
 	// Apply middleware
 	router.Use(middleware.Logger())
+	router.Use(middleware.SecurityHeaders())
 	router.Use(cors.New())
 	router.Use(middleware.RateLimit())
 	router.Use(middleware.ErrorHandler())
@@ -54,8 +55,21 @@ func SetupRoutes(router *fiber.App, dependencies *assembly.Dependencies) {
 	// API routes group
 	api := router.Group("/api")
 	{
-		// Health check
+		// Liveness probe (no dependency checks)
 		api.Get("/health", func(c fiber.Ctx) error {
+			return c.Status(fiber.StatusOK).JSON(fiber.Map{"status": "ok"})
+		})
+
+		// Readiness probe (checks database connectivity)
+		api.Get("/ready", func(c fiber.Ctx) error {
+			if dependencies.Database != nil {
+				if err := dependencies.Database.Ping(); err != nil {
+					return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+						"status": "unavailable",
+						"error":  "database connection failed",
+					})
+				}
+			}
 			return c.Status(fiber.StatusOK).JSON(fiber.Map{"status": "ok"})
 		})
 

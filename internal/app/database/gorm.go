@@ -2,6 +2,7 @@ package database
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/GT-610/tairitsu/internal/app/models"
 	"gorm.io/gorm"
@@ -128,6 +129,11 @@ func (g *GormDB) GetSessionsByUserID(userID string) ([]*models.Session, error) {
 // UpdateSession updates a session
 func (g *GormDB) UpdateSession(session *models.Session) error {
 	result := g.db.Save(session)
+	return result.Error
+}
+
+func (g *GormDB) DeleteExpiredSessions(before time.Time) error {
+	result := g.db.Where("(revoked_at IS NOT NULL AND revoked_at < ?) OR (expires_at < ?)", before, before).Delete(&models.Session{})
 	return result.Error
 }
 

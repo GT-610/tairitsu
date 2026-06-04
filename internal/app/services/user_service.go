@@ -53,7 +53,20 @@ func normalizeUsername(username string) (string, error) {
 	if normalized == "" {
 		return "", ErrInvalidUsername
 	}
+	if len(normalized) > 16 {
+		return "", ErrUsernameTooLong
+	}
 	return normalized, nil
+}
+
+func validatePassword(password string) error {
+	if len(password) < 6 {
+		return ErrPasswordTooShort
+	}
+	if len(password) > 32 {
+		return ErrPasswordTooLong
+	}
+	return nil
 }
 
 func (s *UserService) Register(req *models.RegisterRequest, role ...string) (*models.User, error) {
@@ -65,6 +78,10 @@ func (s *UserService) Register(req *models.RegisterRequest, role ...string) (*mo
 
 	username, err := normalizeUsername(req.Username)
 	if err != nil {
+		return nil, err
+	}
+
+	if err := validatePassword(req.Password); err != nil {
 		return nil, err
 	}
 
@@ -273,6 +290,10 @@ func (s *UserService) changePassword(userID, oldPassword, newPassword, currentSe
 	}
 
 	logger.Info("service: changing password", zap.String("user_id", userID))
+
+	if err := validatePassword(newPassword); err != nil {
+		return 0, err
+	}
 
 	user, err := db.GetUserByID(userID)
 	if err != nil {

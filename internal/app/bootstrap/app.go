@@ -1,7 +1,9 @@
 package bootstrap
 
 import (
+	"context"
 	"fmt"
+	"time"
 
 	"github.com/GT-610/tairitsu/internal/app/assembly"
 	"github.com/GT-610/tairitsu/internal/app/config"
@@ -14,11 +16,13 @@ import (
 )
 
 type App struct {
-	Config       *config.Config
-	Database     database.DBInterface
-	ZTClient     *zerotier.Client
-	Dependencies *assembly.Dependencies
-	Router       *fiber.App
+	Config         *config.Config
+	Database       database.DBInterface
+	ZTClient       *zerotier.Client
+	Dependencies   *assembly.Dependencies
+	Router         *fiber.App
+	cancel         context.CancelFunc
+	cleanupDone    <-chan struct{}
 }
 
 func Build() (*App, error) {
@@ -50,6 +54,10 @@ func Build() (*App, error) {
 	app.Router = fiber.New()
 	routes.SetupRoutes(app.Router, app.Dependencies)
 
+	ctx, cancel := context.WithCancel(context.Background())
+	app.cancel = cancel
+	app.cleanupDone = app.Dependencies.Services.Session.StartCleanup(ctx)
+
 	logger.Info("application assembly completed")
 	return app, nil
 }
@@ -62,11 +70,34 @@ func (a *App) Listen() error {
 	serverAddr := config.ServerAddressFrom(a.Config)
 	logger.Info("starting HTTP server", zap.String("address", serverAddr))
 
-	if err := a.Router.Listen(serverAddr); err != nil {
-		return fmt.Errorf("failed to start server: %w", err)
-	}
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- a.Router.Listen(serverAddr)
+	}()
 
-	return nil
+	return <-errCh
+}
+
+func (a *App) Shutdown() {
+	logger.Info("shutting down application")
+	if a.cancel != nil {
+		a.cancel()
+	}
+	if a.Router != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if err := a.Router.ShutdownWithContext(ctx); err != nil {
+			logger.Error("failed to shutdown HTTP server", zap.Error(err))
+		}
+	}
+	if a.cleanupDone != nil {
+		<-a.cleanupDone
+	}
+	if a.Database != nil {
+		if err := a.Database.Close(); err != nil {
+			logger.Error("failed to close database", zap.Error(err))
+		}
+	}
 }
 
 func (a *App) initializeDatabase() error {

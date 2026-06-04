@@ -2,6 +2,9 @@ package main
 
 import (
 	"fmt"
+	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/GT-610/tairitsu/internal/app/bootstrap"
 	"github.com/GT-610/tairitsu/internal/app/logger"
@@ -11,14 +14,22 @@ import (
 // main is the application entry point
 func main() {
 	fmt.Println("Tairitsu - ZeroTier Controller Interface")
-	defer logger.Sync()
 
 	app, err := bootstrap.Build()
 	if err != nil {
 		logger.Fatal("application initialization failed", zap.Error(err))
 	}
 
-	if err := app.Listen(); err != nil {
-		logger.Fatal("failed to start server", zap.Error(err))
-	}
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGTERM, syscall.SIGINT)
+
+	go func() {
+		if err := app.Listen(); err != nil {
+			logger.Fatal("failed to start server", zap.Error(err))
+		}
+	}()
+
+	<-quit
+	app.Shutdown()
+	logger.Sync()
 }

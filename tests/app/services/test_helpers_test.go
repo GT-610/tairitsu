@@ -1,6 +1,8 @@
 package services
 
 import (
+	"time"
+
 	"github.com/GT-610/tairitsu/internal/app/database"
 	"github.com/GT-610/tairitsu/internal/app/models"
 )
@@ -86,6 +88,7 @@ func (s *stateServiceDBStub) GetSharedNetworksByUserID(userID string) ([]*models
 }
 func (s *stateServiceDBStub) DeleteNetworkViewer(networkID, userID string) error { return nil }
 func (s *stateServiceDBStub) DeleteAllNetworkViewers(networkID string) error    { return nil }
+func (s *stateServiceDBStub) DeleteExpiredSessions(before time.Time) error      { return nil }
 func (s *stateServiceDBStub) HasAdminUser() (bool, error) {
 	for _, user := range s.users {
 		if user.Role == "admin" {

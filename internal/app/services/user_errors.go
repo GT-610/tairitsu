@@ -5,6 +5,9 @@ import "errors"
 var (
 	ErrUserDBUnavailable          = errors.New("database is not configured; complete initial setup first")
 	ErrInvalidUsername            = errors.New("username is required")
+	ErrUsernameTooLong            = errors.New("username is too long")
+	ErrPasswordTooShort           = errors.New("password must be at least 6 characters")
+	ErrPasswordTooLong            = errors.New("password must be at most 32 characters")
 	ErrUsernameExists             = errors.New("username already exists")
 	ErrInvalidCredentials         = errors.New("username or password is incorrect")
 	ErrUserNotFound               = errors.New("user not found")
@@ -41,6 +44,18 @@ func IsUsernameExists(err error) bool {
 
 func IsInvalidUsername(err error) bool {
 	return errors.Is(err, ErrInvalidUsername)
+}
+
+func IsUsernameTooLong(err error) bool {
+	return errors.Is(err, ErrUsernameTooLong)
+}
+
+func IsPasswordTooShort(err error) bool {
+	return errors.Is(err, ErrPasswordTooShort)
+}
+
+func IsPasswordTooLong(err error) bool {
+	return errors.Is(err, ErrPasswordTooLong)
 }
 
 func IsOldPasswordIncorrect(err error) bool {

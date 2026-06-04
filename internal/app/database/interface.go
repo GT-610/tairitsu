@@ -1,6 +1,8 @@
 package database
 
 import (
+	"time"
+
 	"github.com/GT-610/tairitsu/internal/app/models"
 )
 
@@ -24,6 +26,7 @@ type DBInterface interface {
 	GetSessionByID(id string) (*models.Session, error)
 	GetSessionsByUserID(userID string) ([]*models.Session, error)
 	UpdateSession(session *models.Session) error
+	DeleteExpiredSessions(before time.Time) error
 
 	// Network operations
 	CreateNetwork(network *models.Network) error
