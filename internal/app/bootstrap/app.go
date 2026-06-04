@@ -62,11 +62,26 @@ func (a *App) Listen() error {
 	serverAddr := config.ServerAddressFrom(a.Config)
 	logger.Info("starting HTTP server", zap.String("address", serverAddr))
 
-	if err := a.Router.Listen(serverAddr); err != nil {
-		return fmt.Errorf("failed to start server: %w", err)
-	}
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- a.Router.Listen(serverAddr)
+	}()
 
-	return nil
+	return <-errCh
+}
+
+func (a *App) Shutdown() {
+	logger.Info("shutting down application")
+	if a.Router != nil {
+		if err := a.Router.Shutdown(); err != nil {
+			logger.Error("failed to shutdown HTTP server", zap.Error(err))
+		}
+	}
+	if a.Database != nil {
+		if err := a.Database.Close(); err != nil {
+			logger.Error("failed to close database", zap.Error(err))
+		}
+	}
 }
 
 func (a *App) initializeDatabase() error {
