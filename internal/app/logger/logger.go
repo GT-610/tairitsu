@@ -90,7 +90,11 @@ func InitLogger(level string) {
 	}
 
 	// Create the combined core
-	logger = zap.New(zapcore.NewTee(cores...), zap.AddCaller(), zap.Development())
+	opts := []zap.Option{zap.AddCaller()}
+	if os.Getenv("NODE_ENV") != "production" {
+		opts = append(opts, zap.Development())
+	}
+	logger = zap.New(zapcore.NewTee(cores...), opts...)
 }
 
 // Sync flushes any buffered log entries. Call this at application shutdown.
