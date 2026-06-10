@@ -340,7 +340,7 @@ function Settings() {
                         const presentation = formatSessionPresentation(sessionItem)
                         return (
                           <Stack spacing={1.5}>
-                            <Stack direction="row" spacing={1.5} justifyContent="space-between" alignItems="flex-start">
+                            <Stack direction="row" spacing={1.5} sx={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
                               <Box sx={{ flex: 1 }}>
                                 <Typography variant="subtitle1">
                                   {presentation.title}

@@ -471,7 +471,7 @@ function PlanetGenerator() {
                     : 'identity.public 格式无效，应为 10 位地址 + :0: + 128 位公钥'
                   : '成功读取后会显示当前 root identity'}
                 placeholder="格式：10hexdigits:0:publicKey"
-                InputProps={{ readOnly: true }}
+                slotProps={{ input: { readOnly: true } }}
               />
 
               {identitySummary && (

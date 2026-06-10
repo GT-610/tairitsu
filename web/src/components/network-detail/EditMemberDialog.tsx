@@ -90,7 +90,7 @@ function EditMemberDialog({
             </Typography>
             <Stack spacing={2}>
               <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'flex-start' }}>
-                <TextField fullWidth label={translateText('设备 ID')} value={selectedMember?.id || ''} InputProps={{ readOnly: true }} />
+                <TextField fullWidth label={translateText('设备 ID')} value={selectedMember?.id || ''} slotProps={{ input: { readOnly: true } }} />
                 <Button variant="outlined" onClick={onCopyMemberID}>{translateText('复制')}</Button>
               </Box>
               <TextField
