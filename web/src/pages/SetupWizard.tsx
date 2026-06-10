@@ -236,7 +236,7 @@ function SetupWizard() {
             <Typography variant="h5" gutterBottom>
               {translateText('配置 ZeroTier 控制器')}
             </Typography>
-            <Typography variant="body1" paragraph>
+            <Typography variant="body1" sx={{ mb: 2 }}>
               {translateText('这一步会测试连接并保存配置。刷新页面后，已保存的控制器地址和 token 路径会自动回显。')}
             </Typography>
             <TextField
@@ -278,7 +278,7 @@ function SetupWizard() {
             <Typography variant="h5" gutterBottom>
               {translateText('配置数据库')}
             </Typography>
-            <Typography variant="body1" paragraph>
+            <Typography variant="body1" sx={{ mb: 2 }}>
               {translateText('当前仅支持 SQLite。PostgreSQL 等其他数据库将在后续版本推出。')}
             </Typography>
             <TextField
@@ -351,7 +351,7 @@ function SetupWizard() {
             <Typography variant="h5" gutterBottom>
               {translateText('完成设置')}
             </Typography>
-            <Typography variant="body1" paragraph>
+            <Typography variant="body1" sx={{ mb: 2 }}>
               {translateText('请确认以下信息。点击"完成初始化"后，系统会校验关键配置并切换到运行态。')}
             </Typography>
             <Box component="ul" sx={{ pl: 3, mb: 0 }}>

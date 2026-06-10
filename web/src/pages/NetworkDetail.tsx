@@ -747,7 +747,7 @@ function NetworkDetail() {
                     value={selectedViewerCandidateId}
                     onChange={(event) => setSelectedViewerCandidateId(event.target.value)}
                     sx={{ minWidth: 260 }}
-                    SelectProps={{ native: false }}
+                    slotProps={{ select: { native: false } }}
                     disabled={saving || viewerCandidates.length === 0}
                   >
                     {viewerCandidates.map((candidate) => (

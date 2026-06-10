@@ -305,7 +305,7 @@ function Networks() {
               <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
                 {translateText('您可以直接创建一个新网络，或前往“导入网络”把控制器中已有的网络登记到当前账号。')}
               </Typography>
-              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} justifyContent="center">
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ justifyContent: 'center' }}>
                 <Button variant="contained" startIcon={<Add />} onClick={() => handleOpenModal()}>
                   {translateText('创建网络')}
                 </Button>
@@ -341,7 +341,7 @@ function Networks() {
                   {filteredNetworks.map((network) => (
                     <TableRow key={network.id}>
                       <TableCell component="th" scope="row">
-                        <Stack direction="row" spacing={1} alignItems="center" useFlexGap flexWrap="wrap">
+                        <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
                           <Typography variant="body1">
                             {network.name || translateText('未命名网络')}
                           </Typography>

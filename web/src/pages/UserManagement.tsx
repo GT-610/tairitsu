@@ -240,7 +240,7 @@ function UserManagement() {
         <Typography variant="h4" component="h1">
           {translateText('用户管理')}
         </Typography>
-        <Stack direction="row" spacing={2} alignItems="center">
+        <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
           <Button variant="contained" onClick={() => setOpenCreateDialog(true)} disabled={updating}>
             {translateText('创建用户')}
           </Button>

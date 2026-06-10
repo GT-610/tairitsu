@@ -25,7 +25,7 @@ import {
   Typography,
 } from '@mui/material'
 import RefreshIcon from '@mui/icons-material/Refresh'
-import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline'
+import CheckCircleOutlinedIcon from '@mui/icons-material/CheckCircleOutlined'
 import { Link as RouterLink } from 'react-router-dom'
 import {
   networkAPI,
@@ -212,7 +212,7 @@ function ImportNetwork() {
         <Alert
           severity={importFeedback?.severity ?? 'success'}
           sx={{ mb: 3 }}
-          icon={importFeedback?.showSuccessIcon ? <CheckCircleOutlineIcon fontSize="inherit" /> : undefined}
+          icon={importFeedback?.showSuccessIcon ? <CheckCircleOutlinedIcon fontSize="inherit" /> : undefined}
           onClose={() => setSuccessMessage('')}
           action={firstImportedNetworkId ? (
             <Button component={RouterLink} to={`/networks/${firstImportedNetworkId}`} color="inherit" size="small">

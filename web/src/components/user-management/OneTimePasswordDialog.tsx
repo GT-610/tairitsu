@@ -35,7 +35,7 @@ function OneTimePasswordDialog({
             label={translateText('临时密码')}
             value={password}
             fullWidth
-            InputProps={{ readOnly: true }}
+            slotProps={{ input: { readOnly: true } }}
           />
           <Typography variant="body2" color="text.secondary">
             {footerText}
