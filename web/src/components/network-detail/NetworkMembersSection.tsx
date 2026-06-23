@@ -3,6 +3,7 @@ import { Alert, Box, Button, Card, CardContent, Chip, Grid, IconButton, Paper, S
 import type { MouseEvent } from 'react'
 import type { NetworkMemberDevice } from './types'
 import { useTranslation } from '../../i18n'
+import { summaryCardSx } from '../../utils/sharedStyles'
 
 interface NetworkMembersSectionProps {
   memberDevices: NetworkMemberDevice[];
@@ -18,15 +19,6 @@ interface NetworkMembersSectionProps {
   onQuickReject: () => void;
   onOpenMemberMenu?: (event: MouseEvent<HTMLElement>, member: NetworkMemberDevice) => void;
   readOnly?: boolean;
-}
-
-const summaryCardSx = {
-  height: '100%',
-  bgcolor: 'background.paper',
-  border: 1,
-  borderColor: 'divider',
-  display: 'flex',
-  flexDirection: 'column',
 }
 
 function NetworkMembersSection({

@@ -20,15 +20,7 @@ import { getErrorMessage, hasStatus } from '../services/errors';
 import { persistAuthState } from '../services/authStorage';
 import { isPublicRegistrationEnabled } from '../utils/publicRegistration';
 import { useTranslation } from '../i18n';
-
-function getNavigationMessage(state: unknown): string {
-  if (!state || typeof state !== 'object' || !('message' in state)) {
-    return ''
-  }
-
-  const { message } = state as { message?: unknown }
-  return typeof message === 'string' ? message : ''
-}
+import { getNavigationMessage } from '../utils/sharedStyles';
 
 /**
  * Login Component
