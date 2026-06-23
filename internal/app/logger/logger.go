@@ -70,7 +70,7 @@ func InitLogger(level string) {
 	var cores []zapcore.Core
 	cores = append(cores, core)
 
-	if os.Getenv("NODE_ENV") != "production" {
+	if os.Getenv("APP_ENV") != "production" {
 		consoleEncoder := zapcore.NewConsoleEncoder(zapcore.EncoderConfig{
 			TimeKey:        "ts",
 			LevelKey:       "level",
@@ -91,7 +91,7 @@ func InitLogger(level string) {
 
 	// Create the combined core
 	opts := []zap.Option{zap.AddCaller()}
-	if os.Getenv("NODE_ENV") != "production" {
+	if os.Getenv("APP_ENV") != "production" {
 		opts = append(opts, zap.Development())
 	}
 	logger = zap.New(zapcore.NewTee(cores...), opts...)

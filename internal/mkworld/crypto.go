@@ -7,11 +7,11 @@
 package mkworld
 
 import (
+	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/sha512"
 
 	"golang.org/x/crypto/curve25519"
-	"golang.org/x/crypto/ed25519"
 )
 
 func SignMessage(pub [ZT_C25519_PUBLIC_KEY_LEN]byte, priv [ZT_C25519_PRIVATE_KEY_LEN]byte, msg []byte) ([ZT_C25519_SIGNATURE_LEN]byte, error) {

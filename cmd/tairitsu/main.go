@@ -23,13 +23,19 @@ func main() {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGTERM, syscall.SIGINT)
 
+	listenErr := make(chan error, 1)
 	go func() {
-		if err := app.Listen(); err != nil {
-			logger.Fatal("failed to start server", zap.Error(err))
-		}
+		listenErr <- app.Listen()
 	}()
 
-	<-quit
+	select {
+	case <-quit:
+	case err := <-listenErr:
+		if err != nil {
+			logger.Error("server listen failed", zap.Error(err))
+		}
+	}
+
 	app.Shutdown()
 	logger.Sync()
 }

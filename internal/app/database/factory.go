@@ -91,9 +91,9 @@ func NewDatabase(config Config) (DBInterface, error) {
 		return &GormDB{db: db}, nil
 
 	case PostgreSQL:
-		// Build DSN
-		dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%d sslmode=disable TimeZone=Asia/Shanghai",
-			config.Host, config.User, config.Pass, config.Name, config.Port)
+		sslMode := "require"
+		dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%d sslmode=%s TimeZone=Asia/Shanghai",
+			config.Host, config.User, config.Pass, config.Name, config.Port, sslMode)
 
 		db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 		if err != nil {
