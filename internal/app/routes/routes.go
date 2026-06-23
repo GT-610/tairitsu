@@ -1,6 +1,8 @@
 package routes
 
 import (
+	"os"
+
 	"github.com/GT-610/tairitsu/internal/app/assembly"
 	"github.com/GT-610/tairitsu/internal/app/handlers"
 	"github.com/GT-610/tairitsu/internal/app/middleware"
@@ -10,10 +12,15 @@ import (
 
 // SetupRoutes configures application routes
 func SetupRoutes(router *fiber.App, dependencies *assembly.Dependencies) {
+	corsConfig := cors.ConfigDefault
+	if os.Getenv("APP_ENV") == "production" {
+		corsConfig.AllowOrigins = []string{}
+	}
+
 	// Apply middleware
 	router.Use(middleware.Logger())
 	router.Use(middleware.SecurityHeaders())
-	router.Use(cors.New())
+	router.Use(cors.New(corsConfig))
 	router.Use(middleware.RateLimit())
 	router.Use(middleware.ErrorHandler())
 

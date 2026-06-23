@@ -67,6 +67,7 @@ type RateLimiter struct {
 	bucketMutex sync.RWMutex            // Mutex for accessing buckets
 	capacity    int                     // Default bucket capacity
 	refillRate  int                     // Default tokens added per second
+	maxBuckets  int                     // Maximum number of tracked IPs
 }
 
 // NewRateLimiter creates a new rate limiter
@@ -75,6 +76,7 @@ func NewRateLimiter(capacity, refillRate int) *RateLimiter {
 		buckets:    make(map[string]*TokenBucket),
 		capacity:   capacity,
 		refillRate: refillRate,
+		maxBuckets: 10000,
 	}
 	go rl.cleanupLoop()
 	return rl
@@ -113,6 +115,14 @@ func (rl *RateLimiter) GetBucket(ip string) *TokenBucket {
 
 	if exists {
 		return bucket
+	}
+
+	// Reject new IPs when the bucket map is at capacity
+	rl.bucketMutex.RLock()
+	atCapacity := len(rl.buckets) >= rl.maxBuckets
+	rl.bucketMutex.RUnlock()
+	if atCapacity {
+		return NewTokenBucket(0, 0) // bucket with no tokens — all requests denied
 	}
 
 	// Create a new token bucket
