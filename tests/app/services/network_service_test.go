@@ -18,7 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func createTestUser(t *testing.T, db *database.SQLiteDB, id string, role string) {
+func createTestUser(t *testing.T, db database.DBInterface, id string, role string) {
 	t.Helper()
 
 	require.NoError(t, db.CreateUser(&models.User{
@@ -713,10 +713,10 @@ func TestNetworkServiceGetAllNetworksFetchesMemberStatsConcurrently(t *testing.T
 	assert.Less(t, elapsed, 600*time.Millisecond)
 }
 
-func newTestSQLiteDB(t *testing.T) *database.SQLiteDB {
+func newTestSQLiteDB(t *testing.T) database.DBInterface {
 	t.Helper()
 
-	db, err := database.NewSQLiteDB(filepath.Join(t.TempDir(), "tairitsu.db"))
+	db, err := database.NewDatabase(database.Config{Type: database.SQLite, Path: filepath.Join(t.TempDir(), "tairitsu.db")})
 	require.NoError(t, err)
 	require.NoError(t, db.Init())
 	t.Cleanup(func() {

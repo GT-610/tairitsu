@@ -23,7 +23,6 @@ func TestWriteUserServiceError_MapsKnownErrors(t *testing.T) {
 		{name: "invalid credentials", err: services.ErrInvalidCredentials, expectedCode: fiber.StatusUnauthorized},
 		{name: "user not found", err: services.ErrUserNotFound, expectedCode: fiber.StatusNotFound},
 		{name: "old password incorrect", err: services.ErrOldPasswordIncorrect, expectedCode: fiber.StatusBadRequest},
-		{name: "invalid user role", err: services.ErrInvalidUserRole, expectedCode: fiber.StatusBadRequest},
 		{name: "transfer to self", err: services.ErrAdminTransferSelf, expectedCode: fiber.StatusBadRequest},
 		{name: "delete self", err: services.ErrAdminDeleteSelf, expectedCode: fiber.StatusBadRequest},
 		{name: "delete current admin blocked", err: services.ErrAdminDeleteBlocked, expectedCode: fiber.StatusBadRequest},

@@ -12,7 +12,6 @@ var (
 	ErrInvalidCredentials         = errors.New("username or password is incorrect")
 	ErrUserNotFound               = errors.New("user not found")
 	ErrOldPasswordIncorrect       = errors.New("current password is incorrect")
-	ErrInvalidUserRole            = errors.New("invalid role; must be admin or user")
 	ErrAdminTransferSelf          = errors.New("cannot transfer administrator role to yourself")
 	ErrAdminResetSelf             = errors.New("cannot reset your own password; use the change password flow")
 	ErrAdminDeleteSelf            = errors.New("cannot delete yourself; transfer administrator role first or use another administrator account")
@@ -60,10 +59,6 @@ func IsPasswordTooLong(err error) bool {
 
 func IsOldPasswordIncorrect(err error) bool {
 	return errors.Is(err, ErrOldPasswordIncorrect)
-}
-
-func IsInvalidUserRole(err error) bool {
-	return errors.Is(err, ErrInvalidUserRole)
 }
 
 func IsAdminTransferSelf(err error) bool {

@@ -7,31 +7,31 @@ import (
 // User represents a user account.
 type User struct {
 	ID        string    `json:"id"`
-	Username  string    `json:"username" binding:"required"`
-	Password  string    `json:"-" binding:"required"` // Password is never returned to the client
-	Role      string    `json:"role"`                 // admin, user
+	Username  string    `json:"username"`
+	Password  string    `json:"-"` // Password is never returned to the client
+	Role      string    `json:"role"` // admin, user
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
 // LoginRequest represents a login request payload.
 type LoginRequest struct {
-	Username   string `json:"username" binding:"required"`
-	Password   string `json:"password" binding:"required"`
+	Username   string `json:"username"`
+	Password   string `json:"password"`
 	RememberMe bool   `json:"remember_me"`
 }
 
 // RegisterRequest represents a registration request payload.
 type RegisterRequest struct {
-	Username string `json:"username" binding:"required"`
-	Password string `json:"password" binding:"required,min=6,max=32"`
+	Username string `json:"username"`
+	Password string `json:"password"`
 }
 
 // ChangePasswordRequest represents a password change request payload.
 type ChangePasswordRequest struct {
-	CurrentPassword     string `json:"current_password" binding:"required"`
-	NewPassword         string `json:"new_password" binding:"required,min=6,max=32"`
-	ConfirmPassword     string `json:"confirm_password" binding:"required"`
+	CurrentPassword     string `json:"current_password"`
+	NewPassword         string `json:"new_password"`
+	ConfirmPassword     string `json:"confirm_password"`
 	LogoutOtherSessions bool   `json:"logout_other_sessions"`
 }
 
