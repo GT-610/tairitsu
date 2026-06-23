@@ -72,6 +72,9 @@ func (h *NetworkHandler) GetSharedNetworks(c fiber.Ctx) error {
 // GetNetwork retrieves a specific network
 func (h *NetworkHandler) GetNetwork(c fiber.Ctx) error {
 	id := c.Params("id")
+	if err := validateNetworkID(id); err != nil {
+		return writeErrorResponse(c, fiber.StatusBadRequest, err.Error())
+	}
 	logger.Info("Getting network", zap.String("network_id", id))
 
 	// Get user ID from context
@@ -100,6 +103,13 @@ func (h *NetworkHandler) CreateNetwork(c fiber.Ctx) error {
 		return writeErrorResponse(c, fiber.StatusBadRequest, err.Error())
 	}
 
+	if err := validateNetworkName(req.Name); err != nil {
+		return writeErrorResponse(c, fiber.StatusBadRequest, err.Error())
+	}
+	if err := validateNetworkDescription(req.Description); err != nil {
+		return writeErrorResponse(c, fiber.StatusBadRequest, err.Error())
+	}
+
 	logger.Info("Creating network", zap.String("network_name", req.Name))
 
 	// Get user ID from context
@@ -123,6 +133,9 @@ func (h *NetworkHandler) CreateNetwork(c fiber.Ctx) error {
 // UpdateNetwork updates a network
 func (h *NetworkHandler) UpdateNetwork(c fiber.Ctx) error {
 	id := c.Params("id")
+	if err := validateNetworkID(id); err != nil {
+		return writeErrorResponse(c, fiber.StatusBadRequest, err.Error())
+	}
 
 	var req zerotier.NetworkUpdateRequest
 	if err := c.Bind().Body(&req); err != nil {
@@ -154,6 +167,9 @@ func (h *NetworkHandler) UpdateNetwork(c fiber.Ctx) error {
 // Name is synced to both the controller and the database; description is database-only
 func (h *NetworkHandler) UpdateNetworkMetadata(c fiber.Ctx) error {
 	id := c.Params("id")
+	if err := validateNetworkID(id); err != nil {
+		return writeErrorResponse(c, fiber.StatusBadRequest, err.Error())
+	}
 
 	var req struct {
 		Name        string `json:"name"`
@@ -161,6 +177,13 @@ func (h *NetworkHandler) UpdateNetworkMetadata(c fiber.Ctx) error {
 	}
 	if err := c.Bind().Body(&req); err != nil {
 		logger.Error("Failed to bind network metadata update request", zap.Error(err))
+		return writeErrorResponse(c, fiber.StatusBadRequest, err.Error())
+	}
+
+	if err := validateNetworkName(req.Name); err != nil {
+		return writeErrorResponse(c, fiber.StatusBadRequest, err.Error())
+	}
+	if err := validateNetworkDescription(req.Description); err != nil {
 		return writeErrorResponse(c, fiber.StatusBadRequest, err.Error())
 	}
 
@@ -187,6 +210,9 @@ func (h *NetworkHandler) UpdateNetworkMetadata(c fiber.Ctx) error {
 // DeleteNetwork deletes a network
 func (h *NetworkHandler) DeleteNetwork(c fiber.Ctx) error {
 	id := c.Params("id")
+	if err := validateNetworkID(id); err != nil {
+		return writeErrorResponse(c, fiber.StatusBadRequest, err.Error())
+	}
 	logger.Info("Deleting network", zap.String("network_id", id))
 
 	// Get user ID from context
@@ -274,6 +300,9 @@ func (h *NetworkHandler) ImportNetworks(c fiber.Ctx) error {
 
 func (h *NetworkHandler) GetNetworkViewers(c fiber.Ctx) error {
 	networkID := c.Params("id")
+	if err := validateNetworkID(networkID); err != nil {
+		return writeErrorResponse(c, fiber.StatusBadRequest, err.Error())
+	}
 	userID, authErr := requiredUserID(c)
 	if authErr != nil {
 		return authErr
@@ -289,6 +318,9 @@ func (h *NetworkHandler) GetNetworkViewers(c fiber.Ctx) error {
 
 func (h *NetworkHandler) GetNetworkViewerCandidates(c fiber.Ctx) error {
 	networkID := c.Params("id")
+	if err := validateNetworkID(networkID); err != nil {
+		return writeErrorResponse(c, fiber.StatusBadRequest, err.Error())
+	}
 	userID, authErr := requiredUserID(c)
 	if authErr != nil {
 		return authErr
@@ -304,6 +336,9 @@ func (h *NetworkHandler) GetNetworkViewerCandidates(c fiber.Ctx) error {
 
 func (h *NetworkHandler) AddNetworkViewer(c fiber.Ctx) error {
 	networkID := c.Params("id")
+	if err := validateNetworkID(networkID); err != nil {
+		return writeErrorResponse(c, fiber.StatusBadRequest, err.Error())
+	}
 	userID, authErr := requiredUserID(c)
 	if authErr != nil {
 		return authErr
@@ -328,6 +363,9 @@ func (h *NetworkHandler) AddNetworkViewer(c fiber.Ctx) error {
 
 func (h *NetworkHandler) DeleteNetworkViewer(c fiber.Ctx) error {
 	networkID := c.Params("id")
+	if err := validateNetworkID(networkID); err != nil {
+		return writeErrorResponse(c, fiber.StatusBadRequest, err.Error())
+	}
 	targetUserID := c.Params("userId")
 	userID, authErr := requiredUserID(c)
 	if authErr != nil {

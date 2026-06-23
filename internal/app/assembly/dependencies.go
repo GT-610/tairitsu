@@ -56,7 +56,7 @@ func NewDependencies(cfg *config.Config, db database.DBInterface, ztClient *zero
 	setupService := services.NewSetupService(runtimeService, stateService, userService, networkService)
 	systemService := services.NewSystemService()
 	jwtSecret := ""
-	if cfg != nil {
+	if cfg != nil && cfg.Security.JWTSecret != "" {
 		jwtSecret = cfg.Security.JWTSecret
 	}
 	jwtService := services.NewJWTService(jwtSecret)

@@ -188,18 +188,14 @@ func GetZTTokenFrom(cfg *Config) (string, error) {
 		return "", fmt.Errorf("configuration not loaded")
 	}
 
-	// Decrypt token
 	if cfg.ZeroTier.Token != "" {
 		decryptedToken, err := decryptSensitiveDataWithConfig(cfg, cfg.ZeroTier.Token)
 		if err != nil {
-			// If decryption fails, it might be unencrypted data, try to return directly
-			// This is for compatibility with possible unencrypted data
-			return cfg.ZeroTier.Token, nil
+			return "", fmt.Errorf("failed to decrypt ZeroTier token: %w", err)
 		}
 		return decryptedToken, nil
 	}
 
-	// If not in configuration, try to get from environment variables
 	token := viper.GetString("ZT_TOKEN")
 	if token != "" {
 		return token, nil
@@ -265,8 +261,7 @@ func GetDatabasePasswordFrom(cfg *Config) (string, error) {
 	if cfg.Database.Pass != "" {
 		decryptedPass, err := decryptSensitiveDataWithConfig(cfg, cfg.Database.Pass)
 		if err != nil {
-			// If decryption fails, it might be unencrypted data, try to return directly
-			return cfg.Database.Pass, nil
+			return "", fmt.Errorf("failed to decrypt database password: %w", err)
 		}
 		return decryptedPass, nil
 	}

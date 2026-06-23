@@ -4,31 +4,40 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
+
+	"golang.org/x/crypto/argon2"
 )
 
 var (
 	ErrEncryptFailed     = errors.New("crypto.encrypt_failed")
 	ErrDecryptFailed     = errors.New("crypto.decrypt_failed")
 	ErrInvalidCiphertext = errors.New("crypto.invalid_ciphertext")
+	ErrEmptyKey          = errors.New("crypto.empty_key")
 )
 
-// Encrypt encrypts sensitive data using AES-GCM
+// deriveKey uses argon2id to derive a 32-byte AES-256 key from an arbitrary-length secret.
+// The application-specific salt prevents cross-application key reuse.
+func deriveKey(secret string) ([]byte, error) {
+	if secret == "" {
+		return nil, ErrEmptyKey
+	}
+	salt := sha256.Sum256([]byte("tairitsu-config-encryption-salt-v1"))
+	return argon2.IDKey([]byte(secret), salt[:], 1, 64*1024, 4, 32), nil
+}
+
+// Encrypt encrypts sensitive data using AES-256-GCM with a key derived via argon2id.
 func Encrypt(text, key string) (string, error) {
-	// Ensure key length is 32 bytes (256 bits)
-	if len(key) < 32 {
-		// Pad key to 32 bytes
-		for len(key) < 32 {
-			key += "0"
-		}
-	} else if len(key) > 32 {
-		key = key[:32]
+	derived, err := deriveKey(key)
+	if err != nil {
+		return "", fmt.Errorf("%w: %v", ErrEncryptFailed, err)
 	}
 
-	block, err := aes.NewCipher([]byte(key))
+	block, err := aes.NewCipher(derived)
 	if err != nil {
 		return "", fmt.Errorf("%w: create AES cipher: %v", ErrEncryptFailed, err)
 	}
@@ -47,16 +56,11 @@ func Encrypt(text, key string) (string, error) {
 	return base64.StdEncoding.EncodeToString(ciphertext), nil
 }
 
-// Decrypt decrypts sensitive data
+// Decrypt decrypts sensitive data using AES-256-GCM with a key derived via argon2id.
 func Decrypt(encryptedText, key string) (string, error) {
-	// Ensure key length is 32 bytes (256 bits)
-	if len(key) < 32 {
-		// Pad key to 32 bytes
-		for len(key) < 32 {
-			key += "0"
-		}
-	} else if len(key) > 32 {
-		key = key[:32]
+	derived, err := deriveKey(key)
+	if err != nil {
+		return "", fmt.Errorf("%w: %v", ErrDecryptFailed, err)
 	}
 
 	data, err := base64.StdEncoding.DecodeString(encryptedText)
@@ -64,7 +68,7 @@ func Decrypt(encryptedText, key string) (string, error) {
 		return "", fmt.Errorf("%w: base64 decode: %v", ErrInvalidCiphertext, err)
 	}
 
-	block, err := aes.NewCipher([]byte(key))
+	block, err := aes.NewCipher(derived)
 	if err != nil {
 		return "", fmt.Errorf("%w: create AES cipher: %v", ErrDecryptFailed, err)
 	}

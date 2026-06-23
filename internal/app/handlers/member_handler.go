@@ -31,6 +31,9 @@ func NewMemberHandler(networkService *services.NetworkService) *MemberHandler {
 // GetMembers retrieves all members in a network
 func (h *MemberHandler) GetMembers(c fiber.Ctx) error {
 	networkID := memberRouteNetworkID(c)
+	if err := validateNetworkID(networkID); err != nil {
+		return writeErrorResponse(c, fiber.StatusBadRequest, err.Error())
+	}
 
 	// Get user ID from context
 	userID, authErr := requiredUserID(c)
@@ -52,6 +55,12 @@ func (h *MemberHandler) GetMembers(c fiber.Ctx) error {
 func (h *MemberHandler) GetMember(c fiber.Ctx) error {
 	networkID := memberRouteNetworkID(c)
 	memberID := c.Params("memberId")
+	if err := validateNetworkID(networkID); err != nil {
+		return writeErrorResponse(c, fiber.StatusBadRequest, err.Error())
+	}
+	if err := validateMemberID(memberID); err != nil {
+		return writeErrorResponse(c, fiber.StatusBadRequest, err.Error())
+	}
 
 	// Get user ID from context
 	userID, authErr := requiredUserID(c)
@@ -78,10 +87,20 @@ func (h *MemberHandler) GetMember(c fiber.Ctx) error {
 func (h *MemberHandler) UpdateMember(c fiber.Ctx) error {
 	networkID := memberRouteNetworkID(c)
 	memberID := c.Params("memberId")
+	if err := validateNetworkID(networkID); err != nil {
+		return writeErrorResponse(c, fiber.StatusBadRequest, err.Error())
+	}
+	if err := validateMemberID(memberID); err != nil {
+		return writeErrorResponse(c, fiber.StatusBadRequest, err.Error())
+	}
 
 	var req zerotier.MemberUpdateRequest
 	if err := c.Bind().Body(&req); err != nil {
 		logger.Error("Failed to bind request", zap.String("network_id", networkID), zap.String("member_id", memberID), zap.Error(err))
+		return writeErrorResponse(c, fiber.StatusBadRequest, err.Error())
+	}
+
+	if err := validateMemberName(req.Name); err != nil {
 		return writeErrorResponse(c, fiber.StatusBadRequest, err.Error())
 	}
 
@@ -105,6 +124,12 @@ func (h *MemberHandler) UpdateMember(c fiber.Ctx) error {
 func (h *MemberHandler) DeleteMember(c fiber.Ctx) error {
 	networkID := memberRouteNetworkID(c)
 	memberID := c.Params("memberId")
+	if err := validateNetworkID(networkID); err != nil {
+		return writeErrorResponse(c, fiber.StatusBadRequest, err.Error())
+	}
+	if err := validateMemberID(memberID); err != nil {
+		return writeErrorResponse(c, fiber.StatusBadRequest, err.Error())
+	}
 
 	// Get user ID from context
 	userID, authErr := requiredUserID(c)

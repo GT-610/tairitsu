@@ -38,6 +38,10 @@ func (s *JWTService) AccessExpiry() time.Duration {
 
 // GenerateToken creates a new JWT token for the given user
 func (s *JWTService) GenerateToken(user *models.User, sessionID string) (string, error) {
+	if len(s.secretKey) == 0 {
+		return "", errors.New("JWT signing key is not configured; complete initial setup first")
+	}
+
 	now := time.Now()
 	claims := JWTClaims{
 		UserID:    user.ID,

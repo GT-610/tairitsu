@@ -134,20 +134,27 @@ func (rl *RateLimiter) GetBucket(ip string) *TokenBucket {
 // DefaultRateLimiter is the default rate limiter instance
 var DefaultRateLimiter = NewRateLimiter(100, 10) // 100 tokens, refills 10 per second
 
+// AuthRateLimiter is a stricter rate limiter for authentication endpoints
+var AuthRateLimiter = NewRateLimiter(20, 2) // 20 tokens, refills 2 per second
+
 // RateLimit is the API rate limiting middleware
 func RateLimit() fiber.Handler {
+	return rateLimitHandler(DefaultRateLimiter)
+}
+
+// AuthRateLimit is the stricter rate limiting middleware for auth endpoints
+func AuthRateLimit() fiber.Handler {
+	return rateLimitHandler(AuthRateLimiter)
+}
+
+func rateLimitHandler(limiter *RateLimiter) fiber.Handler {
 	return func(c fiber.Ctx) error {
-		// Get client IP
 		clientIP := c.IP()
+		bucket := limiter.GetBucket(clientIP)
 
-		// Get or create token bucket
-		bucket := DefaultRateLimiter.GetBucket(clientIP)
-
-		// Attempt to acquire a token
 		if !bucket.GetToken() {
 			logger.Warn("API rate limit triggered", zap.String("client_ip", clientIP), zap.String("path", c.Path()))
 
-			// Return 429 Too Many Requests
 			return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
 				"error":      "Too many requests. Please try again later.",
 				"message":    "Too many requests. Please try again later.",
@@ -156,7 +163,6 @@ func RateLimit() fiber.Handler {
 			})
 		}
 
-		// Continue processing the request
 		return c.Next()
 	}
 }

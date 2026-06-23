@@ -78,8 +78,8 @@ func SetupRoutes(router *fiber.App, dependencies *assembly.Dependencies) {
 
 		auth := api.Group("/auth")
 		{
-			auth.Post("/register", authHandler.Register)
-			auth.Post("/login", runtimeOnly, authHandler.Login)
+			auth.Post("/register", middleware.AuthRateLimit(), authHandler.Register)
+			auth.Post("/login", middleware.AuthRateLimit(), runtimeOnly, authHandler.Login)
 			auth.Post("/logout", runtimeOnly, authMiddleware, authHandler.Logout)
 		}
 
