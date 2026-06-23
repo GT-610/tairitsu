@@ -19,6 +19,7 @@ import { authAPI, systemAPI } from '../services/api';
 import { getErrorMessage, hasStatus } from '../services/errors';
 import { persistAuthState } from '../services/authStorage';
 import { isPublicRegistrationEnabled } from '../utils/publicRegistration';
+import { useTranslation } from '../i18n';
 
 function getNavigationMessage(state: unknown): string {
   if (!state || typeof state !== 'object' || !('message' in state)) {
@@ -63,6 +64,7 @@ function Login() {
   const { login } = useAuth();
   // Theme hook for dynamic styling
   const theme = useTheme();
+  const { translateText } = useTranslation();
 
   useEffect(() => {
     const loadSetupStatus = async () => {
@@ -92,11 +94,11 @@ function Login() {
     const newErrors: Partial<FormData> = {};
     
     if (!formData.username.trim()) {
-      newErrors.username = '用户名不能为空';
+      newErrors.username = translateText('用户名不能为空');
     }
     
     if (!formData.password) {
-      newErrors.password = '密码不能为空';
+      newErrors.password = translateText('密码不能为空');
     }
     
     setErrors(newErrors);

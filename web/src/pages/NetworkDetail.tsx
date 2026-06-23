@@ -20,7 +20,7 @@ import {
 } from '@mui/material'
 import { Alert as MuiAlert } from '@mui/material'
 import { ArrowBack, ContentCopy } from '@mui/icons-material'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useParams, useNavigate } from 'react-router-dom'
 import {
   type IpAssignmentPool,
   type Network,
@@ -134,6 +134,7 @@ function generateRandomIPv4Subnet(): string {
 function NetworkDetail() {
   const { formatDateTime, translateText } = useTranslation()
   const { id } = useParams<{ id: string }>()
+  const navigate = useNavigate()
   const [network, setNetwork] = useState<Network | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -392,9 +393,9 @@ function NetworkDetail() {
     setSaving(true)
     try {
       await networkAPI.deleteNetwork(id)
-      showSnackbar('网络删除成功', 'success')
+      showSnackbar(translateText('网络删除成功'), 'success')
       window.setTimeout(() => {
-        window.location.href = '/networks'
+        void navigate('/networks', { replace: true })
       }, 1000)
     } catch (err: unknown) {
       showSnackbar(getErrorMessage(err, translateText('删除失败')), 'error')

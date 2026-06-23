@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { 
   Box, 
   Typography, 
@@ -10,10 +10,12 @@ import {
   Container,
   Grid} from '@mui/material';
 import { PersonAddOutlined } from '@mui/icons-material';
+import { useTheme } from '@mui/material/styles';
 import { Link, useNavigate } from 'react-router-dom';
 import { authAPI, systemAPI } from '../services/api';
 import { getErrorMessage } from '../services/errors';
 import { getRegistrationClosedMessage, isPublicRegistrationEnabled } from '../utils/publicRegistration';
+import { useTranslation } from '../i18n';
 
 // 表单数据类型定义
 interface FormData {
@@ -40,6 +42,9 @@ function Register() {
   const [registrationAllowed, setRegistrationAllowed] = useState<boolean | null>(null);
   
   const navigate = useNavigate();
+  const { translateText } = useTranslation();
+  const theme = useTheme();
+  const redirectTimer = useRef<ReturnType<typeof setTimeout>>(null);
 
   useEffect(() => {
     const loadSetupStatus = async () => {
@@ -52,6 +57,9 @@ function Register() {
     };
 
     void loadSetupStatus();
+    return () => {
+      if (redirectTimer.current) clearTimeout(redirectTimer.current);
+    };
   }, []);
 
   // Handle input change
@@ -69,19 +77,19 @@ function Register() {
     const newErrors: Partial<FormData> = {};
     
     if (!formData.username.trim()) {
-      newErrors.username = '用户名不能为空';
+      newErrors.username = translateText('用户名不能为空');
     }
     
     if (!formData.password) {
-      newErrors.password = '密码不能为空';
+      newErrors.password = translateText('密码不能为空');
     } else if (formData.password.length < 6) {
-      newErrors.password = '密码长度不能少于6位';
+      newErrors.password = translateText('密码长度不能少于6位');
     }
     
     if (!formData.confirmPassword) {
-      newErrors.confirmPassword = '请确认密码';
+      newErrors.confirmPassword = translateText('请确认密码');
     } else if (formData.password !== formData.confirmPassword) {
-      newErrors.confirmPassword = '两次输入的密码不一致';
+      newErrors.confirmPassword = translateText('两次输入的密码不一致');
     }
     
     setErrors(newErrors);
@@ -109,9 +117,8 @@ function Register() {
         username: formData.username,
         password: formData.password
       });
-      setRegisterSuccess('注册成功，请登录');
-      // 3秒后跳转到登录页
-      setTimeout(() => {
+      setRegisterSuccess(translateText('注册成功，请登录'));
+      redirectTimer.current = setTimeout(() => {
         void navigate('/login');
       }, 3000);
     } catch (err: unknown) {
@@ -131,7 +138,7 @@ function Register() {
 
   // Styling for the register avatar
   const avatarStyle = {
-    backgroundColor: '#1976d2',
+    backgroundColor: theme.palette.primary.main,
     width: 56,
     height: 56,
     display: 'flex',
