@@ -1,13 +1,35 @@
 package crypto
 
 import (
+	"crypto/aes"
+	"crypto/cipher"
+	"crypto/rand"
+	"encoding/base64"
 	"errors"
 	"fmt"
+	"io"
 	"testing"
 
 	"github.com/GT-610/tairitsu/internal/app/crypto"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
+
+// encryptLegacy simulates the v0.x zero-padding AES-GCM encryption.
+func encryptLegacy(plaintext, key string) string {
+	for len(key) < 32 {
+		key += "0"
+	}
+	if len(key) > 32 {
+		key = key[:32]
+	}
+	block, _ := aes.NewCipher([]byte(key))
+	gcm, _ := cipher.NewGCM(block)
+	nonce := make([]byte, gcm.NonceSize())
+	_, _ = io.ReadFull(rand.Reader, nonce)
+	ciphertext := gcm.Seal(nonce, nonce, []byte(plaintext), nil)
+	return base64.StdEncoding.EncodeToString(ciphertext)
+}
 
 func TestAES_EncryptDecrypt(t *testing.T) {
 	// Arrange
@@ -111,4 +133,42 @@ func TestAES_ErrorSentinels(t *testing.T) {
 	assert.True(t, errors.Is(fmt.Errorf("%w: detail", crypto.ErrEncryptFailed), crypto.ErrEncryptFailed))
 	assert.True(t, errors.Is(fmt.Errorf("%w: detail", crypto.ErrDecryptFailed), crypto.ErrDecryptFailed))
 	assert.True(t, errors.Is(fmt.Errorf("%w: detail", crypto.ErrInvalidCiphertext), crypto.ErrInvalidCiphertext))
+}
+
+func TestDecryptWithLegacy_UpgradesFromZeroPadding(t *testing.T) {
+	key := "short-key"
+	plaintext := "my-secret-token"
+
+	// Encrypt with the old zero-padding method
+	legacyEncrypted := encryptLegacy(plaintext, key)
+	require.NotEmpty(t, legacyEncrypted)
+
+	// DecryptWithLegacy should succeed and flag for re-encryption
+	got, needsReEncrypt, err := crypto.DecryptWithLegacy(legacyEncrypted, key)
+	require.NoError(t, err)
+	assert.Equal(t, plaintext, got)
+	assert.True(t, needsReEncrypt, "legacy ciphertext should trigger re-encryption")
+
+	// After re-encrypting with the new method, plain Decrypt should work
+	reEncrypted, err := crypto.Encrypt(plaintext, key)
+	require.NoError(t, err)
+
+	got2, err := crypto.Decrypt(reEncrypted, key)
+	require.NoError(t, err)
+	assert.Equal(t, plaintext, got2)
+}
+
+func TestDecryptWithLegacy_NoMigrationForNewCiphertext(t *testing.T) {
+	key := "short-key"
+	plaintext := "my-secret-token"
+
+	// Encrypt with the new argon2id method
+	encrypted, err := crypto.Encrypt(plaintext, key)
+	require.NoError(t, err)
+
+	// DecryptWithLegacy should succeed without needing migration
+	got, needsReEncrypt, err := crypto.DecryptWithLegacy(encrypted, key)
+	require.NoError(t, err)
+	assert.Equal(t, plaintext, got)
+	assert.False(t, needsReEncrypt, "new ciphertext should not trigger re-encryption")
 }

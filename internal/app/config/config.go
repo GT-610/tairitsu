@@ -189,11 +189,15 @@ func GetZTTokenFrom(cfg *Config) (string, error) {
 	}
 
 	if cfg.ZeroTier.Token != "" {
-		decryptedToken, err := decryptSensitiveDataWithConfig(cfg, cfg.ZeroTier.Token)
+		plaintext, reEncrypted, err := decryptSensitiveDataWithConfig(cfg, cfg.ZeroTier.Token)
 		if err != nil {
 			return "", fmt.Errorf("failed to decrypt ZeroTier token: %w", err)
 		}
-		return decryptedToken, nil
+		if reEncrypted != "" {
+			cfg.ZeroTier.Token = reEncrypted
+			_ = SaveConfig(cfg)
+		}
+		return plaintext, nil
 	}
 
 	token := viper.GetString("ZT_TOKEN")
@@ -259,11 +263,15 @@ func GetDatabasePasswordFrom(cfg *Config) (string, error) {
 	}
 
 	if cfg.Database.Pass != "" {
-		decryptedPass, err := decryptSensitiveDataWithConfig(cfg, cfg.Database.Pass)
+		plaintext, reEncrypted, err := decryptSensitiveDataWithConfig(cfg, cfg.Database.Pass)
 		if err != nil {
 			return "", fmt.Errorf("failed to decrypt database password: %w", err)
 		}
-		return decryptedPass, nil
+		if reEncrypted != "" {
+			cfg.Database.Pass = reEncrypted
+			_ = SaveConfig(cfg)
+		}
+		return plaintext, nil
 	}
 
 	return "", nil
@@ -297,18 +305,32 @@ func encryptSensitiveDataWithConfig(cfg *Config, data string) (string, error) {
 	return "encrypted:" + encrypted, nil
 }
 
-func decryptSensitiveDataWithConfig(cfg *Config, data string) (string, error) {
+// decryptSensitiveDataWithConfig decrypts a value, transparently migrating
+// legacy zero-padding ciphertext to argon2id on first access.
+// Returns the plaintext and a re-encrypted value if migration was needed.
+func decryptSensitiveDataWithConfig(cfg *Config, data string) (plaintext string, reEncrypted string, err error) {
 	if cfg == nil {
-		return "", fmt.Errorf("configuration not loaded")
+		return "", "", fmt.Errorf("configuration not loaded")
 	}
 
 	if !strings.HasPrefix(data, "encrypted:") {
-		return data, nil
+		return data, "", nil
 	}
 
 	encryptedData := strings.TrimPrefix(data, "encrypted:")
 	key := cfg.Security.JWTSecret
-	return crypto.Decrypt(encryptedData, key)
+	plaintext, needsReEncrypt, err := crypto.DecryptWithLegacy(encryptedData, key)
+	if err != nil {
+		return "", "", err
+	}
+
+	if needsReEncrypt {
+		if re, encErr := crypto.Encrypt(plaintext, key); encErr == nil {
+			return plaintext, "encrypted:" + re, nil
+		}
+	}
+
+	return plaintext, "", nil
 }
 
 func AllowPublicRegistration(cfg *Config) bool {

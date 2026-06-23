@@ -13,7 +13,8 @@ import (
 // SetupRoutes configures application routes
 func SetupRoutes(router *fiber.App, dependencies *assembly.Dependencies) {
 	corsConfig := cors.ConfigDefault
-	if os.Getenv("APP_ENV") == "production" {
+	isProd := os.Getenv("APP_ENV") == "production" || os.Getenv("NODE_ENV") == "production"
+	if isProd {
 		corsConfig.AllowOrigins = []string{}
 	}
 
