@@ -304,6 +304,12 @@ func writeKeyFile(path string, pub [ZT_C25519_PUBLIC_KEY_LEN]byte, priv [ZT_C255
 	}
 	defer file.Close()
 
+	// Ensure permissions are 0600 even for pre-existing files (O_CREATE|O_TRUNC
+	// does not change the mode of an already-existing file on Linux).
+	if err := file.Chmod(0600); err != nil {
+		return err
+	}
+
 	if _, err := file.Write(pub[:]); err != nil {
 		return err
 	}

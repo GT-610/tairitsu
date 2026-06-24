@@ -68,6 +68,7 @@ type RateLimiter struct {
 	capacity    int                     // Default bucket capacity
 	refillRate  int                     // Default tokens added per second
 	maxBuckets  int                     // Maximum number of tracked IPs
+	denyBucket  *TokenBucket            // Reusable zero-token bucket for over-capacity IPs
 }
 
 // NewRateLimiter creates a new rate limiter
@@ -77,6 +78,7 @@ func NewRateLimiter(capacity, refillRate int) *RateLimiter {
 		capacity:   capacity,
 		refillRate: refillRate,
 		maxBuckets: 10000,
+		denyBucket: NewTokenBucket(0, 0),
 	}
 	go rl.cleanupLoop()
 	return rl
@@ -117,22 +119,20 @@ func (rl *RateLimiter) GetBucket(ip string) *TokenBucket {
 		return bucket
 	}
 
-	// Reject new IPs when the bucket map is at capacity
-	rl.bucketMutex.RLock()
-	atCapacity := len(rl.buckets) >= rl.maxBuckets
-	rl.bucketMutex.RUnlock()
-	if atCapacity {
-		return NewTokenBucket(0, 0) // bucket with no tokens — all requests denied
-	}
-
 	// Create a new token bucket
 	newBucket := NewTokenBucket(rl.capacity, rl.refillRate)
 
 	rl.bucketMutex.Lock()
-	// Double-check to prevent race conditions
+	// Double-check: another goroutine may have inserted this IP
 	if bucket, exists := rl.buckets[ip]; exists {
 		rl.bucketMutex.Unlock()
 		return bucket
+	}
+
+	// Reject new IPs when the bucket map is at capacity
+	if len(rl.buckets) >= rl.maxBuckets {
+		rl.bucketMutex.Unlock()
+		return rl.denyBucket
 	}
 
 	rl.buckets[ip] = newBucket

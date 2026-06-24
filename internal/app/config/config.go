@@ -195,7 +195,9 @@ func GetZTTokenFrom(cfg *Config) (string, error) {
 		}
 		if reEncrypted != "" {
 			cfg.ZeroTier.Token = reEncrypted
-			_ = SaveConfig(cfg)
+			if saveErr := SaveConfig(cfg); saveErr != nil {
+				return plaintext, fmt.Errorf("decrypted token OK but failed to persist re-encrypted config: %w", saveErr)
+			}
 		}
 		return plaintext, nil
 	}
@@ -269,7 +271,9 @@ func GetDatabasePasswordFrom(cfg *Config) (string, error) {
 		}
 		if reEncrypted != "" {
 			cfg.Database.Pass = reEncrypted
-			_ = SaveConfig(cfg)
+			if saveErr := SaveConfig(cfg); saveErr != nil {
+				return plaintext, fmt.Errorf("decrypted password OK but failed to persist re-encrypted config: %w", saveErr)
+			}
 		}
 		return plaintext, nil
 	}
@@ -325,9 +329,11 @@ func decryptSensitiveDataWithConfig(cfg *Config, data string) (plaintext string,
 	}
 
 	if needsReEncrypt {
-		if re, encErr := crypto.Encrypt(plaintext, key); encErr == nil {
-			return plaintext, "encrypted:" + re, nil
+		re, encErr := crypto.Encrypt(plaintext, key)
+		if encErr != nil {
+			return "", "", fmt.Errorf("failed to re-encrypt with new key derivation: %w", encErr)
 		}
+		return plaintext, "encrypted:" + re, nil
 	}
 
 	return plaintext, "", nil

@@ -33,6 +33,9 @@ func main() {
 	case err := <-listenErr:
 		if err != nil {
 			logger.Error("server listen failed", zap.Error(err))
+			app.Shutdown()
+			logger.Sync()
+			os.Exit(1)
 		}
 	}
 

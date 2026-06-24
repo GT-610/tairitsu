@@ -4,6 +4,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"strings"
+	"unicode/utf8"
 )
 
 const (
@@ -35,21 +36,21 @@ func validateMemberID(id string) error {
 }
 
 func validateNetworkName(name string) error {
-	if len(name) > maxNetworkNameLen {
+	if utf8.RuneCountInString(name) > maxNetworkNameLen {
 		return fmt.Errorf("network name must be %d characters or fewer", maxNetworkNameLen)
 	}
 	return nil
 }
 
 func validateNetworkDescription(desc string) error {
-	if len(desc) > maxNetworkDescriptionLen {
+	if utf8.RuneCountInString(desc) > maxNetworkDescriptionLen {
 		return fmt.Errorf("network description must be %d characters or fewer", maxNetworkDescriptionLen)
 	}
 	return nil
 }
 
 func validateMemberName(name string) error {
-	if len(name) > maxMemberNameLen {
+	if utf8.RuneCountInString(name) > maxMemberNameLen {
 		return fmt.Errorf("member name must be %d characters or fewer", maxMemberNameLen)
 	}
 	return nil

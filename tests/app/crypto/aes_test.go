@@ -16,17 +16,21 @@ import (
 )
 
 // encryptLegacy simulates the v0.x zero-padding AES-GCM encryption.
-func encryptLegacy(plaintext, key string) string {
+func encryptLegacy(t *testing.T, plaintext, key string) string {
+	t.Helper()
 	for len(key) < 32 {
 		key += "0"
 	}
 	if len(key) > 32 {
 		key = key[:32]
 	}
-	block, _ := aes.NewCipher([]byte(key))
-	gcm, _ := cipher.NewGCM(block)
+	block, err := aes.NewCipher([]byte(key))
+	require.NoError(t, err)
+	gcm, err := cipher.NewGCM(block)
+	require.NoError(t, err)
 	nonce := make([]byte, gcm.NonceSize())
-	_, _ = io.ReadFull(rand.Reader, nonce)
+	_, err = io.ReadFull(rand.Reader, nonce)
+	require.NoError(t, err)
 	ciphertext := gcm.Seal(nonce, nonce, []byte(plaintext), nil)
 	return base64.StdEncoding.EncodeToString(ciphertext)
 }
@@ -140,7 +144,7 @@ func TestDecryptWithLegacy_UpgradesFromZeroPadding(t *testing.T) {
 	plaintext := "my-secret-token"
 
 	// Encrypt with the old zero-padding method
-	legacyEncrypted := encryptLegacy(plaintext, key)
+	legacyEncrypted := encryptLegacy(t, plaintext, key)
 	require.NotEmpty(t, legacyEncrypted)
 
 	// DecryptWithLegacy should succeed and flag for re-encryption
