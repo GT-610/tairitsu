@@ -231,10 +231,6 @@ func (s *SetupService) validateInitializationReady() error {
 		return ErrSetupAdminRequired
 	}
 
-	if _, err := s.stateService.CreateZTClient(); err != nil {
-		return fmt.Errorf("%w: %v", ErrSetupZeroTierClientCreateFailed, err)
-	}
-
 	status, err := s.runtimeService.InitZTClientFromConfig()
 	if err != nil {
 		return fmt.Errorf("%w: %v", ErrSetupZeroTierValidationFailed, err)

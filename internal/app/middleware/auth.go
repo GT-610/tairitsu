@@ -68,7 +68,8 @@ func AuthMiddleware(jwtService *services.JWTService, sessionService *services.Se
 	}
 }
 
-// AdminRequiredWithUserService is the admin authorization middleware
+// AdminRequiredWithUserService is the admin authorization middleware.
+// It checks the database on every request to detect stale tokens after admin transfers.
 func AdminRequiredWithUserService(userService *services.UserService) fiber.Handler {
 	return func(c fiber.Ctx) error {
 		userID, exists := c.Locals("user_id").(string)

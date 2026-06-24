@@ -1,14 +1,13 @@
-import React from 'react';
+import { StrictMode } from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
-// import './index.css';
 import { BrowserRouter } from 'react-router-dom';
 import CssBaseline from '@mui/material/CssBaseline';
 import { AuthProvider } from './services/auth';
 import { LanguageProvider } from './i18n';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
+  <StrictMode>
     <BrowserRouter>
       <LanguageProvider>
         <CssBaseline />
@@ -17,5 +16,5 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         </AuthProvider>
       </LanguageProvider>
     </BrowserRouter>
-  </React.StrictMode>,
+  </StrictMode>,
 );

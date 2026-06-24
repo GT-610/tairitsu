@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { createTheme, ThemeProvider } from '@mui/material/styles'
 import type { PaletteMode, ThemeOptions } from '@mui/material/styles'
 import { enUS, zhCN } from '@mui/material/locale'
@@ -155,7 +155,6 @@ const messageCodes: Record<string, { en: string; 'zh-CN': string }> = {
   'user.invalid_credentials': { en: 'Username or password is incorrect', 'zh-CN': '用户名或密码错误' },
   'user.not_found': { en: 'User not found', 'zh-CN': '用户不存在' },
   'user.old_password_incorrect': { en: 'Current password is incorrect', 'zh-CN': '原密码错误' },
-  'user.invalid_role': { en: 'Invalid role. Must be admin or user.', 'zh-CN': '无效的角色值，必须是admin或user' },
   'user.admin_access_denied': { en: 'The current user is not an administrator.', 'zh-CN': '当前用户不是管理员，无法执行该操作' },
   'user.invalid_admin_operation': { en: 'This administrator operation is not allowed', 'zh-CN': '该管理员操作不允许' },
   'user.public_registration_disabled': { en: 'Public registration is disabled. Contact an administrator to create an account.', 'zh-CN': '公开注册已关闭，请联系管理员创建账户' },

@@ -19,7 +19,7 @@ import (
 )
 
 func TestUserHandler_DeleteUser_AdminOnlyAndResponseShape(t *testing.T) {
-	db, err := database.NewSQLiteDB(filepath.Join(t.TempDir(), "tairitsu.db"))
+	db, err := database.NewDatabase(database.Config{Type: database.SQLite, Path: filepath.Join(t.TempDir(), "tairitsu.db")})
 	require.NoError(t, err)
 	require.NoError(t, db.Init())
 	t.Cleanup(func() {

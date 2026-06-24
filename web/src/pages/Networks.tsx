@@ -5,6 +5,7 @@ import { Add, Delete, Close, Refresh } from '@mui/icons-material';
 import { networkAPI, type NetworkSummary, type SharedNetworkSummary } from '../services/api';
 import { getErrorMessage } from '../services/errors';
 import { useTranslation } from '../i18n';
+import { getNavigationMessage, summaryCardSx } from '../utils/sharedStyles';
 
 type DisplayNetwork = {
   id: string;
@@ -19,24 +20,6 @@ type DisplayNetwork = {
   updated_at: string;
   readOnly: boolean;
   detailPath: string;
-}
-
-const summaryCardSx = {
-  height: '100%',
-  bgcolor: 'background.paper',
-  border: 1,
-  borderColor: 'divider',
-  display: 'flex',
-  flexDirection: 'column',
-}
-
-function getNavigationMessage(state: unknown): string {
-  if (!state || typeof state !== 'object' || !('message' in state)) {
-    return ''
-  }
-
-  const { message } = state as { message?: unknown }
-  return typeof message === 'string' ? message : ''
 }
 
 function Networks() {

@@ -17,6 +17,11 @@ func ensureLogger() *zap.Logger {
 	return logger
 }
 
+// isProduction checks both APP_ENV and NODE_ENV for backward compatibility.
+func isProduction() bool {
+	return os.Getenv("APP_ENV") == "production" || os.Getenv("NODE_ENV") == "production"
+}
+
 // InitLogger initializes the logger
 func InitLogger(level string) {
 	// Set the log level
@@ -70,7 +75,7 @@ func InitLogger(level string) {
 	var cores []zapcore.Core
 	cores = append(cores, core)
 
-	if os.Getenv("NODE_ENV") != "production" {
+	if !isProduction() {
 		consoleEncoder := zapcore.NewConsoleEncoder(zapcore.EncoderConfig{
 			TimeKey:        "ts",
 			LevelKey:       "level",
@@ -91,7 +96,7 @@ func InitLogger(level string) {
 
 	// Create the combined core
 	opts := []zap.Option{zap.AddCaller()}
-	if os.Getenv("NODE_ENV") != "production" {
+	if !isProduction() {
 		opts = append(opts, zap.Development())
 	}
 	logger = zap.New(zapcore.NewTee(cores...), opts...)

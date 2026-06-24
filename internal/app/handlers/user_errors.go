@@ -34,8 +34,6 @@ func writeUserServiceError(c fiber.Ctx, err error) error {
 		return writeErrorResponseWithCode(c, fiber.StatusNotFound, "session.not_found", err.Error())
 	case services.IsOldPasswordIncorrect(err):
 		return writeErrorResponseWithCode(c, fiber.StatusBadRequest, "user.old_password_incorrect", err.Error())
-	case services.IsInvalidUserRole(err):
-		return writeErrorResponseWithCode(c, fiber.StatusBadRequest, "user.invalid_role", err.Error())
 	case services.IsAdminTransferSelf(err), services.IsAdminResetSelf(err), services.IsAdminDeleteSelf(err), services.IsAdminDeleteBlocked(err), services.IsTransferTargetAdmin(err):
 		return writeErrorResponseWithCode(c, fiber.StatusBadRequest, "user.invalid_admin_operation", err.Error())
 	case services.IsAdminAccessDenied(err):

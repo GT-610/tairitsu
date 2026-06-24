@@ -1,4 +1,4 @@
-import { useEffect, useState, type MouseEvent, type SyntheticEvent } from 'react'
+import { useEffect, useMemo, useState, type MouseEvent, type SyntheticEvent } from 'react'
 import {
   Alert,
   Box,
@@ -20,7 +20,7 @@ import {
 } from '@mui/material'
 import { Alert as MuiAlert } from '@mui/material'
 import { ArrowBack, ContentCopy } from '@mui/icons-material'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useParams, useNavigate } from 'react-router-dom'
 import {
   type IpAssignmentPool,
   type Network,
@@ -134,6 +134,7 @@ function generateRandomIPv4Subnet(): string {
 function NetworkDetail() {
   const { formatDateTime, translateText } = useTranslation()
   const { id } = useParams<{ id: string }>()
+  const navigate = useNavigate()
   const [network, setNetwork] = useState<Network | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -255,25 +256,36 @@ function NetworkDetail() {
     }
   }
 
-  const memberDevices = (network?.members || []).map(formatNetworkMember)
-  const pendingMembers = memberDevices.filter((member) => !member.authorized)
-  const authorizedMembers = memberDevices.filter((member) => member.authorized)
-  const filteredMembers = memberDevices.filter((member) => {
+  const memberDevices = useMemo(
+    () => (network?.members || []).map(formatNetworkMember),
+    [network?.members],
+  )
+  const pendingMembers = useMemo(() => memberDevices.filter((m) => !m.authorized), [memberDevices])
+  const authorizedMembers = useMemo(() => memberDevices.filter((m) => m.authorized), [memberDevices])
+  const filteredMembers = useMemo(() => {
     const query = memberSearchTerm.trim().toLowerCase()
-    if (query === '') return true
-    return member.name.toLowerCase().includes(query) || member.id.toLowerCase().includes(query)
-  })
+    if (query === '') return memberDevices
+    return memberDevices.filter(
+      (m) => m.name.toLowerCase().includes(query) || m.id.toLowerCase().includes(query),
+    )
+  }, [memberDevices, memberSearchTerm])
 
-  const ipv4RangeDraftIssue = getIPv4RangeIssue(ipv4Settings.subnet, {
-    ipRangeStart: ipv4Settings.poolStartDraft,
-    ipRangeEnd: ipv4Settings.poolEndDraft,
-  })
-  const ipv4ConfigurationIssues = getIPv4ConfigurationIssues(ipv4Settings.subnet, ipv4Settings.autoAssign, ipv4Settings.pools)
-  const ipv6RangeDraftIssue = getIPv6RangeIssue(ipv6Settings.subnet, {
-    ipRangeStart: ipv6Settings.poolStartDraft,
-    ipRangeEnd: ipv6Settings.poolEndDraft,
-  })
-  const ipv6ConfigurationIssues = getIPv6ConfigurationIssues(ipv6Settings.subnet, ipv6Settings.customAssign, ipv6Settings.pools)
+  const ipv4RangeDraftIssue = useMemo(
+    () => getIPv4RangeIssue(ipv4Settings.subnet, { ipRangeStart: ipv4Settings.poolStartDraft, ipRangeEnd: ipv4Settings.poolEndDraft }),
+    [ipv4Settings.subnet, ipv4Settings.poolStartDraft, ipv4Settings.poolEndDraft],
+  )
+  const ipv4ConfigurationIssues = useMemo(
+    () => getIPv4ConfigurationIssues(ipv4Settings.subnet, ipv4Settings.autoAssign, ipv4Settings.pools),
+    [ipv4Settings.subnet, ipv4Settings.autoAssign, ipv4Settings.pools],
+  )
+  const ipv6RangeDraftIssue = useMemo(
+    () => getIPv6RangeIssue(ipv6Settings.subnet, { ipRangeStart: ipv6Settings.poolStartDraft, ipRangeEnd: ipv6Settings.poolEndDraft }),
+    [ipv6Settings.subnet, ipv6Settings.poolStartDraft, ipv6Settings.poolEndDraft],
+  )
+  const ipv6ConfigurationIssues = useMemo(
+    () => getIPv6ConfigurationIssues(ipv6Settings.subnet, ipv6Settings.customAssign, ipv6Settings.pools),
+    [ipv6Settings.subnet, ipv6Settings.customAssign, ipv6Settings.pools],
+  )
 
   const closeMemberMenu = () => {
     setMemberMenuAnchor(null)
@@ -392,9 +404,9 @@ function NetworkDetail() {
     setSaving(true)
     try {
       await networkAPI.deleteNetwork(id)
-      showSnackbar('网络删除成功', 'success')
+      showSnackbar(translateText('网络删除成功'), 'success')
       window.setTimeout(() => {
-        window.location.href = '/networks'
+        void navigate('/networks', { replace: true })
       }, 1000)
     } catch (err: unknown) {
       showSnackbar(getErrorMessage(err, translateText('删除失败')), 'error')

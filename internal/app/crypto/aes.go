@@ -4,31 +4,46 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
+
+	"golang.org/x/crypto/argon2"
 )
 
 var (
 	ErrEncryptFailed     = errors.New("crypto.encrypt_failed")
 	ErrDecryptFailed     = errors.New("crypto.decrypt_failed")
 	ErrInvalidCiphertext = errors.New("crypto.invalid_ciphertext")
+	ErrEmptyKey          = errors.New("crypto.empty_key")
 )
 
-// Encrypt encrypts sensitive data using AES-GCM
-func Encrypt(text, key string) (string, error) {
-	// Ensure key length is 32 bytes (256 bits)
+// deriveKey uses argon2id to derive a 32-byte AES-256 key from an arbitrary-length secret.
+func deriveKey(secret string) ([]byte, error) {
+	if secret == "" {
+		return nil, ErrEmptyKey
+	}
+	salt := sha256.Sum256([]byte("tairitsu-config-encryption-salt-v1"))
+	return argon2.IDKey([]byte(secret), salt[:], 1, 64*1024, 4, 32), nil
+}
+
+// deriveKeyLegacy pads the secret with ASCII '0' to 32 bytes (v0.x behavior).
+func deriveKeyLegacy(secret string) []byte {
+	key := secret
 	if len(key) < 32 {
-		// Pad key to 32 bytes
 		for len(key) < 32 {
 			key += "0"
 		}
 	} else if len(key) > 32 {
 		key = key[:32]
 	}
+	return []byte(key)
+}
 
-	block, err := aes.NewCipher([]byte(key))
+func encryptWithKey(text string, key []byte) (string, error) {
+	block, err := aes.NewCipher(key)
 	if err != nil {
 		return "", fmt.Errorf("%w: create AES cipher: %v", ErrEncryptFailed, err)
 	}
@@ -47,24 +62,13 @@ func Encrypt(text, key string) (string, error) {
 	return base64.StdEncoding.EncodeToString(ciphertext), nil
 }
 
-// Decrypt decrypts sensitive data
-func Decrypt(encryptedText, key string) (string, error) {
-	// Ensure key length is 32 bytes (256 bits)
-	if len(key) < 32 {
-		// Pad key to 32 bytes
-		for len(key) < 32 {
-			key += "0"
-		}
-	} else if len(key) > 32 {
-		key = key[:32]
-	}
-
+func decryptWithKey(encryptedText string, key []byte) (string, error) {
 	data, err := base64.StdEncoding.DecodeString(encryptedText)
 	if err != nil {
 		return "", fmt.Errorf("%w: base64 decode: %v", ErrInvalidCiphertext, err)
 	}
 
-	block, err := aes.NewCipher([]byte(key))
+	block, err := aes.NewCipher(key)
 	if err != nil {
 		return "", fmt.Errorf("%w: create AES cipher: %v", ErrDecryptFailed, err)
 	}
@@ -85,4 +89,42 @@ func Decrypt(encryptedText, key string) (string, error) {
 	}
 
 	return string(plaintext), nil
+}
+
+// Encrypt encrypts sensitive data using AES-256-GCM with a key derived via argon2id.
+func Encrypt(text, key string) (string, error) {
+	derived, err := deriveKey(key)
+	if err != nil {
+		return "", fmt.Errorf("%w: %v", ErrEncryptFailed, err)
+	}
+	return encryptWithKey(text, derived)
+}
+
+// Decrypt decrypts sensitive data using AES-256-GCM with a key derived via argon2id.
+func Decrypt(encryptedText, key string) (string, error) {
+	derived, err := deriveKey(key)
+	if err != nil {
+		return "", fmt.Errorf("%w: %v", ErrDecryptFailed, err)
+	}
+	return decryptWithKey(encryptedText, derived)
+}
+
+// DecryptWithLegacy tries the current argon2id derivation first; if that fails
+// it falls back to the legacy zero-padding key used in v0.x.  When the legacy
+// path succeeds it returns needsReEncrypt=true so the caller can transparently
+// upgrade the stored ciphertext.
+func DecryptWithLegacy(encryptedText, key string) (plaintext string, needsReEncrypt bool, err error) {
+	plaintext, err = Decrypt(encryptedText, key)
+	if err == nil {
+		return plaintext, false, nil
+	}
+
+	// Fall back to legacy zero-padding key derivation
+	legacyKey := deriveKeyLegacy(key)
+	plaintext, legacyErr := decryptWithKey(encryptedText, legacyKey)
+	if legacyErr != nil {
+		return "", false, err // return the original argon2id error
+	}
+
+	return plaintext, true, nil
 }

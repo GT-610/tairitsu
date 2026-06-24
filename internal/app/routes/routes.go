@@ -1,6 +1,8 @@
 package routes
 
 import (
+	"os"
+
 	"github.com/GT-610/tairitsu/internal/app/assembly"
 	"github.com/GT-610/tairitsu/internal/app/handlers"
 	"github.com/GT-610/tairitsu/internal/app/middleware"
@@ -10,10 +12,16 @@ import (
 
 // SetupRoutes configures application routes
 func SetupRoutes(router *fiber.App, dependencies *assembly.Dependencies) {
+	corsConfig := cors.ConfigDefault
+	isProd := os.Getenv("APP_ENV") == "production" || os.Getenv("NODE_ENV") == "production"
+	if isProd {
+		corsConfig.AllowOrigins = []string{}
+	}
+
 	// Apply middleware
 	router.Use(middleware.Logger())
 	router.Use(middleware.SecurityHeaders())
-	router.Use(cors.New())
+	router.Use(cors.New(corsConfig))
 	router.Use(middleware.RateLimit())
 	router.Use(middleware.ErrorHandler())
 
@@ -78,8 +86,8 @@ func SetupRoutes(router *fiber.App, dependencies *assembly.Dependencies) {
 
 		auth := api.Group("/auth")
 		{
-			auth.Post("/register", authHandler.Register)
-			auth.Post("/login", runtimeOnly, authHandler.Login)
+			auth.Post("/register", middleware.AuthRateLimit(), authHandler.Register)
+			auth.Post("/login", middleware.AuthRateLimit(), runtimeOnly, authHandler.Login)
 			auth.Post("/logout", runtimeOnly, authMiddleware, authHandler.Logout)
 		}
 
