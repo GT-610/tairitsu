@@ -104,12 +104,15 @@ func (s *NetworkService) getCachedMemberStats(networkID string) (networkMemberSt
 	s.mutex.RLock()
 	stats, ok := s.memberStatsCache[networkID]
 	s.mutex.RUnlock()
-	if !ok || time.Now().After(stats.expiresAt) {
-		if ok {
-			s.mutex.Lock()
+	if !ok {
+		return networkMemberStats{}, false
+	}
+	if time.Now().After(stats.expiresAt) {
+		s.mutex.Lock()
+		if current, exists := s.memberStatsCache[networkID]; exists && current == stats {
 			delete(s.memberStatsCache, networkID)
-			s.mutex.Unlock()
 		}
+		s.mutex.Unlock()
 		return networkMemberStats{}, false
 	}
 	return stats, true
