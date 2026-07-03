@@ -527,6 +527,41 @@ func TestNetworkServiceGetAllNetworksIncludesMemberStats(t *testing.T) {
 	assert.Equal(t, 1, summaries[0].PendingMemberCount)
 }
 
+func TestNetworkServiceGetAllNetworksReusesCachedMemberStats(t *testing.T) {
+	db := newTestSQLiteDB(t)
+	now := time.Now()
+	require.NoError(t, db.CreateNetwork(&models.Network{
+		ID:          "8056c2e21c000001",
+		Name:        "alpha",
+		Description: "alpha-desc",
+		OwnerID:     "user-1",
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}))
+
+	var memberRequests atomic.Int32
+	client := newCountingMemberZTClient(t, map[string]zerotier.Network{
+		"8056c2e21c000001": {ID: "8056c2e21c000001", Name: "alpha"},
+	}, map[string][]zerotier.Member{
+		"8056c2e21c000001": {
+			{ID: "member-1", Config: zerotier.MemberConfig{Authorized: true}},
+			{ID: "member-2", Config: zerotier.MemberConfig{Authorized: false}},
+		},
+	}, &memberRequests)
+	service := services.NewNetworkService(client, db)
+
+	firstSummaries, err := service.GetAllNetworks("user-1")
+	require.NoError(t, err)
+	require.Len(t, firstSummaries, 1)
+	assert.Equal(t, 2, firstSummaries[0].MemberCount)
+
+	secondSummaries, err := service.GetAllNetworks("user-1")
+	require.NoError(t, err)
+	require.Len(t, secondSummaries, 1)
+	assert.Equal(t, 2, secondSummaries[0].MemberCount)
+	assert.Equal(t, int32(1), memberRequests.Load())
+}
+
 func TestNetworkServiceGetNetworkByIDIncludesMembers(t *testing.T) {
 	db := newTestSQLiteDB(t)
 	now := time.Now()
@@ -823,6 +858,50 @@ func newTestZTClientWithMembers(t *testing.T, networks map[string]zerotier.Netwo
 			path := r.URL.Path[len("/controller/network/"):]
 			for networkID, memberList := range members {
 				if path == networkID+"/member" {
+					require.NoError(t, json.NewEncoder(w).Encode(memberList))
+					return
+				}
+			}
+
+			network, ok := networks[path]
+			if !ok {
+				http.NotFound(w, r)
+				return
+			}
+			require.NoError(t, json.NewEncoder(w).Encode(network))
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	return &zerotier.Client{
+		BaseURL:    server.URL,
+		Token:      "test-token",
+		HTTPClient: server.Client(),
+	}
+}
+
+func newCountingMemberZTClient(t *testing.T, networks map[string]zerotier.Network, members map[string][]zerotier.Member, memberRequests *atomic.Int32) *zerotier.Client {
+	t.Helper()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		switch r.URL.Path {
+		case "/controller/network":
+			ids := make([]string, 0, len(networks))
+			for id := range networks {
+				ids = append(ids, id)
+			}
+			require.NoError(t, json.NewEncoder(w).Encode(ids))
+		default:
+			if len(r.URL.Path) <= len("/controller/network/") {
+				http.NotFound(w, r)
+				return
+			}
+			path := r.URL.Path[len("/controller/network/"):]
+			for networkID, memberList := range members {
+				if path == networkID+"/member" {
+					memberRequests.Add(1)
 					require.NoError(t, json.NewEncoder(w).Encode(memberList))
 					return
 				}

@@ -1,11 +1,16 @@
 package middleware
 
 import (
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
 	"github.com/GT-610/tairitsu/internal/app/middleware"
+	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestTokenBucket_GetToken(t *testing.T) {
@@ -47,13 +52,43 @@ func TestRateLimiter_GetBucket(t *testing.T) {
 }
 
 func TestRateLimitMiddleware(t *testing.T) {
-	// 由于RateLimit中间件使用的是包内的DefaultRateLimiter，无法在测试中直接替换
-	// 所以我们只测试令牌桶的功能，不测试完整的中间件
-	t.Skip("Skipping middleware test as DefaultRateLimiter is not easily replaceable")
+	app := fiber.New()
+	app.Use(middleware.RateLimitWithLimiter(middleware.NewRateLimiter(1, 0)))
+	app.Get("/limited", func(c fiber.Ctx) error {
+		return c.SendStatus(fiber.StatusNoContent)
+	})
+
+	firstResp, err := app.Test(httptest.NewRequest(http.MethodGet, "/limited", nil))
+	require.NoError(t, err)
+	assert.Equal(t, fiber.StatusNoContent, firstResp.StatusCode)
+
+	secondResp, err := app.Test(httptest.NewRequest(http.MethodGet, "/limited", nil))
+	require.NoError(t, err)
+	assert.Equal(t, fiber.StatusTooManyRequests, secondResp.StatusCode)
+
+	var body map[string]any
+	require.NoError(t, json.NewDecoder(secondResp.Body).Decode(&body))
+	assert.Equal(t, "system.rate_limited", body["error_code"])
 }
 
 func TestRateLimitMiddleware_WithWait(t *testing.T) {
-	// 由于RateLimit中间件使用的是包内的DefaultRateLimiter，无法在测试中直接替换
-	// 所以我们只测试令牌桶的功能，不测试完整的中间件
-	t.Skip("Skipping middleware test as DefaultRateLimiter is not easily replaceable")
+	app := fiber.New()
+	app.Use(middleware.RateLimitWithLimiter(middleware.NewRateLimiter(1, 1)))
+	app.Get("/limited", func(c fiber.Ctx) error {
+		return c.SendStatus(fiber.StatusNoContent)
+	})
+
+	firstResp, err := app.Test(httptest.NewRequest(http.MethodGet, "/limited", nil))
+	require.NoError(t, err)
+	assert.Equal(t, fiber.StatusNoContent, firstResp.StatusCode)
+
+	secondResp, err := app.Test(httptest.NewRequest(http.MethodGet, "/limited", nil))
+	require.NoError(t, err)
+	assert.Equal(t, fiber.StatusTooManyRequests, secondResp.StatusCode)
+
+	time.Sleep(1100 * time.Millisecond)
+
+	thirdResp, err := app.Test(httptest.NewRequest(http.MethodGet, "/limited", nil))
+	require.NoError(t, err)
+	assert.Equal(t, fiber.StatusNoContent, thirdResp.StatusCode)
 }

@@ -13,6 +13,14 @@ import (
 )
 
 const networkMemberStatsConcurrency = 4
+const networkMemberStatsCacheTTL = 15 * time.Second
+
+type networkMemberStats struct {
+	memberCount     int
+	authorizedCount int
+	pendingCount    int
+	expiresAt       time.Time
+}
 
 type memberStatsSetter interface {
 	SetMemberStats(memberCount, authorizedCount, pendingCount int)
@@ -29,6 +37,11 @@ func (s *NetworkService) fillMemberStats(nIDs []string, targets []memberStatsSet
 	var wg sync.WaitGroup
 	limiter := make(chan struct{}, min(networkMemberStatsConcurrency, len(nIDs)))
 	for i, nID := range nIDs {
+		if stats, ok := s.getCachedMemberStats(nID); ok {
+			targets[i].SetMemberStats(stats.memberCount, stats.authorizedCount, stats.pendingCount)
+			continue
+		}
+
 		wg.Add(1)
 		go func(index int, networkID string) {
 			defer wg.Done()
@@ -48,6 +61,12 @@ func (s *NetworkService) fillMemberStats(nIDs []string, targets []memberStatsSet
 					pending++
 				}
 			}
+			s.setCachedMemberStats(networkID, networkMemberStats{
+				memberCount:     len(members),
+				authorizedCount: authorized,
+				pendingCount:    pending,
+				expiresAt:       time.Now().Add(networkMemberStatsCacheTTL),
+			})
 			targets[index].SetMemberStats(len(members), authorized, pending)
 		}(i, nID)
 	}
@@ -55,9 +74,10 @@ func (s *NetworkService) fillMemberStats(nIDs []string, targets []memberStatsSet
 }
 
 type NetworkService struct {
-	ztClient *zerotier.Client
-	db       database.DBInterface
-	mutex    sync.RWMutex
+	ztClient         *zerotier.Client
+	db               database.DBInterface
+	mutex            sync.RWMutex
+	memberStatsCache map[string]networkMemberStats
 }
 
 type RuntimeStatus struct {
@@ -74,9 +94,40 @@ type RuntimeStatus struct {
 
 func NewNetworkService(ztClient *zerotier.Client, db database.DBInterface) *NetworkService {
 	return &NetworkService{
-		ztClient: ztClient,
-		db:       db,
+		ztClient:         ztClient,
+		db:               db,
+		memberStatsCache: make(map[string]networkMemberStats),
 	}
+}
+
+func (s *NetworkService) getCachedMemberStats(networkID string) (networkMemberStats, bool) {
+	s.mutex.RLock()
+	stats, ok := s.memberStatsCache[networkID]
+	s.mutex.RUnlock()
+	if !ok {
+		return networkMemberStats{}, false
+	}
+	if time.Now().After(stats.expiresAt) {
+		s.mutex.Lock()
+		if current, exists := s.memberStatsCache[networkID]; exists && current == stats {
+			delete(s.memberStatsCache, networkID)
+		}
+		s.mutex.Unlock()
+		return networkMemberStats{}, false
+	}
+	return stats, true
+}
+
+func (s *NetworkService) setCachedMemberStats(networkID string, stats networkMemberStats) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+	s.memberStatsCache[networkID] = stats
+}
+
+func (s *NetworkService) invalidateMemberStats(networkID string) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+	delete(s.memberStatsCache, networkID)
 }
 
 func (s *NetworkService) SetDB(db database.DBInterface) {
@@ -599,6 +650,7 @@ func (s *NetworkService) UpdateNetworkMember(networkID, memberID string, member 
 		logger.Error("service: failed to update network member", zap.String("network_id", networkID), zap.String("member_id", memberID), zap.Error(err))
 		return nil, err
 	}
+	s.invalidateMemberStats(networkID)
 
 	s.enrichMemberWithPeerMetadata(updatedMember)
 
@@ -692,6 +744,7 @@ func (s *NetworkService) RemoveNetworkMember(networkID, memberID string, userID 
 		logger.Error("service: failed to remove member from network", zap.String("network_id", networkID), zap.String("member_id", memberID), zap.Error(err))
 		return err
 	}
+	s.invalidateMemberStats(networkID)
 
 	return nil
 }
@@ -842,6 +895,7 @@ func (s *NetworkService) SetZTClient(client *zerotier.Client) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 	s.ztClient = client
+	s.memberStatsCache = make(map[string]networkMemberStats)
 }
 
 const importCandidateConcurrency = 4

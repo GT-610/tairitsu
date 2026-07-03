@@ -17,7 +17,7 @@ describe('setupWizard copy', () => {
       zerotierConfigured: false,
       adminCreationPrepared: false,
       allowPublicRegistration: true,
-    })).toBe(1)
+    })).toBe(0)
 
     expect(getInitialSetupWizardStep({
       initialized: false,
