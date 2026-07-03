@@ -3,14 +3,17 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { MemoryRouter } from 'react-router-dom'
 import Login from './Login'
 import { AuthProvider } from '../services/auth'
+import { LanguageProvider } from '../i18n'
 
 describe('Login page', () => {
   test('shows register entry, hides setup entry, and does not expose forgot-password route', () => {
     const html = renderToStaticMarkup(
       <MemoryRouter>
-        <AuthProvider>
-          <Login />
-        </AuthProvider>
+        <LanguageProvider>
+          <AuthProvider>
+            <Login />
+          </AuthProvider>
+        </LanguageProvider>
       </MemoryRouter>,
     )
 

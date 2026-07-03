@@ -157,6 +157,10 @@ func AuthRateLimit() fiber.Handler {
 	return rateLimitHandler(AuthRateLimiter)
 }
 
+func RateLimitWithLimiter(limiter *RateLimiter) fiber.Handler {
+	return rateLimitHandler(limiter)
+}
+
 func rateLimitHandler(limiter *RateLimiter) fiber.Handler {
 	return func(c fiber.Ctx) error {
 		clientIP := c.IP()

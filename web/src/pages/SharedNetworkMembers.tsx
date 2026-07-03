@@ -141,12 +141,7 @@ function SharedNetworkMembers() {
           authorizedMembers={authorizedMembers}
           filteredMembers={filteredMembers}
           memberSearchTerm={memberSearchTerm}
-          saving={false}
-          hidePendingBanner
           onMemberSearchTermChange={setMemberSearchTerm}
-          onHidePendingBanner={() => {}}
-          onQuickApprove={() => {}}
-          onQuickReject={() => {}}
           readOnly
         />
       )}

@@ -11,12 +11,12 @@ interface NetworkMembersSectionProps {
   authorizedMembers: NetworkMemberDevice[];
   filteredMembers: NetworkMemberDevice[];
   memberSearchTerm: string;
-  saving: boolean;
-  hidePendingBanner: boolean;
+  saving?: boolean;
+  hidePendingBanner?: boolean;
   onMemberSearchTermChange: (value: string) => void;
-  onHidePendingBanner: () => void;
-  onQuickApprove: () => void;
-  onQuickReject: () => void;
+  onHidePendingBanner?: () => void;
+  onQuickApprove?: () => void;
+  onQuickReject?: () => void;
   onOpenMemberMenu?: (event: MouseEvent<HTMLElement>, member: NetworkMemberDevice) => void;
   readOnly?: boolean;
 }
@@ -27,8 +27,8 @@ function NetworkMembersSection({
   authorizedMembers,
   filteredMembers,
   memberSearchTerm,
-  saving,
-  hidePendingBanner,
+  saving = false,
+  hidePendingBanner = false,
   onMemberSearchTermChange,
   onHidePendingBanner,
   onQuickApprove,
@@ -38,11 +38,12 @@ function NetworkMembersSection({
 }: NetworkMembersSectionProps) {
   const { translateText } = useTranslation()
   const showAction = !readOnly && Boolean(onOpenMemberMenu)
+  const showPendingActions = !readOnly && Boolean(onQuickApprove && onQuickReject && onHidePendingBanner)
   const handleOpenMemberMenu = onOpenMemberMenu
 
   return (
     <>
-      {pendingMembers.length > 0 && !hidePendingBanner && !readOnly && (
+      {pendingMembers.length > 0 && !hidePendingBanner && showPendingActions && (
         <Alert
           severity="warning"
           sx={{ mb: 3 }}

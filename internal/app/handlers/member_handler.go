@@ -13,14 +13,6 @@ type MemberHandler struct {
 	networkService *services.NetworkService
 }
 
-func memberRouteNetworkID(c fiber.Ctx) string {
-	networkID := c.Params("networkId")
-	if networkID == "" {
-		networkID = c.Params("id")
-	}
-	return networkID
-}
-
 // NewMemberHandler creates a new member handler instance
 func NewMemberHandler(networkService *services.NetworkService) *MemberHandler {
 	return &MemberHandler{
@@ -30,7 +22,7 @@ func NewMemberHandler(networkService *services.NetworkService) *MemberHandler {
 
 // GetMembers retrieves all members in a network
 func (h *MemberHandler) GetMembers(c fiber.Ctx) error {
-	networkID := memberRouteNetworkID(c)
+	networkID := c.Params("id")
 	if err := validateNetworkID(networkID); err != nil {
 		return writeErrorResponse(c, fiber.StatusBadRequest, err.Error())
 	}
@@ -53,7 +45,7 @@ func (h *MemberHandler) GetMembers(c fiber.Ctx) error {
 
 // GetMember retrieves a specific member in a network
 func (h *MemberHandler) GetMember(c fiber.Ctx) error {
-	networkID := memberRouteNetworkID(c)
+	networkID := c.Params("id")
 	memberID := c.Params("memberId")
 	if err := validateNetworkID(networkID); err != nil {
 		return writeErrorResponse(c, fiber.StatusBadRequest, err.Error())
@@ -85,7 +77,7 @@ func (h *MemberHandler) GetMember(c fiber.Ctx) error {
 
 // UpdateMember updates a network member
 func (h *MemberHandler) UpdateMember(c fiber.Ctx) error {
-	networkID := memberRouteNetworkID(c)
+	networkID := c.Params("id")
 	memberID := c.Params("memberId")
 	if err := validateNetworkID(networkID); err != nil {
 		return writeErrorResponse(c, fiber.StatusBadRequest, err.Error())
@@ -122,7 +114,7 @@ func (h *MemberHandler) UpdateMember(c fiber.Ctx) error {
 
 // DeleteMember deletes a network member
 func (h *MemberHandler) DeleteMember(c fiber.Ctx) error {
-	networkID := memberRouteNetworkID(c)
+	networkID := c.Params("id")
 	memberID := c.Params("memberId")
 	if err := validateNetworkID(networkID); err != nil {
 		return writeErrorResponse(c, fiber.StatusBadRequest, err.Error())
