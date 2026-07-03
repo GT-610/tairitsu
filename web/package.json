@@ -16,21 +16,21 @@
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.1",
     "@mui/icons-material": "^9.1.1",
-    "@mui/material": "^9.1.1",
+    "@mui/material": "^9.1.2",
     "axios": "^1.18.1",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
-    "react-router-dom": "^7.18.0"
+    "react-router-dom": "^7.18.1"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
-    "@vitejs/plugin-react": "^6.0.2",
-    "eslint": "^10.5.0",
+    "@vitejs/plugin-react": "^6.0.3",
+    "eslint": "^10.6.0",
     "globals": "^17.7.0",
     "typescript": "^6.0.3",
-    "typescript-eslint": "^8.62.0",
-    "vite": "^8.0.16"
+    "typescript-eslint": "^8.62.1",
+    "vite": "^8.1.3"
   }
 }
