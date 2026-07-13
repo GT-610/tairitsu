@@ -113,24 +113,6 @@ func (s *SetupService) SaveZeroTierConfig(controllerURL, tokenPath string) (*zer
 	return status, nil
 }
 
-func (s *SetupService) TestZeroTierConnection() (*zerotier.Status, error) {
-	ztClient, err := s.stateService.CreateZTClient()
-	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrSetupZeroTierClientCreateFailed, err)
-	}
-
-	status, err := ztClient.GetStatus()
-	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrSetupZeroTierValidationFailed, err)
-	}
-
-	return status, nil
-}
-
-func (s *SetupService) InitZTClientFromConfig() (*zerotier.Status, error) {
-	return s.runtimeService.InitZTClientFromConfig()
-}
-
 func (s *SetupService) GetSetupStatus() SetupStatus {
 	return s.stateService.GetSetupStatus(s.userService, s.networkService)
 }

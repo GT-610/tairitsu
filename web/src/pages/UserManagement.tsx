@@ -35,7 +35,7 @@ import { getErrorMessage } from '../services/errors';
 import { useAuth } from '../services/auth';
 import UserRoleBadge from '../components/UserRoleBadge';
 import OneTimePasswordDialog from '../components/user-management/OneTimePasswordDialog';
-import { formatUserTime } from '../utils/userPresentation';
+import { formatDisplayableTime } from '../utils/timePresentation';
 import { useTranslation } from '../i18n';
 
 function UserManagement() {
@@ -376,7 +376,7 @@ function UserManagement() {
                 <TableCell>
                   <UserRoleBadge role={user.role} />
                 </TableCell>
-                <TableCell>{formatUserTime(user.createdAt)}</TableCell>
+                <TableCell>{formatDisplayableTime(user.createdAt)}</TableCell>
                 <TableCell>
                   {/* 不能对自己进行操作 */}
                   {currentUser && user.id !== currentUser.id && user.role !== 'admin' ? (

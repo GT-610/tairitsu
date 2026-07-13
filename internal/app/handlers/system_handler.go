@@ -183,30 +183,6 @@ func (h *SystemHandler) ConfigureDatabase(c fiber.Ctx) error {
 	})
 }
 
-// TestZeroTierConnection tests connectivity to the ZeroTier controller
-func (h *SystemHandler) TestZeroTierConnection(c fiber.Ctx) error {
-	ztStatus, err := h.setupService.TestZeroTierConnection()
-	if err != nil {
-		logger.Error("[ZeroTier] connection test failed", zap.Error(err))
-		return setupErrorResponse(c, err)
-	}
-
-	logger.Info("[ZeroTier] connection test succeeded")
-	return c.Status(fiber.StatusOK).JSON(ztStatus)
-}
-
-// InitZeroTierClient initializes the ZeroTier client for the application
-func (h *SystemHandler) InitZeroTierClient(c fiber.Ctx) error {
-
-	status, err := h.setupService.InitZTClientFromConfig()
-	if err != nil {
-		logger.Error("ZeroTier client initialization failed", zap.Error(err))
-		return setupErrorResponse(c, err)
-	}
-
-	return writeMessageResponse(c, fiber.StatusOK, "system.zerotier_initialized", "ZeroTier client initialized successfully", fiber.Map{"status": status})
-}
-
 // SaveZeroTierConfig saves ZeroTier configuration and initializes connection
 func (h *SystemHandler) SaveZeroTierConfig(c fiber.Ctx) error {
 	var req struct {

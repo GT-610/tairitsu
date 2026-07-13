@@ -27,8 +27,9 @@ import { authAPI, type UserSession } from '../services/api'
 import { getErrorMessage } from '../services/errors'
 import { useAuth } from '../services/auth'
 import { useNavigate } from 'react-router-dom'
-import { formatSessionPresentation, formatSessionTime, hasDisplayableSessionTime } from '../utils/sessionPresentation'
-import { formatUserTime, getUserRoleLabel, hasDisplayableUserTime } from '../utils/userPresentation'
+import { formatSessionPresentation } from '../utils/sessionPresentation'
+import { getUserRoleLabel } from '../utils/userPresentation'
+import { formatDisplayableTime, hasDisplayableTime } from '../utils/timePresentation'
 import { useTranslation, type LanguagePreference } from '../i18n'
 
 function Settings() {
@@ -264,23 +265,23 @@ function Settings() {
                 </Grid>
                 <Grid size={{ xs: 12, md: 8 }}>
                   <Box sx={{ display: 'grid', gap: 2 }}>
-                    {hasDisplayableUserTime(user?.createdAt) && (
+                    {hasDisplayableTime(user?.createdAt) && (
                       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 2fr' }, gap: 2 }}>
                         <Typography variant="body2" color="text.secondary">
                           {translateText('创建时间')}
                         </Typography>
                         <Typography variant="body1">
-                          {formatUserTime(user?.createdAt)}
+                          {formatDisplayableTime(user?.createdAt)}
                         </Typography>
                       </Box>
                     )}
-                    {hasDisplayableUserTime(user?.updatedAt) && (
+                    {hasDisplayableTime(user?.updatedAt) && (
                       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 2fr' }, gap: 2 }}>
                         <Typography variant="body2" color="text.secondary">
                           {translateText('更新时间')}
                         </Typography>
                         <Typography variant="body1">
-                          {formatUserTime(user?.updatedAt)}
+                          {formatDisplayableTime(user?.updatedAt)}
                         </Typography>
                       </Box>
                     )}
@@ -353,19 +354,19 @@ function Settings() {
                                 {translateText(presentation.status.label)}
                               </Alert>
                             </Stack>
-                            {hasDisplayableSessionTime(sessionItem.lastSeenAt) && (
+                            {hasDisplayableTime(sessionItem.lastSeenAt) && (
                               <Typography variant="body2" color="text.secondary">
-                                {translateText('最近活跃：')}{formatSessionTime(sessionItem.lastSeenAt)}
+                                {translateText('最近活跃：')}{formatDisplayableTime(sessionItem.lastSeenAt)}
                               </Typography>
                             )}
-                            {hasDisplayableSessionTime(sessionItem.createdAt) && (
+                            {hasDisplayableTime(sessionItem.createdAt) && (
                               <Typography variant="body2" color="text.secondary">
-                                {translateText('登录时间：')}{formatSessionTime(sessionItem.createdAt)}
+                                {translateText('登录时间：')}{formatDisplayableTime(sessionItem.createdAt)}
                               </Typography>
                             )}
-                            {hasDisplayableSessionTime(sessionItem.expiresAt) && (
+                            {hasDisplayableTime(sessionItem.expiresAt) && (
                               <Typography variant="body2" color="text.secondary">
-                                {translateText('到期时间：')}{formatSessionTime(sessionItem.expiresAt)}
+                                {translateText('到期时间：')}{formatDisplayableTime(sessionItem.expiresAt)}
                               </Typography>
                             )}
                             {presentation.details.map((detail) => (

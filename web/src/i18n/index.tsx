@@ -45,19 +45,6 @@ const en: Record<string, string> = {
   'settings.language.title': 'Language',
   'settings.language.description': 'Choose the display language for this browser.',
   'settings.language.current': 'Current language',
-  'common.loading': 'Loading...',
-  'common.unknown': 'Unknown',
-  'common.save': 'Save',
-  'common.cancel': 'Cancel',
-  'common.confirm': 'Confirm',
-  'common.delete': 'Delete',
-  'common.refresh': 'Refresh',
-  'common.search': 'Search',
-  'common.resetChanges': 'Reset changes',
-  'common.processing': 'Processing...',
-  'common.saving': 'Saving...',
-  'common.removing': 'Removing...',
-  'common.unavailable': 'Unavailable',
   'navigation.openDrawer': 'Open drawer',
   'navigation.menu': 'Navigation menu',
   'user.accountMenu': 'Current user account',
@@ -70,16 +57,6 @@ const en: Record<string, string> = {
   'users.transferAdminSuccess': 'Administrator role transferred to {{name}}',
   'users.transferredNetworks': 'Transferred networks: {{count}}',
   'users.revokedSessions': 'Revoked sessions: {{count}}',
-  'errors.auth.invalidToken': 'Invalid authentication token',
-  'errors.auth.missingToken': 'Missing authentication token',
-  'errors.auth.invalidFormat': 'Invalid authentication format',
-  'errors.auth.required': 'Authentication required',
-  'errors.auth.adminRequired': 'Administrator permission required',
-  'errors.rateLimited': 'Too many requests. Please try again later.',
-  'messages.passwordUpdated': 'Password updated successfully',
-  'messages.logoutCurrent': 'Current session signed out',
-  'messages.sessionRemoved': 'Session removed',
-  'messages.otherSessionsRemoved': 'Other sessions removed',
   'ipv6.mustBeInSubnet': 'Must be within {{subnet}}',
   'sponsor.button': 'Sponsor',
 }
@@ -97,19 +74,6 @@ const zh: Record<string, string> = {
   'settings.language.title': '语言',
   'settings.language.description': '选择此浏览器使用的显示语言。',
   'settings.language.current': '当前语言',
-  'common.loading': '加载中...',
-  'common.unknown': '未知',
-  'common.save': '保存',
-  'common.cancel': '取消',
-  'common.confirm': '确认',
-  'common.delete': '删除',
-  'common.refresh': '刷新',
-  'common.search': '搜索',
-  'common.resetChanges': '重置更改',
-  'common.processing': '处理中...',
-  'common.saving': '保存中...',
-  'common.removing': '移除中...',
-  'common.unavailable': '不可用',
   'navigation.openDrawer': '打开导航抽屉',
   'navigation.menu': '导航菜单',
   'user.accountMenu': '当前用户账户',
@@ -122,16 +86,6 @@ const zh: Record<string, string> = {
   'users.transferAdminSuccess': '管理员身份已转让给 {{name}}',
   'users.transferredNetworks': '转移网络：{{count}} 个',
   'users.revokedSessions': '吊销会话：{{count}} 个',
-  'errors.auth.invalidToken': '无效的认证令牌',
-  'errors.auth.missingToken': '缺少认证令牌',
-  'errors.auth.invalidFormat': '认证格式无效',
-  'errors.auth.required': '需要认证',
-  'errors.auth.adminRequired': '需要管理员权限',
-  'errors.rateLimited': '请求频率过高，请稍后再试',
-  'messages.passwordUpdated': '密码修改成功',
-  'messages.logoutCurrent': '已退出当前会话',
-  'messages.sessionRemoved': '会话已移除',
-  'messages.otherSessionsRemoved': '其他会话已移除',
   'ipv6.mustBeInSubnet': '必须落在 {{subnet}} 内',
   'sponsor.button': '赞助',
 }
@@ -185,7 +139,6 @@ const messageCodes: Record<string, { en: string; 'zh-CN': string }> = {
   'system.internal_error': { en: 'Internal server error', 'zh-CN': '服务器内部错误' },
   'system.settings_updated': { en: 'Instance settings updated successfully', 'zh-CN': '实例设置更新成功' },
   'system.database_configured': { en: 'Database configured successfully', 'zh-CN': '数据库配置成功' },
-  'system.zerotier_initialized': { en: 'ZeroTier client initialized successfully', 'zh-CN': 'ZeroTier客户端初始化成功' },
   'system.zerotier_configured': { en: 'ZeroTier configuration saved successfully', 'zh-CN': 'ZeroTier配置保存成功' },
   'system.admin_creation_initialized': { en: 'Administrator account creation step initialized successfully', 'zh-CN': '管理员账户创建步骤初始化成功' },
   'system.initialized_updated': { en: 'Initialization state updated successfully', 'zh-CN': '初始化状态更新成功' },
@@ -896,155 +849,6 @@ function interpolate(template: string, params?: Record<string, string | number>)
   )
 }
 
-const legacyTranslationSelector = '[data-legacy-translate], .legacy-i18n'
-
-function legacyTranslationRoots(root: ParentNode): Element[] {
-  const roots: Element[] = []
-  if (root instanceof Element && root.matches(legacyTranslationSelector)) {
-    roots.push(root)
-  } else if (root instanceof Element) {
-    const ancestor = root.closest(legacyTranslationSelector)
-    if (ancestor) {
-      roots.push(ancestor)
-    }
-  }
-  if (root instanceof Element || root instanceof Document) {
-    roots.push(...Array.from(root.querySelectorAll(legacyTranslationSelector)))
-  }
-  return [...new Set(roots)]
-}
-
-function isInLegacyTranslationRoot(node: Node): boolean {
-  return Boolean(node.parentElement?.closest(legacyTranslationSelector))
-}
-
-function translateDocument(root: ParentNode, language: Language) {
-  const ignoredTags = new Set(['SCRIPT', 'STYLE', 'TEXTAREA'])
-  for (const legacyRoot of legacyTranslationRoots(root)) {
-    const walker = document.createTreeWalker(legacyRoot, NodeFilter.SHOW_TEXT)
-    let node = walker.nextNode()
-    while (node) {
-      const parent = node.parentElement
-      if (parent && !ignoredTags.has(parent.tagName)) {
-        const nextValue = translateRawText(node.nodeValue ?? '', language)
-        if (nextValue !== node.nodeValue) {
-          node.nodeValue = nextValue
-        }
-      }
-      node = walker.nextNode()
-    }
-
-    legacyRoot.querySelectorAll<HTMLElement>('[placeholder],[aria-label],[title]').forEach((element) => {
-      for (const attr of ['placeholder', 'aria-label', 'title']) {
-        const value = element.getAttribute(attr)
-        if (value) {
-          element.setAttribute(attr, translateRawText(value, language))
-        }
-      }
-    })
-
-    if (legacyRoot instanceof HTMLElement) {
-      for (const attr of ['placeholder', 'aria-label', 'title']) {
-        const value = legacyRoot.getAttribute(attr)
-        if (value) {
-          legacyRoot.setAttribute(attr, translateRawText(value, language))
-        }
-      }
-    }
-  }
-}
-
-function RuntimeTextTranslator({ language }: { language: Language }) {
-  useEffect(() => {
-    const root = document.getElementById('root') ?? document.body
-    const scheduleIdle = (callback: () => void) => {
-      const idleCallback = globalThis.requestIdleCallback
-      if (idleCallback) {
-        const id = idleCallback(callback)
-        return () => globalThis.cancelIdleCallback?.(id)
-      }
-      const id = window.setTimeout(callback, 0)
-      return () => window.clearTimeout(id)
-    }
-
-    let queuedMutations: MutationRecord[] = []
-    let cancelScheduledWork: (() => void) | null = null
-
-    const flushMutations = () => {
-      const mutations = queuedMutations
-      queuedMutations = []
-      cancelScheduledWork = null
-
-      const attributeList = ['placeholder', 'aria-label', 'title']
-
-      try {
-        for (const mutation of mutations) {
-          mutation.addedNodes.forEach((node) => {
-            if (node.nodeType === Node.TEXT_NODE && isInLegacyTranslationRoot(node)) {
-              const translated = translateRawText(node.nodeValue ?? '', language)
-              if (translated !== node.nodeValue) {
-                node.nodeValue = translated
-              }
-            } else if (node instanceof Element) {
-              translateDocument(node, language)
-            }
-          })
-          if (mutation.type === 'characterData' && isInLegacyTranslationRoot(mutation.target)) {
-            const translated = translateRawText(mutation.target.nodeValue ?? '', language)
-            if (translated !== mutation.target.nodeValue) {
-              mutation.target.nodeValue = translated
-            }
-          }
-          if (mutation.type === 'attributes' && mutation.attributeName && attributeList.includes(mutation.attributeName)) {
-            const target = mutation.target as HTMLElement
-            if (target instanceof HTMLElement && isInLegacyTranslationRoot(target)) {
-              const value = target.getAttribute(mutation.attributeName)
-              if (value) {
-                target.setAttribute(mutation.attributeName, translateRawText(value, language))
-              }
-            }
-          }
-        }
-      } catch (error) {
-        console.error('Runtime text translation failed', error)
-      }
-    }
-
-    const cancelInitialTranslation = scheduleIdle(() => {
-      try {
-        translateDocument(root, language)
-      } catch (error) {
-        console.error('Initial runtime text translation failed', error)
-      }
-    })
-    const observer = new MutationObserver((mutations) => {
-      try {
-        queuedMutations.push(...mutations)
-        if (!cancelScheduledWork) {
-          cancelScheduledWork = scheduleIdle(flushMutations)
-        }
-      } catch (error) {
-        console.error('Runtime text translation observer failed', error)
-        cancelScheduledWork = null
-      }
-    })
-    observer.observe(root, {
-      childList: true,
-      subtree: true,
-      characterData: true,
-      attributes: true,
-      attributeFilter: ['placeholder', 'aria-label', 'title'],
-    })
-    return () => {
-      observer.disconnect()
-      cancelInitialTranslation()
-      cancelScheduledWork?.()
-    }
-  }, [language])
-
-  return null
-}
-
 export function LanguageProvider({ children }: { children: React.ReactNode }) {
   const [preference, setPreferenceState] = useState<LanguagePreference>(() => getStoredLanguagePreference())
   const [themePreference, setThemePreferenceState] = useState<ThemePreference>(() => getStoredThemePreference())
@@ -1137,7 +941,6 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   return (
     <TranslationContext.Provider value={value}>
       <ThemeProvider theme={theme}>
-        <RuntimeTextTranslator language={language} />
         {children}
       </ThemeProvider>
     </TranslationContext.Provider>
