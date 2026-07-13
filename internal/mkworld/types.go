@@ -18,7 +18,6 @@ type ZtWorldType uint8
 
 const (
 	ZT_WORLD_TYPE_PLANET ZtWorldType = 1
-	ZT_WORLD_TYPE_MOON   ZtWorldType = 127
 )
 
 type ZtWorldID uint64
@@ -155,10 +154,6 @@ func (w *ZtWorld) Serialize(forSign bool, c25519sig [ZT_C25519_SIGNATURE_LEN]byt
 			return nil, err
 		}
 		buf = append(buf, nBytes...)
-	}
-
-	if w.Type == ZT_WORLD_TYPE_MOON {
-		buf = binary.BigEndian.AppendUint16(buf, 0)
 	}
 
 	if forSign {

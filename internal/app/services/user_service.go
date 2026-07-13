@@ -255,24 +255,6 @@ func (s *UserService) HasAdminUser() (bool, error) {
 	return hasAdmin, nil
 }
 
-func (s *UserService) UpdateUser(user *models.User) error {
-	db := s.getDB()
-	if db == nil {
-		logger.Error("service: update user failed; database is not initialized")
-		return ErrUserDBUnavailable
-	}
-
-	logger.Info("service: updating user information", zap.String("user_id", user.ID))
-
-	if err := db.UpdateUser(user); err != nil {
-		logger.Error("service: update user failed while saving user", zap.String("user_id", user.ID), zap.Error(err))
-		return fmt.Errorf("failed to update user: %w", err)
-	}
-
-	logger.Info("service: user information updated successfully", zap.String("user_id", user.ID))
-	return nil
-}
-
 func (s *UserService) ChangePassword(userID, oldPassword, newPassword string) error {
 	_, err := s.changePassword(userID, oldPassword, newPassword, "", false)
 	return err

@@ -45,7 +45,6 @@ interface MenuItemType {
   text: string;
   path: string;
   icon: React.ReactNode;
-  isAction?: boolean;
 }
 
 const mainMenuItems: MenuItemType[] = [

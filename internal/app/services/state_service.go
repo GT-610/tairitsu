@@ -37,8 +37,7 @@ type RuntimeSettings struct {
 }
 
 type StateService struct {
-	cfg          *config.Config
-	globalBacked bool
+	cfg *config.Config
 }
 
 func NewStateServiceWithConfig(cfg *config.Config) *StateService {
@@ -48,9 +47,6 @@ func NewStateServiceWithConfig(cfg *config.Config) *StateService {
 func (s *StateService) Config() *config.Config {
 	if s.cfg != nil {
 		return s.cfg
-	}
-	if s.globalBacked {
-		return config.AppConfig
 	}
 	return nil
 }
@@ -192,8 +188,5 @@ func (s *StateService) ensureConfig() *config.Config {
 		cfg = &config.Config{}
 	}
 	s.cfg = cfg
-	if s.globalBacked {
-		config.AppConfig = cfg
-	}
 	return cfg
 }

@@ -92,9 +92,7 @@ func SetupRoutes(router *fiber.App, dependencies *assembly.Dependencies) {
 		}
 
 		api.Post("/system/database", setupOnly, systemHandler.ConfigureDatabase)
-		api.Get("/system/zerotier/test", setupOnly, systemHandler.TestZeroTierConnection)
 		api.Post("/system/zerotier/config", setupOnly, systemHandler.SaveZeroTierConfig)
-		api.Post("/system/zerotier/init", setupOnly, systemHandler.InitZeroTierClient)
 		api.Post("/system/initialized", setupOnly, systemHandler.SetInitialized)
 		api.Post("/system/admin/init", setupOnly, systemHandler.InitializeAdminCreation)
 

@@ -498,10 +498,6 @@ export const systemAPI = {
   getSetupStatus: () => api.get<SetupStatus>('/system/status'),
   // Configure database
   configureDatabase: (config: DatabaseSetupConfig) => api.post<DatabaseSetupResponse>('/system/database', config),
-  // Initialize ZeroTier client
-  initZeroTierClient: () => api.post('/system/zerotier/init'),
-  // Test ZeroTier connection
-  testZtConnection: () => api.get('/system/zerotier/test'),
   // Save ZeroTier configuration
   saveZtConfig: (config: ZeroTierSetupConfig) => api.post<ZeroTierSetupResponse>('/system/zerotier/config', config),
   // Set system initialization status
