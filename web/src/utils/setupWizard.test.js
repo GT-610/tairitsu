@@ -22,5 +22,35 @@ describe('setupWizard', () => {
       adminCreationPrepared: true,
       allowPublicRegistration: true,
     })).toBe(3)
+
+    expect(getInitialSetupWizardStep({
+      initialized: false,
+      hasDatabase: true,
+      databaseConfigured: true,
+      hasAdmin: true,
+      zerotierConfigured: false,
+      adminCreationPrepared: true,
+      allowPublicRegistration: true,
+    })).toBe(1)
+
+    expect(getInitialSetupWizardStep({
+      initialized: false,
+      hasDatabase: false,
+      databaseConfigured: false,
+      hasAdmin: true,
+      zerotierConfigured: true,
+      adminCreationPrepared: true,
+      allowPublicRegistration: true,
+    })).toBe(2)
+
+    expect(getInitialSetupWizardStep({
+      initialized: false,
+      hasDatabase: true,
+      databaseConfigured: true,
+      hasAdmin: true,
+      zerotierConfigured: true,
+      adminCreationPrepared: true,
+      allowPublicRegistration: true,
+    })).toBe(4)
   })
 })
