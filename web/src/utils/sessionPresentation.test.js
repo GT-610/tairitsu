@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
-import { formatSessionPresentation, formatSessionTime, hasDisplayableSessionTime } from './sessionPresentation'
+import { formatSessionPresentation } from './sessionPresentation'
+import { formatDisplayableTime, hasDisplayableTime } from './timePresentation'
 
 describe('sessionPresentation', () => {
   test('formats readable browser and platform labels', () => {
@@ -51,7 +52,7 @@ describe('sessionPresentation', () => {
   })
 
   test('hides zero-value timestamps', () => {
-    expect(hasDisplayableSessionTime('0001-01-01T00:00:00Z')).toBe(false)
-    expect(formatSessionTime('0001-01-01T00:00:00Z')).toBe('未知')
+    expect(hasDisplayableTime('0001-01-01T00:00:00Z')).toBe(false)
+    expect(formatDisplayableTime('0001-01-01T00:00:00Z')).toBe('未知')
   })
 })
