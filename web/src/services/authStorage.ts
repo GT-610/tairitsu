@@ -1,39 +1,115 @@
 import api, { type User, type UserSession } from './api'
 
-export function persistAuthState(user: User, token: string, session: UserSession, rememberMe: boolean) {
-  const storage = rememberMe ? localStorage : sessionStorage
-  storage.setItem('user', JSON.stringify(user))
-  storage.setItem('token', token)
-  storage.setItem('session', JSON.stringify(session))
-  api.defaults.headers.common.Authorization = `Bearer ${token}`
+interface AuthStorage {
+  getItem(key: string): string | null
+  setItem(key: string, value: string): void
+  removeItem(key: string): void
 }
 
-export function restoreAuthState() {
-  const storedUser = localStorage.getItem('user') || sessionStorage.getItem('user')
-  const storedToken = localStorage.getItem('token') || sessionStorage.getItem('token')
-  const storedSession = localStorage.getItem('session') || sessionStorage.getItem('session')
+interface RestoredAuthState {
+  user: User
+  token: string
+  session: UserSession
+}
 
-  if (!storedUser || !storedToken) {
+const authStorageKeys = ['user', 'token', 'session'] as const
+
+function clearAuthStorage(storage: AuthStorage) {
+  for (const key of authStorageKeys) {
+    storage.removeItem(key)
+  }
+}
+
+function isUser(value: unknown): value is User {
+  if (typeof value !== 'object' || value === null) return false
+  const user = value as Partial<User>
+  return typeof user.id === 'string'
+    && typeof user.username === 'string'
+    && (user.role === 'admin' || user.role === 'user')
+}
+
+function isUserSession(value: unknown): value is UserSession {
+  if (typeof value !== 'object' || value === null) return false
+  const session = value as Partial<UserSession>
+  return typeof session.id === 'string' && session.id.trim() !== ''
+}
+
+function readAuthStorage(storage: AuthStorage): RestoredAuthState | null {
+  const storedUser = storage.getItem('user')
+  const storedToken = storage.getItem('token')
+  const storedSession = storage.getItem('session')
+  const hasStoredAuth = storedUser !== null || storedToken !== null || storedSession !== null
+
+  if (!hasStoredAuth) return null
+
+  if (!storedUser || !storedToken || !storedSession) {
+    clearAuthStorage(storage)
     return null
   }
 
   try {
-    const user = JSON.parse(storedUser) as User
-    const session = storedSession ? JSON.parse(storedSession) as UserSession : null
-    api.defaults.headers.common.Authorization = `Bearer ${storedToken}`
+    const user: unknown = JSON.parse(storedUser)
+    const session: unknown = JSON.parse(storedSession)
+    if (!isUser(user) || !isUserSession(session)) {
+      clearAuthStorage(storage)
+      return null
+    }
     return { user, token: storedToken, session }
   } catch {
-    clearPersistedAuthState()
+    clearAuthStorage(storage)
     return null
   }
 }
 
+export function persistAuthStateToStores(
+  user: User,
+  token: string,
+  session: UserSession,
+  rememberMe: boolean,
+  persistentStorage: AuthStorage,
+  transientStorage: AuthStorage,
+) {
+  clearAuthStorage(persistentStorage)
+  clearAuthStorage(transientStorage)
+
+  const targetStorage = rememberMe ? persistentStorage : transientStorage
+  targetStorage.setItem('user', JSON.stringify(user))
+  targetStorage.setItem('token', token)
+  targetStorage.setItem('session', JSON.stringify(session))
+}
+
+export function restoreAuthStateFromStores(
+  persistentStorage: AuthStorage,
+  transientStorage: AuthStorage,
+): RestoredAuthState | null {
+  const persistentState = readAuthStorage(persistentStorage)
+  if (persistentState) {
+    clearAuthStorage(transientStorage)
+    return persistentState
+  }
+
+  const transientState = readAuthStorage(transientStorage)
+  if (transientState) {
+    clearAuthStorage(persistentStorage)
+  }
+  return transientState
+}
+
+export function persistAuthState(user: User, token: string, session: UserSession, rememberMe: boolean) {
+  persistAuthStateToStores(user, token, session, rememberMe, localStorage, sessionStorage)
+  api.defaults.headers.common.Authorization = `Bearer ${token}`
+}
+
+export function restoreAuthState() {
+  const restored = restoreAuthStateFromStores(localStorage, sessionStorage)
+  if (restored) {
+    api.defaults.headers.common.Authorization = `Bearer ${restored.token}`
+  }
+  return restored
+}
+
 export function clearPersistedAuthState() {
-  localStorage.removeItem('user')
-  localStorage.removeItem('token')
-  localStorage.removeItem('session')
-  sessionStorage.removeItem('user')
-  sessionStorage.removeItem('token')
-  sessionStorage.removeItem('session')
+  clearAuthStorage(localStorage)
+  clearAuthStorage(sessionStorage)
   delete api.defaults.headers.common.Authorization
 }

@@ -16,13 +16,13 @@ import (
 )
 
 type App struct {
-	Config         *config.Config
-	Database       database.DBInterface
-	ZTClient       *zerotier.Client
-	Dependencies   *assembly.Dependencies
-	Router         *fiber.App
-	cancel         context.CancelFunc
-	cleanupDone    <-chan struct{}
+	Config       *config.Config
+	Database     database.DBInterface
+	ZTClient     *zerotier.Client
+	Dependencies *assembly.Dependencies
+	Router       *fiber.App
+	cancel       context.CancelFunc
+	cleanupDone  <-chan struct{}
 }
 
 func Build() (*App, error) {
@@ -51,7 +51,7 @@ func Build() (*App, error) {
 	}
 
 	app.Dependencies = assembly.NewDependencies(app.Config, app.Database, app.ZTClient)
-	app.Router = fiber.New()
+	app.Router = newHTTPApp()
 	routes.SetupRoutes(app.Router, app.Dependencies)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -60,6 +60,21 @@ func Build() (*App, error) {
 
 	logger.Info("application assembly completed")
 	return app, nil
+}
+
+func newHTTPApp() *fiber.App {
+	return fiber.New(httpAppConfig())
+}
+
+func httpAppConfig() fiber.Config {
+	return fiber.Config{
+		TrustProxy:  true,
+		ProxyHeader: "X-Real-IP",
+		TrustProxyConfig: fiber.TrustProxyConfig{
+			Loopback: true,
+		},
+		EnableIPValidation: true,
+	}
 }
 
 func (a *App) Listen() error {

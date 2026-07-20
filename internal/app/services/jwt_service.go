@@ -68,7 +68,7 @@ func (s *JWTService) GenerateToken(user *models.User, sessionID string) (string,
 func (s *JWTService) ValidateToken(tokenString string) (*JWTClaims, error) {
 	// Parse the token
 	token, err := jwt.ParseWithClaims(tokenString, &JWTClaims{}, func(token *jwt.Token) (interface{}, error) {
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+		if token.Method != jwt.SigningMethodHS256 {
 			return nil, errors.New("invalid signing method")
 		}
 		return s.secretKey, nil

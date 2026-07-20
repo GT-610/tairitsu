@@ -5,7 +5,9 @@ import (
 
 	"github.com/GT-610/tairitsu/internal/app/models"
 	"github.com/GT-610/tairitsu/internal/app/services"
+	"github.com/golang-jwt/jwt/v4"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNewJWTService(t *testing.T) {
@@ -98,5 +100,22 @@ func TestJWTService_ValidateToken_WrongSecret(t *testing.T) {
 
 	// Assert
 	assert.Error(t, err)
+	assert.Nil(t, claims)
+}
+
+func TestJWTService_ValidateToken_RejectsOtherHMACAlgorithms(t *testing.T) {
+	const secret = "test-secret-key"
+	token := jwt.NewWithClaims(jwt.SigningMethodHS384, jwt.MapClaims{
+		"user_id":    "test-user-id",
+		"username":   "test-user",
+		"role":       "user",
+		"session_id": "session-1",
+	})
+	tokenString, err := token.SignedString([]byte(secret))
+	require.NoError(t, err)
+
+	claims, err := services.NewJWTService(secret).ValidateToken(tokenString)
+
+	assert.ErrorContains(t, err, "invalid signing method")
 	assert.Nil(t, claims)
 }

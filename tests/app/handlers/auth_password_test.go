@@ -73,7 +73,10 @@ func TestAuthHandler_ChangePasswordRevokesOtherSessionsWhenRequested(t *testing.
 	req := httptest.NewRequest(http.MethodPut, "/profile/password", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+token)
-	resp, err := app.Test(req)
+	resp, err := app.Test(req, fiber.TestConfig{
+		Timeout:       10 * time.Second,
+		FailOnTimeout: true,
+	})
 	require.NoError(t, err)
 	assert.Equal(t, fiber.StatusOK, resp.StatusCode)
 

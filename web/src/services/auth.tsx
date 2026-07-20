@@ -11,6 +11,7 @@ interface AuthContextType {
   login: (userData: User, authToken: string, userSession: UserSession) => { success: boolean; user: User; token: string; session: UserSession };
   refreshUser: (userData: User) => void;
   logout: () => Promise<void>;
+  clearAuth: () => void;
   isAuthenticated: () => boolean;
 }
 
@@ -59,6 +60,13 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     }
   }, []);
 
+  const clearAuth = useCallback(() => {
+    setUser(null);
+    setToken(null);
+    setSession(null);
+    clearPersistedAuthState();
+  }, []);
+
   // 登出函数
   const logout = useCallback(async () => {
     try {
@@ -68,12 +76,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     } catch {
       // Ignore logout API failures and still clear local auth state.
     } finally {
-      setUser(null);
-      setToken(null);
-      setSession(null);
-      clearPersistedAuthState();
+      clearAuth();
     }
-  }, [token]);
+  }, [clearAuth, token]);
 
   // 检查是否已认证
   const isAuthenticated = useCallback((): boolean => {
@@ -89,8 +94,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     login,
     refreshUser,
     logout,
+    clearAuth,
     isAuthenticated
-  }), [user, token, session, isHydrated, login, refreshUser, logout, isAuthenticated]);
+  }), [user, token, session, isHydrated, login, refreshUser, logout, clearAuth, isAuthenticated]);
 
   return (
     <AuthContext.Provider value={value}>

@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"strings"
 	"time"
 
 	"github.com/GT-610/tairitsu/internal/app/logger"
@@ -101,7 +102,7 @@ func (h *AuthHandler) Login(c fiber.Ctx) error {
 	session, err := h.sessionService.CreateSession(services.SessionCreateInput{
 		UserID:     user.ID,
 		UserAgent:  c.Get("User-Agent"),
-		IPAddress:  c.IP(),
+		IPAddress:  strings.Clone(c.IP()),
 		RememberMe: req.RememberMe,
 		ExpiresAt:  time.Now().Add(h.jwtService.AccessExpiry()),
 	})
