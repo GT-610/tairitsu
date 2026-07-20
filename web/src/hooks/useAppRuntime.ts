@@ -1,24 +1,54 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import api, { type SetupStatus } from '../services/api'
-import { clearPersistedAuthState } from '../services/authStorage'
+import { useAuth } from '../services/auth'
 import { hasStatus } from '../services/errors'
 import { setupCompletedEvent } from '../pages/SetupWizard'
 
+export interface SetupGateState {
+  isFirstRun: boolean | null
+  loading: boolean
+  error: boolean
+}
+
+export function setupGateSuccess(status: SetupStatus): SetupGateState {
+  return { isFirstRun: !status.initialized, loading: false, error: false }
+}
+
+export function setupGateFailure(): SetupGateState {
+  return { isFirstRun: null, loading: false, error: true }
+}
+
+export function handleUnauthorizedResponse(
+  error: unknown,
+  clearAuth: () => void,
+  navigateToLogin: () => void,
+  pathname: string,
+) {
+  if (!hasStatus(error, 401)) return
+
+  clearAuth()
+  if (pathname !== '/login') {
+    navigateToLogin()
+  }
+}
+
 export function useSetupGate() {
-  const [isFirstRun, setIsFirstRun] = useState<boolean | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [state, setState] = useState<SetupGateState>({
+    isFirstRun: null,
+    loading: true,
+    error: false,
+  })
 
   const refreshSetupStatus = useCallback(async () => {
+    setState((current) => ({ ...current, loading: true, error: false }))
     try {
       const response = await api.get<SetupStatus>('/system/status', {
         headers: { 'Cache-Control': 'no-cache' },
       })
-      setIsFirstRun(!response.data.initialized)
+      setState(setupGateSuccess(response.data))
     } catch {
-      setIsFirstRun(true)
-    } finally {
-      setLoading(false)
+      setState(setupGateFailure())
     }
   }, [])
 
@@ -28,7 +58,6 @@ export function useSetupGate() {
 
   useEffect(() => {
     const handleSetupComplete = () => {
-      setLoading(true)
       void refreshSetupStatus()
     }
 
@@ -38,12 +67,13 @@ export function useSetupGate() {
     }
   }, [refreshSetupStatus])
 
-  return { isFirstRun, loading }
+  return { ...state, retry: refreshSetupStatus }
 }
 
 export function useUnauthorizedRedirect() {
   const navigate = useNavigate()
   const location = useLocation()
+  const { clearAuth } = useAuth()
   const locationRef = useRef(location)
   locationRef.current = location
 
@@ -51,12 +81,12 @@ export function useUnauthorizedRedirect() {
     const interceptor = api.interceptors.response.use(
       (response) => response,
       (error) => {
-        if (hasStatus(error, 401)) {
-          clearPersistedAuthState()
-          if (locationRef.current.pathname !== '/login') {
-            void navigate('/login')
-          }
-        }
+        handleUnauthorizedResponse(
+          error,
+          clearAuth,
+          () => { void navigate('/login') },
+          locationRef.current.pathname,
+        )
 
         return Promise.reject(error instanceof Error ? error : new Error(String(error)))
       },
@@ -65,5 +95,5 @@ export function useUnauthorizedRedirect() {
     return () => {
       api.interceptors.response.eject(interceptor)
     }
-  }, [navigate])
+  }, [clearAuth, navigate])
 }

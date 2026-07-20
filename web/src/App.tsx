@@ -1,6 +1,6 @@
 import { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
-import { CircularProgress, Box } from '@mui/material';
+import { Alert, Button, CircularProgress, Box } from '@mui/material';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import SetupWizard from './pages/SetupWizard';
@@ -9,6 +9,7 @@ import NotFound from './pages/NotFound';
 import Layout from './components/Layout';
 import { useAuth } from './services/auth';
 import { useSetupGate, useUnauthorizedRedirect } from './hooks/useAppRuntime';
+import { useTranslation } from './i18n';
 
 const lazyPages = {
   UserManagement: lazy(() => import('./pages/UserManagement')),
@@ -35,10 +36,11 @@ function Loading() {
 
 function AppContent() {
   const { user, isAuthenticated } = useAuth();
-  const { isFirstRun, loading } = useSetupGate();
+  const { t } = useTranslation();
+  const { isFirstRun, loading, error, retry } = useSetupGate();
   useUnauthorizedRedirect();
 
-  if (loading || isFirstRun === null) {
+  if (loading) {
     return (
       <div style={{ 
         display: 'flex', 
@@ -47,8 +49,31 @@ function AppContent() {
         height: '100vh',
         fontSize: '18px'
       }}>
-        加载中...
+        {t('app.loading')}
       </div>
+    );
+  }
+
+  if (error || isFirstRun === null) {
+    return (
+      <Box sx={{
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        minHeight: '100vh',
+        p: 3,
+      }}>
+        <Alert
+          severity="error"
+          action={(
+            <Button color="inherit" size="small" onClick={() => { void retry() }}>
+              {t('app.setupStatusRetry')}
+            </Button>
+          )}
+        >
+          {t('app.setupStatusUnavailable')}
+        </Alert>
+      </Box>
     );
   }
 

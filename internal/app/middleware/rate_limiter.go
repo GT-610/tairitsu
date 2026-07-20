@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"strings"
 	"sync"
 	"time"
 
@@ -163,7 +164,7 @@ func RateLimitWithLimiter(limiter *RateLimiter) fiber.Handler {
 
 func rateLimitHandler(limiter *RateLimiter) fiber.Handler {
 	return func(c fiber.Ctx) error {
-		clientIP := c.IP()
+		clientIP := strings.Clone(c.IP())
 		bucket := limiter.GetBucket(clientIP)
 
 		if !bucket.GetToken() {
