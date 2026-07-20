@@ -49,6 +49,7 @@ func TestHTTPAppTrustsConfiguredProxyHeaders(t *testing.T) {
 
 	resp, err := app.Test(req)
 	require.NoError(t, err)
+	defer resp.Body.Close()
 
 	var identity requestIdentity
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(&identity))
@@ -66,6 +67,7 @@ func TestHTTPAppIgnoresProxyHeadersFromUntrustedClients(t *testing.T) {
 
 	resp, err := app.Test(req)
 	require.NoError(t, err)
+	defer resp.Body.Close()
 
 	var identity requestIdentity
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(&identity))
@@ -95,6 +97,9 @@ func TestHTTPAppRateLimitsForwardedClientsIndependently(t *testing.T) {
 	first := request("203.0.113.10")
 	second := request("203.0.113.11")
 	third := request("203.0.113.10")
+	defer first.Body.Close()
+	defer second.Body.Close()
+	defer third.Body.Close()
 
 	assert.Equal(t, "203.0.113.10", first.Header.Get("X-Test-Observed-IP"))
 	assert.Equal(t, "203.0.113.11", second.Header.Get("X-Test-Observed-IP"))
@@ -117,5 +122,6 @@ func TestHTTPAppSetsHSTSForTrustedHTTPSProxy(t *testing.T) {
 
 	resp, err := app.Test(req)
 	require.NoError(t, err)
+	defer resp.Body.Close()
 	assert.Equal(t, "max-age=31536000; includeSubDomains", resp.Header.Get("Strict-Transport-Security"))
 }

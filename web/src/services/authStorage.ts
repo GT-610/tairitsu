@@ -26,12 +26,24 @@ function isUser(value: unknown): value is User {
   return typeof user.id === 'string'
     && typeof user.username === 'string'
     && (user.role === 'admin' || user.role === 'user')
+    && typeof user.createdAt === 'string'
+    && typeof user.updatedAt === 'string'
 }
 
 function isUserSession(value: unknown): value is UserSession {
   if (typeof value !== 'object' || value === null) return false
   const session = value as Partial<UserSession>
-  return typeof session.id === 'string' && session.id.trim() !== ''
+  return typeof session.id === 'string'
+    && session.id.trim() !== ''
+    && typeof session.userAgent === 'string'
+    && typeof session.ipAddress === 'string'
+    && typeof session.rememberMe === 'boolean'
+    && typeof session.lastSeenAt === 'string'
+    && typeof session.expiresAt === 'string'
+    && (session.revokedAt === undefined || session.revokedAt === null || typeof session.revokedAt === 'string')
+    && typeof session.createdAt === 'string'
+    && typeof session.updatedAt === 'string'
+    && typeof session.current === 'boolean'
 }
 
 function readAuthStorage(storage: AuthStorage): RestoredAuthState | null {

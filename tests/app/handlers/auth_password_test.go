@@ -78,6 +78,7 @@ func TestAuthHandler_ChangePasswordRevokesOtherSessionsWhenRequested(t *testing.
 		FailOnTimeout: true,
 	})
 	require.NoError(t, err)
+	defer resp.Body.Close()
 	assert.Equal(t, fiber.StatusOK, resp.StatusCode)
 
 	var responseBody struct {

@@ -100,4 +100,28 @@ describe('auth storage', () => {
     expect(restoreAuthStateFromStores(persistent, transient)).toBeNull()
     expect(persistent.getItem('token')).toBeNull()
   })
+
+  test('rejects a session missing required contract fields', () => {
+    const persistent = new MemoryStorage()
+    const transient = new MemoryStorage()
+    persistent.setItem('user', JSON.stringify(user))
+    persistent.setItem('token', 'token')
+    persistent.setItem('session', JSON.stringify({ id: 'session-1' }))
+
+    expect(restoreAuthStateFromStores(persistent, transient)).toBeNull()
+    expect(persistent.getItem('session')).toBeNull()
+  })
+
+  test('rejects a user missing required timestamp fields', () => {
+    const persistent = new MemoryStorage()
+    const transient = new MemoryStorage()
+    const incompleteUser = { ...user }
+    delete incompleteUser.createdAt
+    persistent.setItem('user', JSON.stringify(incompleteUser))
+    persistent.setItem('token', 'token')
+    persistent.setItem('session', JSON.stringify(session))
+
+    expect(restoreAuthStateFromStores(persistent, transient)).toBeNull()
+    expect(persistent.getItem('user')).toBeNull()
+  })
 })

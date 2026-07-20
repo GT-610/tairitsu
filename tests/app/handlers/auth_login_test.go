@@ -56,6 +56,7 @@ func TestAuthHandler_LoginRecordsForwardedClientIP(t *testing.T) {
 	req.Header.Set("X-Real-IP", "203.0.113.10")
 	resp, err := app.Test(req)
 	require.NoError(t, err)
+	defer resp.Body.Close()
 	assert.Equal(t, fiber.StatusOK, resp.StatusCode)
 
 	var body struct {
