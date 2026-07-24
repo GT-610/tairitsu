@@ -10,7 +10,9 @@ import (
 	"sync"
 
 	"github.com/GT-610/tairitsu/internal/app/crypto"
+	"github.com/GT-610/tairitsu/internal/app/logger"
 	"github.com/spf13/viper"
+	"go.uber.org/zap"
 )
 
 // DatabaseConfig Database configuration
@@ -102,7 +104,9 @@ func LoadConfig() (*Config, error) {
 	if generated && cfg.ZeroTier.TokenPath != "" && cfg.ZeroTier.Token == "" {
 		// Loading an environment-provided token path may have failed before a
 		// generated encryption key was available. Retry after creating the key.
-		_ = LoadTokenFromPathInto(cfg, cfg.ZeroTier.TokenPath)
+		if err := LoadTokenFromPathInto(cfg, cfg.ZeroTier.TokenPath); err != nil {
+			logger.Warn("failed to load environment-provided ZeroTier token after generating JWT secret; continuing without token", zap.Error(err))
+		}
 	}
 
 	// Save default configuration to config.json

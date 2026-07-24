@@ -72,6 +72,17 @@ func TestLoadConfigMigratesLegacyCredentialsEncryptedWithEmptyJWTSecret(t *testi
 	assert.Equal(t, "legacy-database-password", databasePassword)
 }
 
+func TestLoadConfigContinuesWhenTokenRetryFails(t *testing.T) {
+	useTemporaryWorkingDirectory(t)
+	t.Setenv("JWT_SECRET", "")
+	t.Setenv("ZT_TOKEN_PATH", filepath.Join(t.TempDir(), "missing-authtoken.secret"))
+
+	cfg, err := config.LoadConfig()
+	require.NoError(t, err)
+	require.NotEmpty(t, cfg.Security.JWTSecret)
+	assert.Empty(t, cfg.ZeroTier.Token)
+}
+
 func useTemporaryWorkingDirectory(t *testing.T) {
 	t.Helper()
 	originalWorkingDirectory, err := os.Getwd()
