@@ -17,12 +17,7 @@ import (
 )
 
 func TestLoadConfigGeneratesAndPersistsJWTSecret(t *testing.T) {
-	originalWorkingDirectory, err := os.Getwd()
-	require.NoError(t, err)
-	require.NoError(t, os.Chdir(t.TempDir()))
-	t.Cleanup(func() {
-		require.NoError(t, os.Chdir(originalWorkingDirectory))
-	})
+	useTemporaryWorkingDirectory(t)
 	t.Setenv("JWT_SECRET", "")
 
 	first, err := config.LoadConfig()
@@ -38,10 +33,23 @@ func TestLoadConfigGeneratesAndPersistsJWTSecret(t *testing.T) {
 	second, err := config.LoadConfig()
 	require.NoError(t, err)
 	assert.Equal(t, first.Security.JWTSecret, second.Security.JWTSecret)
+	assert.Empty(t, second.ZeroTier.Token)
+}
 
-	second.Security.JWTSecret = ""
-	second.ZeroTier.Token = "encrypted:" + encryptWithLegacyEmptyKey(t, "legacy-controller-token")
-	require.NoError(t, config.SaveConfig(second))
+func TestLoadConfigMigratesLegacyCredentialsEncryptedWithEmptyJWTSecret(t *testing.T) {
+	useTemporaryWorkingDirectory(t)
+	t.Setenv("JWT_SECRET", "")
+
+	legacyConfig := &config.Config{
+		ZeroTier: config.ZeroTierConfig{
+			Token: "encrypted:" + encryptWithLegacyEmptyKey(t, "legacy-controller-token"),
+		},
+		Database: config.DatabaseConfig{
+			Pass: "encrypted:" + encryptWithLegacyEmptyKey(t, "legacy-database-password"),
+		},
+	}
+	require.NoError(t, config.SaveConfig(legacyConfig))
+
 	repaired, err := config.LoadConfig()
 	require.NoError(t, err)
 	require.NotEmpty(t, repaired.Security.JWTSecret)
@@ -49,6 +57,9 @@ func TestLoadConfigGeneratesAndPersistsJWTSecret(t *testing.T) {
 	decrypted, err := config.GetZTTokenFrom(repaired)
 	require.NoError(t, err)
 	assert.Equal(t, "legacy-controller-token", decrypted)
+	databasePassword, err := config.GetDatabasePasswordFrom(repaired)
+	require.NoError(t, err)
+	assert.Equal(t, "legacy-database-password", databasePassword)
 
 	reloaded, err := config.LoadConfig()
 	require.NoError(t, err)
@@ -56,6 +67,19 @@ func TestLoadConfigGeneratesAndPersistsJWTSecret(t *testing.T) {
 	decrypted, err = config.GetZTTokenFrom(reloaded)
 	require.NoError(t, err)
 	assert.Equal(t, "legacy-controller-token", decrypted)
+	databasePassword, err = config.GetDatabasePasswordFrom(reloaded)
+	require.NoError(t, err)
+	assert.Equal(t, "legacy-database-password", databasePassword)
+}
+
+func useTemporaryWorkingDirectory(t *testing.T) {
+	t.Helper()
+	originalWorkingDirectory, err := os.Getwd()
+	require.NoError(t, err)
+	require.NoError(t, os.Chdir(t.TempDir()))
+	t.Cleanup(func() {
+		require.NoError(t, os.Chdir(originalWorkingDirectory))
+	})
 }
 
 func encryptWithLegacyEmptyKey(t *testing.T, plaintext string) string {

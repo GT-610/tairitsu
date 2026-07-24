@@ -35,12 +35,10 @@ func setupErrorResponse(c fiber.Ctx, err error) error {
 	case errors.Is(err, services.ErrSetupDatabaseConnectionFailed),
 		errors.Is(err, services.ErrSetupDatabaseInitialization),
 		errors.Is(err, services.ErrSetupDatabaseConfigSaveFailed),
-		errors.Is(err, services.ErrSetupConfigSaveFailed),
 		errors.Is(err, services.ErrSetupZeroTierConfigSaveFailed),
 		errors.Is(err, services.ErrSetupAdminStateCheckFailed),
 		errors.Is(err, services.ErrSetupAdminCreationInitFailed),
 		errors.Is(err, services.ErrSetupDatabaseReopenFailed),
-		errors.Is(err, services.ErrSetupSecretGenerationFailed),
 		errors.Is(err, services.ErrSetupInitializationStateFailed):
 		status = fiber.StatusInternalServerError
 	case errors.Is(err, services.ErrSetupAdminRequired),
@@ -69,9 +67,6 @@ func setupErrorResponse(c fiber.Ctx, err error) error {
 	case errors.Is(err, services.ErrSetupDatabaseConfigSaveFailed):
 		code = "setup.database_config_save_failed"
 		message = "Failed to save database configuration"
-	case errors.Is(err, services.ErrSetupConfigSaveFailed):
-		code = "setup.config_save_failed"
-		message = "Failed to save setup configuration"
 	case errors.Is(err, services.ErrSetupZeroTierConfigSaveFailed):
 		code = "setup.zerotier_config_save_failed"
 		message = "Failed to save ZeroTier configuration"
@@ -93,9 +88,6 @@ func setupErrorResponse(c fiber.Ctx, err error) error {
 	case errors.Is(err, services.ErrSetupDatabaseReopenFailed):
 		code = "setup.database_reopen_failed"
 		message = "Failed to reopen configured database"
-	case errors.Is(err, services.ErrSetupSecretGenerationFailed):
-		code = "setup.secret_generation_failed"
-		message = "Failed to generate secure secret"
 	case errors.Is(err, services.ErrSetupInitializationStateFailed):
 		code = "setup.initialization_state_failed"
 		message = "Failed to update initialization state"

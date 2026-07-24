@@ -1,8 +1,6 @@
 package services
 
 import (
-	"crypto/rand"
-	"encoding/base64"
 	"errors"
 	"fmt"
 
@@ -27,7 +25,6 @@ var (
 	ErrSetupDatabaseConnectionFailed   = errors.New("setup.database_connection_failed")
 	ErrSetupDatabaseInitialization     = errors.New("setup.database_initialization_failed")
 	ErrSetupDatabaseConfigSaveFailed   = errors.New("setup.database_config_save_failed")
-	ErrSetupConfigSaveFailed           = errors.New("setup.config_save_failed")
 	ErrSetupZeroTierConfigSaveFailed   = errors.New("setup.zerotier_config_save_failed")
 	ErrSetupZeroTierClientCreateFailed = errors.New("setup.zerotier_client_create_failed")
 	ErrSetupZeroTierValidationFailed   = errors.New("setup.zerotier_validation_failed")
@@ -35,7 +32,6 @@ var (
 	ErrSetupAdminStateCheckFailed      = errors.New("setup.admin_state_check_failed")
 	ErrSetupAdminCreationInitFailed    = errors.New("setup.admin_creation_init_failed")
 	ErrSetupDatabaseReopenFailed       = errors.New("setup.database_reopen_failed")
-	ErrSetupSecretGenerationFailed     = errors.New("setup.secret_generation_failed")
 	ErrSetupInitializationStateFailed  = errors.New("setup.initialization_state_failed")
 	ErrSetupAdminRequired              = errors.New("setup.admin_required")
 	ErrSetupZeroTierUnavailable        = errors.New("setup.zerotier_unavailable")
@@ -171,20 +167,6 @@ func (s *SetupService) SetInitialized(initialized bool) error {
 		if err := s.validateInitializationReady(); err != nil {
 			return err
 		}
-
-		cfg := s.stateService.Config()
-		if cfg.Security.JWTSecret == "" {
-			secret, err := generateRandomSecret(32)
-			if err != nil {
-				return fmt.Errorf("%w: JWT secret: %v", ErrSetupSecretGenerationFailed, err)
-			}
-			cfg.Security.JWTSecret = secret
-			logger.Info("generated new JWT secret")
-		}
-
-		if err := s.stateService.SaveConfig(); err != nil {
-			return fmt.Errorf("%w: %v", ErrSetupConfigSaveFailed, err)
-		}
 	}
 
 	if err := s.stateService.SetInitialized(initialized); err != nil {
@@ -222,13 +204,4 @@ func (s *SetupService) validateInitializationReady() error {
 	}
 
 	return nil
-}
-
-func generateRandomSecret(length int) (string, error) {
-	bytes := make([]byte, length)
-	if _, err := rand.Read(bytes); err != nil {
-		return "", err
-	}
-
-	return base64.URLEncoding.EncodeToString(bytes), nil
 }
