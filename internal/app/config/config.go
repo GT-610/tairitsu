@@ -1,6 +1,8 @@
 package config
 
 import (
+	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -8,7 +10,9 @@ import (
 	"sync"
 
 	"github.com/GT-610/tairitsu/internal/app/crypto"
+	"github.com/GT-610/tairitsu/internal/app/logger"
 	"github.com/spf13/viper"
+	"go.uber.org/zap"
 )
 
 // DatabaseConfig Database configuration
@@ -75,6 +79,15 @@ func LoadConfig() (*Config, error) {
 	// First try to load from config.json
 	cfg, err := loadConfigFromJSON()
 	if err == nil {
+		generated, err := ensureJWTSecret(cfg)
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate JWT secret: %w", err)
+		}
+		if generated {
+			if err := SaveConfig(cfg); err != nil {
+				return nil, fmt.Errorf("failed to save generated JWT secret: %w", err)
+			}
+		}
 		AppConfig = cfg
 		return cfg, nil
 	}
@@ -84,6 +97,17 @@ func LoadConfig() (*Config, error) {
 
 	// Try to load partial configuration from .env file or environment variables
 	loadEnvConfig(cfg)
+	generated, err := ensureJWTSecret(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate JWT secret: %w", err)
+	}
+	if generated && cfg.ZeroTier.TokenPath != "" && cfg.ZeroTier.Token == "" {
+		// Loading an environment-provided token path may have failed before a
+		// generated encryption key was available. Retry after creating the key.
+		if err := LoadTokenFromPathInto(cfg, cfg.ZeroTier.TokenPath); err != nil {
+			logger.Warn("failed to load environment-provided ZeroTier token after generating JWT secret; continuing without token", zap.Error(err))
+		}
+	}
 
 	// Save default configuration to config.json
 	if err := SaveConfig(cfg); err != nil {
@@ -146,12 +170,56 @@ func createDefaultConfig() *Config {
 			Port: 8080,
 		},
 		Security: SecurityConfig{
-			JWTSecret: "", // Empty initially, force user to generate during first setup
+			JWTSecret: "", // Generated and persisted by LoadConfig before service assembly.
 		},
 		Registration: RegistrationConfig{
 			AllowPublicRegistration: boolPtr(true),
 		},
 	}
+}
+
+func ensureJWTSecret(cfg *Config) (bool, error) {
+	if cfg.Security.JWTSecret != "" {
+		return false, nil
+	}
+
+	token, err := decryptWithEmptyLegacyKey(cfg.ZeroTier.Token)
+	if err != nil {
+		return false, fmt.Errorf("failed to recover ZeroTier token: %w", err)
+	}
+	databasePassword, err := decryptWithEmptyLegacyKey(cfg.Database.Pass)
+	if err != nil {
+		return false, fmt.Errorf("failed to recover database password: %w", err)
+	}
+
+	secretBytes := make([]byte, 32)
+	if _, err := rand.Read(secretBytes); err != nil {
+		return false, err
+	}
+	cfg.Security.JWTSecret = base64.URLEncoding.EncodeToString(secretBytes)
+	if token != "" {
+		if err := SetZTTokenOn(cfg, token); err != nil {
+			return false, err
+		}
+	}
+	if databasePassword != "" {
+		if err := SetDatabasePasswordOn(cfg, databasePassword); err != nil {
+			return false, err
+		}
+	}
+	return true, nil
+}
+
+func decryptWithEmptyLegacyKey(value string) (string, error) {
+	if value == "" || !strings.HasPrefix(value, "encrypted:") {
+		return value, nil
+	}
+
+	plaintext, _, err := crypto.DecryptWithLegacy(strings.TrimPrefix(value, "encrypted:"), "")
+	if err != nil {
+		return "", err
+	}
+	return plaintext, nil
 }
 
 // loadEnvConfig Load partial configuration from environment variables (only read existing configurations in .env)
@@ -232,9 +300,8 @@ func SetZTConfigOn(cfg *Config, url, tokenPath string) error {
 	cfg.ZeroTier.URL = url
 	cfg.ZeroTier.TokenPath = tokenPath
 
-	err := LoadTokenFromPathInto(cfg, tokenPath)
-	if err != nil {
-		return fmt.Errorf("failed to read token file: %w", err)
+	if err := LoadTokenFromPathInto(cfg, tokenPath); err != nil {
+		return err
 	}
 
 	return SaveConfig(cfg)
