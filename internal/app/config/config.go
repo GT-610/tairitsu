@@ -232,9 +232,8 @@ func SetZTConfigOn(cfg *Config, url, tokenPath string) error {
 	cfg.ZeroTier.URL = url
 	cfg.ZeroTier.TokenPath = tokenPath
 
-	err := LoadTokenFromPathInto(cfg, tokenPath)
-	if err != nil {
-		return fmt.Errorf("failed to read token file: %w", err)
+	if err := LoadTokenFromPathInto(cfg, tokenPath); err != nil {
+		return err
 	}
 
 	return SaveConfig(cfg)

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -92,4 +93,39 @@ func TestSetupFlow_ResetDatabaseThenRegisterAdmin(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, usersAfterSecondInit, 1)
 	assert.Equal(t, "admin", usersAfterSecondInit[0].Username)
+}
+
+func TestSetupFlow_ZeroTierTokenNotFoundReturnsOriginalDetail(t *testing.T) {
+	originalConfig := config.AppConfig
+	originalWorkingDirectory, err := os.Getwd()
+	require.NoError(t, err)
+	temporaryWorkingDirectory := t.TempDir()
+	require.NoError(t, os.Chdir(temporaryWorkingDirectory))
+	t.Cleanup(func() {
+		config.AppConfig = originalConfig
+		require.NoError(t, os.Chdir(originalWorkingDirectory))
+	})
+
+	stateService := services.NewStateServiceWithConfig(&config.Config{})
+	setupService := services.NewSetupService(
+		services.NewRuntimeService(nil, nil, nil, stateService),
+		stateService,
+		nil,
+		nil,
+	)
+	systemHandler := apphandlers.NewSystemHandler(setupService, services.NewSystemService())
+
+	app := fiber.New()
+	app.Post("/system/zerotier/config", systemHandler.SaveZeroTierConfig)
+	body := bytes.NewBufferString(`{"controllerUrl":"http://127.0.0.1:9993","tokenPath":"/missing/authtoken.secret"}`)
+	req := httptest.NewRequest(http.MethodPost, "/system/zerotier/config", body)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, fiber.StatusInternalServerError, resp.StatusCode)
+
+	var responseBody map[string]any
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&responseBody))
+	assert.Equal(t, "setup.zerotier_config_save_failed", responseBody["error_code"])
+	assert.Equal(t, "failed to read token file: open /missing/authtoken.secret: no such file or directory", responseBody["detail"])
 }

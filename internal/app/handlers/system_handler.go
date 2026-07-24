@@ -13,13 +13,13 @@ import (
 )
 
 func sanitizeErrorDetail(err error) string {
-	msg := err.Error()
-	// Errors are wrapped as "setup.xxx: <internal detail>".
-	// Strip everything after the first colon to avoid leaking internals.
-	if idx := strings.IndexByte(msg, ':'); idx > 0 {
-		return strings.TrimSpace(msg[:idx])
+	message := strings.TrimSpace(err.Error())
+	// The API error code is returned separately. The detail should contain the
+	// original cause so the setup administrator can diagnose the deployment.
+	if idx := strings.IndexByte(message, ':'); idx >= 0 {
+		return strings.TrimSpace(message[idx+1:])
 	}
-	return "setup failed"
+	return message
 }
 
 func setupErrorResponse(c fiber.Ctx, err error) error {
