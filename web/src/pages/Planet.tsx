@@ -361,6 +361,7 @@ function PlanetGenerator() {
       document.body.removeChild(anchor)
       URL.revokeObjectURL(url)
     } catch {
+      setGeneratedPlanet(null)
       setMessage({ severity: 'error', text: 'Planet 数据为空或格式无效，请重新生成' })
     }
   }

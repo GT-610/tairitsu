@@ -457,10 +457,18 @@ Response:
 - `POST /admin/planet/keys`
 - `POST /admin/planet/generate`
 
+All caller-supplied Planet filesystem paths are restricted to existing
+directories within the directory containing the configured ZeroTier token
+file. Symlinks are resolved before this containment check. These parameters
+are not arbitrary filesystem locations, and paths that resolve outside the
+configured ZeroTier directory are rejected.
+
 ### `GET /admin/planet/identity`
 
 Reads `identity.public` from a ZeroTier data directory. When `path` is omitted,
 the backend uses the directory containing the configured ZeroTier token file.
+When supplied, `path` must remain within that directory after symlink
+resolution.
 
 Success response:
 
@@ -474,7 +482,9 @@ Success response:
 
 ### `GET /admin/planet/signing-keys`
 
-Checks whether `previous.c25519` and `current.c25519` exist in a given directory.
+Checks whether `previous.c25519` and `current.c25519` exist in a permitted
+ZeroTier directory. A supplied `path` outside the configured token file's
+directory is rejected.
 
 Success response:
 
@@ -492,7 +502,9 @@ Success response:
 
 ### `POST /admin/planet/keys`
 
-Generates `previous.c25519` and `current.c25519` in a given directory.
+Generates `previous.c25519` and `current.c25519` in a permitted existing
+ZeroTier directory. A supplied `path` outside the configured token file's
+directory is rejected.
 
 Success response:
 
@@ -532,6 +544,10 @@ Request:
   "download_name": "planet.custom"
 }
 ```
+
+When supplied, `signing_key_path` must be an existing directory within the
+directory containing the configured ZeroTier token file. It cannot select an
+arbitrary filesystem location.
 
 Success response:
 

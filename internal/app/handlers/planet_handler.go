@@ -44,11 +44,19 @@ func (h *PlanetHandler) sanitizeZTPath(userPath string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("invalid configured ZeroTier directory")
 	}
-	rel, err := filepath.Rel(baseClean, cleaned)
+	resolvedBase, err := filepath.EvalSymlinks(baseClean)
+	if err != nil {
+		return "", fmt.Errorf("invalid configured ZeroTier directory")
+	}
+	resolvedPath, err := filepath.EvalSymlinks(cleaned)
+	if err != nil {
+		return "", fmt.Errorf("invalid ZeroTier directory path %q", userPath)
+	}
+	rel, err := filepath.Rel(resolvedBase, resolvedPath)
 	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
 		return "", fmt.Errorf("path %q is not within the allowed ZeroTier directory", userPath)
 	}
-	return cleaned, nil
+	return resolvedPath, nil
 }
 
 type GeneratePlanetRequest struct {
