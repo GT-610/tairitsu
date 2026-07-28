@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import {
+  createPlanetBlob,
   findDuplicatePlanetEndpoints,
   getPlanetDownloadName,
   normalizePlanetEndpoints,
@@ -64,5 +65,20 @@ describe('planet utils', () => {
         endpoints: ['203.0.113.2/9993'],
       },
     ])).toBe('root node identity 不能重复')
+  })
+})
+
+describe('planet download', () => {
+  test('creates the binary Blob represented by the HTTP Base64 payload', async () => {
+    const blob = createPlanetBlob('AAECA/8=')
+
+    expect(blob.type).toBe('application/octet-stream')
+    expect(blob.size).toBe(5)
+    expect([...new Uint8Array(await blob.arrayBuffer())]).toEqual([0, 1, 2, 3, 255])
+  })
+
+  test('rejects empty or malformed HTTP payloads', () => {
+    expect(() => createPlanetBlob('')).toThrow('empty planet data')
+    expect(() => createPlanetBlob('not-base64!')).toThrow()
   })
 })

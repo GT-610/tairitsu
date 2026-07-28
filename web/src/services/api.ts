@@ -344,7 +344,8 @@ export interface PlanetRootNodeRequest {
 
 export interface GeneratePlanetResponse {
   message: string;
-  planet_data: number[];
+  // Base64-encoded binary Planet file.
+  planet_data: string;
   planet_id: number;
   birth_time: number;
   download_name: string;
@@ -516,15 +517,15 @@ export const systemAPI = {
 export const planetAPI = {
   // Get identity.public from ZeroTier data directory
   getIdentity: (ztPath?: string) => api.get<IdentityInfo>('/admin/planet/identity', {
-    params: { path: ztPath || '/var/lib/zerotier-one' }
+    params: ztPath ? { path: ztPath } : undefined
   }),
   // Inspect signing key files from a directory
   getSigningKeysInfo: (ztPath?: string) => api.get<SigningKeysInfoResponse>('/admin/planet/signing-keys', {
-    params: { path: ztPath || '/var/lib/zerotier-one' }
+    params: ztPath ? { path: ztPath } : undefined
   }),
   // Generate signing key files in a directory
   generateSigningKeys: (ztPath?: string) => api.post<GenerateSigningKeysResponse>('/admin/planet/keys', null, {
-    params: { path: ztPath || '/var/lib/zerotier-one' }
+    params: ztPath ? { path: ztPath } : undefined
   }),
   // Generate custom planet file
   generatePlanet: (data: GeneratePlanetRequest) => api.post<GeneratePlanetResponse>('/admin/planet/generate', data)

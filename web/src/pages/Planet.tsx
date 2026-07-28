@@ -28,6 +28,7 @@ import EditNoteIcon from '@mui/icons-material/EditNote'
 import { planetAPI, type GeneratePlanetResponse, type SigningKeysInfoResponse } from '../services/api'
 import { getErrorMessage } from '../services/errors'
 import {
+  createPlanetBlob,
   getPlanetDownloadName,
   normalizePlanetEndpoints,
   parsePlanetIdentityPublic,
@@ -57,8 +58,8 @@ interface RootNodeDraft {
 
 type PlanetResultState = GeneratePlanetResponse
 
-const defaultIdentityPath = '/var/lib/zerotier-one'
-const defaultSigningKeyPath = '/var/lib/zerotier-one'
+const defaultIdentityPath = ''
+const defaultSigningKeyPath = ''
 
 function createEndpointDraft(value = ''): EndpointDraft {
   return { id: `${Date.now()}-${Math.random()}`, value }
@@ -130,6 +131,7 @@ function PlanetGenerator() {
       setSigningKeysMessage(null)
       const response = await planetAPI.getSigningKeysInfo(nextPath)
       setSigningKeysInfo(response.data)
+      setSigningKeyPath(response.data.signing_key_path)
       setSigningKeysMessage({
         severity: 'success',
         text: response.data.ready ? '已检测到完整的 signing keys' : '目录可用，但还没有完整的 signing keys',
@@ -164,6 +166,7 @@ function PlanetGenerator() {
       const response = await planetAPI.getIdentity(nextPath)
       setIdentityPublic(response.data.identity_public)
       setResolvedIdentityPath(response.data.identity_path)
+      setIdentityPath(response.data.identity_path.replace(/[/\\]identity\.public$/, ''))
       setIdentityMessage({ severity: 'success', text: 'identity.public 读取成功' })
     } catch (error: unknown) {
       setIdentityPublic('')
@@ -347,15 +350,20 @@ function PlanetGenerator() {
       return
     }
 
-    const blob = new Blob([new Uint8Array(generatedPlanet.planet_data)], { type: 'application/octet-stream' })
-    const url = URL.createObjectURL(blob)
-    const anchor = document.createElement('a')
-    anchor.href = url
-    anchor.download = getPlanetDownloadName(generatedPlanet.download_name)
-    document.body.appendChild(anchor)
-    anchor.click()
-    document.body.removeChild(anchor)
-    URL.revokeObjectURL(url)
+    try {
+      const blob = createPlanetBlob(generatedPlanet.planet_data)
+      const url = URL.createObjectURL(blob)
+      const anchor = document.createElement('a')
+      anchor.href = url
+      anchor.download = getPlanetDownloadName(generatedPlanet.download_name)
+      document.body.appendChild(anchor)
+      anchor.click()
+      document.body.removeChild(anchor)
+      URL.revokeObjectURL(url)
+    } catch {
+      setGeneratedPlanet(null)
+      setMessage({ severity: 'error', text: 'Planet 数据为空或格式无效，请重新生成' })
+    }
   }
 
   const renderEndpointFields = (
@@ -434,7 +442,8 @@ function PlanetGenerator() {
             value={identityPath}
             onChange={(event) => setIdentityPath(event.target.value)}
             sx={{ mb: 2 }}
-            helperText="默认为 /var/lib/zerotier-one"
+            placeholder="留空时使用控制器令牌文件所在目录"
+            slotProps={{ inputLabel: { shrink: true } }}
             disabled={loadingIdentity || generating}
           />
 
@@ -453,11 +462,6 @@ function PlanetGenerator() {
             </Box>
           ) : (
             <>
-              {resolvedIdentityPath && (
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                  实际读取路径：{resolvedIdentityPath}
-                </Typography>
-              )}
               <TextField
                 label="identity.public"
                 fullWidth
@@ -465,11 +469,9 @@ function PlanetGenerator() {
                 rows={2}
                 value={identityPublic}
                 error={Boolean(identityPublic) && !identitySummary}
-                helperText={identityPublic
-                  ? identitySummary
-                    ? '已读取真实 identity.public，可继续填写默认模式配置'
-                    : 'identity.public 格式无效，应为 10 位地址 + :0: + 128 位公钥'
-                  : '成功读取后会显示当前 root identity'}
+                helperText={identityPublic && !identitySummary
+                  ? 'identity.public 格式无效，应为 10 位地址 + :0: + 128 位公钥'
+                  : undefined}
                 placeholder="格式：10hexdigits:0:publicKey"
                 slotProps={{ input: { readOnly: true } }}
               />
@@ -633,7 +635,7 @@ function PlanetGenerator() {
                       value={signingKeyPath}
                       onChange={(event) => setSigningKeyPath(event.target.value)}
                       disabled={loadingSigningKeys || generatingSigningKeys || generating}
-                      helperText="目录中应包含 previous.c25519 与 current.c25519"
+                      helperText="留空时使用控制器令牌文件所在目录；目录中应包含 previous.c25519 与 current.c25519"
                     />
 
                     {signingKeysMessage && (
@@ -748,6 +750,7 @@ function PlanetGenerator() {
                                   value={rootNode.identityPath}
                                   onChange={(event) => updateRootNode(rootNode.id, (item) => ({ ...item, identityPath: event.target.value }))}
                                   disabled={rootNode.loadingIdentity || generating}
+                                  helperText="留空时使用控制器令牌文件所在目录"
                                 />
                                 <Button
                                   variant="outlined"

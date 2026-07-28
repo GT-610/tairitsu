@@ -1,6 +1,7 @@
 package mkworld
 
 import (
+	"encoding/binary"
 	"errors"
 	"os"
 	"path/filepath"
@@ -18,6 +19,27 @@ func testRootNode(identity string, endpoints ...string) RootNodeConfig {
 		IdentityPublic: identity,
 		Comments:       "test root",
 		Endpoints:      endpoints,
+	}
+}
+
+func assertPlanetBinaryMetadata(t *testing.T, data []byte, planetID uint64, birthTime int64, rootNodeCount int) {
+	t.Helper()
+
+	nodeCountOffset := 1 + 8 + 8 + ZT_C25519_PUBLIC_KEY_LEN + ZT_C25519_SIGNATURE_LEN
+	if len(data) <= nodeCountOffset {
+		t.Fatalf("PlanetData length = %d, want more than header length %d", len(data), nodeCountOffset)
+	}
+	if data[0] != byte(ZT_WORLD_TYPE_PLANET) {
+		t.Fatalf("world type = %d, want %d", data[0], ZT_WORLD_TYPE_PLANET)
+	}
+	if got := binary.BigEndian.Uint64(data[1:9]); got != planetID {
+		t.Fatalf("serialized planet ID = %d, want %d", got, planetID)
+	}
+	if got := binary.BigEndian.Uint64(data[9:17]); got != uint64(birthTime) {
+		t.Fatalf("serialized birth time = %d, want %d", got, birthTime)
+	}
+	if got := int(data[nodeCountOffset]); got != rootNodeCount {
+		t.Fatalf("serialized root node count = %d, want %d", got, rootNodeCount)
 	}
 }
 
@@ -129,7 +151,7 @@ func TestGeneratePlanet_RejectsInvalidInput(t *testing.T) {
 	}
 }
 
-func TestGeneratePlanet_ReturnsMetadataAndData(t *testing.T) {
+func TestGeneratePlanet_SerializesMetadataAndRootNodes(t *testing.T) {
 	result, err := GeneratePlanet(&GenerateOptions{
 		RootNodes: []RootNodeConfig{
 			testRootNode(validIdentityPublic, "203.0.113.1/9993", "2001:db8::1/9993"),
@@ -148,9 +170,7 @@ func TestGeneratePlanet_ReturnsMetadataAndData(t *testing.T) {
 	if result.BirthTime <= 0 {
 		t.Fatalf("BirthTime = %d, want positive value", result.BirthTime)
 	}
-	if len(result.PlanetData) == 0 {
-		t.Fatalf("PlanetData is empty")
-	}
+	assertPlanetBinaryMetadata(t, result.PlanetData, result.PlanetID, result.BirthTime, result.RootNodeCount)
 	if result.RootNodeCount != 2 {
 		t.Fatalf("RootNodeCount = %d, want 2", result.RootNodeCount)
 	}
@@ -166,6 +186,8 @@ func TestGeneratePlanet_ReturnsMetadataAndData(t *testing.T) {
 }
 
 func TestGeneratePlanet_UsesCustomMetadataAndSigningKeys(t *testing.T) {
+	const planetID = 123456789
+	birthTime := time.Now().UnixMilli()
 	tempDir := t.TempDir()
 	prevPath := filepath.Join(tempDir, "previous.c25519")
 	curPath := filepath.Join(tempDir, "current.c25519")
@@ -177,8 +199,8 @@ func TestGeneratePlanet_UsesCustomMetadataAndSigningKeys(t *testing.T) {
 	result, err := GeneratePlanet(&GenerateOptions{
 		RootNodes:       []RootNodeConfig{testRootNode(validIdentityPublic, "203.0.113.1/9993")},
 		SigningKeyPath:  tempDir,
-		PlanetID:        123456789,
-		BirthTime:       time.Now().UnixMilli(),
+		PlanetID:        planetID,
+		BirthTime:       birthTime,
 		RecommendValues: false,
 	})
 	if err != nil {
@@ -188,6 +210,13 @@ func TestGeneratePlanet_UsesCustomMetadataAndSigningKeys(t *testing.T) {
 	if result.UsedRecommendedValues {
 		t.Fatal("UsedRecommendedValues = true, want false")
 	}
+	if result.PlanetID != planetID {
+		t.Fatalf("PlanetID = %d, want %d", result.PlanetID, planetID)
+	}
+	if result.BirthTime != birthTime {
+		t.Fatalf("BirthTime = %d, want %d", result.BirthTime, birthTime)
+	}
+	assertPlanetBinaryMetadata(t, result.PlanetData, result.PlanetID, result.BirthTime, result.RootNodeCount)
 }
 
 func TestReadSigningKeys_RejectsInvalidLength(t *testing.T) {
