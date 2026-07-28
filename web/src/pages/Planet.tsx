@@ -436,7 +436,8 @@ function PlanetGenerator() {
             value={identityPath}
             onChange={(event) => setIdentityPath(event.target.value)}
             sx={{ mb: 2 }}
-            helperText="留空时使用控制器令牌文件所在目录"
+            placeholder="留空时使用控制器令牌文件所在目录"
+            slotProps={{ inputLabel: { shrink: true } }}
             disabled={loadingIdentity || generating}
           />
 
@@ -455,11 +456,6 @@ function PlanetGenerator() {
             </Box>
           ) : (
             <>
-              {resolvedIdentityPath && (
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                  实际读取路径：{resolvedIdentityPath}
-                </Typography>
-              )}
               <TextField
                 label="identity.public"
                 fullWidth
@@ -467,11 +463,9 @@ function PlanetGenerator() {
                 rows={2}
                 value={identityPublic}
                 error={Boolean(identityPublic) && !identitySummary}
-                helperText={identityPublic
-                  ? identitySummary
-                    ? '已读取真实 identity.public，可继续填写默认模式配置'
-                    : 'identity.public 格式无效，应为 10 位地址 + :0: + 128 位公钥'
-                  : '成功读取后会显示当前 root identity'}
+                helperText={identityPublic && !identitySummary
+                  ? 'identity.public 格式无效，应为 10 位地址 + :0: + 128 位公钥'
+                  : undefined}
                 placeholder="格式：10hexdigits:0:publicKey"
                 slotProps={{ input: { readOnly: true } }}
               />
