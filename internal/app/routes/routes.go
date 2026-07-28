@@ -54,6 +54,7 @@ func SetupRoutes(router *fiber.App, dependencies *assembly.Dependencies) {
 	authHandler := dependencies.Handlers.Auth
 	userHandler := dependencies.Handlers.User
 	systemHandler := dependencies.Handlers.System
+	planetHandler := handlers.NewPlanetHandler(dependencies.Config)
 
 	authMiddleware := dependencies.Middleware.Auth
 	setupOnly := dependencies.Middleware.SetupOnly
@@ -132,9 +133,9 @@ func SetupRoutes(router *fiber.App, dependencies *assembly.Dependencies) {
 		api.Post("/users/:userId/reset-password", runtimeOnly, authMiddleware, adminOnly, userHandler.ResetPassword)
 		api.Get("/admin/networks/importable", runtimeOnly, authMiddleware, adminOnly, networkHandler.GetImportableNetworks)
 		api.Post("/admin/networks/import", runtimeOnly, authMiddleware, adminOnly, networkHandler.ImportNetworks)
-		api.Get("/admin/planet/identity", runtimeOnly, authMiddleware, adminOnly, handlers.GetIdentityHandler)
-		api.Post("/admin/planet/generate", runtimeOnly, authMiddleware, adminOnly, handlers.GeneratePlanetHandler)
-		api.Get("/admin/planet/signing-keys", runtimeOnly, authMiddleware, adminOnly, handlers.GetSigningKeysInfoHandler)
-		api.Post("/admin/planet/keys", runtimeOnly, authMiddleware, adminOnly, handlers.GenerateSigningKeysHandler)
+		api.Get("/admin/planet/identity", runtimeOnly, authMiddleware, adminOnly, planetHandler.GetIdentity)
+		api.Post("/admin/planet/generate", runtimeOnly, authMiddleware, adminOnly, planetHandler.GeneratePlanet)
+		api.Get("/admin/planet/signing-keys", runtimeOnly, authMiddleware, adminOnly, planetHandler.GetSigningKeysInfo)
+		api.Post("/admin/planet/keys", runtimeOnly, authMiddleware, adminOnly, planetHandler.GenerateSigningKeys)
 	}
 }

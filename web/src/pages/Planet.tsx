@@ -57,8 +57,8 @@ interface RootNodeDraft {
 
 type PlanetResultState = GeneratePlanetResponse
 
-const defaultIdentityPath = '/var/lib/zerotier-one'
-const defaultSigningKeyPath = '/var/lib/zerotier-one'
+const defaultIdentityPath = ''
+const defaultSigningKeyPath = ''
 
 function createEndpointDraft(value = ''): EndpointDraft {
   return { id: `${Date.now()}-${Math.random()}`, value }
@@ -130,6 +130,7 @@ function PlanetGenerator() {
       setSigningKeysMessage(null)
       const response = await planetAPI.getSigningKeysInfo(nextPath)
       setSigningKeysInfo(response.data)
+      setSigningKeyPath(response.data.signing_key_path)
       setSigningKeysMessage({
         severity: 'success',
         text: response.data.ready ? '已检测到完整的 signing keys' : '目录可用，但还没有完整的 signing keys',
@@ -164,6 +165,7 @@ function PlanetGenerator() {
       const response = await planetAPI.getIdentity(nextPath)
       setIdentityPublic(response.data.identity_public)
       setResolvedIdentityPath(response.data.identity_path)
+      setIdentityPath(response.data.identity_path.replace(/[/\\]identity\.public$/, ''))
       setIdentityMessage({ severity: 'success', text: 'identity.public 读取成功' })
     } catch (error: unknown) {
       setIdentityPublic('')
@@ -434,7 +436,7 @@ function PlanetGenerator() {
             value={identityPath}
             onChange={(event) => setIdentityPath(event.target.value)}
             sx={{ mb: 2 }}
-            helperText="默认为 /var/lib/zerotier-one"
+            helperText="留空时使用控制器令牌文件所在目录"
             disabled={loadingIdentity || generating}
           />
 
@@ -633,7 +635,7 @@ function PlanetGenerator() {
                       value={signingKeyPath}
                       onChange={(event) => setSigningKeyPath(event.target.value)}
                       disabled={loadingSigningKeys || generatingSigningKeys || generating}
-                      helperText="目录中应包含 previous.c25519 与 current.c25519"
+                      helperText="留空时使用控制器令牌文件所在目录；目录中应包含 previous.c25519 与 current.c25519"
                     />
 
                     {signingKeysMessage && (
@@ -748,6 +750,7 @@ function PlanetGenerator() {
                                   value={rootNode.identityPath}
                                   onChange={(event) => updateRootNode(rootNode.id, (item) => ({ ...item, identityPath: event.target.value }))}
                                   disabled={rootNode.loadingIdentity || generating}
+                                  helperText="留空时使用控制器令牌文件所在目录"
                                 />
                                 <Button
                                   variant="outlined"

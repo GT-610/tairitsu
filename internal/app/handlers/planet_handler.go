@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/GT-610/tairitsu/internal/app/config"
 	"github.com/GT-610/tairitsu/internal/app/logger"
 	"github.com/GT-610/tairitsu/internal/mkworld"
 	"github.com/gofiber/fiber/v3"
@@ -21,13 +22,29 @@ import (
 
 const defaultZTPath = "/var/lib/zerotier-one"
 
-var allowedBasePath = defaultZTPath
+type PlanetHandler struct {
+	allowedBasePath string
+}
 
-func sanitizeZTPath(userPath string) (string, error) {
-	cleaned := filepath.Clean(userPath)
-	baseClean := filepath.Clean(allowedBasePath)
+func NewPlanetHandler(cfg *config.Config) *PlanetHandler {
+	allowedBasePath := defaultZTPath
+	if cfg != nil && strings.TrimSpace(cfg.ZeroTier.TokenPath) != "" {
+		allowedBasePath = filepath.Dir(strings.TrimSpace(cfg.ZeroTier.TokenPath))
+	}
+	return &PlanetHandler{allowedBasePath: allowedBasePath}
+}
+
+func (h *PlanetHandler) sanitizeZTPath(userPath string) (string, error) {
+	cleaned, err := filepath.Abs(filepath.Clean(userPath))
+	if err != nil {
+		return "", fmt.Errorf("invalid ZeroTier directory path %q", userPath)
+	}
+	baseClean, err := filepath.Abs(filepath.Clean(h.allowedBasePath))
+	if err != nil {
+		return "", fmt.Errorf("invalid configured ZeroTier directory")
+	}
 	rel, err := filepath.Rel(baseClean, cleaned)
-	if err != nil || strings.HasPrefix(rel, "..") {
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
 		return "", fmt.Errorf("path %q is not within the allowed ZeroTier directory", userPath)
 	}
 	return cleaned, nil
@@ -82,7 +99,7 @@ type GenerateSigningKeysResponse struct {
 	CurrentKeyPath  string `json:"current_key_path"`
 }
 
-func GeneratePlanetHandler(c fiber.Ctx) error {
+func (h *PlanetHandler) GeneratePlanet(c fiber.Ctx) error {
 	var req GeneratePlanetRequest
 	if err := c.Bind().JSON(&req); err != nil {
 		return writeErrorResponse(c, fiber.StatusBadRequest, "Invalid request body: "+err.Error())
@@ -101,9 +118,18 @@ func GeneratePlanetHandler(c fiber.Ctx) error {
 		})
 	}
 
+	signingKeyPath := strings.TrimSpace(req.SigningKeyPath)
+	if signingKeyPath != "" {
+		var err error
+		signingKeyPath, err = h.sanitizeZTPath(signingKeyPath)
+		if err != nil {
+			return writeErrorResponse(c, fiber.StatusBadRequest, err.Error())
+		}
+	}
+
 	generatedPlanet, err := mkworld.GeneratePlanet(&mkworld.GenerateOptions{
 		RootNodes:       rootNodes,
-		SigningKeyPath:  strings.TrimSpace(req.SigningKeyPath),
+		SigningKeyPath:  signingKeyPath,
 		PlanetID:        req.PlanetID,
 		BirthTime:       req.BirthTime,
 		RecommendValues: req.RecommendValues,
@@ -142,9 +168,9 @@ func GeneratePlanetHandler(c fiber.Ctx) error {
 	})
 }
 
-func GetIdentityHandler(c fiber.Ctx) error {
-	ztPath := c.Query("path", defaultZTPath)
-	safePath, err := sanitizeZTPath(ztPath)
+func (h *PlanetHandler) GetIdentity(c fiber.Ctx) error {
+	ztPath := c.Query("path", h.allowedBasePath)
+	safePath, err := h.sanitizeZTPath(ztPath)
 	if err != nil {
 		return writeErrorResponse(c, fiber.StatusBadRequest, err.Error())
 	}
@@ -169,9 +195,9 @@ func GetIdentityHandler(c fiber.Ctx) error {
 	})
 }
 
-func GetSigningKeysInfoHandler(c fiber.Ctx) error {
-	ztPath := c.Query("path", defaultZTPath)
-	safePath, err := sanitizeZTPath(ztPath)
+func (h *PlanetHandler) GetSigningKeysInfo(c fiber.Ctx) error {
+	ztPath := c.Query("path", h.allowedBasePath)
+	safePath, err := h.sanitizeZTPath(ztPath)
 	if err != nil {
 		return writeErrorResponse(c, fiber.StatusBadRequest, err.Error())
 	}
@@ -193,7 +219,7 @@ func GetSigningKeysInfoHandler(c fiber.Ctx) error {
 
 	return c.JSON(SigningKeysInfoResponse{
 		Message:         "Signing key status loaded successfully",
-		SigningKeyPath:  ztPath,
+		SigningKeyPath:  safePath,
 		PreviousKeyPath: prevPath,
 		CurrentKeyPath:  curPath,
 		PreviousExists:  prevExists,
@@ -202,9 +228,9 @@ func GetSigningKeysInfoHandler(c fiber.Ctx) error {
 	})
 }
 
-func GenerateSigningKeysHandler(c fiber.Ctx) error {
-	ztPath := c.Query("path", defaultZTPath)
-	safePath, err := sanitizeZTPath(ztPath)
+func (h *PlanetHandler) GenerateSigningKeys(c fiber.Ctx) error {
+	ztPath := c.Query("path", h.allowedBasePath)
+	safePath, err := h.sanitizeZTPath(ztPath)
 	if err != nil {
 		return writeErrorResponse(c, fiber.StatusBadRequest, err.Error())
 	}
@@ -219,7 +245,7 @@ func GenerateSigningKeysHandler(c fiber.Ctx) error {
 
 	return c.JSON(GenerateSigningKeysResponse{
 		Message:         "Signing keys generated successfully",
-		SigningKeyPath:  ztPath,
+		SigningKeyPath:  safePath,
 		PreviousKeyPath: prevPath,
 		CurrentKeyPath:  curPath,
 	})

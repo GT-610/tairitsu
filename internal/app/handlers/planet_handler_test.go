@@ -4,19 +4,25 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/GT-610/tairitsu/internal/app/config"
 	"github.com/gofiber/fiber/v3"
 )
 
+func newPlanetHandlerForDir(dir string) *PlanetHandler {
+	return NewPlanetHandler(&config.Config{ZeroTier: config.ZeroTierConfig{
+		TokenPath: filepath.Join(dir, "authtoken.secret"),
+	}})
+}
+
 func TestGetIdentityHandler_ReadsIdentityPublic(t *testing.T) {
 	tempDir := t.TempDir()
-	origBase := allowedBasePath
-	allowedBasePath = tempDir
-	defer func() { allowedBasePath = origBase }()
+	handler := newPlanetHandlerForDir(tempDir)
 
 	identityPath := filepath.Join(tempDir, "identity.public")
 	if err := os.WriteFile(identityPath, []byte("f76fd3000b:0:542c89e34a369c2281ed940d05beeffdbaa66930f17b875e9172e43d0ba30b6a39708507f4d64e66cde4a1040d2a995d01209d685ca6c4adb4a5c880af1e9715\n"), 0644); err != nil {
@@ -24,9 +30,9 @@ func TestGetIdentityHandler_ReadsIdentityPublic(t *testing.T) {
 	}
 
 	app := fiber.New()
-	app.Get("/identity", GetIdentityHandler)
+	app.Get("/identity", handler.GetIdentity)
 
-	req := httptest.NewRequest(http.MethodGet, "/identity?path="+tempDir, nil)
+	req := httptest.NewRequest(http.MethodGet, "/identity", nil)
 	resp, err := app.Test(req)
 	if err != nil {
 		t.Fatalf("app.Test() error = %v", err)
@@ -47,14 +53,30 @@ func TestGetIdentityHandler_ReadsIdentityPublic(t *testing.T) {
 	}
 }
 
-func TestGetIdentityHandler_ReturnsNotFoundForMissingIdentity(t *testing.T) {
-	tempDir := t.TempDir()
-	origBase := allowedBasePath
-	allowedBasePath = tempDir
-	defer func() { allowedBasePath = origBase }()
+func TestGetIdentityHandler_RejectsDirectoryOutsideConfiguredZeroTierPath(t *testing.T) {
+	configuredDir := t.TempDir()
+	handler := newPlanetHandlerForDir(configuredDir)
 
 	app := fiber.New()
-	app.Get("/identity", GetIdentityHandler)
+	app.Get("/identity", handler.GetIdentity)
+
+	outsideDir := t.TempDir()
+	req := httptest.NewRequest(http.MethodGet, "/identity?path="+url.QueryEscape(outsideDir), nil)
+	resp, err := app.Test(req)
+	if err != nil {
+		t.Fatalf("app.Test() error = %v", err)
+	}
+	if resp.StatusCode != fiber.StatusBadRequest {
+		t.Fatalf("status = %d, want %d", resp.StatusCode, fiber.StatusBadRequest)
+	}
+}
+
+func TestGetIdentityHandler_ReturnsNotFoundForMissingIdentity(t *testing.T) {
+	tempDir := t.TempDir()
+	handler := newPlanetHandlerForDir(tempDir)
+
+	app := fiber.New()
+	app.Get("/identity", handler.GetIdentity)
 
 	req := httptest.NewRequest(http.MethodGet, "/identity?path="+tempDir, nil)
 	resp, err := app.Test(req)
@@ -78,8 +100,9 @@ func TestGetIdentityHandler_ReturnsNotFoundForMissingIdentity(t *testing.T) {
 }
 
 func TestGeneratePlanetHandler_ReturnsPlanetDataAndMetadata(t *testing.T) {
+	handler := NewPlanetHandler(nil)
 	app := fiber.New()
-	app.Post("/planet", GeneratePlanetHandler)
+	app.Post("/planet", handler.GeneratePlanet)
 
 	body := `{"root_nodes":[{"identity_public":"f76fd3000b:0:542c89e34a369c2281ed940d05beeffdbaa66930f17b875e9172e43d0ba30b6a39708507f4d64e66cde4a1040d2a995d01209d685ca6c4adb4a5c880af1e9715","endpoints":["203.0.113.1/9993"],"comments":"test"}],"recommend_values":true,"download_name":"planet.custom"}`
 	req := httptest.NewRequest(http.MethodPost, "/planet", strings.NewReader(body))
@@ -121,8 +144,9 @@ func TestGeneratePlanetHandler_ReturnsPlanetDataAndMetadata(t *testing.T) {
 }
 
 func TestGeneratePlanetHandler_RejectsDuplicateRootIdentity(t *testing.T) {
+	handler := NewPlanetHandler(nil)
 	app := fiber.New()
-	app.Post("/planet", GeneratePlanetHandler)
+	app.Post("/planet", handler.GeneratePlanet)
 
 	body := `{"root_nodes":[{"identity_public":"f76fd3000b:0:542c89e34a369c2281ed940d05beeffdbaa66930f17b875e9172e43d0ba30b6a39708507f4d64e66cde4a1040d2a995d01209d685ca6c4adb4a5c880af1e9715","endpoints":["203.0.113.1/9993"]},{"identity_public":"f76fd3000b:0:542c89e34a369c2281ed940d05beeffdbaa66930f17b875e9172e43d0ba30b6a39708507f4d64e66cde4a1040d2a995d01209d685ca6c4adb4a5c880af1e9715","endpoints":["203.0.113.2/9993"]}],"recommend_values":true}`
 	req := httptest.NewRequest(http.MethodPost, "/planet", strings.NewReader(body))
@@ -139,9 +163,7 @@ func TestGeneratePlanetHandler_RejectsDuplicateRootIdentity(t *testing.T) {
 
 func TestGetSigningKeysInfoHandler_ReturnsStatus(t *testing.T) {
 	tempDir := t.TempDir()
-	origBase := allowedBasePath
-	allowedBasePath = tempDir
-	defer func() { allowedBasePath = origBase }()
+	handler := newPlanetHandlerForDir(tempDir)
 
 	prevPath := filepath.Join(tempDir, "previous.c25519")
 	curPath := filepath.Join(tempDir, "current.c25519")
@@ -153,7 +175,7 @@ func TestGetSigningKeysInfoHandler_ReturnsStatus(t *testing.T) {
 	}
 
 	app := fiber.New()
-	app.Get("/signing-keys", GetSigningKeysInfoHandler)
+	app.Get("/signing-keys", handler.GetSigningKeysInfo)
 
 	req := httptest.NewRequest(http.MethodGet, "/signing-keys?path="+tempDir, nil)
 	resp, err := app.Test(req)

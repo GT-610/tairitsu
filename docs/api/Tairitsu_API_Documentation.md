@@ -459,7 +459,8 @@ Response:
 
 ### `GET /admin/planet/identity`
 
-Reads `identity.public` from a given ZeroTier data directory.
+Reads `identity.public` from a ZeroTier data directory. When `path` is omitted,
+the backend uses the directory containing the configured ZeroTier token file.
 
 Success response:
 
