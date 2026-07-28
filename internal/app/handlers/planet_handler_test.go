@@ -46,6 +46,14 @@ func resolvedPath(t *testing.T, path string) string {
 	return resolved
 }
 
+func closeResponseBody(t *testing.T, resp *http.Response) {
+	t.Helper()
+
+	if err := resp.Body.Close(); err != nil {
+		t.Errorf("close response body: %v", err)
+	}
+}
+
 type generatePlanetWireResponse struct {
 	Message               string `json:"message"`
 	PlanetDataBase64      string `json:"planet_data"`
@@ -86,7 +94,7 @@ func TestGetIdentityHandler_ReadsIdentityPublic(t *testing.T) {
 	if err != nil {
 		t.Fatalf("app.Test() error = %v", err)
 	}
-	defer resp.Body.Close()
+	defer closeResponseBody(t, resp)
 	if resp.StatusCode != fiber.StatusOK {
 		t.Fatalf("status = %d, want %d", resp.StatusCode, fiber.StatusOK)
 	}
@@ -117,7 +125,7 @@ func TestGetIdentityHandler_RejectsDirectoryOutsideConfiguredZeroTierPath(t *tes
 	if err != nil {
 		t.Fatalf("app.Test() error = %v", err)
 	}
-	defer resp.Body.Close()
+	defer closeResponseBody(t, resp)
 	if resp.StatusCode != fiber.StatusBadRequest {
 		t.Fatalf("status = %d, want %d", resp.StatusCode, fiber.StatusBadRequest)
 	}
@@ -135,7 +143,7 @@ func TestGetIdentityHandler_ReturnsNotFoundForMissingIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatalf("app.Test() error = %v", err)
 	}
-	defer resp.Body.Close()
+	defer closeResponseBody(t, resp)
 	if resp.StatusCode != fiber.StatusNotFound {
 		t.Fatalf("status = %d, want %d", resp.StatusCode, fiber.StatusNotFound)
 	}
@@ -165,7 +173,7 @@ func TestGeneratePlanetHandler_ReturnsBase64PlanetBinaryAndMetadata(t *testing.T
 	if err != nil {
 		t.Fatalf("app.Test() error = %v", err)
 	}
-	defer resp.Body.Close()
+	defer closeResponseBody(t, resp)
 	if resp.StatusCode != fiber.StatusOK {
 		t.Fatalf("status = %d, want %d", resp.StatusCode, fiber.StatusOK)
 	}
@@ -208,7 +216,7 @@ func TestGeneratePlanetHandler_RejectsDuplicateRootIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatalf("app.Test() error = %v", err)
 	}
-	defer resp.Body.Close()
+	defer closeResponseBody(t, resp)
 	if resp.StatusCode != fiber.StatusBadRequest {
 		t.Fatalf("status = %d, want %d", resp.StatusCode, fiber.StatusBadRequest)
 	}
@@ -235,7 +243,7 @@ func TestGetSigningKeysInfoHandler_ReturnsStatus(t *testing.T) {
 	if err != nil {
 		t.Fatalf("app.Test() error = %v", err)
 	}
-	defer resp.Body.Close()
+	defer closeResponseBody(t, resp)
 	if resp.StatusCode != fiber.StatusOK {
 		t.Fatalf("status = %d, want %d", resp.StatusCode, fiber.StatusOK)
 	}
@@ -323,7 +331,7 @@ func TestPlanetFilesystemHandlers_RejectSymlinkEscapes(t *testing.T) {
 			if err != nil {
 				t.Fatalf("app.Test() error = %v", err)
 			}
-			defer resp.Body.Close()
+			defer closeResponseBody(t, resp)
 			if resp.StatusCode != fiber.StatusBadRequest {
 				t.Fatalf("status = %d, want %d", resp.StatusCode, fiber.StatusBadRequest)
 			}
