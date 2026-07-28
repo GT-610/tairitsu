@@ -28,6 +28,7 @@ import EditNoteIcon from '@mui/icons-material/EditNote'
 import { planetAPI, type GeneratePlanetResponse, type SigningKeysInfoResponse } from '../services/api'
 import { getErrorMessage } from '../services/errors'
 import {
+  decodePlanetData,
   getPlanetDownloadName,
   normalizePlanetEndpoints,
   parsePlanetIdentityPublic,
@@ -349,15 +350,24 @@ function PlanetGenerator() {
       return
     }
 
-    const blob = new Blob([new Uint8Array(generatedPlanet.planet_data)], { type: 'application/octet-stream' })
-    const url = URL.createObjectURL(blob)
-    const anchor = document.createElement('a')
-    anchor.href = url
-    anchor.download = getPlanetDownloadName(generatedPlanet.download_name)
-    document.body.appendChild(anchor)
-    anchor.click()
-    document.body.removeChild(anchor)
-    URL.revokeObjectURL(url)
+    try {
+      const planetData = decodePlanetData(generatedPlanet.planet_data)
+      if (planetData.length === 0) {
+        throw new Error('empty planet data')
+      }
+
+      const blob = new Blob([planetData], { type: 'application/octet-stream' })
+      const url = URL.createObjectURL(blob)
+      const anchor = document.createElement('a')
+      anchor.href = url
+      anchor.download = getPlanetDownloadName(generatedPlanet.download_name)
+      document.body.appendChild(anchor)
+      anchor.click()
+      document.body.removeChild(anchor)
+      URL.revokeObjectURL(url)
+    } catch {
+      setMessage({ severity: 'error', text: 'Planet 数据为空或格式无效，请重新生成' })
+    }
   }
 
   const renderEndpointFields = (

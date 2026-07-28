@@ -122,6 +122,15 @@ export function getPlanetDownloadName(downloadName?: string): string {
   return downloadName?.trim() || 'planet'
 }
 
+export function decodePlanetData(value: string): Uint8Array<ArrayBuffer> {
+  const binary = atob(value)
+  const bytes = new Uint8Array(new ArrayBuffer(binary.length))
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index)
+  }
+  return bytes
+}
+
 export function validatePlanetRootNodes(rootNodes: PlanetRootNodeDraft[]): string | null {
   if (rootNodes.length === 0) {
     return '至少需要配置一个 root node'

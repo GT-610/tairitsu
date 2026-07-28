@@ -544,8 +544,10 @@ Success response:
   "root_node_count": 2,
   "endpoint_count": 3,
   "used_recommended_values": false,
-  "planet_data": [127, 127, 127]
+  "planet_data": "f39/"
 }
 ```
+
+`planet_data` is the generated binary Planet file encoded as Base64.
 
 They are intentionally outside the normal mainline validation gate.

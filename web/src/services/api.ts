@@ -344,7 +344,7 @@ export interface PlanetRootNodeRequest {
 
 export interface GeneratePlanetResponse {
   message: string;
-  planet_data: number[];
+  planet_data: string;
   planet_id: number;
   birth_time: number;
   download_name: string;

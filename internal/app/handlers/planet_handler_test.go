@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -116,7 +117,16 @@ func TestGeneratePlanetHandler_ReturnsPlanetDataAndMetadata(t *testing.T) {
 		t.Fatalf("status = %d, want %d", resp.StatusCode, fiber.StatusOK)
 	}
 
-	var result GeneratePlanetResponse
+	var result struct {
+		Message               string `json:"message"`
+		PlanetData            string `json:"planet_data"`
+		PlanetID              uint64 `json:"planet_id"`
+		BirthTime             int64  `json:"birth_time"`
+		DownloadName          string `json:"download_name"`
+		RootNodeCount         int    `json:"root_node_count"`
+		EndpointCount         int    `json:"endpoint_count"`
+		UsedRecommendedValues bool   `json:"used_recommended_values"`
+	}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		t.Fatalf("decode response: %v", err)
 	}
@@ -126,7 +136,11 @@ func TestGeneratePlanetHandler_ReturnsPlanetDataAndMetadata(t *testing.T) {
 	if result.BirthTime <= 0 {
 		t.Fatalf("birth_time = %d, want positive value", result.BirthTime)
 	}
-	if len(result.PlanetData) == 0 {
+	planetData, err := base64.StdEncoding.DecodeString(result.PlanetData)
+	if err != nil {
+		t.Fatalf("decode planet_data Base64: %v", err)
+	}
+	if len(planetData) == 0 {
 		t.Fatalf("planet_data is empty")
 	}
 	if result.DownloadName != "planet.custom" {

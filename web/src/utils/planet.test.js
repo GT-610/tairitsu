@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import {
+  decodePlanetData,
   findDuplicatePlanetEndpoints,
   getPlanetDownloadName,
   normalizePlanetEndpoints,
@@ -28,6 +29,10 @@ describe('planet utils', () => {
     expect(validatePlanetEndpoints(['203.0.113.1/9993', '2001:db8::1/9993'])).toBeNull()
     expect(getPlanetDownloadName()).toBe('planet')
     expect(getPlanetDownloadName('planet')).toBe('planet')
+  })
+
+  test('decodes Base64 planet response data into downloadable bytes', () => {
+    expect([...decodePlanetData('AAECA/8=')]).toEqual([0, 1, 2, 3, 255])
   })
 
   test('detects duplicate endpoints and validates per-field values', () => {
