@@ -28,7 +28,7 @@ import EditNoteIcon from '@mui/icons-material/EditNote'
 import { planetAPI, type GeneratePlanetResponse, type SigningKeysInfoResponse } from '../services/api'
 import { getErrorMessage } from '../services/errors'
 import {
-  decodePlanetData,
+  createPlanetBlob,
   getPlanetDownloadName,
   normalizePlanetEndpoints,
   parsePlanetIdentityPublic,
@@ -351,12 +351,7 @@ function PlanetGenerator() {
     }
 
     try {
-      const planetData = decodePlanetData(generatedPlanet.planet_data)
-      if (planetData.length === 0) {
-        throw new Error('empty planet data')
-      }
-
-      const blob = new Blob([planetData], { type: 'application/octet-stream' })
+      const blob = createPlanetBlob(generatedPlanet.planet_data)
       const url = URL.createObjectURL(blob)
       const anchor = document.createElement('a')
       anchor.href = url

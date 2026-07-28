@@ -344,6 +344,7 @@ export interface PlanetRootNodeRequest {
 
 export interface GeneratePlanetResponse {
   message: string;
+  // Base64-encoded binary Planet file.
   planet_data: string;
   planet_id: number;
   birth_time: number;

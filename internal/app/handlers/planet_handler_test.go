@@ -21,6 +21,29 @@ func newPlanetHandlerForDir(dir string) *PlanetHandler {
 	}})
 }
 
+type generatePlanetWireResponse struct {
+	Message               string `json:"message"`
+	PlanetDataBase64      string `json:"planet_data"`
+	PlanetID              uint64 `json:"planet_id"`
+	BirthTime             int64  `json:"birth_time"`
+	DownloadName          string `json:"download_name"`
+	RootNodeCount         int    `json:"root_node_count"`
+	EndpointCount         int    `json:"endpoint_count"`
+	UsedRecommendedValues bool   `json:"used_recommended_values"`
+}
+
+func assertBase64PlanetPayload(t *testing.T, encoded string) {
+	t.Helper()
+
+	planetData, err := base64.StdEncoding.DecodeString(encoded)
+	if err != nil {
+		t.Fatalf("decode planet_data Base64: %v", err)
+	}
+	if len(planetData) == 0 {
+		t.Fatal("decoded planet_data is empty")
+	}
+}
+
 func TestGetIdentityHandler_ReadsIdentityPublic(t *testing.T) {
 	tempDir := t.TempDir()
 	handler := newPlanetHandlerForDir(tempDir)
@@ -100,7 +123,7 @@ func TestGetIdentityHandler_ReturnsNotFoundForMissingIdentity(t *testing.T) {
 	}
 }
 
-func TestGeneratePlanetHandler_ReturnsPlanetDataAndMetadata(t *testing.T) {
+func TestGeneratePlanetHandler_ReturnsBase64PlanetBinaryAndMetadata(t *testing.T) {
 	handler := NewPlanetHandler(nil)
 	app := fiber.New()
 	app.Post("/planet", handler.GeneratePlanet)
@@ -117,16 +140,7 @@ func TestGeneratePlanetHandler_ReturnsPlanetDataAndMetadata(t *testing.T) {
 		t.Fatalf("status = %d, want %d", resp.StatusCode, fiber.StatusOK)
 	}
 
-	var result struct {
-		Message               string `json:"message"`
-		PlanetData            string `json:"planet_data"`
-		PlanetID              uint64 `json:"planet_id"`
-		BirthTime             int64  `json:"birth_time"`
-		DownloadName          string `json:"download_name"`
-		RootNodeCount         int    `json:"root_node_count"`
-		EndpointCount         int    `json:"endpoint_count"`
-		UsedRecommendedValues bool   `json:"used_recommended_values"`
-	}
+	var result generatePlanetWireResponse
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		t.Fatalf("decode response: %v", err)
 	}
@@ -136,13 +150,7 @@ func TestGeneratePlanetHandler_ReturnsPlanetDataAndMetadata(t *testing.T) {
 	if result.BirthTime <= 0 {
 		t.Fatalf("birth_time = %d, want positive value", result.BirthTime)
 	}
-	planetData, err := base64.StdEncoding.DecodeString(result.PlanetData)
-	if err != nil {
-		t.Fatalf("decode planet_data Base64: %v", err)
-	}
-	if len(planetData) == 0 {
-		t.Fatalf("planet_data is empty")
-	}
+	assertBase64PlanetPayload(t, result.PlanetDataBase64)
 	if result.DownloadName != "planet.custom" {
 		t.Fatalf("download_name = %q, want planet.custom", result.DownloadName)
 	}

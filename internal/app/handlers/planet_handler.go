@@ -7,6 +7,7 @@
 package handlers
 
 import (
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"os"
@@ -67,7 +68,7 @@ type PlanetRootNodeRequest struct {
 
 type GeneratePlanetResponse struct {
 	Message               string `json:"message"`
-	PlanetData            []byte `json:"planet_data"`
+	PlanetDataBase64      string `json:"planet_data"`
 	PlanetID              uint64 `json:"planet_id"`
 	BirthTime             int64  `json:"birth_time"`
 	DownloadName          string `json:"download_name"`
@@ -158,7 +159,7 @@ func (h *PlanetHandler) GeneratePlanet(c fiber.Ctx) error {
 
 	return c.JSON(GeneratePlanetResponse{
 		Message:               "Planet generated successfully",
-		PlanetData:            generatedPlanet.PlanetData,
+		PlanetDataBase64:      base64.StdEncoding.EncodeToString(generatedPlanet.PlanetData),
 		PlanetID:              generatedPlanet.PlanetID,
 		BirthTime:             generatedPlanet.BirthTime,
 		DownloadName:          generatedPlanet.DownloadName,
