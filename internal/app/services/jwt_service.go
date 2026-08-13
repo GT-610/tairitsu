@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/GT-610/tairitsu/internal/app/models"
-	"github.com/golang-jwt/jwt/v4"
+	"github.com/golang-jwt/jwt/v5"
 )
 
 // JWTClaims defines the structure of JWT claims used for authentication
