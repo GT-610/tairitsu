@@ -2,7 +2,7 @@
   "name": "tairitsu-web",
   "private": true,
   "version": "0.0.0",
-  "packageManager": "bun@1.3.14",
+  "packageManager": "bun@1.4.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -25,12 +25,12 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/react": "^19.2.18",
-    "@types/react-dom": "^19.2.4",
-    "@vitejs/plugin-react": "^6.0.5",
-    "eslint": "^10.8.1",
+    "@types/react-dom": "^19.2.5",
+    "@vitejs/plugin-react": "^6.1.0",
+    "eslint": "^10.9.1",
     "globals": "^17.11.0",
     "typescript": "^6.0.3",
-    "typescript-eslint": "^8.67.0",
-    "vite": "^8.2.1"
+    "typescript-eslint": "^8.68.0",
+    "vite": "^8.2.2"
   }
 }
