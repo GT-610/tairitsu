@@ -51,6 +51,7 @@ func Build() (*App, error) {
 	}
 
 	app.Dependencies = assembly.NewDependencies(app.Config, app.Database, app.ZTClient)
+	app.Dependencies.Services.Session.PurgeUnusableSessions()
 	app.Router = newHTTPApp()
 	routes.SetupRoutes(app.Router, app.Dependencies)
 

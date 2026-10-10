@@ -52,7 +52,7 @@ func TestAuthHandler_RegisterRejectsWhenPublicRegistrationDisabled(t *testing.T)
 	networkService := services.NewNetworkService(nil, db)
 	stateService := services.NewStateServiceWithConfig(config.AppConfig)
 	runtimeService := services.NewRuntimeService(userService, sessionService, networkService, stateService)
-	authHandler := apphandlers.NewAuthHandler(userService, sessionService, services.NewJWTService("test-secret"), runtimeService, stateService)
+	authHandler := apphandlers.NewAuthHandler(userService, sessionService, runtimeService, stateService)
 
 	app := fiber.New()
 	app.Post("/auth/register", authHandler.Register)

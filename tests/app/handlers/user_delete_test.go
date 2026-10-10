@@ -27,7 +27,6 @@ func TestUserHandler_DeleteUser_AdminOnlyAndResponseShape(t *testing.T) {
 	})
 
 	userService := services.NewUserService(db)
-	jwtService := services.NewJWTService("test-secret")
 	sessionService := services.NewSessionService(db)
 	userHandler := apphandlers.NewUserHandler(userService)
 
@@ -56,24 +55,14 @@ func TestUserHandler_DeleteUser_AdminOnlyAndResponseShape(t *testing.T) {
 		UpdatedAt:  now,
 	}))
 
-	adminSession, err := sessionService.CreateSession(services.SessionCreateInput{
-		UserID:     admin.ID,
-		UserAgent:  "admin-browser",
-		IPAddress:  "127.0.0.2",
-		RememberMe: true,
-		ExpiresAt:  now.Add(time.Hour),
-	})
-	require.NoError(t, err)
-
-	adminToken, err := jwtService.GenerateToken(admin, adminSession.ID)
-	require.NoError(t, err)
+	_, adminCredential := newTestSession(t, sessionService, admin.ID, "admin-browser", "127.0.0.2")
 
 	app := fiber.New()
-	app.Use(middleware.AuthMiddleware(jwtService, sessionService))
+	app.Use(middleware.AuthMiddleware(sessionService, userService))
 	app.Delete("/users/:userId", middleware.AdminRequiredWithUserService(userService), userHandler.DeleteUser)
 
 	req := httptest.NewRequest(http.MethodDelete, "/users/"+target.ID, nil)
-	req.Header.Set("Authorization", "Bearer "+adminToken)
+	authenticateRequest(req, adminCredential)
 	resp, err := app.Test(req)
 	require.NoError(t, err)
 	assert.Equal(t, fiber.StatusOK, resp.StatusCode)
