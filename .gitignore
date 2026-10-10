@@ -32,7 +32,10 @@ logs/
 web/node_modules/
 
 # 构建输出
-web/dist/
+# web/dist is embedded into the Go binary, so the directory itself is tracked
+# with a placeholder while real build output stays ignored.
+web/dist/*
+!web/dist/.gitkeep
 web/build/
 
 # 环境配置文件

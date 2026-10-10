@@ -1,53 +1,18 @@
 package routes
 
 import (
-	"os"
-
 	"github.com/GT-610/tairitsu/internal/app/assembly"
 	"github.com/GT-610/tairitsu/internal/app/handlers"
 	"github.com/GT-610/tairitsu/internal/app/middleware"
 	"github.com/gofiber/fiber/v3"
-	"github.com/gofiber/fiber/v3/middleware/cors"
 )
 
 // SetupRoutes configures application routes
 func SetupRoutes(router *fiber.App, dependencies *assembly.Dependencies) {
-	corsConfig := cors.ConfigDefault
-	isProd := os.Getenv("APP_ENV") == "production" || os.Getenv("NODE_ENV") == "production"
-	if isProd {
-		corsConfig.AllowOrigins = []string{}
-	}
-
 	// Apply middleware
 	router.Use(middleware.Logger())
 	router.Use(middleware.SecurityHeaders())
-	router.Use(cors.New(corsConfig))
-	router.Use(middleware.RateLimit())
 	router.Use(middleware.ErrorHandler())
-
-	// Root path handler for HTML browsers
-	router.Get("/", func(c fiber.Ctx) error {
-		c.Set("Content-Type", "text/html; charset=utf-8")
-		return c.SendString(`<html>
-<head>
-	<title>Tairitsu Backend</title>
-	<style>
-		body {
-			margin: 20px;
-			color: #333;
-		}
-		h1 {
-			color: #4a6fa5;
-		}
-	</style>
-</head>
-<body>
-	<h1>Tairitsu</h1>
-	<p>This is Tairitsu backend service.</p>
-	<p>If you can see this page, it means the backend is running.</p>
-</body>
-</html>`)
-	})
 
 	networkHandler := dependencies.Handlers.Network
 	memberHandler := dependencies.Handlers.Member
@@ -61,8 +26,9 @@ func SetupRoutes(router *fiber.App, dependencies *assembly.Dependencies) {
 	runtimeOnly := dependencies.Middleware.RuntimeOnly
 	adminOnly := dependencies.Middleware.AdminOnly
 
-	// API routes group
-	api := router.Group("/api")
+	// API routes group. Rate limiting applies to the JSON surface only: static
+	// assets are now served by this process and must not consume the API budget.
+	api := router.Group("/api", middleware.RateLimit())
 	{
 		// Liveness probe (no dependency checks)
 		api.Get("/health", func(c fiber.Ctx) error {
@@ -138,4 +104,8 @@ func SetupRoutes(router *fiber.App, dependencies *assembly.Dependencies) {
 		api.Get("/admin/planet/signing-keys", runtimeOnly, authMiddleware, adminOnly, planetHandler.GetSigningKeysInfo)
 		api.Post("/admin/planet/keys", runtimeOnly, authMiddleware, adminOnly, planetHandler.GenerateSigningKeys)
 	}
+
+	// The frontend is embedded in this binary and served from the same origin,
+	// so it is mounted last and never shadows the API surface above.
+	mountFrontend(router)
 }

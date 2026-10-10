@@ -10,12 +10,14 @@ WORKDIR /app
 COPY go.mod go.sum ./
 RUN apk add --no-cache gcc musl-dev libc-dev && go mod download
 COPY . .
+# The frontend bundle is embedded into the binary, so it must be built first.
+COPY --from=frontend-builder /app/web/dist ./web/dist
 RUN CGO_ENABLED=1 go build -o tairitsu ./cmd/tairitsu
 
-FROM nginx:alpine-slim AS production
-COPY --from=frontend-builder /app/web/dist /usr/share/nginx/html
-COPY --from=backend-builder /app/tairitsu /app/
-COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
+FROM alpine:3.22 AS production
+RUN apk add --no-cache ca-certificates
+COPY --from=backend-builder /app/tairitsu /app/tairitsu
 WORKDIR /app
 EXPOSE 3000
-CMD ["sh", "-c", "nginx -g 'daemon off;' & /app/tairitsu"]
+ENV SERVER_PORT=3000
+CMD ["/app/tairitsu"]
