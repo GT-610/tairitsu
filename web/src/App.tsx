@@ -35,12 +35,14 @@ function Loading() {
 }
 
 function AppContent() {
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, isHydrated } = useAuth();
   const { t } = useTranslation();
   const { isFirstRun, loading, error, retry } = useSetupGate();
   useUnauthorizedRedirect();
 
-  if (loading) {
+  // The session is restored from the server, so routing must wait until that
+  // answer is known; otherwise a signed-in reload would flash the login page.
+  if (loading || !isHydrated) {
     return (
       <div style={{ 
         display: 'flex', 

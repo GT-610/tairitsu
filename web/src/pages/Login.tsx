@@ -17,7 +17,6 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../services/auth';
 import { authAPI, systemAPI } from '../services/api';
 import { getErrorMessage, hasStatus } from '../services/errors';
-import { persistAuthState } from '../services/authStorage';
 import { isPublicRegistrationEnabled } from '../utils/publicRegistration';
 import { useTranslation } from '../i18n';
 import { getNavigationMessage } from '../utils/sharedStyles';
@@ -109,22 +108,16 @@ function Login() {
     setLoginError('');
     
     try {
-      // Call backend login API
+      // Call backend login API. The server sets the session cookie on this
+      // response; the body only carries the user and session metadata.
       const response = await authAPI.login({
         username: formData.username,
         password: formData.password,
         remember_me: rememberMe,
       });
-      
-      // Extract user data and token from response
-      const { user, token, session } = response.data;
-      
-      // Save to localStorage or sessionStorage
-      persistAuthState(user, token, session, rememberMe)
-      
-      // Call login function from auth context
-      login(user, token, session);
-      
+
+      login(response.data.user);
+
       // Login successful, redirect to networks
       void navigate('/networks');
     } catch (error: unknown) {

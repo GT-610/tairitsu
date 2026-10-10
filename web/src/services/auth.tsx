@@ -1,102 +1,96 @@
 import { createContext, useContext, useState, useEffect, useCallback, useMemo, ReactNode } from 'react';
-import api, { authAPI, User, UserSession } from './api';
-import { clearPersistedAuthState, restoreAuthState } from './authStorage';
+import { authAPI, User } from './api';
 
-// 定义Auth上下文类型
+// The session credential lives in an HttpOnly cookie that JavaScript cannot
+// read, so the client cannot inspect it to decide whether it is signed in.
+// Authentication state is therefore derived from the server on startup and
+// kept in memory only.
 interface AuthContextType {
   user: User | null;
-  token: string | null;
-  session: UserSession | null;
   isHydrated: boolean;
-  login: (userData: User, authToken: string, userSession: UserSession) => { success: boolean; user: User; token: string; session: UserSession };
+  login: (userData: User) => void;
   refreshUser: (userData: User) => void;
   logout: () => Promise<void>;
   clearAuth: () => void;
   isAuthenticated: () => boolean;
 }
 
-// 创建Auth上下文，使用AuthContextType类型
 const AuthContext = createContext<AuthContextType | null>(null);
 
-// Auth Provider组件的props类型
 interface AuthProviderProps {
   children: ReactNode;
 }
 
-// Auth Provider组件
 export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(null);
-  const [session, setSession] = useState<UserSession | null>(null);
   const [isHydrated, setIsHydrated] = useState(false);
 
-  // 在应用启动时从存储中恢复认证状态
+  // Restore the session by asking the server who we are. A missing or expired
+  // cookie answers 401, which simply means "signed out".
   useEffect(() => {
-    const restored = restoreAuthState();
-    if (restored) {
-      setUser(restored.user);
-      setToken(restored.token);
-      setSession(restored.session);
-    }
-    setIsHydrated(true);
+    let cancelled = false;
+
+    const restoreSession = async () => {
+      try {
+        const response = await authAPI.getProfile();
+        if (!cancelled) {
+          setUser(response.data);
+        }
+      } catch {
+        if (!cancelled) {
+          setUser(null);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsHydrated(true);
+        }
+      }
+    };
+
+    void restoreSession();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  // 登录函数
-  const login = useCallback((userData: User, authToken: string, userSession: UserSession) => {
+  const login = useCallback((userData: User) => {
     setUser(userData);
-    setToken(authToken);
-    setSession(userSession);
-    api.defaults.headers.common['Authorization'] = `Bearer ${authToken}`;
-    return { success: true, user: userData, token: authToken, session: userSession };
+    setIsHydrated(true);
   }, []);
 
   const refreshUser = useCallback((userData: User) => {
     setUser(userData);
-
-    if (localStorage.getItem('token')) {
-      localStorage.setItem('user', JSON.stringify(userData));
-    } else if (sessionStorage.getItem('token')) {
-      sessionStorage.setItem('user', JSON.stringify(userData));
-    }
   }, []);
 
   const clearAuth = useCallback(() => {
     setUser(null);
-    setToken(null);
-    setSession(null);
-    clearPersistedAuthState();
   }, []);
 
-  // 登出函数
   const logout = useCallback(async () => {
     try {
-      if (token) {
-        await authAPI.logout();
-      }
+      await authAPI.logout();
     } catch {
-      // Ignore logout API failures and still clear local auth state.
+      // The server clears the cookie when it can. Clear local state regardless
+      // so the UI never keeps showing a session the user asked to end.
     } finally {
       clearAuth();
     }
-  }, [clearAuth, token]);
+  }, [clearAuth]);
 
-  // 检查是否已认证
   const isAuthenticated = useCallback((): boolean => {
-    return !!user && !!token;
-  }, [user, token]);
+    return user !== null;
+  }, [user]);
 
-  // 上下文值
   const value = useMemo<AuthContextType>(() => ({
     user,
-    token,
-    session,
     isHydrated,
     login,
     refreshUser,
     logout,
     clearAuth,
     isAuthenticated
-  }), [user, token, session, isHydrated, login, refreshUser, logout, clearAuth, isAuthenticated]);
+  }), [user, isHydrated, login, refreshUser, logout, clearAuth, isAuthenticated]);
 
   return (
     <AuthContext.Provider value={value}>
@@ -105,7 +99,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   );
 };
 
-// 自定义钩子，用于在组件中访问Auth上下文
+// Custom hook for accessing the auth context from components
 export const useAuth = (): AuthContextType => {
   const context = useContext(AuthContext);
   if (!context) {
@@ -114,5 +108,4 @@ export const useAuth = (): AuthContextType => {
   return context;
 };
 
-// 默认导出
 export default useAuth;
