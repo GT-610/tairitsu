@@ -82,7 +82,7 @@ Open `http://<host>:3000` and complete the setup wizard:
 
 Prerequisites:
 
-- Go 1.25 or later with CGO enabled
+- Go 1.26 or later with CGO enabled
 - Node.js or Bun latest
 - A local or Dockerized ZeroTier controller
 

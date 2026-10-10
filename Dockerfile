@@ -1,11 +1,11 @@
-FROM oven/bun:1.3.11-alpine AS frontend-builder
+FROM oven/bun:1.4.3-alpine AS frontend-builder
 WORKDIR /app/web
 COPY web/package.json web/bun.lock ./
 RUN bun install --frozen-lockfile
 COPY web/ ./
 RUN bun run build
 
-FROM golang:1.25-alpine AS backend-builder
+FROM golang:1.26-alpine AS backend-builder
 WORKDIR /app
 COPY go.mod go.sum ./
 RUN apk add --no-cache gcc musl-dev libc-dev && go mod download
