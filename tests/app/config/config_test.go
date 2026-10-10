@@ -83,6 +83,61 @@ func TestLoadConfigContinuesWhenTokenRetryFails(t *testing.T) {
 	assert.Empty(t, cfg.ZeroTier.Token)
 }
 
+// A deployment that pins the port through the environment (the container image
+// sets SERVER_PORT) must not be overridden by a config.json written earlier.
+// Otherwise an upgraded container listens on the built-in default while the
+// published port stays empty, and the console becomes unreachable.
+func TestLoadConfigAppliesServerPortFromEnvironmentOverExistingConfig(t *testing.T) {
+	useTemporaryWorkingDirectory(t)
+	t.Setenv("JWT_SECRET", "")
+
+	require.NoError(t, os.MkdirAll("data", 0755))
+	persisted := config.Config{
+		Initialized: true,
+		Server:      config.ServerConfig{Port: 8080},
+		Security:    config.SecurityConfig{JWTSecret: "existing-secret"},
+		Registration: config.RegistrationConfig{
+			AllowPublicRegistration: boolPtrForTest(true),
+		},
+	}
+	configBytes, err := json.Marshal(persisted)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(filepath.Join("data", "config.json"), configBytes, 0600))
+
+	t.Setenv("SERVER_PORT", "3000")
+
+	cfg, err := config.LoadConfig()
+	require.NoError(t, err)
+	assert.Equal(t, 3000, cfg.Server.Port)
+	assert.Equal(t, ":3000", config.ServerAddressFrom(cfg))
+}
+
+// An unset environment variable must leave the persisted port alone.
+func TestLoadConfigKeepsPersistedServerPortWithoutEnvironmentOverride(t *testing.T) {
+	useTemporaryWorkingDirectory(t)
+	t.Setenv("JWT_SECRET", "")
+	t.Setenv("SERVER_PORT", "")
+
+	require.NoError(t, os.MkdirAll("data", 0755))
+	persisted := config.Config{
+		Initialized:  true,
+		Server:       config.ServerConfig{Port: 9090},
+		Security:     config.SecurityConfig{JWTSecret: "existing-secret"},
+		Registration: config.RegistrationConfig{AllowPublicRegistration: boolPtrForTest(true)},
+	}
+	configBytes, err := json.Marshal(persisted)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(filepath.Join("data", "config.json"), configBytes, 0600))
+
+	cfg, err := config.LoadConfig()
+	require.NoError(t, err)
+	assert.Equal(t, 9090, cfg.Server.Port)
+}
+
+func boolPtrForTest(value bool) *bool {
+	return &value
+}
+
 func useTemporaryWorkingDirectory(t *testing.T) {
 	t.Helper()
 	originalWorkingDirectory, err := os.Getwd()

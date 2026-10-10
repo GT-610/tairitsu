@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -79,6 +80,12 @@ func LoadConfig() (*Config, error) {
 	// First try to load from config.json
 	cfg, err := loadConfigFromJSON()
 	if err == nil {
+		// The listening port is a deployment-level setting. The container image
+		// pins it through SERVER_PORT, so the environment must win over
+		// config.json here too. Without this, an upgraded deployment keeps the
+		// port recorded in its persisted config and listens somewhere the
+		// published port does not reach.
+		applyServerPortEnvironment(cfg)
 		generated, err := ensureJWTSecret(cfg)
 		if err != nil {
 			return nil, fmt.Errorf("failed to generate JWT secret: %w", err)
@@ -251,6 +258,34 @@ func loadEnvConfig(cfg *Config) {
 	}
 }
 
+// applyServerPortEnvironment overrides the persisted listening port when
+// SERVER_PORT is set. An unset or unparsable value leaves the config alone, and
+// the value is not written back: the environment stays the source of truth on
+// every start.
+func applyServerPortEnvironment(cfg *Config) {
+	if cfg == nil {
+		return
+	}
+
+	raw, ok := os.LookupEnv("SERVER_PORT")
+	if !ok || strings.TrimSpace(raw) == "" {
+		return
+	}
+
+	port, err := strconv.Atoi(strings.TrimSpace(raw))
+	if err != nil || port <= 0 || port > 65535 {
+		logger.Warn("ignoring invalid SERVER_PORT value", zap.String("value", raw))
+		return
+	}
+
+	if port != cfg.Server.Port {
+		logger.Info("SERVER_PORT overrides the configured listening port",
+			zap.Int("configured", cfg.Server.Port), zap.Int("effective", port))
+	}
+	cfg.Server.Port = port
+}
+
+// GetZTTokenFrom retrieves the ZeroTier token from the configuration
 func GetZTTokenFrom(cfg *Config) (string, error) {
 	if cfg == nil {
 		return "", fmt.Errorf("configuration not loaded")
