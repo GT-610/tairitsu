@@ -71,10 +71,13 @@ services:
 3. 按需设置 SQLite 数据库路径。
 4. 创建初始管理员账户。
 
+会话保存在 HttpOnly Cookie 中。任何可被可信网络之外访问的部署都应通过 HTTPS 提供服务；在纯 HTTP 下 Cookie 无法携带 `Secure` 标记，且会以明文传输。
+
 ## 文档
 
 - [运行维护说明](../docs/OPERATIONS.md)
-- [API 文档](../docs/api/Tairitsu_API_Documentation.md)
+
+Tairitsu 的网页控制台与 HTTP 接口由同一个进程提供。前后端版本锁定、一起打包进同一个二进制，因此二者之间的内部接口不是对外支持的公开 API。如需了解，可阅读[内部 HTTP 参考](../docs/api/Tairitsu_API_Documentation.md)，但请预期它在任何版本中发生变化。
 
 ## 开发
 
@@ -84,17 +87,27 @@ services:
 - Bun 1.4 或更高版本
 - 本地或 Docker 中运行的 ZeroTier 控制器
 
-构建后端：
-
-```bash
-GOCACHE=/tmp/go-build GOMODCACHE=/tmp/go-mod go build -o ./build/tairitsu ./cmd/tairitsu
-```
-
-运行前端：
+构建前后端一体的单二进制发布：
 
 ```bash
 cd web
 bun install
+bun run build
+cd ..
+
+# 前端产物会被嵌入二进制，因此必须先构建前端再编译服务端。
+GOCACHE=/tmp/go-build GOMODCACHE=/tmp/go-mod go build -o ./build/tairitsu ./cmd/tairitsu
+./build/tairitsu   # 在 :3000 同时提供控制台与 API
+```
+
+如需前端热重载，让后端运行在默认端口 8080，Vite 开发服务器运行在 3001，并由开发服务器把 `/api` 代理到后端：
+
+```bash
+# 终端 1
+go run ./cmd/tairitsu
+
+# 终端 2
+cd web
 bun run dev
 ```
 

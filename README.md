@@ -73,10 +73,19 @@ Open `http://<host>:3000` and complete the setup wizard:
 3. Configure the SQLite database path if needed.
 4. Create the initial administrator account.
 
+Sessions are held in an HttpOnly cookie. Serve Tairitsu over HTTPS in any
+deployment reachable beyond a trusted network; on plain HTTP the cookie cannot
+carry the `Secure` flag and will also travel unencrypted.
+
 ## Documentation
 
 - [Operations](docs/OPERATIONS.md)
-- [API documentation](docs/api/Tairitsu_API_Documentation.md)
+
+Tairitsu serves its web console and its HTTP surface from a single process. The
+frontend and server are version-locked and ship in one binary, so the internal
+endpoints between them are not a supported public API. See the
+[internal HTTP reference](docs/api/Tairitsu_API_Documentation.md) if you need to
+read it; expect it to change in any release.
 
 ## Development
 
@@ -86,18 +95,30 @@ Prerequisites:
 - Node.js or Bun latest
 - A local or Dockerized ZeroTier controller
 
-Build backend:
-
-```bash
-GOCACHE=/tmp/go-build GOMODCACHE=/tmp/go-mod go build -o ./build/tairitsu ./cmd/tairitsu
-```
-
-Run frontend:
+Build frontend and backend for a single-binary release:
 
 ```bash
 cd web
-npm install # or: bun install
-npm run dev # or: bun run dev
+bun install
+bun run build
+cd ..
+
+# The frontend bundle is embedded, so build it before the server.
+GOCACHE=/tmp/go-build GOMODCACHE=/tmp/go-mod go build -o ./build/tairitsu ./cmd/tairitsu
+./build/tairitsu   # serves the console and the API on :3000
+```
+
+For frontend development with hot reload, run the backend on its default port
+8080 and the Vite dev server on 3001. The dev server proxies `/api` to the
+backend:
+
+```bash
+# terminal 1
+go run ./cmd/tairitsu
+
+# terminal 2
+cd web
+bun run dev
 ```
 
 ## License

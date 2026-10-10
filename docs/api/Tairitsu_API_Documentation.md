@@ -1,12 +1,15 @@
-# Tairitsu API Documentation
+# Tairitsu Internal HTTP Reference
 
-This document describes the current public-facing API shape used by the bundled frontend. It is intentionally concise and focuses on the endpoints that are part of the normal runtime and setup flows.
+This document describes how the bundled frontend and the Tairitsu server talk to each other. It is an **internal implementation reference, not a supported public API**: both halves are version-locked, ship in one binary, and change together. Endpoints, payload shapes, and status codes may change in any release without notice or a deprecation period.
+
+If you want to automate Tairitsu, treat this document as a reading aid only and expect breakage on upgrade.
 
 ## Overview
 
 - Base URL: `/api`
 - All responses are JSON
-- Most runtime endpoints require `Authorization: Bearer <token>`
+- The frontend is served from the same origin as the API, so there is no CORS surface
+- Runtime endpoints require the session cookie set by `POST /auth/login`
 - Setup endpoints are only available before initialization
 - Runtime/admin access is enforced server-side
 
@@ -138,7 +141,11 @@ Response:
 
 ### `POST /auth/login`
 
-Authenticates a user and creates a tracked session.
+Authenticates a user and creates a tracked session. The response sets the
+`tairitsu_session` cookie, which is `HttpOnly`, `SameSite=Lax`, and `Secure`
+whenever the request arrived over HTTPS. The credential is never included in
+the response body, and `remember_me` decides only whether the cookie outlives
+the browser session; the server-side expiry is 24 hours either way.
 
 Request:
 
@@ -154,7 +161,6 @@ Response:
 
 ```json
 {
-  "token": "jwt-token",
   "user": {
     "id": "uuid",
     "username": "alice",
