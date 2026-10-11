@@ -83,7 +83,7 @@ func (a *App) Listen() error {
 		return fmt.Errorf("router is not initialized")
 	}
 
-	serverAddr := config.ServerAddressFrom(a.Config)
+	serverAddr := config.ServerAddress()
 	logger.Info("starting HTTP server", zap.String("address", serverAddr))
 
 	errCh := make(chan error, 1)

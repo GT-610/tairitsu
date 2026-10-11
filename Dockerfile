@@ -18,6 +18,6 @@ FROM alpine:3.22 AS production
 RUN apk add --no-cache ca-certificates
 COPY --from=backend-builder /app/tairitsu /app/tairitsu
 WORKDIR /app
+# The console listens on a fixed port. Map it wherever you like, e.g. -p 8080:3000.
 EXPOSE 3000
-ENV SERVER_PORT=3000
 CMD ["/app/tairitsu"]

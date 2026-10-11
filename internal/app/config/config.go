@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"strconv"
 	"strings"
 	"sync"
 
@@ -34,11 +33,6 @@ type ZeroTierConfig struct {
 	TokenPath string `json:"tokenPath"` // Token file path
 }
 
-// ServerConfig Server configuration
-type ServerConfig struct {
-	Port int `json:"port"`
-}
-
 // SecurityConfig Security configuration
 type SecurityConfig struct {
 	JWTSecret string `json:"jwt_secret"`
@@ -48,12 +42,25 @@ type RegistrationConfig struct {
 	AllowPublicRegistration *bool `json:"allow_public_registration,omitempty"`
 }
 
+// ConsolePort is the port the web console and the API listen on. It is fixed
+// rather than configurable: the container is the supported way to run Tairitsu,
+// so the port a request arrives on inside the container is an implementation
+// detail, and the port users reach is decided by their own mapping (for example
+// `-p 8080:3000`). Keeping it constant also means an existing `-p 3000:3000`
+// deployment keeps working, and no stored setting can silently move the console
+// to a port the operator is not publishing.
+const ConsolePort = 3000
+
 // Config Application configuration structure
+//
+// A legacy `server` block may still be present in an existing config.json. It
+// described the separate backend process that the bundled web server proxied
+// to. That process no longer exists, and the field is not read: unknown JSON
+// members are ignored on load, so old files keep working untouched.
 type Config struct {
 	Initialized  bool               `json:"initialized"` // Initialization status flag
 	Database     DatabaseConfig     `json:"database"`    // Database configuration
 	ZeroTier     ZeroTierConfig     `json:"zerotier"`    // ZeroTier configuration
-	Server       ServerConfig       `json:"server"`      // Server configuration
 	Security     SecurityConfig     `json:"security"`    // Security configuration
 	Registration RegistrationConfig `json:"registration"`
 }
@@ -80,12 +87,6 @@ func LoadConfig() (*Config, error) {
 	// First try to load from config.json
 	cfg, err := loadConfigFromJSON()
 	if err == nil {
-		// The listening port is a deployment-level setting. The container image
-		// pins it through SERVER_PORT, so the environment must win over
-		// config.json here too. Without this, an upgraded deployment keeps the
-		// port recorded in its persisted config and listens somewhere the
-		// published port does not reach.
-		applyServerPortEnvironment(cfg)
 		generated, err := ensureJWTSecret(cfg)
 		if err != nil {
 			return nil, fmt.Errorf("failed to generate JWT secret: %w", err)
@@ -173,9 +174,6 @@ func createDefaultConfig() *Config {
 		Initialized: false,
 		Database:    DatabaseConfig{},
 		ZeroTier:    ZeroTierConfig{},
-		Server: ServerConfig{
-			Port: 8080,
-		},
 		Security: SecurityConfig{
 			JWTSecret: "", // Generated and persisted by LoadConfig before service assembly.
 		},
@@ -243,9 +241,6 @@ func loadEnvConfig(cfg *Config) {
 	if url := viper.GetString("ZT_CONTROLLER_URL"); url != "" {
 		cfg.ZeroTier.URL = url
 	}
-	if port := viper.GetInt("SERVER_PORT"); port != 0 {
-		cfg.Server.Port = port
-	}
 	if jwt := viper.GetString("JWT_SECRET"); jwt != "" {
 		cfg.Security.JWTSecret = jwt
 	}
@@ -256,33 +251,6 @@ func loadEnvConfig(cfg *Config) {
 		// Try to read token file
 		_ = LoadTokenFromPathInto(cfg, tokenPath)
 	}
-}
-
-// applyServerPortEnvironment overrides the persisted listening port when
-// SERVER_PORT is set. An unset or unparsable value leaves the config alone, and
-// the value is not written back: the environment stays the source of truth on
-// every start.
-func applyServerPortEnvironment(cfg *Config) {
-	if cfg == nil {
-		return
-	}
-
-	raw, ok := os.LookupEnv("SERVER_PORT")
-	if !ok || strings.TrimSpace(raw) == "" {
-		return
-	}
-
-	port, err := strconv.Atoi(strings.TrimSpace(raw))
-	if err != nil || port <= 0 || port > 65535 {
-		logger.Warn("ignoring invalid SERVER_PORT value", zap.String("value", raw))
-		return
-	}
-
-	if port != cfg.Server.Port {
-		logger.Info("SERVER_PORT overrides the configured listening port",
-			zap.Int("configured", cfg.Server.Port), zap.Int("effective", port))
-	}
-	cfg.Server.Port = port
 }
 
 // GetZTTokenFrom retrieves the ZeroTier token from the configuration
@@ -462,11 +430,9 @@ func boolPtr(value bool) *bool {
 	return &value
 }
 
-func ServerAddressFrom(cfg *Config) string {
-	if cfg == nil {
-		return ":8080"
-	}
-	return fmt.Sprintf(":%d", cfg.Server.Port)
+// ServerAddress returns the listen address for the web console.
+func ServerAddress() string {
+	return fmt.Sprintf(":%d", ConsolePort)
 }
 
 // GetTempSetting Get temporary setting

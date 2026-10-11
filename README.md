@@ -105,15 +105,15 @@ cd ..
 
 # The frontend bundle is embedded, so build it before the server.
 GOCACHE=/tmp/go-build GOMODCACHE=/tmp/go-mod go build -o ./build/tairitsu ./cmd/tairitsu
-./build/tairitsu   # serves the console and the API on :8080
+./build/tairitsu   # serves the console and the API on :3000
 ```
 
-The container image sets `SERVER_PORT=3000`; a local binary defaults to 8080.
-Set `SERVER_PORT` to override either.
+The listening port is fixed at 3000 and is not configurable; in a container,
+decide the port users reach with your own mapping (for example `-p 8080:3000`).
 
-For frontend development with hot reload, run the backend and the Vite dev
+For frontend development with hot reload, run the server and the Vite dev
 server together. The dev server listens on 3001 and proxies `/api` to the
-backend:
+server on 3000:
 
 ```bash
 # terminal 1

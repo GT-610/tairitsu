@@ -83,59 +83,65 @@ func TestLoadConfigContinuesWhenTokenRetryFails(t *testing.T) {
 	assert.Empty(t, cfg.ZeroTier.Token)
 }
 
-// A deployment that pins the port through the environment (the container image
-// sets SERVER_PORT) must not be overridden by a config.json written earlier.
-// Otherwise an upgraded container listens on the built-in default while the
-// published port stays empty, and the console becomes unreachable.
-func TestLoadConfigAppliesServerPortFromEnvironmentOverExistingConfig(t *testing.T) {
+// The console port is fixed. An old config.json still carries a "server" block
+// that described the separate backend process, and its value must not influence
+// the port the console listens on.
+func TestLoadConfigIgnoresLegacyServerPortFromExistingConfig(t *testing.T) {
 	useTemporaryWorkingDirectory(t)
 	t.Setenv("JWT_SECRET", "")
 
 	require.NoError(t, os.MkdirAll("data", 0755))
-	persisted := config.Config{
-		Initialized: true,
-		Server:      config.ServerConfig{Port: 8080},
-		Security:    config.SecurityConfig{JWTSecret: "existing-secret"},
-		Registration: config.RegistrationConfig{
-			AllowPublicRegistration: boolPtrForTest(true),
+	legacy := map[string]any{
+		"initialized": true,
+		"server":      map[string]any{"port": 8080},
+		"security":    map[string]any{"jwt_secret": "existing-secret"},
+		"registration": map[string]any{
+			"allow_public_registration": true,
 		},
 	}
-	configBytes, err := json.Marshal(persisted)
+	configBytes, err := json.Marshal(legacy)
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(filepath.Join("data", "config.json"), configBytes, 0600))
 
-	t.Setenv("SERVER_PORT", "3000")
-
 	cfg, err := config.LoadConfig()
 	require.NoError(t, err)
-	assert.Equal(t, 3000, cfg.Server.Port)
-	assert.Equal(t, ":3000", config.ServerAddressFrom(cfg))
+	require.NotNil(t, cfg)
+
+	assert.Equal(t, config.ConsolePort, 3000)
+	assert.Equal(t, ":3000", config.ServerAddress())
 }
 
-// An unset environment variable must leave the persisted port alone.
-func TestLoadConfigKeepsPersistedServerPortWithoutEnvironmentOverride(t *testing.T) {
+// A stale SERVER_PORT in the environment must not move the console, since the
+// port is no longer configurable and the operator maps it from the host.
+func TestLoadConfigIgnoresServerPortEnvironment(t *testing.T) {
 	useTemporaryWorkingDirectory(t)
 	t.Setenv("JWT_SECRET", "")
-	t.Setenv("SERVER_PORT", "")
-
-	require.NoError(t, os.MkdirAll("data", 0755))
-	persisted := config.Config{
-		Initialized:  true,
-		Server:       config.ServerConfig{Port: 9090},
-		Security:     config.SecurityConfig{JWTSecret: "existing-secret"},
-		Registration: config.RegistrationConfig{AllowPublicRegistration: boolPtrForTest(true)},
-	}
-	configBytes, err := json.Marshal(persisted)
-	require.NoError(t, err)
-	require.NoError(t, os.WriteFile(filepath.Join("data", "config.json"), configBytes, 0600))
+	t.Setenv("SERVER_PORT", "9090")
 
 	cfg, err := config.LoadConfig()
 	require.NoError(t, err)
-	assert.Equal(t, 9090, cfg.Server.Port)
+	require.NotNil(t, cfg)
+
+	assert.Equal(t, 3000, config.ConsolePort)
+	assert.Equal(t, ":3000", config.ServerAddress())
 }
 
-func boolPtrForTest(value bool) *bool {
-	return &value
+// A legacy "server" block must not be reintroduced when the config is rewritten,
+// so an upgraded deployment does not keep carrying a field that has no meaning.
+func TestSaveConfigDoesNotWriteLegacyServerBlock(t *testing.T) {
+	useTemporaryWorkingDirectory(t)
+	t.Setenv("JWT_SECRET", "")
+
+	cfg, err := config.LoadConfig()
+	require.NoError(t, err)
+	require.NoError(t, config.SaveConfig(cfg))
+
+	configBytes, err := os.ReadFile(filepath.Join("data", "config.json"))
+	require.NoError(t, err)
+
+	var persisted map[string]any
+	require.NoError(t, json.Unmarshal(configBytes, &persisted))
+	assert.NotContains(t, persisted, "server")
 }
 
 func useTemporaryWorkingDirectory(t *testing.T) {

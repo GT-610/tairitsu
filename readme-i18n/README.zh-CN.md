@@ -97,12 +97,12 @@ cd ..
 
 # 前端产物会被嵌入二进制，因此必须先构建前端再编译服务端。
 GOCACHE=/tmp/go-build GOMODCACHE=/tmp/go-mod go build -o ./build/tairitsu ./cmd/tairitsu
-./build/tairitsu   # 在 :8080 同时提供控制台与 API
+./build/tairitsu   # 在 :3000 同时提供控制台与 API
 ```
 
-容器镜像设置了 `SERVER_PORT=3000`，本地直接运行二进制则默认 8080。两种方式都可以用 `SERVER_PORT` 覆盖。
+监听端口固定为 3000，不提供配置项；在容器中，用户实际访问的端口由你自己的映射决定（例如 `-p 8080:3000`）。
 
-如需前端热重载，同时运行后端与 Vite 开发服务器。开发服务器监听 3001，并把 `/api` 代理到后端：
+如需前端热重载，同时运行服务端与 Vite 开发服务器。开发服务器监听 3001，并把 `/api` 代理到 3000 上的服务端：
 
 ```bash
 # 终端 1
