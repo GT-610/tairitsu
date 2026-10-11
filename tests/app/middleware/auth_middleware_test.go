@@ -202,6 +202,87 @@ func TestAuthMiddleware_ClearsCookieWhenUserIsGone(t *testing.T) {
 	assert.True(t, cleared, "expected the session cookie to be cleared")
 }
 
+// When the session lookup fails for a reason that does not prove the credential
+// is bad, authentication must fail closed without discarding it. Clearing the
+// cookie here would sign the user out over a passing fault.
+func TestAuthMiddleware_KeepsCookieWhenSessionLookupFails(t *testing.T) {
+	db := newAuthTestDB(t)
+	sessionService := services.NewSessionService(db)
+	userService := services.NewUserService(db)
+
+	user := &models.User{ID: "user-1", Username: "alice", Role: "user"}
+	createTestUser(t, db, user)
+	credential := issueSession(t, sessionService, user.ID)
+
+	// Closing the database makes the lookup fail with a read error that is not
+	// one of the "credential is invalid" sentinels.
+	require.NoError(t, db.Close())
+
+	router := fiber.New()
+	router.Use(middleware.AuthMiddleware(sessionService, userService))
+	router.Get("/test", func(c fiber.Ctx) error {
+		return c.JSON(fiber.Map{"message": "success"})
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: credential})
+	resp, err := router.Test(req)
+
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	assert.Equal(t, fiber.StatusServiceUnavailable, resp.StatusCode)
+	for _, cookie := range resp.Cookies() {
+		if cookie.Name == sessionCookieName {
+			assert.NotEmpty(t, cookie.Value, "a transient failure must not clear the session cookie")
+		}
+	}
+
+	body, _ := io.ReadAll(resp.Body)
+	assert.Contains(t, string(body), "user.db_unavailable")
+}
+
+// A session that is genuinely expired must still clear the cookie, so the two
+// outcomes stay distinct.
+func TestAuthMiddleware_ClearsCookieWhenSessionExpired(t *testing.T) {
+	db := newAuthTestDB(t)
+	sessionService := services.NewSessionService(db)
+	userService := services.NewUserService(db)
+
+	user := &models.User{ID: "user-1", Username: "alice", Role: "user"}
+	createTestUser(t, db, user)
+
+	_, credential, err := sessionService.CreateSession(services.SessionCreateInput{
+		UserID:    user.ID,
+		UserAgent: "test-agent",
+		IPAddress: "127.0.0.1",
+		ExpiresAt: time.Now().Add(-time.Minute),
+	})
+	require.NoError(t, err)
+
+	router := fiber.New()
+	router.Use(middleware.AuthMiddleware(sessionService, userService))
+	router.Get("/test", func(c fiber.Ctx) error {
+		return c.JSON(fiber.Map{"message": "success"})
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
+	req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: credential})
+	resp, err := router.Test(req)
+
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	assert.Equal(t, fiber.StatusUnauthorized, resp.StatusCode)
+
+	cleared := false
+	for _, cookie := range resp.Cookies() {
+		if cookie.Name == sessionCookieName && cookie.Value == "" {
+			cleared = true
+		}
+	}
+	assert.True(t, cleared, "an expired session must clear the cookie")
+}
+
 func TestAdminRequiredWithUserService_DeniesStaleAdminSessionAfterTransfer(t *testing.T) {
 	db := newAuthTestDB(t)
 	userService := services.NewUserService(db)

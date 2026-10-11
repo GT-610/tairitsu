@@ -77,47 +77,37 @@ func AuthMiddleware(sessionService *services.SessionService, userService *servic
 
 		if sessionService == nil || userService == nil {
 			logger.Error("authentication is unavailable because required services are missing")
-			return c.Status(fiber.StatusServiceUnavailable).JSON(ErrorResponse{
-				Error:     "Service Unavailable",
-				Message:   "Authentication service is unavailable",
-				ErrorCode: "system.auth_unavailable",
-				Code:      fiber.StatusServiceUnavailable,
-			})
+			return authUnavailable(c, "system.auth_unavailable", "Authentication service is unavailable")
 		}
 
 		session, err := sessionService.ResolveSession(credential)
 		if err != nil {
-			if errors.Is(err, services.ErrUserDBUnavailable) {
-				logger.Error("authentication failed because the user database is unavailable", zap.Error(err))
-				return c.Status(fiber.StatusServiceUnavailable).JSON(ErrorResponse{
-					Error:     "Service Unavailable",
-					Message:   "Authentication service is unavailable",
-					ErrorCode: "user.db_unavailable",
-					Code:      fiber.StatusServiceUnavailable,
-				})
+			switch {
+			case errors.Is(err, services.ErrSessionNotFound),
+				errors.Is(err, services.ErrSessionRevoked),
+				errors.Is(err, services.ErrSessionExpired):
+				// The credential itself is spent, so dropping it is correct.
+				return unauthorized(c, "auth.invalid_token", "Invalid or expired session")
+			default:
+				// The lookup failed for another reason (database unreachable,
+				// transient read error). The credential may still be valid, so
+				// fail closed without discarding it; clearing the cookie here
+				// would sign the user out over a passing fault.
+				logger.Error("authentication failed while resolving the session", zap.Error(err))
+				return authUnavailable(c, "user.db_unavailable", "Authentication is temporarily unavailable")
 			}
-			return unauthorized(c, "auth.invalid_token", "Invalid or expired session")
 		}
 
 		user, err := userService.GetUserByID(session.UserID)
 		if err != nil {
-			if services.IsUserDBUnavailable(err) {
-				logger.Error("authentication failed because the user database is unavailable", zap.Error(err))
-				return c.Status(fiber.StatusServiceUnavailable).JSON(ErrorResponse{
-					Error:     "Service Unavailable",
-					Message:   "Authentication service is unavailable",
-					ErrorCode: "user.db_unavailable",
-					Code:      fiber.StatusServiceUnavailable,
-				})
+			if errors.Is(err, services.ErrUserNotFound) {
+				// The session outlived its user. Clearing the cookie stops the
+				// browser replaying a credential that can never succeed.
+				return unauthorized(c, "auth.invalid_token", "Invalid or expired session")
 			}
-			return unauthorized(c, "auth.invalid_token", "Invalid or expired session")
+			logger.Error("authentication failed while loading the session user", zap.Error(err))
+			return authUnavailable(c, "user.db_unavailable", "Authentication is temporarily unavailable")
 		}
-		if user == nil {
-			// The session outlived its user. Clearing the cookie here stops the
-			// browser from replaying a credential that can never succeed.
-			return unauthorized(c, "auth.invalid_token", "Invalid or expired session")
-		}
-
 		if err := sessionService.TouchSession(session); err != nil {
 			logger.Warn("failed to record session activity", zap.String("session_id", session.ID), zap.Error(err))
 		}
@@ -138,6 +128,18 @@ func unauthorized(c fiber.Ctx, code string, message string) error {
 		Message:   message,
 		ErrorCode: code,
 		Code:      fiber.StatusUnauthorized,
+	})
+}
+
+// authUnavailable reports that authentication could not be completed. It
+// deliberately leaves the session cookie in place: the credential was not
+// proven invalid, so the client should retry once the fault passes.
+func authUnavailable(c fiber.Ctx, code string, message string) error {
+	return c.Status(fiber.StatusServiceUnavailable).JSON(ErrorResponse{
+		Error:     "Service Unavailable",
+		Message:   message,
+		ErrorCode: code,
+		Code:      fiber.StatusServiceUnavailable,
 	})
 }
 
