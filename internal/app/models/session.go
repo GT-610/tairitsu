@@ -14,6 +14,12 @@ type Session struct {
 	RevokedAt  *time.Time `json:"revoked_at"`
 	CreatedAt  time.Time  `json:"created_at"`
 	UpdatedAt  time.Time  `json:"updated_at"`
+	// TokenHash is the SHA-256 hash of the session credential held by the
+	// browser. The credential itself is never stored, so read access to the
+	// database yields no usable session. It is nullable because sessions
+	// written before session cookies existed have no credential; those rows
+	// cannot be authenticated and are deleted on startup.
+	TokenHash *string `json:"-" gorm:"index"`
 }
 
 // TableName returns the database table name for Session.

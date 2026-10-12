@@ -380,29 +380,18 @@ export interface GenerateSigningKeysResponse {
   current_key_path: string;
 }
 
-// Create axios instance
+// Create axios instance.
+// The session cookie is HttpOnly and scoped to this origin, so it is sent
+// automatically as long as credentials are enabled. No Authorization header is
+// constructed here, and the credential is never visible to this code.
 const api = axios.create({
   baseURL: '/api',
   timeout: 10000,
+  withCredentials: true,
   headers: {
     'Content-Type': 'application/json'
   }
 })
-
-// Request interceptor
-api.interceptors.request.use(
-  config => {
-    // Prioritize getting token from localStorage, if not present then from sessionStorage
-    const token = localStorage.getItem('token') || sessionStorage.getItem('token')
-    if (token) {
-      config.headers['Authorization'] = `Bearer ${token}`
-    }
-    return config
-  },
-  error => {
-    return Promise.reject(toError(error))
-  }
-)
 
 // Response interceptor
 api.interceptors.response.use(
@@ -418,8 +407,9 @@ api.interceptors.response.use(
 export const authAPI = {
   // User registration
   register: (data: { username: string; password: string }) => api.post<RegisterResponse>('/auth/register', data),
-  // User login
-  login: (data: { username: string; password: string; remember_me?: boolean }) => api.post<{ user: User; token: string; session: UserSession }>('/auth/login', data),
+  // User login. The session credential is delivered as an HttpOnly cookie, so
+  // the response carries only the user and session metadata.
+  login: (data: { username: string; password: string; remember_me?: boolean }) => api.post<{ user: User; session: UserSession }>('/auth/login', data),
   // Logout current session
   logout: () => api.post<{ message: string }>('/auth/logout'),
   // Get user profile

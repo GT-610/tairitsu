@@ -116,6 +116,19 @@ func (g *GormDB) GetSessionByID(id string) (*models.Session, error) {
 	return &session, nil
 }
 
+// GetSessionByTokenHash retrieves a session by the hash of its credential.
+func (g *GormDB) GetSessionByTokenHash(tokenHash string) (*models.Session, error) {
+	var session models.Session
+	result := g.db.First(&session, "token_hash = ?", tokenHash)
+	if result.Error != nil {
+		if result.Error == gorm.ErrRecordNotFound {
+			return nil, nil
+		}
+		return nil, result.Error
+	}
+	return &session, nil
+}
+
 // GetSessionsByUserID retrieves all sessions for a user
 func (g *GormDB) GetSessionsByUserID(userID string) ([]*models.Session, error) {
 	var sessions []*models.Session
@@ -135,6 +148,14 @@ func (g *GormDB) UpdateSession(session *models.Session) error {
 func (g *GormDB) DeleteExpiredSessions(before time.Time) error {
 	result := g.db.Where("(revoked_at IS NOT NULL AND revoked_at < ?) OR (expires_at < ?)", before, before).Delete(&models.Session{})
 	return result.Error
+}
+
+// DeleteSessionsWithoutCredential removes session rows that carry no session
+// credential. They predate cookie sessions, so they can never authenticate a
+// request and would otherwise linger in the session list.
+func (g *GormDB) DeleteSessionsWithoutCredential() (int64, error) {
+	result := g.db.Where("token_hash IS NULL").Delete(&models.Session{})
+	return result.RowsAffected, result.Error
 }
 
 // HasAdminUser checks whether an admin user already exists

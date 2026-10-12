@@ -14,7 +14,6 @@ type Services struct {
 	Network *services.NetworkService
 	User    *services.UserService
 	Session *services.SessionService
-	JWT     *services.JWTService
 	State   *services.StateService
 	Runtime *services.RuntimeService
 	Setup   *services.SetupService
@@ -55,13 +54,8 @@ func NewDependencies(cfg *config.Config, db database.DBInterface, ztClient *zero
 	runtimeService := services.NewRuntimeService(userService, sessionService, networkService, stateService)
 	setupService := services.NewSetupService(runtimeService, stateService, userService, networkService)
 	systemService := services.NewSystemService()
-	jwtSecret := ""
-	if cfg != nil && cfg.Security.JWTSecret != "" {
-		jwtSecret = cfg.Security.JWTSecret
-	}
-	jwtService := services.NewJWTService(jwtSecret)
 
-	authHandler := handlers.NewAuthHandler(userService, sessionService, jwtService, runtimeService, stateService)
+	authHandler := handlers.NewAuthHandler(userService, sessionService, runtimeService, stateService)
 
 	return &Dependencies{
 		Config:   cfg,
@@ -71,7 +65,6 @@ func NewDependencies(cfg *config.Config, db database.DBInterface, ztClient *zero
 			Network: networkService,
 			User:    userService,
 			Session: sessionService,
-			JWT:     jwtService,
 			State:   stateService,
 			Runtime: runtimeService,
 			Setup:   setupService,
@@ -85,7 +78,7 @@ func NewDependencies(cfg *config.Config, db database.DBInterface, ztClient *zero
 			System:  handlers.NewSystemHandler(setupService, systemService),
 		},
 		Middleware: Middleware{
-			Auth:        middleware.AuthMiddleware(jwtService, sessionService),
+			Auth:        middleware.AuthMiddleware(sessionService, userService),
 			SetupOnly:   middleware.SetupOnlyWithState(stateService),
 			RuntimeOnly: middleware.InitializedOnlyWithState(stateService),
 			AdminOnly:   middleware.AdminRequiredWithUserService(userService),

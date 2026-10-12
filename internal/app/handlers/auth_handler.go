@@ -5,27 +5,30 @@ import (
 	"time"
 
 	"github.com/GT-610/tairitsu/internal/app/logger"
+	"github.com/GT-610/tairitsu/internal/app/middleware"
 	"github.com/GT-610/tairitsu/internal/app/models"
 	"github.com/GT-610/tairitsu/internal/app/services"
 	"github.com/gofiber/fiber/v3"
 	"go.uber.org/zap"
 )
 
+// sessionLifetime is how long a login stays valid before the user must sign in
+// again. The browser cookie and the server-side session share this deadline.
+const sessionLifetime = 24 * time.Hour
+
 // AuthHandler handles authentication related requests
 type AuthHandler struct {
 	userService    *services.UserService
 	sessionService *services.SessionService
-	jwtService     *services.JWTService
 	runtimeService *services.RuntimeService
 	stateService   *services.StateService
 }
 
 // NewAuthHandler creates a new instance of AuthHandler
-func NewAuthHandler(userService *services.UserService, sessionService *services.SessionService, jwtService *services.JWTService, runtimeService *services.RuntimeService, stateService *services.StateService) *AuthHandler {
+func NewAuthHandler(userService *services.UserService, sessionService *services.SessionService, runtimeService *services.RuntimeService, stateService *services.StateService) *AuthHandler {
 	return &AuthHandler{
 		userService:    userService,
 		sessionService: sessionService,
-		jwtService:     jwtService,
 		runtimeService: runtimeService,
 		stateService:   stateService,
 	}
@@ -99,29 +102,24 @@ func (h *AuthHandler) Login(c fiber.Ctx) error {
 
 	logger.Info("User logged in successfully", zap.String("user_id", user.ID), zap.String("username", user.Username))
 
-	session, err := h.sessionService.CreateSession(services.SessionCreateInput{
+	expiresAt := time.Now().Add(sessionLifetime)
+	session, credential, err := h.sessionService.CreateSession(services.SessionCreateInput{
 		UserID:     user.ID,
 		UserAgent:  c.Get("User-Agent"),
 		IPAddress:  strings.Clone(c.IP()),
 		RememberMe: req.RememberMe,
-		ExpiresAt:  time.Now().Add(h.jwtService.AccessExpiry()),
+		ExpiresAt:  expiresAt,
 	})
 	if err != nil {
 		logger.Error("Failed to create login session", zap.String("user_id", user.ID), zap.Error(err))
 		return writeUserServiceError(c, err)
 	}
 
-	// Generate JWT token for authenticated user
-	token, err := h.jwtService.GenerateToken(user, session.ID)
-	if err != nil {
-		logger.Error("Failed to generate JWT token", zap.String("user_id", user.ID), zap.Error(err))
-		return writeErrorResponseWithCode(c, fiber.StatusInternalServerError, "auth.token_generation_failed", "Failed to generate token")
-	}
-
-	logger.Info("JWT token generated successfully", zap.String("user_id", user.ID))
+	// The credential lives only in an HttpOnly cookie, so it is never exposed
+	// to frontend JavaScript and is not part of the response body.
+	c.Cookie(middleware.SessionCookie(credential, expiresAt, req.RememberMe, middleware.IsSecureRequest(c)))
 
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
-		"token":   token,
 		"user":    user.ToResponse(),
 		"session": session.ToResponse(true),
 	})
@@ -235,6 +233,10 @@ func (h *AuthHandler) Logout(c fiber.Ctx) error {
 		logger.Error("Logout failed", zap.String("user_id", userID), zap.String("session_id", sessionID), zap.Error(err))
 		return writeUserServiceError(c, err)
 	}
+
+	// Drop the credential even though the server-side session is already gone,
+	// so the browser stops sending a dead cookie.
+	c.Cookie(middleware.ExpiredSessionCookie(middleware.IsSecureRequest(c)))
 
 	return writeMessageResponse(c, fiber.StatusOK, "auth.logout_success", "Current session signed out", nil)
 }

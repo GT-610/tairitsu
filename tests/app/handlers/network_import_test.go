@@ -51,31 +51,18 @@ func TestNetworkHandler_ImportConsoleAndImportResponseShape(t *testing.T) {
 
 	networkService := services.NewNetworkService(ztClient, db)
 	userService := services.NewUserService(db)
-	jwtService := services.NewJWTService("test-secret")
 	sessionService := services.NewSessionService(db)
 	networkHandler := apphandlers.NewNetworkHandler(networkService)
 
-	adminSession, err := sessionService.CreateSession(services.SessionCreateInput{
-		UserID:     "admin-1",
-		UserAgent:  "admin-browser",
-		IPAddress:  "127.0.0.1",
-		RememberMe: true,
-		ExpiresAt:  time.Now().Add(time.Hour),
-	})
-	require.NoError(t, err)
-
-	admin, err := userService.GetUserByID("admin-1")
-	require.NoError(t, err)
-	adminToken, err := jwtService.GenerateToken(admin, adminSession.ID)
-	require.NoError(t, err)
+	_, adminCredential := newTestSession(t, sessionService, "admin-1", "admin-browser", "127.0.0.1")
 
 	app := fiber.New()
-	app.Use(middleware.AuthMiddleware(jwtService, sessionService))
+	app.Use(middleware.AuthMiddleware(sessionService, userService))
 	app.Get("/admin/networks/importable", middleware.AdminRequiredWithUserService(userService), networkHandler.GetImportableNetworks)
 	app.Post("/admin/networks/import", middleware.AdminRequiredWithUserService(userService), networkHandler.ImportNetworks)
 
 	getReq := httptest.NewRequest(http.MethodGet, "/admin/networks/importable", nil)
-	getReq.Header.Set("Authorization", "Bearer "+adminToken)
+	authenticateRequest(getReq, adminCredential)
 	getResp, err := app.Test(getReq)
 	require.NoError(t, err)
 	assert.Equal(t, fiber.StatusOK, getResp.StatusCode)
@@ -89,7 +76,7 @@ func TestNetworkHandler_ImportConsoleAndImportResponseShape(t *testing.T) {
 	assert.True(t, importableBody.Candidates[0].CanImport)
 
 	postReq := httptest.NewRequest(http.MethodPost, "/admin/networks/import", bytes.NewBufferString(`{"network_ids":["8056c2e21c000001"],"owner_id":"user-1"}`))
-	postReq.Header.Set("Authorization", "Bearer "+adminToken)
+	authenticateRequest(postReq, adminCredential)
 	postReq.Header.Set("Content-Type", "application/json")
 	postResp, err := app.Test(postReq)
 	require.NoError(t, err)

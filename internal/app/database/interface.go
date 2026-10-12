@@ -24,9 +24,11 @@ type DBInterface interface {
 	DeleteUser(id string) error
 	CreateSession(session *models.Session) error
 	GetSessionByID(id string) (*models.Session, error)
+	GetSessionByTokenHash(tokenHash string) (*models.Session, error)
 	GetSessionsByUserID(userID string) ([]*models.Session, error)
 	UpdateSession(session *models.Session) error
 	DeleteExpiredSessions(before time.Time) error
+	DeleteSessionsWithoutCredential() (int64, error)
 
 	// Network operations
 	CreateNetwork(network *models.Network) error

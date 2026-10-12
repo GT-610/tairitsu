@@ -2,6 +2,9 @@ package services
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
 	"fmt"
 	"sync"
 	"time"
@@ -15,6 +18,10 @@ import (
 
 const sessionTouchInterval = 5 * time.Minute
 
+// sessionCredentialBytes is the entropy of the credential stored in the
+// browser's session cookie.
+const sessionCredentialBytes = 32
+
 type SessionCreateInput struct {
 	UserID     string
 	UserAgent  string
@@ -23,6 +30,9 @@ type SessionCreateInput struct {
 	ExpiresAt  time.Time
 }
 
+// SessionService manages server-side sessions and the credentials that map to
+// them. Credentials are returned to the caller exactly once, at creation; only
+// their hash is persisted.
 type SessionService struct {
 	db    database.DBInterface
 	mutex sync.RWMutex
@@ -44,11 +54,26 @@ func (s *SessionService) getDB() database.DBInterface {
 	return s.db
 }
 
-func (s *SessionService) CreateSession(input SessionCreateInput) (*models.Session, error) {
+// hashSessionCredential derives the stored lookup value for a credential.
+func hashSessionCredential(credential string) string {
+	sum := sha256.Sum256([]byte(credential))
+	return base64.RawURLEncoding.EncodeToString(sum[:])
+}
+
+// CreateSession starts a session and returns it along with the credential the
+// browser must present. The credential is not recoverable afterwards.
+func (s *SessionService) CreateSession(input SessionCreateInput) (*models.Session, string, error) {
 	db := s.getDB()
 	if db == nil {
-		return nil, ErrUserDBUnavailable
+		return nil, "", ErrUserDBUnavailable
 	}
+
+	rawCredential := make([]byte, sessionCredentialBytes)
+	if _, err := rand.Read(rawCredential); err != nil {
+		return nil, "", fmt.Errorf("failed to generate session credential: %w", err)
+	}
+	credential := base64.RawURLEncoding.EncodeToString(rawCredential)
+	tokenHash := hashSessionCredential(credential)
 
 	now := time.Now()
 	session := &models.Session{
@@ -61,10 +86,41 @@ func (s *SessionService) CreateSession(input SessionCreateInput) (*models.Sessio
 		ExpiresAt:  input.ExpiresAt,
 		CreatedAt:  now,
 		UpdatedAt:  now,
+		TokenHash:  &tokenHash,
 	}
 
 	if err := db.CreateSession(session); err != nil {
-		return nil, fmt.Errorf("failed to create session: %w", err)
+		return nil, "", fmt.Errorf("failed to create session: %w", err)
+	}
+
+	return session, credential, nil
+}
+
+// ResolveSession looks up the session bound to a browser credential and
+// verifies it is still usable. An unknown, revoked, or expired credential
+// yields an error so the caller can reject the request.
+func (s *SessionService) ResolveSession(credential string) (*models.Session, error) {
+	if credential == "" {
+		return nil, ErrSessionNotFound
+	}
+
+	db := s.getDB()
+	if db == nil {
+		return nil, ErrUserDBUnavailable
+	}
+
+	session, err := db.GetSessionByTokenHash(hashSessionCredential(credential))
+	if err != nil {
+		return nil, fmt.Errorf("failed to read session: %w", err)
+	}
+	if session == nil {
+		return nil, ErrSessionNotFound
+	}
+	if session.RevokedAt != nil {
+		return nil, ErrSessionRevoked
+	}
+	if time.Now().After(session.ExpiresAt) {
+		return nil, ErrSessionExpired
 	}
 
 	return session, nil
@@ -99,24 +155,6 @@ func (s *SessionService) GetUserSessions(userID string) ([]*models.Session, erro
 	}
 
 	return sessions, nil
-}
-
-func (s *SessionService) ValidateSession(userID, sessionID string) (*models.Session, error) {
-	session, err := s.GetSessionByID(sessionID)
-	if err != nil {
-		return nil, err
-	}
-	if session.UserID != userID {
-		return nil, ErrSessionAccessDenied
-	}
-	if session.RevokedAt != nil {
-		return nil, ErrSessionRevoked
-	}
-	if time.Now().After(session.ExpiresAt) {
-		return nil, ErrSessionExpired
-	}
-
-	return session, nil
 }
 
 func (s *SessionService) TouchSession(session *models.Session) error {
@@ -186,6 +224,25 @@ func (s *SessionService) RevokeOtherSessions(userID, currentSessionID string) (i
 	}
 
 	return count, nil
+}
+
+// PurgeUnusableSessions removes session rows that cannot authenticate anything
+// because they carry no session credential. They are leftovers from the
+// bearer-token era and would otherwise be listed as active sessions.
+func (s *SessionService) PurgeUnusableSessions() {
+	db := s.getDB()
+	if db == nil {
+		return
+	}
+
+	removed, err := db.DeleteSessionsWithoutCredential()
+	if err != nil {
+		logger.Warn("failed to purge sessions without credentials", zap.Error(err))
+		return
+	}
+	if removed > 0 {
+		logger.Info("removed sessions that carried no credential", zap.Int64("count", removed))
+	}
 }
 
 func (s *SessionService) StartCleanup(ctx context.Context) <-chan struct{} {

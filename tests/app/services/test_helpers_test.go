@@ -89,6 +89,10 @@ func (s *stateServiceDBStub) GetSharedNetworksByUserID(userID string) ([]*models
 func (s *stateServiceDBStub) DeleteNetworkViewer(networkID, userID string) error { return nil }
 func (s *stateServiceDBStub) DeleteAllNetworkViewers(networkID string) error    { return nil }
 func (s *stateServiceDBStub) DeleteExpiredSessions(before time.Time) error      { return nil }
+func (s *stateServiceDBStub) DeleteSessionsWithoutCredential() (int64, error)   { return 0, nil }
+func (s *stateServiceDBStub) GetSessionByTokenHash(tokenHash string) (*models.Session, error) {
+	return nil, nil
+}
 func (s *stateServiceDBStub) HasAdminUser() (bool, error) {
 	for _, user := range s.users {
 		if user.Role == "admin" {

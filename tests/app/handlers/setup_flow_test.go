@@ -53,7 +53,7 @@ func TestSetupFlow_ResetDatabaseThenRegisterAdmin(t *testing.T) {
 	runtimeService := services.NewRuntimeService(userService, sessionService, networkService, stateService)
 	setupService := services.NewSetupService(runtimeService, stateService, userService, networkService)
 	systemHandler := apphandlers.NewSystemHandler(setupService, services.NewSystemService())
-	authHandler := apphandlers.NewAuthHandler(userService, sessionService, services.NewJWTService("test-secret"), runtimeService, stateService)
+	authHandler := apphandlers.NewAuthHandler(userService, sessionService, runtimeService, stateService)
 
 	app := fiber.New()
 	app.Post("/system/admin/init", systemHandler.InitializeAdminCreation)

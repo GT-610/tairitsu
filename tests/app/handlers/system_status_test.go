@@ -100,6 +100,10 @@ func (s *handlerStateDBStub) GetSharedNetworksByUserID(userID string) ([]*models
 func (s *handlerStateDBStub) DeleteNetworkViewer(networkID, userID string) error { return nil }
 func (s *handlerStateDBStub) DeleteAllNetworkViewers(networkID string) error    { return nil }
 func (s *handlerStateDBStub) DeleteExpiredSessions(before time.Time) error      { return nil }
+func (s *handlerStateDBStub) DeleteSessionsWithoutCredential() (int64, error)   { return 0, nil }
+func (s *handlerStateDBStub) GetSessionByTokenHash(tokenHash string) (*models.Session, error) {
+	return nil, nil
+}
 func (s *handlerStateDBStub) HasAdminUser() (bool, error) {
 	for _, user := range s.users {
 		if user.Role == "admin" {

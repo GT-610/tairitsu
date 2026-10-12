@@ -1,7 +1,8 @@
 package middleware
 
 import (
-	"strings"
+	"errors"
+	"time"
 
 	"github.com/GT-610/tairitsu/internal/app/logger"
 	"github.com/GT-610/tairitsu/internal/app/services"
@@ -9,63 +10,137 @@ import (
 	"go.uber.org/zap"
 )
 
-// AuthMiddleware is the authentication middleware
-func AuthMiddleware(jwtService *services.JWTService, sessionService *services.SessionService) fiber.Handler {
+// SessionCookieName is the cookie that carries the opaque session credential.
+// It is HttpOnly, so frontend code cannot read it and a script injection cannot
+// exfiltrate it.
+const SessionCookieName = "tairitsu_session"
+
+// sessionCookiePath scopes the cookie to the whole application. The frontend is
+// served from the same origin as the API, so a narrower path is unnecessary.
+const sessionCookiePath = "/"
+
+// SessionCookie builds the cookie for a freshly issued session credential.
+// persistent controls whether the cookie survives a browser restart, matching
+// the login form's "remember me" choice. The server-side session expiry is
+// authoritative either way.
+func SessionCookie(credential string, expiresAt time.Time, persistent bool, secure bool) *fiber.Cookie {
+	cookie := &fiber.Cookie{
+		Name:     SessionCookieName,
+		Value:    credential,
+		Path:     sessionCookiePath,
+		HTTPOnly: true,
+		Secure:   secure,
+		SameSite: fiber.CookieSameSiteLaxMode,
+	}
+
+	if persistent {
+		cookie.Expires = expiresAt
+		if remaining := int(time.Until(expiresAt).Seconds()); remaining > 0 {
+			cookie.MaxAge = remaining
+		}
+	} else {
+		cookie.SessionOnly = true
+	}
+
+	return cookie
+}
+
+// ExpiredSessionCookie clears the session cookie on the client.
+func ExpiredSessionCookie(secure bool) *fiber.Cookie {
+	return &fiber.Cookie{
+		Name:     SessionCookieName,
+		Value:    "",
+		Path:     sessionCookiePath,
+		HTTPOnly: true,
+		Secure:   secure,
+		SameSite: fiber.CookieSameSiteLaxMode,
+		Expires:  time.Unix(1, 0),
+		MaxAge:   -1,
+	}
+}
+
+// IsSecureRequest reports whether the browser reached the server over HTTPS.
+// TLS is commonly terminated by a reverse proxy, so the forwarded scheme counts.
+func IsSecureRequest(c fiber.Ctx) bool {
+	return c.Secure() || c.Protocol() == "https"
+}
+
+// AuthMiddleware authenticates a request from its session cookie and loads the
+// owning user, so handlers work from a verified identity instead of trusting
+// client-supplied claims.
+func AuthMiddleware(sessionService *services.SessionService, userService *services.UserService) fiber.Handler {
 	return func(c fiber.Ctx) error {
-		// Extract the token from the request header
-		authHeader := c.Get("Authorization")
-		if authHeader == "" {
-			return c.Status(fiber.StatusUnauthorized).JSON(ErrorResponse{
-				Error:     "Unauthorized",
-				Message:   "Missing authentication token",
-				ErrorCode: "auth.missing_token",
-				Code:      fiber.StatusUnauthorized,
-			})
+		credential := c.Cookies(SessionCookieName)
+		if credential == "" {
+			return unauthorized(c, "auth.missing_token", "Authentication required")
 		}
 
-		// Check for Bearer prefix
-		parts := strings.SplitN(authHeader, " ", 2)
-		if !(len(parts) == 2 && parts[0] == "Bearer") {
-			return c.Status(fiber.StatusUnauthorized).JSON(ErrorResponse{
-				Error:     "Unauthorized",
-				Message:   "Invalid authentication format",
-				ErrorCode: "auth.invalid_format",
-				Code:      fiber.StatusUnauthorized,
-			})
+		if sessionService == nil || userService == nil {
+			logger.Error("authentication is unavailable because required services are missing")
+			return authUnavailable(c, "system.auth_unavailable", "Authentication service is unavailable")
 		}
 
-		// Validate the token
-		claims, err := jwtService.ValidateToken(parts[1])
+		session, err := sessionService.ResolveSession(credential)
 		if err != nil {
-			return c.Status(fiber.StatusUnauthorized).JSON(ErrorResponse{
-				Error:     "Unauthorized",
-				Message:   "Invalid authentication token",
-				ErrorCode: "auth.invalid_token",
-				Code:      fiber.StatusUnauthorized,
-			})
-		}
-
-		// Store user info in the context
-		if sessionService != nil {
-			session, err := sessionService.ValidateSession(claims.UserID, claims.SessionID)
-			if err != nil {
-				return c.Status(fiber.StatusUnauthorized).JSON(ErrorResponse{
-					Error:     "Unauthorized",
-					Message:   "Invalid authentication token",
-					ErrorCode: "auth.invalid_token",
-					Code:      fiber.StatusUnauthorized,
-				})
+			switch {
+			case errors.Is(err, services.ErrSessionNotFound),
+				errors.Is(err, services.ErrSessionRevoked),
+				errors.Is(err, services.ErrSessionExpired):
+				// The credential itself is spent, so dropping it is correct.
+				return unauthorized(c, "auth.invalid_token", "Invalid or expired session")
+			default:
+				// The lookup failed for another reason (database unreachable,
+				// transient read error). The credential may still be valid, so
+				// fail closed without discarding it; clearing the cookie here
+				// would sign the user out over a passing fault.
+				logger.Error("authentication failed while resolving the session", zap.Error(err))
+				return authUnavailable(c, "user.db_unavailable", "Authentication is temporarily unavailable")
 			}
-			_ = sessionService.TouchSession(session)
-			c.Locals("session_id", claims.SessionID)
 		}
 
-		c.Locals("user_id", claims.UserID)
-		c.Locals("username", claims.Username)
-		c.Locals("role", claims.Role)
+		user, err := userService.GetUserByID(session.UserID)
+		if err != nil {
+			if errors.Is(err, services.ErrUserNotFound) {
+				// The session outlived its user. Clearing the cookie stops the
+				// browser replaying a credential that can never succeed.
+				return unauthorized(c, "auth.invalid_token", "Invalid or expired session")
+			}
+			logger.Error("authentication failed while loading the session user", zap.Error(err))
+			return authUnavailable(c, "user.db_unavailable", "Authentication is temporarily unavailable")
+		}
+		if err := sessionService.TouchSession(session); err != nil {
+			logger.Warn("failed to record session activity", zap.String("session_id", session.ID), zap.Error(err))
+		}
+
+		c.Locals("user_id", user.ID)
+		c.Locals("username", user.Username)
+		c.Locals("role", user.Role)
+		c.Locals("session_id", session.ID)
 
 		return c.Next()
 	}
+}
+
+func unauthorized(c fiber.Ctx, code string, message string) error {
+	c.Cookie(ExpiredSessionCookie(IsSecureRequest(c)))
+	return c.Status(fiber.StatusUnauthorized).JSON(ErrorResponse{
+		Error:     "Unauthorized",
+		Message:   message,
+		ErrorCode: code,
+		Code:      fiber.StatusUnauthorized,
+	})
+}
+
+// authUnavailable reports that authentication could not be completed. It
+// deliberately leaves the session cookie in place: the credential was not
+// proven invalid, so the client should retry once the fault passes.
+func authUnavailable(c fiber.Ctx, code string, message string) error {
+	return c.Status(fiber.StatusServiceUnavailable).JSON(ErrorResponse{
+		Error:     "Service Unavailable",
+		Message:   message,
+		ErrorCode: code,
+		Code:      fiber.StatusServiceUnavailable,
+	})
 }
 
 // AdminRequiredWithUserService is the admin authorization middleware.

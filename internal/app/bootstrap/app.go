@@ -51,6 +51,7 @@ func Build() (*App, error) {
 	}
 
 	app.Dependencies = assembly.NewDependencies(app.Config, app.Database, app.ZTClient)
+	app.Dependencies.Services.Session.PurgeUnusableSessions()
 	app.Router = newHTTPApp()
 	routes.SetupRoutes(app.Router, app.Dependencies)
 
@@ -82,7 +83,7 @@ func (a *App) Listen() error {
 		return fmt.Errorf("router is not initialized")
 	}
 
-	serverAddr := config.ServerAddressFrom(a.Config)
+	serverAddr := config.ServerAddress()
 	logger.Info("starting HTTP server", zap.String("address", serverAddr))
 
 	errCh := make(chan error, 1)

@@ -29,8 +29,7 @@ func TestAuthHandler_ChangePasswordRevokesOtherSessionsWhenRequested(t *testing.
 
 	userService := services.NewUserService(db)
 	sessionService := services.NewSessionService(db)
-	jwtService := services.NewJWTService("test-secret")
-	authHandler := apphandlers.NewAuthHandler(userService, sessionService, jwtService, nil, nil)
+	authHandler := apphandlers.NewAuthHandler(userService, sessionService, nil, nil)
 
 	user, err := userService.Register(&models.RegisterRequest{
 		Username: "alice",
@@ -38,28 +37,11 @@ func TestAuthHandler_ChangePasswordRevokesOtherSessionsWhenRequested(t *testing.
 	}, "user")
 	require.NoError(t, err)
 
-	currentSession, err := sessionService.CreateSession(services.SessionCreateInput{
-		UserID:     user.ID,
-		UserAgent:  "current-browser",
-		IPAddress:  "127.0.0.1",
-		RememberMe: true,
-		ExpiresAt:  time.Now().Add(time.Hour),
-	})
-	require.NoError(t, err)
-	otherSession, err := sessionService.CreateSession(services.SessionCreateInput{
-		UserID:     user.ID,
-		UserAgent:  "other-browser",
-		IPAddress:  "127.0.0.2",
-		RememberMe: false,
-		ExpiresAt:  time.Now().Add(time.Hour),
-	})
-	require.NoError(t, err)
-
-	token, err := jwtService.GenerateToken(user, currentSession.ID)
-	require.NoError(t, err)
+	_, credential := newTestSession(t, sessionService, user.ID, "current-browser", "127.0.0.1")
+	otherSession, _ := newTestSession(t, sessionService, user.ID, "other-browser", "127.0.0.2")
 
 	app := fiber.New()
-	app.Use(middleware.AuthMiddleware(jwtService, sessionService))
+	app.Use(middleware.AuthMiddleware(sessionService, userService))
 	app.Put("/profile/password", authHandler.ChangePassword)
 
 	body, err := json.Marshal(map[string]any{
@@ -72,7 +54,7 @@ func TestAuthHandler_ChangePasswordRevokesOtherSessionsWhenRequested(t *testing.
 
 	req := httptest.NewRequest(http.MethodPut, "/profile/password", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+token)
+	authenticateRequest(req, credential)
 	resp, err := app.Test(req, fiber.TestConfig{
 		Timeout:       10 * time.Second,
 		FailOnTimeout: true,
@@ -91,11 +73,12 @@ func TestAuthHandler_ChangePasswordRevokesOtherSessionsWhenRequested(t *testing.
 	assert.Equal(t, "auth.password_updated", responseBody.MessageCode)
 	assert.Equal(t, 1, responseBody.RevokedOtherSessions)
 
-	_, err = sessionService.ValidateSession(user.ID, currentSession.ID)
+	_, err = sessionService.ResolveSession(credential)
 	require.NoError(t, err)
 
-	_, err = sessionService.ValidateSession(user.ID, otherSession.ID)
-	assert.ErrorIs(t, err, services.ErrSessionRevoked)
+	revoked, err := sessionService.GetSessionByID(otherSession.ID)
+	require.NoError(t, err)
+	assert.NotNil(t, revoked.RevokedAt, "the other session must be revoked")
 
 	updatedUser, err := userService.Login(&models.LoginRequest{
 		Username: "alice",
