@@ -1,0 +1,69 @@
+name: Test
+
+# The console and the API are version-locked and ship as one binary, so a
+# backend whose tests fail or a frontend that no longer builds produces a broken
+# release even though the image itself would build. This is the gate the publish
+# workflow runs before it pushes anything.
+on:
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: Backend
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6.0.1
+
+      - name: Set up Go
+        uses: actions/setup-go@v6.5.0
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      # The SQLite driver needs CGO, so the toolchain must be able to link.
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends gcc libc6-dev
+
+      - name: Vet
+        run: go vet ./...
+
+      # A checkout without a frontend build still compiles and passes tests, so
+      # this covers the Go half of the release before the bundle exists.
+      - name: Test
+        run: go test ./...
+
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6.0.1
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2.2.0
+        with:
+          bun-version: 1.4.3
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Lint
+        run: bun run lint
+
+      - name: Test
+        run: bun test
+
+      # Building here proves the bundle still compiles, which is what the release
+      # image embeds. Without it a release can ship the build-instructions page.
+      - name: Build
+        run: bun run build

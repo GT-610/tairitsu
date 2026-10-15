@@ -16,7 +16,13 @@ env:
 
 
 jobs:
+  # The image embeds the frontend bundle and depends on a backend that passes
+  # its own tests, so nothing is built or pushed until both halves are green.
+  test:
+    uses: ./.github/workflows/test.yml
+
   build:
+    needs: test
 
     runs-on: ubuntu-latest
     permissions:
