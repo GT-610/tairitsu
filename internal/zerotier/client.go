@@ -89,18 +89,17 @@ func (n *Network) UnmarshalJSON(data []byte) error {
 
 // NetworkUpdateRequest is a partial network update request (no required fields).
 type NetworkUpdateRequest struct {
-	Name                 string             `json:"name,omitempty"`
-	Description          string             `json:"description,omitempty"`
-	Private              bool               `json:"private"`
-	AllowPassiveBridging *bool              `json:"allowPassiveBridging,omitempty"`
-	EnableBroadcast      bool               `json:"enableBroadcast"`
-	Mtu                  *int               `json:"mtu,omitempty"`
-	MulticastLimit       *int               `json:"multicastLimit,omitempty"`
-	IpAssignmentPools    []IpAssignmentPool `json:"ipAssignmentPools,omitempty"`
-	Routes               []Route            `json:"routes,omitempty"`
-	DNS                  *DNSConfig         `json:"dns,omitempty"`
-	V4AssignMode         *AssignmentMode    `json:"v4AssignMode,omitempty"`
-	V6AssignMode         *V6AssignmentMode  `json:"v6AssignMode,omitempty"`
+	Name              string             `json:"name,omitempty"`
+	Description       string             `json:"description,omitempty"`
+	Private           bool               `json:"private"`
+	EnableBroadcast   bool               `json:"enableBroadcast"`
+	Mtu               *int               `json:"mtu,omitempty"`
+	MulticastLimit    *int               `json:"multicastLimit,omitempty"`
+	IpAssignmentPools []IpAssignmentPool `json:"ipAssignmentPools,omitempty"`
+	Routes            []Route            `json:"routes,omitempty"`
+	DNS               *DNSConfig         `json:"dns,omitempty"`
+	V4AssignMode      *AssignmentMode    `json:"v4AssignMode,omitempty"`
+	V6AssignMode      *V6AssignmentMode  `json:"v6AssignMode,omitempty"`
 }
 
 // NetworkConfig holds the network configuration fields.
