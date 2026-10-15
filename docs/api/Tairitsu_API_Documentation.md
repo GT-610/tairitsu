@@ -558,12 +558,13 @@ Response:
 - `POST /admin/planet/generate`
 
 Where an endpoint accepts a `path`, it must name a directory inside the
-configured ZeroTier data directory. Paths outside it are rejected.
+directory containing the configured ZeroTier token file. Paths outside it are
+rejected, and `path` defaults to that directory.
 
 ### `GET /admin/planet/identity`
 
-Reads `identity.public` from the ZeroTier data directory. `path` defaults to the
-directory containing the configured ZeroTier token file.
+Reads `identity.public` from the directory selected by `path`, which defaults to
+the directory containing the configured ZeroTier token file.
 
 Success response:
 
@@ -577,8 +578,9 @@ Success response:
 
 ### `GET /admin/planet/signing-keys`
 
-Checks whether `previous.c25519` and `current.c25519` exist in the ZeroTier data
-directory.
+Checks whether `previous.c25519` and `current.c25519` exist in the directory
+selected by `path`, which defaults to the directory containing the configured
+ZeroTier token file.
 
 Success response:
 
@@ -596,7 +598,9 @@ Success response:
 
 ### `POST /admin/planet/keys`
 
-Generates `previous.c25519` and `current.c25519` in the ZeroTier data directory.
+Generates `previous.c25519` and `current.c25519` in the directory selected by
+`path`, which defaults to the directory containing the configured ZeroTier token
+file.
 
 Success response:
 
@@ -637,8 +641,9 @@ Request:
 }
 ```
 
-When supplied, `signing_key_path` must be a directory inside the ZeroTier data
-directory.
+When supplied, `signing_key_path` must name a directory inside the directory
+containing the configured ZeroTier token file. When omitted, a fresh signing key
+pair is generated instead of being read from disk.
 
 Success response:
 
