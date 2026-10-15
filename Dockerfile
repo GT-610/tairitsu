@@ -20,4 +20,10 @@ COPY --from=backend-builder /app/tairitsu /app/tairitsu
 WORKDIR /app
 # The console listens on a fixed port. Map it wherever you like, e.g. -p 8080:3000.
 EXPOSE 3000
+# Readiness is the useful signal: /api/ready answers 503 once a configured
+# database is unreachable, and still answers 200 before first-run setup, when no
+# database is configured yet. BusyBox provides wget, so no extra tooling is
+# needed in the image.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD wget -q -O /dev/null http://127.0.0.1:3000/api/ready || exit 1
 CMD ["/app/tairitsu"]
