@@ -18,6 +18,10 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6.0.1
+        with:
+          # Neither job runs an authenticated Git operation, so the token is not
+          # left behind in the checkout's Git config.
+          persist-credentials: false
 
       - name: Set up Go
         uses: actions/setup-go@v6.5.0
@@ -48,6 +52,10 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6.0.1
+        with:
+          # Neither job runs an authenticated Git operation, so the token is not
+          # left behind in the checkout's Git config.
+          persist-credentials: false
 
       - name: Set up Bun
         uses: oven-sh/setup-bun@v2.2.0
