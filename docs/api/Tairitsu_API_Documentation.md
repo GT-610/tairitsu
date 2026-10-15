@@ -1,6 +1,6 @@
 # Tairitsu Internal HTTP Reference
 
-This document describes how the bundled frontend and the Tairitsu server talk to each other. It is an **internal implementation reference, not a supported public API**: both halves are version-locked, ship in one binary, and change together. Endpoints, payload shapes, and status codes may change in any release without notice or a deprecation period.
+This document lists the endpoints the bundled frontend and the Tairitsu server use to talk to each other. It is an **internal implementation reference, not a supported public API**: both halves are version-locked, ship in one binary, and change together. Endpoints, payload shapes, and status codes may change in any release without notice or a deprecation period.
 
 If you want to automate Tairitsu, treat this document as a reading aid only and expect breakage on upgrade.
 
@@ -14,6 +14,28 @@ If you want to automate Tairitsu, treat this document as a reading aid only and 
 - Runtime/admin access is enforced server-side
 
 ## Setup and System
+
+### `GET /health`
+
+Liveness probe. Checks nothing but the process itself, and requires no
+authentication.
+
+```json
+{
+  "status": "ok"
+}
+```
+
+### `GET /ready`
+
+Readiness probe. Reports `503` when the database cannot be reached. Requires no
+authentication.
+
+```json
+{
+  "status": "ok"
+}
+```
 
 ### `GET /system/status`
 
@@ -49,10 +71,6 @@ Request:
   "path": "data/tairitsu.db"
 }
 ```
-
-### `GET /system/zerotier/test`
-
-Setup-only. Tests controller connectivity.
 
 ### `POST /system/zerotier/config`
 
@@ -107,6 +125,22 @@ Response:
   "settings": {
     "allow_public_registration": true
   }
+}
+```
+
+### `GET /system/stats`
+
+Runtime, admin-only. Returns host resource usage for the dashboard.
+
+```json
+{
+  "cpuUsage": 12.5,
+  "memoryUsage": 43.1,
+  "timestamp": 1770000000000,
+  "osName": "linux",
+  "platform": "ubuntu",
+  "platformVersion": "24.04",
+  "kernelVersion": "6.8.0"
 }
 ```
 
@@ -271,6 +305,28 @@ Example item:
 }
 ```
 
+### `GET /networks/shared`
+
+Returns networks that other users own but have granted the current user
+read-only access to.
+
+Example item:
+
+```json
+{
+  "id": "8056c2e21c000002",
+  "name": "beta",
+  "description": "beta-desc",
+  "owner_id": "owner-uuid",
+  "owner_username": "bob",
+  "member_count": 4,
+  "authorized_member_count": 3,
+  "pending_member_count": 1,
+  "created_at": "2026-04-23T10:00:00Z",
+  "updated_at": "2026-04-23T10:10:00Z"
+}
+```
+
 ### `POST /networks`
 
 Creates a network owned by the current user.
@@ -290,6 +346,44 @@ Updates network name and description.
 ### `DELETE /networks/:id`
 
 Deletes an owned network.
+
+### `GET /networks/:id/viewers`
+
+Returns the users currently granted read-only access to an owned network.
+
+Example item:
+
+```json
+{
+  "id": "user-uuid",
+  "username": "alice",
+  "role": "user",
+  "granted_by": "owner-uuid",
+  "created_at": "2026-04-23T10:00:00Z",
+  "updated_at": "2026-04-23T10:00:00Z"
+}
+```
+
+### `GET /networks/:id/viewers/available`
+
+Returns users eligible to be granted read-only access, using the same item shape
+as `GET /networks/:id/viewers`.
+
+### `POST /networks/:id/viewers`
+
+Grants read-only access to one user.
+
+Request:
+
+```json
+{
+  "user_id": "user-uuid"
+}
+```
+
+### `DELETE /networks/:id/viewers/:userId`
+
+Revokes read-only access from one user.
 
 ### `GET /networks/:id/members`
 
@@ -463,18 +557,13 @@ Response:
 - `POST /admin/planet/keys`
 - `POST /admin/planet/generate`
 
-All caller-supplied Planet filesystem paths are restricted to existing
-directories within the directory containing the configured ZeroTier token
-file. Symlinks are resolved before this containment check. These parameters
-are not arbitrary filesystem locations, and paths that resolve outside the
-configured ZeroTier directory are rejected.
+Where an endpoint accepts a `path`, it must name a directory inside the
+configured ZeroTier data directory. Paths outside it are rejected.
 
 ### `GET /admin/planet/identity`
 
-Reads `identity.public` from a ZeroTier data directory. When `path` is omitted,
-the backend uses the directory containing the configured ZeroTier token file.
-When supplied, `path` must remain within that directory after symlink
-resolution.
+Reads `identity.public` from the ZeroTier data directory. `path` defaults to the
+directory containing the configured ZeroTier token file.
 
 Success response:
 
@@ -488,9 +577,8 @@ Success response:
 
 ### `GET /admin/planet/signing-keys`
 
-Checks whether `previous.c25519` and `current.c25519` exist in a permitted
-ZeroTier directory. A supplied `path` outside the configured token file's
-directory is rejected.
+Checks whether `previous.c25519` and `current.c25519` exist in the ZeroTier data
+directory.
 
 Success response:
 
@@ -508,9 +596,7 @@ Success response:
 
 ### `POST /admin/planet/keys`
 
-Generates `previous.c25519` and `current.c25519` in a permitted existing
-ZeroTier directory. A supplied `path` outside the configured token file's
-directory is rejected.
+Generates `previous.c25519` and `current.c25519` in the ZeroTier data directory.
 
 Success response:
 
@@ -551,9 +637,8 @@ Request:
 }
 ```
 
-When supplied, `signing_key_path` must be an existing directory within the
-directory containing the configured ZeroTier token file. It cannot select an
-arbitrary filesystem location.
+When supplied, `signing_key_path` must be a directory inside the ZeroTier data
+directory.
 
 Success response:
 
