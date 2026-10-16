@@ -13,6 +13,7 @@ import (
 	"github.com/GT-610/tairitsu/internal/app/middleware"
 	"github.com/GT-610/tairitsu/internal/app/models"
 	"github.com/GT-610/tairitsu/internal/app/services"
+	"github.com/GT-610/tairitsu/tests/testutil"
 	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -62,7 +63,7 @@ func TestAuthHandler_LoginRecordsForwardedClientIP(t *testing.T) {
 }
 
 func TestAuthHandler_LoginIssuesHttpOnlySessionCookie(t *testing.T) {
-	db := newTestDatabase(t)
+	db := testutil.NewSQLiteDB(t)
 
 	userService := services.NewUserService(db)
 	sessionService := services.NewSessionService(db)
@@ -104,7 +105,7 @@ func TestAuthHandler_LoginIssuesHttpOnlySessionCookie(t *testing.T) {
 }
 
 func TestAuthHandler_LoginResponseOmitsCredential(t *testing.T) {
-	db := newTestDatabase(t)
+	db := testutil.NewSQLiteDB(t)
 
 	userService := services.NewUserService(db)
 	sessionService := services.NewSessionService(db)
@@ -134,7 +135,7 @@ func TestAuthHandler_LoginResponseOmitsCredential(t *testing.T) {
 }
 
 func TestAuthHandler_LogoutClearsSessionCookie(t *testing.T) {
-	db := newTestDatabase(t)
+	db := testutil.NewSQLiteDB(t)
 
 	userService := services.NewUserService(db)
 	sessionService := services.NewSessionService(db)

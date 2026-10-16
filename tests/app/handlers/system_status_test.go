@@ -6,128 +6,17 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
 
 	"github.com/GT-610/tairitsu/internal/app/config"
 	"github.com/GT-610/tairitsu/internal/app/database"
 	apphandlers "github.com/GT-610/tairitsu/internal/app/handlers"
 	"github.com/GT-610/tairitsu/internal/app/models"
 	"github.com/GT-610/tairitsu/internal/app/services"
+	"github.com/GT-610/tairitsu/tests/testutil"
 	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-type handlerStateDBStub struct {
-	users []*models.User
-}
-
-func (s *handlerStateDBStub) Init() error { return nil }
-func (s *handlerStateDBStub) WithTransaction(fn func(database.DBInterface) error) error {
-	return fn(s)
-}
-func (s *handlerStateDBStub) CreateUser(user *models.User) error {
-	s.users = append(s.users, user)
-	return nil
-}
-func (s *handlerStateDBStub) GetUserByID(id string) (*models.User, error) {
-	for _, user := range s.users {
-		if user.ID == id {
-			return user, nil
-		}
-	}
-	return nil, nil
-}
-func (s *handlerStateDBStub) GetUserByUsername(username string) (*models.User, error) {
-	for _, user := range s.users {
-		if user.Username == username {
-			return user, nil
-		}
-	}
-	return nil, nil
-}
-func (s *handlerStateDBStub) GetAllUsers() ([]*models.User, error) { return s.users, nil }
-func (s *handlerStateDBStub) PromoteFirstAdministrator(userID string) (bool, error) {
-	for _, user := range s.users {
-		if user.Role == "admin" {
-			return false, nil
-		}
-	}
-	for _, user := range s.users {
-		if user.ID == userID {
-			user.Role = "admin"
-			return true, nil
-		}
-	}
-	return false, nil
-}
-func (s *handlerStateDBStub) GetUsersByIDs(ids []string) ([]*models.User, error) {
-	var result []*models.User
-	for _, user := range s.users {
-		for _, id := range ids {
-			if user.ID == id {
-				result = append(result, user)
-				break
-			}
-		}
-	}
-	return result, nil
-}
-func (s *handlerStateDBStub) UpdateUser(user *models.User) error   { return nil }
-func (s *handlerStateDBStub) DeleteUser(id string) error           { return nil }
-func (s *handlerStateDBStub) CreateSession(session *models.Session) error {
-	return nil
-}
-func (s *handlerStateDBStub) GetSessionByID(id string) (*models.Session, error) {
-	return nil, nil
-}
-func (s *handlerStateDBStub) GetSessionsByUserID(userID string) ([]*models.Session, error) {
-	return []*models.Session{}, nil
-}
-func (s *handlerStateDBStub) UpdateSession(session *models.Session) error { return nil }
-func (s *handlerStateDBStub) CreateNetwork(network *models.Network) error {
-	return nil
-}
-func (s *handlerStateDBStub) GetNetworkByID(id string) (*models.Network, error) {
-	return nil, nil
-}
-func (s *handlerStateDBStub) GetNetworksByOwnerID(ownerID string) ([]*models.Network, error) {
-	return []*models.Network{}, nil
-}
-func (s *handlerStateDBStub) GetAllNetworks() ([]*models.Network, error) {
-	return []*models.Network{}, nil
-}
-func (s *handlerStateDBStub) UpdateNetwork(network *models.Network) error { return nil }
-func (s *handlerStateDBStub) DeleteNetwork(id string) error               { return nil }
-func (s *handlerStateDBStub) UpsertNetworkViewer(viewer *models.NetworkViewer) error {
-	return nil
-}
-func (s *handlerStateDBStub) GetNetworkViewer(networkID, userID string) (*models.NetworkViewer, error) {
-	return nil, nil
-}
-func (s *handlerStateDBStub) GetNetworkViewers(networkID string) ([]*models.NetworkViewer, error) {
-	return []*models.NetworkViewer{}, nil
-}
-func (s *handlerStateDBStub) GetSharedNetworksByUserID(userID string) ([]*models.Network, error) {
-	return []*models.Network{}, nil
-}
-func (s *handlerStateDBStub) DeleteNetworkViewer(networkID, userID string) error { return nil }
-func (s *handlerStateDBStub) DeleteAllNetworkViewers(networkID string) error    { return nil }
-func (s *handlerStateDBStub) DeleteExpiredSessions(before time.Time) error      { return nil }
-func (s *handlerStateDBStub) DeleteSessionsWithoutCredential() (int64, error)   { return 0, nil }
-func (s *handlerStateDBStub) GetSessionByTokenHash(tokenHash string) (*models.Session, error) {
-	return nil, nil
-}
-func (s *handlerStateDBStub) HasAdminUser() (bool, error) {
-	for _, user := range s.users {
-		if user.Role == "admin" {
-			return true, nil
-		}
-	}
-	return false, nil
-}
-func (s *handlerStateDBStub) Ping() error  { return nil }
-func (s *handlerStateDBStub) Close() error { return nil }
 
 func TestSystemHandler_GetSystemStatus_Uninitialized(t *testing.T) {
 	originalConfig := config.AppConfig
@@ -191,16 +80,8 @@ func TestSystemHandler_GetSystemStatus_Initialized(t *testing.T) {
 		},
 	}
 
-	userService := services.NewUserService(&handlerStateDBStub{
-		users: []*models.User{
-			{ID: "1", Username: "admin", Role: "admin"},
-		},
-	})
-	sessionService := services.NewSessionService(&handlerStateDBStub{
-		users: []*models.User{
-			{ID: "1", Username: "admin", Role: "admin"},
-		},
-	})
+	userService := services.NewUserService(testutil.NewFakeDB(&models.User{ID: "1", Username: "admin", Role: "admin"}))
+	sessionService := services.NewSessionService(testutil.NewFakeDB(&models.User{ID: "1", Username: "admin", Role: "admin"}))
 	networkService := services.NewNetworkService(nil, nil)
 	stateService := services.NewStateServiceWithConfig(config.AppConfig)
 	runtimeService := services.NewRuntimeService(userService, sessionService, networkService, stateService)
@@ -292,7 +173,7 @@ func TestSystemHandler_SetInitializedRejectsMissingAdmin(t *testing.T) {
 		},
 	}
 
-	stateDB := &handlerStateDBStub{}
+	stateDB := testutil.NewFakeDB()
 	userService := services.NewUserService(stateDB)
 	sessionService := services.NewSessionService(stateDB)
 	networkService := services.NewNetworkService(nil, stateDB)

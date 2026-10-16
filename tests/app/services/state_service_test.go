@@ -7,6 +7,7 @@ import (
 	"github.com/GT-610/tairitsu/internal/app/database"
 	"github.com/GT-610/tairitsu/internal/app/models"
 	"github.com/GT-610/tairitsu/internal/app/services"
+	"github.com/GT-610/tairitsu/tests/testutil"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -71,11 +72,7 @@ func TestStateService_GetSetupStatus_WithholdsDetailsFromPublicCallers(t *testin
 		},
 	}
 
-	userService := services.NewUserService(&stateServiceDBStub{
-		users: []*models.User{
-			{ID: "1", Username: "admin", Role: "admin"},
-		},
-	})
+	userService := services.NewUserService(testutil.NewFakeDB(&models.User{ID: "1", Username: "admin", Role: "admin"}))
 
 	stateService := services.NewStateServiceWithConfig(config.AppConfig)
 	status := stateService.GetSetupStatus(userService, nil, false)
@@ -106,11 +103,7 @@ func TestStateService_GetSetupStatus_InitializedWithAdminAndOfflineZT(t *testing
 		},
 	}
 
-	userService := services.NewUserService(&stateServiceDBStub{
-		users: []*models.User{
-			{ID: "1", Username: "admin", Role: "admin"},
-		},
-	})
+	userService := services.NewUserService(testutil.NewFakeDB(&models.User{ID: "1", Username: "admin", Role: "admin"}))
 	networkService := services.NewNetworkService(nil, nil)
 
 	stateService := services.NewStateServiceWithConfig(config.AppConfig)
@@ -146,11 +139,7 @@ func TestStateService_GetSetupStatus_NamesTheAdministratorDuringSetup(t *testing
 		},
 	}
 
-	userService := services.NewUserService(&stateServiceDBStub{
-		users: []*models.User{
-			{ID: "1", Username: "admin", Role: "admin"},
-		},
-	})
+	userService := services.NewUserService(testutil.NewFakeDB(&models.User{ID: "1", Username: "admin", Role: "admin"}))
 
 	stateService := services.NewStateServiceWithConfig(config.AppConfig)
 	status := stateService.GetSetupStatus(userService, nil, true)

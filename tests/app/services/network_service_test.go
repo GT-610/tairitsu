@@ -14,6 +14,7 @@ import (
 	"github.com/GT-610/tairitsu/internal/app/models"
 	"github.com/GT-610/tairitsu/internal/app/services"
 	"github.com/GT-610/tairitsu/internal/zerotier"
+	"github.com/GT-610/tairitsu/tests/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -40,7 +41,7 @@ func TestNewNetworkService(t *testing.T) {
 }
 
 func TestNetworkServiceImportNetworks_AllSuccess(t *testing.T) {
-	db := newTestSQLiteDB(t)
+	db := testutil.NewSQLiteDB(t)
 	createTestUser(t, db, "user-1", "user")
 	client := newTestZTClient(t, map[string]zerotier.Network{
 		"8056c2e21c000001": {ID: "8056c2e21c000001", Name: "alpha", Description: "alpha-desc"},
@@ -70,7 +71,7 @@ func TestNetworkServiceImportNetworks_AllSuccess(t *testing.T) {
 }
 
 func TestNetworkServiceImportNetworks_PartialFailures(t *testing.T) {
-	db := newTestSQLiteDB(t)
+	db := testutil.NewSQLiteDB(t)
 	createTestUser(t, db, "user-1", "user")
 	now := time.Now()
 	require.NoError(t, db.CreateNetwork(&models.Network{
@@ -113,7 +114,7 @@ func TestNetworkServiceImportNetworks_PartialFailures(t *testing.T) {
 }
 
 func TestNetworkServiceGetImportableNetworks_EmptySliceWhenControllerHasNoNetworks(t *testing.T) {
-	db := newTestSQLiteDB(t)
+	db := testutil.NewSQLiteDB(t)
 	client := newTestZTClient(t, map[string]zerotier.Network{})
 
 	service := services.NewNetworkService(client, db)
@@ -126,7 +127,7 @@ func TestNetworkServiceGetImportableNetworks_EmptySliceWhenControllerHasNoNetwor
 }
 
 func TestNetworkServiceGetRuntimeStatus_UsesZeroTierAndDatabaseTruth(t *testing.T) {
-	db := newTestSQLiteDB(t)
+	db := testutil.NewSQLiteDB(t)
 	createTestUser(t, db, "admin-1", "admin")
 	client := newTestZTClientWithStatus(t, map[string]zerotier.Network{}, zerotier.Status{
 		Version:     "1.14.2",
@@ -152,7 +153,7 @@ func TestNetworkServiceGetRuntimeStatus_UsesZeroTierAndDatabaseTruth(t *testing.
 }
 
 func TestNetworkServiceGetRuntimeStatus_ReturnsErrorStates(t *testing.T) {
-	db := newTestSQLiteDB(t)
+	db := testutil.NewSQLiteDB(t)
 	client := newTestZTClientWithStatusError(t, map[string]zerotier.Network{}, http.StatusInternalServerError)
 
 	service := services.NewNetworkService(client, db)
@@ -165,7 +166,7 @@ func TestNetworkServiceGetRuntimeStatus_ReturnsErrorStates(t *testing.T) {
 }
 
 func TestNetworkServiceImportNetworks_RejectsNonAdmin(t *testing.T) {
-	db := newTestSQLiteDB(t)
+	db := testutil.NewSQLiteDB(t)
 	createTestUser(t, db, "user-1", "user")
 	client := newTestZTClient(t, map[string]zerotier.Network{
 		"8056c2e21c000001": {ID: "8056c2e21c000001", Name: "alpha"},
@@ -179,7 +180,7 @@ func TestNetworkServiceImportNetworks_RejectsNonAdmin(t *testing.T) {
 }
 
 func TestNetworkServiceImportNetworks_RequiresExistingOwner(t *testing.T) {
-	db := newTestSQLiteDB(t)
+	db := testutil.NewSQLiteDB(t)
 	client := newTestZTClient(t, map[string]zerotier.Network{
 		"8056c2e21c000001": {ID: "8056c2e21c000001", Name: "alpha"},
 	})
@@ -192,7 +193,7 @@ func TestNetworkServiceImportNetworks_RequiresExistingOwner(t *testing.T) {
 }
 
 func TestNetworkServiceGetImportableNetworks_MarksOwnedNetworksAsNotImportable(t *testing.T) {
-	db := newTestSQLiteDB(t)
+	db := testutil.NewSQLiteDB(t)
 	now := time.Now()
 	require.NoError(t, db.CreateNetwork(&models.Network{
 		ID:          "8056c2e21c000001",
@@ -234,7 +235,7 @@ func TestNetworkServiceGetImportableNetworks_MarksOwnedNetworksAsNotImportable(t
 }
 
 func TestNetworkServiceGetImportableNetworks_IncludesUnassignedAndBlockedCandidates(t *testing.T) {
-	db := newTestSQLiteDB(t)
+	db := testutil.NewSQLiteDB(t)
 	createTestUser(t, db, "user-1", "user")
 	now := time.Now()
 	require.NoError(t, db.CreateNetwork(&models.Network{
@@ -286,7 +287,7 @@ func TestNetworkServiceGetImportableNetworks_IncludesUnassignedAndBlockedCandida
 }
 
 func TestNetworkServiceGetNetworkByIDRejectsDifferentOwner(t *testing.T) {
-	db := newTestSQLiteDB(t)
+	db := testutil.NewSQLiteDB(t)
 	now := time.Now()
 	require.NoError(t, db.CreateNetwork(&models.Network{
 		ID:          "8056c2e21c000001",
@@ -307,7 +308,7 @@ func TestNetworkServiceGetNetworkByIDRejectsDifferentOwner(t *testing.T) {
 }
 
 func TestNetworkServiceGetNetworkMembersRejectsDifferentOwner(t *testing.T) {
-	db := newTestSQLiteDB(t)
+	db := testutil.NewSQLiteDB(t)
 	now := time.Now()
 	require.NoError(t, db.CreateNetwork(&models.Network{
 		ID:          "8056c2e21c000001",
@@ -333,7 +334,7 @@ func TestNetworkServiceGetNetworkMembersRejectsDifferentOwner(t *testing.T) {
 }
 
 func TestNetworkServiceViewerGrantAndSharedList(t *testing.T) {
-	db := newTestSQLiteDB(t)
+	db := testutil.NewSQLiteDB(t)
 	createTestUser(t, db, "owner-1", "user")
 	createTestUser(t, db, "viewer-1", "user")
 	createTestUser(t, db, "viewer-2", "user")
@@ -383,7 +384,7 @@ func TestNetworkServiceViewerGrantAndSharedList(t *testing.T) {
 }
 
 func TestNetworkServiceViewerGrantRejectsNonOwnerAndInvalidTarget(t *testing.T) {
-	db := newTestSQLiteDB(t)
+	db := testutil.NewSQLiteDB(t)
 	createTestUser(t, db, "owner-1", "user")
 	createTestUser(t, db, "viewer-1", "user")
 	createTestUser(t, db, "admin-1", "admin")
@@ -411,7 +412,7 @@ func TestNetworkServiceViewerGrantRejectsNonOwnerAndInvalidTarget(t *testing.T) 
 }
 
 func TestNetworkServiceViewerRevokeRemovesSharedAccess(t *testing.T) {
-	db := newTestSQLiteDB(t)
+	db := testutil.NewSQLiteDB(t)
 	createTestUser(t, db, "owner-1", "user")
 	createTestUser(t, db, "viewer-1", "user")
 
@@ -445,7 +446,7 @@ func TestNetworkServiceViewerRevokeRemovesSharedAccess(t *testing.T) {
 }
 
 func TestNetworkServiceDeleteNetworkRemovesViewerGrants(t *testing.T) {
-	db := newTestSQLiteDB(t)
+	db := testutil.NewSQLiteDB(t)
 	createTestUser(t, db, "owner-1", "user")
 	createTestUser(t, db, "viewer-1", "user")
 
@@ -486,7 +487,7 @@ func TestNetworkServiceDeleteNetworkRemovesViewerGrants(t *testing.T) {
 }
 
 func TestNetworkServiceGetAllNetworksIncludesMemberStats(t *testing.T) {
-	db := newTestSQLiteDB(t)
+	db := testutil.NewSQLiteDB(t)
 	now := time.Now()
 	require.NoError(t, db.CreateNetwork(&models.Network{
 		ID:          "8056c2e21c000001",
@@ -521,7 +522,7 @@ func TestNetworkServiceGetAllNetworksIncludesMemberStats(t *testing.T) {
 }
 
 func TestNetworkServiceGetAllNetworksReusesCachedMemberStats(t *testing.T) {
-	db := newTestSQLiteDB(t)
+	db := testutil.NewSQLiteDB(t)
 	now := time.Now()
 	require.NoError(t, db.CreateNetwork(&models.Network{
 		ID:          "8056c2e21c000001",
@@ -556,7 +557,7 @@ func TestNetworkServiceGetAllNetworksReusesCachedMemberStats(t *testing.T) {
 }
 
 func TestNetworkServiceGetNetworkByIDIncludesMembers(t *testing.T) {
-	db := newTestSQLiteDB(t)
+	db := testutil.NewSQLiteDB(t)
 	now := time.Now()
 	require.NoError(t, db.CreateNetwork(&models.Network{
 		ID:          "f76fd3000b86b177",
@@ -592,7 +593,7 @@ func TestNetworkServiceGetNetworkByIDIncludesMembers(t *testing.T) {
 }
 
 func TestNetworkServiceGetAllNetworksIncludesMemberStatsFromObjectResponse(t *testing.T) {
-	db := newTestSQLiteDB(t)
+	db := testutil.NewSQLiteDB(t)
 	now := time.Now()
 	require.NoError(t, db.CreateNetwork(&models.Network{
 		ID:          "8056c2e21c000009",
@@ -674,7 +675,7 @@ func TestZTClientGetStatusSupportsTcpFallbackActive(t *testing.T) {
 }
 
 func TestNetworkServiceGetAllNetworksIncludesMemberStatsFromIndexResponse(t *testing.T) {
-	db := newTestSQLiteDB(t)
+	db := testutil.NewSQLiteDB(t)
 	now := time.Now()
 	require.NoError(t, db.CreateNetwork(&models.Network{
 		ID:          "f76fd3000b86b177",
@@ -712,7 +713,7 @@ func TestNetworkServiceGetAllNetworksIncludesMemberStatsFromIndexResponse(t *tes
 }
 
 func TestNetworkServiceGetAllNetworksFetchesMemberStatsConcurrently(t *testing.T) {
-	db := newTestSQLiteDB(t)
+	db := testutil.NewSQLiteDB(t)
 	now := time.Now()
 	for i := 1; i <= 5; i++ {
 		id := fmt.Sprintf("8056c2e21c00000%d", i)

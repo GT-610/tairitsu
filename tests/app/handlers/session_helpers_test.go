@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/GT-610/tairitsu/internal/app/database"
 	"github.com/GT-610/tairitsu/internal/app/middleware"
 	"github.com/GT-610/tairitsu/internal/app/models"
 	appservices "github.com/GT-610/tairitsu/internal/app/services"
@@ -33,21 +32,4 @@ func newTestSession(t *testing.T, sessionService *appservices.SessionService, us
 // authenticateRequest attaches the session cookie a browser would send.
 func authenticateRequest(req *http.Request, credential string) {
 	req.AddCookie(&http.Cookie{Name: middleware.SessionCookieName, Value: credential})
-}
-
-// newTestDatabase opens an isolated SQLite database for a test.
-func newTestDatabase(t *testing.T) database.DBInterface {
-	t.Helper()
-
-	db, err := database.NewDatabase(database.Config{
-		Type: database.SQLite,
-		Path: t.TempDir() + "/tairitsu.db",
-	})
-	require.NoError(t, err)
-	require.NoError(t, db.Init())
-	t.Cleanup(func() {
-		require.NoError(t, db.Close())
-	})
-
-	return db
 }
