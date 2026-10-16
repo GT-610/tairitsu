@@ -92,15 +92,24 @@ func ResetDatabase(dbConfig Config) error {
 
 	switch dbConfig.Type {
 	case SQLite:
-		safePath, err := config.ResolveDataPath(dbConfig.Path)
+		// The handle both enforces containment and resolves every name inside
+		// the data directory, so the delete cannot be redirected by a component
+		// that turns into a symlink after the decision.
+		root, name, err := config.OpenDataDir(dbConfig.Path)
 		if err != nil {
 			logger.Error("refusing to reset the database at a rejected path", zap.String("path", dbConfig.Path), zap.Error(err))
 			return fmt.Errorf("refusing to reset the database: %w", err)
 		}
+		defer func() {
+			if closeErr := root.Close(); closeErr != nil {
+				logger.Warn("failed to close the data directory handle", zap.Error(closeErr))
+			}
+		}()
 
+		safePath := filepath.Join(root.Name(), name)
 		logger.Info("resetting SQLite database", zap.String("path", safePath))
 
-		removed, err := removeSQLiteDatabase(safePath)
+		removed, err := removeSQLiteDatabase(root, name)
 		if err != nil {
 			logger.Error("failed to reset SQLite database", zap.String("path", safePath), zap.Error(err))
 			return err
@@ -126,8 +135,12 @@ const sqliteFileHeader = "SQLite format 3\x00"
 // removeSQLiteDatabase deletes a SQLite database together with its write-ahead
 // log siblings, and reports whether anything was removed. It refuses to touch a
 // file that is neither empty nor a SQLite database.
-func removeSQLiteDatabase(path string) (bool, error) {
-	info, err := os.Stat(path)
+//
+// Every name is resolved against the data directory handle rather than against a
+// path, so each operation lands inside that directory even when a component is
+// swapped for a symlink between two of them.
+func removeSQLiteDatabase(root *os.Root, name string) (bool, error) {
+	info, err := root.Stat(name)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return false, nil
@@ -135,38 +148,38 @@ func removeSQLiteDatabase(path string) (bool, error) {
 		return false, fmt.Errorf("failed to inspect SQLite database file: %w", err)
 	}
 	if !info.Mode().IsRegular() {
-		return false, fmt.Errorf("refusing to reset %q: not a regular file", path)
+		return false, fmt.Errorf("refusing to reset %q: not a regular file", name)
 	}
 
 	// An empty file holds nothing: it is what an interrupted setup leaves behind.
 	if info.Size() > 0 {
-		looksLikeSQLite, err := hasSQLiteHeader(path)
+		looksLikeSQLite, err := hasSQLiteHeader(root, name)
 		if err != nil {
 			return false, fmt.Errorf("failed to inspect SQLite database file: %w", err)
 		}
 		if !looksLikeSQLite {
-			return false, fmt.Errorf("refusing to reset %q: not a SQLite database", path)
+			return false, fmt.Errorf("refusing to reset %q: not a SQLite database", name)
 		}
 	}
 
-	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+	if err := root.Remove(name); err != nil && !os.IsNotExist(err) {
 		return false, fmt.Errorf("failed to reset SQLite database: %w", err)
 	}
 
 	// The -wal and -shm files belong to this database and are derived from the
-	// validated path, so they are safe to remove alongside it.
+	// validated name, so they are safe to remove alongside it.
 	for _, suffix := range []string{"-wal", "-shm"} {
-		if err := os.Remove(path + suffix); err != nil && !os.IsNotExist(err) {
-			return true, fmt.Errorf("failed to remove %q: %w", path+suffix, err)
+		if err := root.Remove(name + suffix); err != nil && !os.IsNotExist(err) {
+			return true, fmt.Errorf("failed to remove %q: %w", name+suffix, err)
 		}
 	}
 
 	return true, nil
 }
 
-// hasSQLiteHeader reports whether path starts with the SQLite magic string.
-func hasSQLiteHeader(path string) (bool, error) {
-	file, err := os.Open(path)
+// hasSQLiteHeader reports whether name starts with the SQLite magic string.
+func hasSQLiteHeader(root *os.Root, name string) (bool, error) {
+	file, err := root.Open(name)
 	if err != nil {
 		return false, err
 	}

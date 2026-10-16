@@ -133,6 +133,38 @@ func ConfigFilePath() string {
 // while the returned path keeps the name the caller used, so a stored setting
 // is not rewritten into a different spelling of the same directory.
 func ResolveDataPath(candidate string) (string, error) {
+	_, absolute, _, err := resolveDataCandidate(candidate)
+	return absolute, err
+}
+
+// OpenDataDir resolves candidate exactly as ResolveDataPath does and returns a
+// handle to Tairitsu's data directory, together with candidate expressed
+// relative to it. The caller closes the handle.
+//
+// The handle is what makes deleting the named file safe. A check followed by a
+// removal resolves every component twice, so a component replaced by a symlink
+// in between redirects the removal to wherever the link points; a name resolved
+// against one open directory descriptor cannot leave the directory it was
+// opened on.
+func OpenDataDir(candidate string) (*os.Root, string, error) {
+	resolvedRoot, _, relative, err := resolveDataCandidate(candidate)
+	if err != nil {
+		return nil, "", err
+	}
+
+	root, err := os.OpenRoot(resolvedRoot)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to open the Tairitsu data directory (%s): %w", resolvedRoot, err)
+	}
+
+	return root, relative, nil
+}
+
+// resolveDataCandidate makes the containment decision shared by ResolveDataPath
+// and OpenDataDir. It returns the symlink-resolved data directory, the absolute
+// path as the caller spelled it, and that path relative to the resolved
+// directory.
+func resolveDataCandidate(candidate string) (string, string, string, error) {
 	resolvedRoot := DataRoot()
 	if evaluated, err := filepath.EvalSymlinks(resolvedRoot); err == nil {
 		resolvedRoot = evaluated
@@ -148,7 +180,7 @@ func ResolveDataPath(candidate string) (string, error) {
 	}
 	absolute, err := filepath.Abs(trimmed)
 	if err != nil {
-		return "", fmt.Errorf("invalid path %q", candidate)
+		return "", "", "", fmt.Errorf("invalid path %q", candidate)
 	}
 
 	// Both sides are resolved the same way, so a path that does not exist yet is
@@ -156,13 +188,13 @@ func ResolveDataPath(candidate string) (string, error) {
 	// its unresolved spelling.
 	relative, err := filepath.Rel(resolveExistingPrefix(resolvedRoot), resolveExistingPrefix(absolute))
 	if err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
-		return "", fmt.Errorf("path %q is outside the Tairitsu data directory (%s)", candidate, resolvedRoot)
+		return "", "", "", fmt.Errorf("path %q is outside the Tairitsu data directory (%s)", candidate, resolvedRoot)
 	}
 	if relative == "." {
-		return "", fmt.Errorf("path %q is the Tairitsu data directory itself", candidate)
+		return "", "", "", fmt.Errorf("path %q is the Tairitsu data directory itself", candidate)
 	}
 
-	return absolute, nil
+	return resolvedRoot, absolute, relative, nil
 }
 
 // resolveExistingPrefix resolves symlinks in the longest existing ancestor of
