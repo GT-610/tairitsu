@@ -13,7 +13,6 @@ import (
 
 	"github.com/GT-610/tairitsu/internal/app/crypto"
 	"github.com/GT-610/tairitsu/internal/app/logger"
-	"github.com/spf13/viper"
 	"go.uber.org/zap"
 )
 
@@ -334,26 +333,22 @@ func decryptWithEmptyLegacyKey(value string) (string, error) {
 	return plaintext, nil
 }
 
-// loadEnvConfig Load partial configuration from environment variables (only read existing configurations in .env)
+// loadEnvConfig seeds a configuration that does not exist yet from the
+// environment, so a container can be started without a config.json.
+//
+// It runs only when config.json is absent: once the file exists it is the
+// source of truth, and the setup wizard writes to it. A value that was seeded
+// here is therefore persisted by the caller and is not re-read on later starts.
 func loadEnvConfig(cfg *Config) {
-	viper.SetConfigName(".env")
-	viper.SetConfigType("env")
-	viper.AddConfigPath("./")
-	viper.AutomaticEnv()
-
-	// Try to read .env file
-	_ = viper.ReadInConfig() // Ignore error, just try to read
-
-	// Update configuration from environment variables, only read existing configurations in .env
-	if url := viper.GetString("ZT_CONTROLLER_URL"); url != "" {
+	if url := Env("ZT_CONTROLLER_URL"); url != "" {
 		cfg.ZeroTier.URL = url
 	}
-	if jwt := viper.GetString("JWT_SECRET"); jwt != "" {
+	if jwt := Env("JWT_SECRET"); jwt != "" {
 		cfg.Security.JWTSecret = jwt
 	}
 
 	// Read ZT_TOKEN_PATH and try to read token from file
-	if tokenPath := viper.GetString("ZT_TOKEN_PATH"); tokenPath != "" {
+	if tokenPath := Env("ZT_TOKEN_PATH"); tokenPath != "" {
 		cfg.ZeroTier.TokenPath = tokenPath
 		// Try to read token file
 		_ = LoadTokenFromPathInto(cfg, tokenPath)
@@ -380,8 +375,7 @@ func GetZTTokenFrom(cfg *Config) (string, error) {
 		return plaintext, nil
 	}
 
-	token := viper.GetString("ZT_TOKEN")
-	if token != "" {
+	if token := Env("ZT_TOKEN"); token != "" {
 		return token, nil
 	}
 
