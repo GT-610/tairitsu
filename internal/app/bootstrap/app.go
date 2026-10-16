@@ -3,6 +3,8 @@ package bootstrap
 import (
 	"context"
 	"fmt"
+	"net"
+	"strconv"
 	"time"
 
 	"github.com/GT-610/tairitsu/internal/app/assembly"
@@ -63,6 +65,24 @@ func Build() (*App, error) {
 	return app, nil
 }
 
+// Environment variables that describe the network between the server and its
+// callers. They are deployment properties rather than stored settings, so they
+// are read from the environment on every start instead of being persisted.
+const (
+	// TrustedProxiesEnv lists the addresses or CIDR ranges of reverse proxies
+	// whose forwarding headers may be believed.
+	TrustedProxiesEnv = "TAIRITSU_TRUSTED_PROXIES"
+	// ProxyHeaderEnv overrides the header carrying the client address.
+	ProxyHeaderEnv = "TAIRITSU_PROXY_HEADER"
+	// TrustLoopbackProxyEnv turns off the default trust for a proxy on loopback.
+	TrustLoopbackProxyEnv = "TAIRITSU_TRUSTED_PROXY_LOOPBACK"
+)
+
+// defaultProxyHeader is the header reverse proxies use to carry the client
+// address. X-Forwarded-For is set by nginx, Caddy, Traefik and HAProxy alike;
+// the previously hardcoded X-Real-IP only exists in nginx.
+const defaultProxyHeader = "X-Forwarded-For"
+
 func newHTTPApp() *fiber.App {
 	return fiber.New(httpAppConfig())
 }
@@ -70,12 +90,67 @@ func newHTTPApp() *fiber.App {
 func httpAppConfig() fiber.Config {
 	return fiber.Config{
 		TrustProxy:  true,
-		ProxyHeader: "X-Real-IP",
+		ProxyHeader: proxyHeader(),
 		TrustProxyConfig: fiber.TrustProxyConfig{
-			Loopback: true,
+			Proxies:  trustedProxies(),
+			Loopback: trustLoopbackProxy(),
 		},
 		EnableIPValidation: true,
 	}
+}
+
+// proxyHeader returns the header a trusted proxy is expected to set.
+func proxyHeader() string {
+	if header := config.Env(ProxyHeaderEnv); header != "" {
+		return header
+	}
+	return defaultProxyHeader
+}
+
+// trustedProxies returns the configured proxy addresses and CIDR ranges,
+// dropping entries that cannot be parsed so that a typo degrades to "not
+// trusted" with a warning instead of being silently accepted.
+func trustedProxies() []string {
+	configured := config.EnvList(TrustedProxiesEnv)
+	accepted := make([]string, 0, len(configured))
+
+	for _, entry := range configured {
+		if isValidProxyEntry(entry) {
+			accepted = append(accepted, entry)
+			continue
+		}
+		logger.Warn("ignoring unparsable trusted proxy entry", zap.String("entry", entry))
+	}
+
+	if len(accepted) == 0 {
+		return nil
+	}
+	return accepted
+}
+
+func isValidProxyEntry(entry string) bool {
+	if _, _, err := net.ParseCIDR(entry); err == nil {
+		return true
+	}
+	return net.ParseIP(entry) != nil
+}
+
+// trustLoopbackProxy reports whether a proxy connecting over loopback may set
+// forwarding headers. It defaults to true, which covers a proxy in the same
+// container or on the host's loopback and nothing else.
+func trustLoopbackProxy() bool {
+	raw := config.Env(TrustLoopbackProxyEnv)
+	if raw == "" {
+		return true
+	}
+
+	enabled, err := strconv.ParseBool(raw)
+	if err != nil {
+		logger.Warn("ignoring unparsable boolean; keeping the default",
+			zap.String("variable", TrustLoopbackProxyEnv), zap.String("value", raw))
+		return true
+	}
+	return enabled
 }
 
 func (a *App) Listen() error {

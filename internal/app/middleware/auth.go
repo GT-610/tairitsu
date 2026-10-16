@@ -60,9 +60,14 @@ func ExpiredSessionCookie(secure bool) *fiber.Cookie {
 }
 
 // IsSecureRequest reports whether the browser reached the server over HTTPS.
-// TLS is commonly terminated by a reverse proxy, so the forwarded scheme counts.
+// TLS is commonly terminated by a reverse proxy, so the forwarded scheme counts
+// as soon as the proxy itself is trusted.
+//
+// Fiber exposes the scheme through Secure()/Scheme(). Its Protocol() returns
+// the HTTP version ("HTTP/1.1"), so a comparison against Protocol() can never
+// be true and must not be used here.
 func IsSecureRequest(c fiber.Ctx) bool {
-	return c.Secure() || c.Protocol() == "https"
+	return c.Secure()
 }
 
 // AuthMiddleware authenticates a request from its session cookie and loads the
