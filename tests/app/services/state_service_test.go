@@ -120,9 +120,43 @@ func TestStateService_GetSetupStatus_InitializedWithAdminAndOfflineZT(t *testing
 	assert.True(t, status.DatabaseConfigured)
 	assert.True(t, status.HasAdmin)
 	assert.False(t, status.ZeroTierConfigured)
-	assert.Equal(t, "admin", status.AdminUsername)
+	// Initialized: the administrator name is no longer setup-window information,
+	// so holding the token does not reveal it.
+	assert.False(t, status.SetupAuthorized)
+	assert.Empty(t, status.AdminUsername)
 	if assert.NotNil(t, status.ZTStatus) {
 		assert.False(t, status.ZTStatus.Online)
 		assert.Equal(t, "unknown", status.ZTStatus.Version)
 	}
+}
+
+// While setup is still pending, the token holder is told which account already
+// exists so the wizard can show it.
+func TestStateService_GetSetupStatus_NamesTheAdministratorDuringSetup(t *testing.T) {
+	originalConfig := config.AppConfig
+	t.Cleanup(func() {
+		config.AppConfig = originalConfig
+	})
+
+	config.AppConfig = &config.Config{
+		Initialized: false,
+		Database: config.DatabaseConfig{
+			Type: string(database.SQLite),
+			Path: "data/test.db",
+		},
+	}
+
+	userService := services.NewUserService(&stateServiceDBStub{
+		users: []*models.User{
+			{ID: "1", Username: "admin", Role: "admin"},
+		},
+	})
+
+	stateService := services.NewStateServiceWithConfig(config.AppConfig)
+	status := stateService.GetSetupStatus(userService, nil, true)
+
+	assert.False(t, status.Initialized)
+	assert.True(t, status.SetupAuthorized)
+	assert.True(t, status.HasAdmin)
+	assert.Equal(t, "admin", status.AdminUsername)
 }

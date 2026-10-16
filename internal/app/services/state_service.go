@@ -104,19 +104,25 @@ func (s *StateService) CreateZTClient() (*zerotier.Client, error) {
 
 // GetSetupStatus reports how far the first-run wizard has progressed.
 //
-// includeSensitive controls whether the reply carries the details only the
-// operator may see: the administrator name, the SQLite path and the controller
-// URL and token path. The endpoint that serves this is public, because the
-// client has to know whether to show the wizard before anyone can sign in, so
-// callers pass the result of the setup-token check here rather than publishing
-// the deployment layout to every anonymous visitor.
-func (s *StateService) GetSetupStatus(userService *UserService, networkService *NetworkService, includeSensitive bool) SetupStatus {
+// setupCaller reports whether the request presented the setup token. The
+// endpoint that serves this is public, because the client has to know whether
+// to show the wizard before anyone can sign in, so that token is what decides
+// whether the reply carries the deployment layout: the administrator name, the
+// SQLite path, and the controller URL and token path.
+//
+// The details are withheld once the instance is initialized even from a caller
+// holding the token. The token exists to close the first-run window, and this
+// process keeps the one it issued until it restarts, so honouring it afterwards
+// would leave the deployment layout readable from a stale log line forever.
+func (s *StateService) GetSetupStatus(userService *UserService, networkService *NetworkService, setupCaller bool) SetupStatus {
 	cfg := s.Config()
+	initialized := s.IsInitialized()
+	includeSensitive := setupCaller && !initialized
 	databaseConfigured := s.DatabaseConfigured()
 	zeroTierConfigured := cfg != nil && cfg.ZeroTier.URL != "" && cfg.ZeroTier.TokenPath != ""
 
 	status := SetupStatus{
-		Initialized:             s.IsInitialized(),
+		Initialized:             initialized,
 		DatabaseConfigured:      databaseConfigured,
 		SetupAuthorized:         includeSensitive,
 		ZeroTierConfigured:      zeroTierConfigured,

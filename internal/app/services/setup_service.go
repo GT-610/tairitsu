@@ -107,8 +107,8 @@ func (s *SetupService) SaveZeroTierConfig(controllerURL, tokenPath string) (*zer
 	return status, nil
 }
 
-func (s *SetupService) GetSetupStatus(includeSensitive bool) SetupStatus {
-	return s.stateService.GetSetupStatus(s.userService, s.networkService, includeSensitive)
+func (s *SetupService) GetSetupStatus(setupCaller bool) SetupStatus {
+	return s.stateService.GetSetupStatus(s.userService, s.networkService, setupCaller)
 }
 
 func (s *SetupService) GetRuntimeSettings() RuntimeSettings {

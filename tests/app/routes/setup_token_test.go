@@ -183,3 +183,43 @@ func TestSetupEndpointsAreClosedAfterInitialization(t *testing.T) {
 	defer resp.Body.Close()
 	assert.Equal(t, fiber.StatusConflict, resp.StatusCode)
 }
+
+// The token exists to close the first-run window. A process that has issued one
+// keeps it in memory until it restarts, so honouring it after setup would leave
+// the deployment layout readable from a log line long after it mattered.
+func TestSystemStatusWithholdsSetupDetailsOnceInitialized(t *testing.T) {
+	originalConfig := config.AppConfig
+	t.Cleanup(func() {
+		config.AppConfig = originalConfig
+	})
+
+	config.AppConfig = &config.Config{
+		Initialized: true,
+		Database:    config.DatabaseConfig{Type: "sqlite", Path: "/app/data/tairitsu.db"},
+		ZeroTier:    config.ZeroTierConfig{URL: "http://10.88.0.26:9993", TokenPath: "/var/lib/zerotier-one/authtoken.secret"},
+		Security:    config.SecurityConfig{EncryptionKey: "test-secret"},
+	}
+
+	dependencies, err := assembly.NewDependencies(config.AppConfig, nil, nil)
+	require.NoError(t, err)
+	app := fiber.New()
+	routes.SetupRoutes(app, dependencies)
+
+	// An initialized process issues no token, so a caller cannot obtain one; the
+	// request still carries the header to prove it would not help.
+	req := httptest.NewRequest(http.MethodGet, "/api/system/status", nil)
+	req.Header.Set(middleware.SetupTokenHeader, "any-old-token")
+
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	require.Equal(t, fiber.StatusOK, resp.StatusCode)
+
+	var body map[string]any
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&body))
+
+	assert.Equal(t, true, body["initialized"])
+	assert.Equal(t, false, body["setupAuthorized"])
+	assert.NotContains(t, body, "databaseConfig")
+	assert.NotContains(t, body, "zeroTierConfig")
+}
