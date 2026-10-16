@@ -90,17 +90,17 @@ const (
 // the previously hardcoded X-Real-IP only exists in nginx.
 const defaultProxyHeader = "X-Forwarded-For"
 
-// announceSetupToken makes the first-run token impossible to miss. It is
-// written to standard output as well as the log, because the log file lives
-// inside the container while `docker logs` only shows what the process prints.
+// announceSetupToken makes the first-run token impossible to miss. Only the
+// banner carries the value: standard output is what `docker logs` shows, while a
+// secret written to the log sink as well would be collected, retained and
+// rotated on a different schedule from the token it describes.
 func announceSetupToken(token *services.SetupToken) {
 	if token == nil || !token.Issued() {
 		return
 	}
 
-	value := token.Value()
-	fmt.Fprintf(os.Stdout, "\n  Tairitsu is not initialized yet.\n  Setup token: %s\n  Enter it in the setup wizard. A restart issues a new token.\n\n", value)
-	logger.Warn("first-run setup token issued; the setup endpoints require it", zap.String("setup_token", value))
+	fmt.Fprintf(os.Stdout, "\n  Tairitsu is not initialized yet.\n  Setup token: %s\n  Enter it in the setup wizard. A restart issues a new token.\n\n", token.Value())
+	logger.Warn("first-run setup token issued; the setup endpoints require it, and the token is printed on standard output only")
 }
 
 func newHTTPApp() *fiber.App {

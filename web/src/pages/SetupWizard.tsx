@@ -249,6 +249,10 @@ function SetupWizard() {
               fullWidth
               id="setupToken"
               name="setupToken"
+              // The token unlocks the setup endpoints, so it stays masked and
+              // out of the browser's saved form history.
+              type="password"
+              autoComplete="off"
               label={t('setup.token.label')}
               value={tokenInput}
               onChange={(event) => setTokenInput(event.target.value)}
