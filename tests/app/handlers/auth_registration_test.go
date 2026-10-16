@@ -59,7 +59,7 @@ func TestAuthHandler_RegisterRejectsWhenPublicRegistrationDisabled(t *testing.T)
 
 	req := httptest.NewRequest(http.MethodPost, "/auth/register", bytes.NewBufferString(`{"username":"user-1","password":"secret123"}`))
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := app.Test(req)
+	resp, err := app.Test(req, testRequestTimeout)
 	require.NoError(t, err)
 	assert.Equal(t, fiber.StatusForbidden, resp.StatusCode)
 }

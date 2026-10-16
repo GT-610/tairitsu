@@ -8,8 +8,17 @@ import (
 	"github.com/GT-610/tairitsu/internal/app/middleware"
 	"github.com/GT-610/tairitsu/internal/app/models"
 	appservices "github.com/GT-610/tairitsu/internal/app/services"
+	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/require"
 )
+
+// testRequestTimeout replaces the one second budget fiber applies to Test by
+// default. An endpoint that hashes a password exceeds it: under the race
+// detector bcrypt costs roughly ten times what it does otherwise, so a login or
+// a registration on a loaded machine would fail with an i/o timeout instead of
+// reporting what the handler actually did. The Go test deadline stays as the
+// backstop for a handler that really does hang.
+var testRequestTimeout = fiber.TestConfig{Timeout: 10 * time.Second, FailOnTimeout: true}
 
 // newTestSession creates a session for a user and returns the raw credential
 // that a browser would hold. Tests authenticate by putting it in the session

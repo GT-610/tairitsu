@@ -63,7 +63,7 @@ func TestUserHandler_DeleteUser_AdminOnlyAndResponseShape(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodDelete, "/users/"+target.ID, nil)
 	authenticateRequest(req, adminCredential)
-	resp, err := app.Test(req)
+	resp, err := app.Test(req, testRequestTimeout)
 	require.NoError(t, err)
 	assert.Equal(t, fiber.StatusOK, resp.StatusCode)
 

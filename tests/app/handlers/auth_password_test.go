@@ -7,7 +7,6 @@ import (
 	"net/http/httptest"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/GT-610/tairitsu/internal/app/database"
 	apphandlers "github.com/GT-610/tairitsu/internal/app/handlers"
@@ -55,10 +54,7 @@ func TestAuthHandler_ChangePasswordRevokesOtherSessionsWhenRequested(t *testing.
 	req := httptest.NewRequest(http.MethodPut, "/profile/password", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	authenticateRequest(req, credential)
-	resp, err := app.Test(req, fiber.TestConfig{
-		Timeout:       10 * time.Second,
-		FailOnTimeout: true,
-	})
+	resp, err := app.Test(req, testRequestTimeout)
 	require.NoError(t, err)
 	defer resp.Body.Close()
 	assert.Equal(t, fiber.StatusOK, resp.StatusCode)

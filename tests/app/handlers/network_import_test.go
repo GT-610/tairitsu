@@ -60,7 +60,7 @@ func TestNetworkHandler_ImportConsoleAndImportResponseShape(t *testing.T) {
 
 	getReq := httptest.NewRequest(http.MethodGet, "/admin/networks/importable", nil)
 	authenticateRequest(getReq, adminCredential)
-	getResp, err := app.Test(getReq)
+	getResp, err := app.Test(getReq, testRequestTimeout)
 	require.NoError(t, err)
 	assert.Equal(t, fiber.StatusOK, getResp.StatusCode)
 
@@ -75,7 +75,7 @@ func TestNetworkHandler_ImportConsoleAndImportResponseShape(t *testing.T) {
 	postReq := httptest.NewRequest(http.MethodPost, "/admin/networks/import", bytes.NewBufferString(`{"network_ids":["8056c2e21c000001"],"owner_id":"user-1"}`))
 	authenticateRequest(postReq, adminCredential)
 	postReq.Header.Set("Content-Type", "application/json")
-	postResp, err := app.Test(postReq)
+	postResp, err := app.Test(postReq, testRequestTimeout)
 	require.NoError(t, err)
 	assert.Equal(t, fiber.StatusOK, postResp.StatusCode)
 

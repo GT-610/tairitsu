@@ -66,7 +66,7 @@ func TestSetupFlow_ResetDatabaseThenRegisterAdmin(t *testing.T) {
 
 	initReq := httptest.NewRequest(http.MethodPost, "/system/admin/init", bytes.NewReader([]byte("{}")))
 	initReq.Header.Set("Content-Type", "application/json")
-	initResp, err := app.Test(initReq)
+	initResp, err := app.Test(initReq, testRequestTimeout)
 	require.NoError(t, err)
 	assert.Equal(t, fiber.StatusOK, initResp.StatusCode)
 
@@ -78,7 +78,7 @@ func TestSetupFlow_ResetDatabaseThenRegisterAdmin(t *testing.T) {
 
 	registerReq := httptest.NewRequest(http.MethodPost, "/auth/register", bytes.NewReader(registerPayload))
 	registerReq.Header.Set("Content-Type", "application/json")
-	registerResp, err := app.Test(registerReq)
+	registerResp, err := app.Test(registerReq, testRequestTimeout)
 	require.NoError(t, err)
 	assert.Equal(t, fiber.StatusCreated, registerResp.StatusCode)
 
@@ -90,7 +90,7 @@ func TestSetupFlow_ResetDatabaseThenRegisterAdmin(t *testing.T) {
 
 	secondInitReq := httptest.NewRequest(http.MethodPost, "/system/admin/init", bytes.NewReader([]byte("{}")))
 	secondInitReq.Header.Set("Content-Type", "application/json")
-	secondInitResp, err := app.Test(secondInitReq)
+	secondInitResp, err := app.Test(secondInitReq, testRequestTimeout)
 	require.NoError(t, err)
 	assert.Equal(t, fiber.StatusOK, secondInitResp.StatusCode)
 
@@ -122,7 +122,7 @@ func TestSetupFlow_ZeroTierTokenNotFoundReturnsOriginalDetail(t *testing.T) {
 	body := bytes.NewBufferString(`{"controllerUrl":"http://127.0.0.1:9993","tokenPath":"/missing/authtoken.secret"}`)
 	req := httptest.NewRequest(http.MethodPost, "/system/zerotier/config", body)
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := app.Test(req)
+	resp, err := app.Test(req, testRequestTimeout)
 	require.NoError(t, err)
 	assert.Equal(t, fiber.StatusInternalServerError, resp.StatusCode)
 

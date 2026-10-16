@@ -41,7 +41,7 @@ func TestAuthHandler_LoginRecordsForwardedClientIP(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/auth/login", bytes.NewBufferString(`{"username":"alice","password":"secret123"}`))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-Real-IP", "203.0.113.10")
-	resp, err := app.Test(req)
+	resp, err := app.Test(req, testRequestTimeout)
 	require.NoError(t, err)
 	defer resp.Body.Close()
 	assert.Equal(t, fiber.StatusOK, resp.StatusCode)
@@ -71,7 +71,7 @@ func TestAuthHandler_LoginIssuesHttpOnlySessionCookie(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/auth/login", bytes.NewBufferString(`{"username":"alice","password":"secret123","remember_me":true}`))
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := app.Test(req)
+	resp, err := app.Test(req, testRequestTimeout)
 	require.NoError(t, err)
 	defer resp.Body.Close()
 	require.Equal(t, fiber.StatusOK, resp.StatusCode)
@@ -89,7 +89,7 @@ func TestAuthHandler_LoginIssuesHttpOnlySessionCookie(t *testing.T) {
 	// The issued cookie must authenticate a following request.
 	profileReq := httptest.NewRequest(http.MethodGet, "/profile", nil)
 	profileReq.AddCookie(sessionCookie)
-	profileResp, err := app.Test(profileReq)
+	profileResp, err := app.Test(profileReq, testRequestTimeout)
 	require.NoError(t, err)
 	defer profileResp.Body.Close()
 	assert.Equal(t, fiber.StatusOK, profileResp.StatusCode)
@@ -112,7 +112,7 @@ func TestAuthHandler_LoginResponseOmitsCredential(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/auth/login", bytes.NewBufferString(`{"username":"alice","password":"secret123"}`))
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := app.Test(req)
+	resp, err := app.Test(req, testRequestTimeout)
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
@@ -159,7 +159,7 @@ func TestAuthHandler_LogoutClearsSessionCookie(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/auth/logout", nil)
 	authenticateRequest(req, credential)
-	resp, err := app.Test(req)
+	resp, err := app.Test(req, testRequestTimeout)
 	require.NoError(t, err)
 	defer resp.Body.Close()
 	require.Equal(t, fiber.StatusOK, resp.StatusCode)
@@ -175,7 +175,7 @@ func TestAuthHandler_LogoutClearsSessionCookie(t *testing.T) {
 	// The revoked credential must no longer authenticate.
 	retryReq := httptest.NewRequest(http.MethodPost, "/auth/logout", nil)
 	authenticateRequest(retryReq, credential)
-	retryResp, err := app.Test(retryReq)
+	retryResp, err := app.Test(retryReq, testRequestTimeout)
 	require.NoError(t, err)
 	defer retryResp.Body.Close()
 	assert.Equal(t, fiber.StatusUnauthorized, retryResp.StatusCode)

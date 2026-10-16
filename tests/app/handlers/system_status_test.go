@@ -50,7 +50,7 @@ func TestSystemHandler_GetSystemStatus_Uninitialized(t *testing.T) {
 	app.Get("/system/status", handler.GetSystemStatus)
 
 	req := httptest.NewRequest(http.MethodGet, "/system/status", nil)
-	resp, err := app.Test(req)
+	resp, err := app.Test(req, testRequestTimeout)
 	require.NoError(t, err)
 	assert.Equal(t, fiber.StatusOK, resp.StatusCode)
 
@@ -91,7 +91,7 @@ func TestSystemHandler_GetSystemStatus_Initialized(t *testing.T) {
 	app.Get("/system/status", handler.GetSystemStatus)
 
 	req := httptest.NewRequest(http.MethodGet, "/system/status", nil)
-	resp, err := app.Test(req)
+	resp, err := app.Test(req, testRequestTimeout)
 	require.NoError(t, err)
 	assert.Equal(t, fiber.StatusOK, resp.StatusCode)
 
@@ -145,7 +145,7 @@ func TestSystemHandler_RuntimeSettingsReadWrite(t *testing.T) {
 	app.Put("/system/settings", handler.UpdateRuntimeSettings)
 
 	getReq := httptest.NewRequest(http.MethodGet, "/system/settings", nil)
-	getResp, err := app.Test(getReq)
+	getResp, err := app.Test(getReq, testRequestTimeout)
 	require.NoError(t, err)
 	assert.Equal(t, fiber.StatusOK, getResp.StatusCode)
 
@@ -157,7 +157,7 @@ func TestSystemHandler_RuntimeSettingsReadWrite(t *testing.T) {
 
 	updateReq := httptest.NewRequest(http.MethodPut, "/system/settings", bytes.NewBufferString(`{"allow_public_registration":false}`))
 	updateReq.Header.Set("Content-Type", "application/json")
-	updateResp, err := app.Test(updateReq)
+	updateResp, err := app.Test(updateReq, testRequestTimeout)
 	require.NoError(t, err)
 	assert.Equal(t, fiber.StatusOK, updateResp.StatusCode)
 	assert.False(t, config.AllowPublicRegistration(config.AppConfig))
@@ -190,7 +190,7 @@ func TestSystemHandler_SetInitializedRejectsMissingAdmin(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/system/initialized", bytes.NewBufferString(`{"initialized":true}`))
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := app.Test(req)
+	resp, err := app.Test(req, testRequestTimeout)
 	require.NoError(t, err)
 	assert.Equal(t, fiber.StatusConflict, resp.StatusCode)
 
