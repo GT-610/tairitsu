@@ -42,14 +42,10 @@ type FakeDB struct {
 	users    []*models.User
 	sessions []*models.Session
 
-	// WithTransactionFails makes every transaction report this error, for
-	// callers that have to surface a transaction failure.
-	WithTransactionFails error
 	// GetUserByIDError makes a user lookup fail with this error, for callers
 	// that have to distinguish an unreachable database from a missing account.
-	//
-	// Sessions are stored, so a test can resolve one credential and then fail
-	// only the user lookup after it.
+	// Sessions are stored, so a test can resolve a credential and then fail only
+	// the lookup that follows.
 	GetUserByIDError error
 }
 
@@ -58,23 +54,9 @@ func NewFakeDB(users ...*models.User) *FakeDB {
 	return &FakeDB{users: users}
 }
 
-// Users returns the accounts the fake currently holds.
-func (f *FakeDB) Users() []*models.User {
-	return f.users
-}
-
-// Sessions returns the sessions the fake currently holds.
-func (f *FakeDB) Sessions() []*models.Session {
-	return f.sessions
-}
-
 func (f *FakeDB) Init() error { return nil }
 
 func (f *FakeDB) WithTransaction(fn func(database.DBInterface) error) error {
-	if f.WithTransactionFails != nil {
-		return f.WithTransactionFails
-	}
-
 	return fn(f)
 }
 
