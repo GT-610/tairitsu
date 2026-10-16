@@ -6,38 +6,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/GT-610/tairitsu/internal/app/assembly"
-	"github.com/GT-610/tairitsu/internal/app/config"
-	"github.com/GT-610/tairitsu/internal/app/routes"
 	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-// newTestApp assembles the real route table around a configuration with only
-// Initialized set. The database and controller are nil, which is enough to
-// reach the middleware chain.
-func newTestApp(t *testing.T, initialized bool) *fiber.App {
-	t.Helper()
-
-	originalConfig := config.AppConfig
-	t.Cleanup(func() {
-		config.AppConfig = originalConfig
-	})
-
-	config.AppConfig = &config.Config{
-		Initialized: initialized,
-		Security:    config.SecurityConfig{EncryptionKey: "test-secret"},
-	}
-
-	dependencies, err := assembly.NewDependencies(config.AppConfig, nil, nil)
-	require.NoError(t, err)
-
-	app := fiber.New()
-	routes.SetupRoutes(app, dependencies)
-
-	return app
-}
 
 func getStatus(t *testing.T, app *fiber.App, path string) int {
 	t.Helper()
@@ -69,7 +41,7 @@ func postStatus(t *testing.T, app *fiber.App, path string) (int, string) {
 // a route that is missing from the table answers 404 with system.not_found, and
 // one whose gate misfires answers 409, so anything else proves the wiring.
 func TestRouteGatingAfterInitialization(t *testing.T) {
-	app := newTestApp(t, true)
+	app, _ := newTestApp(t, initialized(true))
 
 	setupPaths := []string{
 		"/api/system/database",
@@ -107,7 +79,7 @@ func TestRouteGatingAfterInitialization(t *testing.T) {
 
 // Before setup the two gates have to be the other way round.
 func TestRouteGatingBeforeInitialization(t *testing.T) {
-	app := newTestApp(t, false)
+	app, _ := newTestApp(t, initialized(false))
 
 	status, body := postStatus(t, app, "/api/auth/login")
 

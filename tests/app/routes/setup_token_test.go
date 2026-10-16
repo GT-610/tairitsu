@@ -7,47 +7,11 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/GT-610/tairitsu/internal/app/assembly"
-	"github.com/GT-610/tairitsu/internal/app/config"
 	"github.com/GT-610/tairitsu/internal/app/middleware"
-	"github.com/GT-610/tairitsu/internal/app/routes"
 	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-// newUninitializedApp builds the real route table for an instance that has not
-// been set up yet, which is the window the setup token protects.
-func newUninitializedApp(t *testing.T, dataRoot string) (*fiber.App, *assembly.Dependencies) {
-	t.Helper()
-
-	originalConfig := config.AppConfig
-	t.Cleanup(func() {
-		config.AppConfig = originalConfig
-	})
-	t.Setenv(config.DataDirEnv, dataRoot)
-
-	config.AppConfig = &config.Config{
-		Initialized: false,
-		Database: config.DatabaseConfig{
-			Type: "sqlite",
-			Path: dataRoot + "/tairitsu.db",
-		},
-		ZeroTier: config.ZeroTierConfig{
-			URL:       "http://127.0.0.1:9993",
-			TokenPath: "/var/lib/zerotier-one/authtoken.secret",
-		},
-		Security: config.SecurityConfig{EncryptionKey: "test-secret"},
-	}
-
-	dependencies, err := assembly.NewDependencies(config.AppConfig, nil, nil)
-	require.NoError(t, err)
-	require.True(t, dependencies.Services.SetupToken.Issued(), "an uninitialized instance must issue a token")
-
-	app := fiber.New()
-	routes.SetupRoutes(app, dependencies)
-	return app, dependencies
-}
 
 func postJSON(t *testing.T, app *fiber.App, path string, body string, setupToken string) *http.Response {
 	t.Helper()
@@ -64,7 +28,7 @@ func postJSON(t *testing.T, app *fiber.App, path string, body string, setupToken
 }
 
 func TestSetupEndpointsRequireTheSetupToken(t *testing.T) {
-	app, dependencies := newUninitializedApp(t, t.TempDir())
+	app, dependencies := newTestApp(t, withoutDatabase(), withoutZeroTier(), withTempDataRoot())
 	validToken := dependencies.Services.SetupToken.Value()
 
 	paths := []struct {
@@ -111,7 +75,7 @@ func TestSetupEndpointsRequireTheSetupToken(t *testing.T) {
 }
 
 func TestSystemStatusHidesSetupDetailsFromAnonymousCallers(t *testing.T) {
-	app, _ := newUninitializedApp(t, t.TempDir())
+	app, _ := newTestApp(t, withoutDatabase(), withoutZeroTier(), withTempDataRoot())
 
 	req := httptest.NewRequest(http.MethodGet, "/api/system/status", nil)
 	resp, err := app.Test(req)
@@ -129,7 +93,7 @@ func TestSystemStatusHidesSetupDetailsFromAnonymousCallers(t *testing.T) {
 }
 
 func TestSystemStatusIncludesSetupDetailsForTheTokenHolder(t *testing.T) {
-	app, dependencies := newUninitializedApp(t, t.TempDir())
+	app, dependencies := newTestApp(t, withTempDataRoot())
 
 	req := httptest.NewRequest(http.MethodGet, "/api/system/status", nil)
 	req.Header.Set(middleware.SetupTokenHeader, dependencies.Services.SetupToken.Value())
@@ -162,24 +126,10 @@ func TestSystemStatusIncludesSetupDetailsForTheTokenHolder(t *testing.T) {
 // Once setup is complete the endpoints are closed by SetupOnly and no token is
 // issued at all, so the gate cannot be the only thing standing in the way.
 func TestSetupEndpointsAreClosedAfterInitialization(t *testing.T) {
-	originalConfig := config.AppConfig
-	t.Cleanup(func() {
-		config.AppConfig = originalConfig
-	})
-
-	config.AppConfig = &config.Config{
-		Initialized: true,
-		Security:    config.SecurityConfig{EncryptionKey: "test-secret"},
-	}
-
-	dependencies, err := assembly.NewDependencies(config.AppConfig, nil, nil)
-	require.NoError(t, err)
+	app, dependencies := newTestApp(t, initialized(true))
 	assert.False(t, dependencies.Services.SetupToken.Issued())
 
-	app := fiber.New()
-	routes.SetupRoutes(app, dependencies)
-
-	resp := postJSON(t, app, "/api/system/admin/init", `{}`, dependencies.Services.SetupToken.Value())
+	resp := postJSON(t, app, "/api/system/admin/init", `{}`, "any-old-token")
 	defer resp.Body.Close()
 	assert.Equal(t, fiber.StatusConflict, resp.StatusCode)
 }
@@ -188,22 +138,7 @@ func TestSetupEndpointsAreClosedAfterInitialization(t *testing.T) {
 // keeps it in memory until it restarts, so honouring it after setup would leave
 // the deployment layout readable from a log line long after it mattered.
 func TestSystemStatusWithholdsSetupDetailsOnceInitialized(t *testing.T) {
-	originalConfig := config.AppConfig
-	t.Cleanup(func() {
-		config.AppConfig = originalConfig
-	})
-
-	config.AppConfig = &config.Config{
-		Initialized: true,
-		Database:    config.DatabaseConfig{Type: "sqlite", Path: "/app/data/tairitsu.db"},
-		ZeroTier:    config.ZeroTierConfig{URL: "http://10.88.0.26:9993", TokenPath: "/var/lib/zerotier-one/authtoken.secret"},
-		Security:    config.SecurityConfig{EncryptionKey: "test-secret"},
-	}
-
-	dependencies, err := assembly.NewDependencies(config.AppConfig, nil, nil)
-	require.NoError(t, err)
-	app := fiber.New()
-	routes.SetupRoutes(app, dependencies)
+	app, _ := newTestApp(t, initialized(true))
 
 	// An initialized process issues no token, so a caller cannot obtain one; the
 	// request still carries the header to prove it would not help.

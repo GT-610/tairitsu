@@ -6,40 +6,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/GT-610/tairitsu/internal/app/assembly"
-	"github.com/GT-610/tairitsu/internal/app/config"
-	"github.com/GT-610/tairitsu/internal/app/routes"
 	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-// newCompressionTestApp builds the real route table. The frontend mount
-// registers a catch-all, so tests must target endpoints that already exist in
-// the router rather than adding routes afterwards: anything registered later is
-// served by the app shell instead.
-func newCompressionTestApp(t *testing.T) *fiber.App {
-	t.Helper()
-
-	originalConfig := config.AppConfig
-	t.Cleanup(func() {
-		config.AppConfig = originalConfig
-	})
-
-	config.AppConfig = &config.Config{
-		Initialized: true,
-		Security:    config.SecurityConfig{EncryptionKey: "test-secret"},
-		Database:    config.DatabaseConfig{Type: "sqlite", Path: "data/tairitsu.db"},
-		ZeroTier:    config.ZeroTierConfig{URL: "http://127.0.0.1:9993", TokenPath: "/var/lib/zerotier-one/authtoken.secret"},
-	}
-
-	app := fiber.New()
-	dependencies, err := assembly.NewDependencies(config.AppConfig, nil, nil)
-	require.NoError(t, err)
-	routes.SetupRoutes(app, dependencies)
-
-	return app
-}
 
 // getWithEncoding requests an endpoint with the given Accept-Encoding. An empty
 // encoding means the header is omitted entirely.
@@ -64,7 +34,7 @@ func getWithEncoding(t *testing.T, app *fiber.App, path, encoding string) *http.
 // still be compressed. /api/system/status is the largest unauthenticated
 // response in the real route table.
 func TestRoutesCompressJSONWithGzip(t *testing.T) {
-	app := newCompressionTestApp(t)
+	app, _ := newTestApp(t, initialized(true))
 
 	resp := getWithEncoding(t, app, "/api/system/status", "gzip")
 
@@ -76,7 +46,7 @@ func TestRoutesCompressJSONWithGzip(t *testing.T) {
 // Brotli is negotiated ahead of gzip when the client advertises it, which is
 // what browsers do and what the console bundle benefits from most.
 func TestRoutesCompressJSONWithBrotli(t *testing.T) {
-	app := newCompressionTestApp(t)
+	app, _ := newTestApp(t, initialized(true))
 
 	resp := getWithEncoding(t, app, "/api/system/status", "br")
 
@@ -90,7 +60,7 @@ func TestRoutesCompressJSONWithBrotli(t *testing.T) {
 // page instead, which is also compressed, so the only assertion that holds in
 // both states is that the HTML body is encoded.
 func TestRoutesCompressEmbeddedIndexHTML(t *testing.T) {
-	app := newCompressionTestApp(t)
+	app, _ := newTestApp(t, initialized(true))
 
 	resp := getWithEncoding(t, app, "/", "br")
 
@@ -108,7 +78,7 @@ func TestRoutesCompressEmbeddedIndexHTML(t *testing.T) {
 // A client that cannot decode compressed bodies must still receive a readable,
 // uncompressed response.
 func TestRoutesSkipCompressionWithoutAcceptEncoding(t *testing.T) {
-	app := newCompressionTestApp(t)
+	app, _ := newTestApp(t, initialized(true))
 
 	resp := getWithEncoding(t, app, "/api/system/status", "")
 
@@ -121,7 +91,7 @@ func TestRoutesSkipCompressionWithoutAcceptEncoding(t *testing.T) {
 // liveness probe stays unencoded. This also guards the case that matters for
 // health checks: a probe must never depend on decompression support.
 func TestRoutesSkipCompressionForTinyBody(t *testing.T) {
-	app := newCompressionTestApp(t)
+	app, _ := newTestApp(t, initialized(true))
 
 	resp := getWithEncoding(t, app, "/api/health", "gzip")
 
