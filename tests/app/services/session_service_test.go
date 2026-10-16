@@ -1,24 +1,18 @@
 package services
 
 import (
-	"path/filepath"
 	"testing"
 	"time"
 
-	"github.com/GT-610/tairitsu/internal/app/database"
 	"github.com/GT-610/tairitsu/internal/app/models"
 	"github.com/GT-610/tairitsu/internal/app/services"
+	"github.com/GT-610/tairitsu/tests/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestSessionService_ResolveAndRevokeOtherSessions(t *testing.T) {
-	db, err := database.NewDatabase(database.Config{Type: database.SQLite, Path: filepath.Join(t.TempDir(), "tairitsu.db")})
-	require.NoError(t, err)
-	require.NoError(t, db.Init())
-	t.Cleanup(func() {
-		require.NoError(t, db.Close())
-	})
+	db := testutil.NewSQLiteDB(t)
 
 	user := &models.User{
 		ID:        "user-1",
@@ -66,25 +60,15 @@ func TestSessionService_ResolveAndRevokeOtherSessions(t *testing.T) {
 }
 
 func TestSessionService_ResolveRejectsUnknownCredential(t *testing.T) {
-	db, err := database.NewDatabase(database.Config{Type: database.SQLite, Path: filepath.Join(t.TempDir(), "tairitsu.db")})
-	require.NoError(t, err)
-	require.NoError(t, db.Init())
-	t.Cleanup(func() {
-		require.NoError(t, db.Close())
-	})
+	db := testutil.NewSQLiteDB(t)
 
 	sessionService := services.NewSessionService(db)
-	_, err = sessionService.ResolveSession("not-a-real-credential")
+	_, err := sessionService.ResolveSession("not-a-real-credential")
 	assert.ErrorIs(t, err, services.ErrSessionNotFound)
 }
 
 func TestSessionService_StoresOnlyCredentialHash(t *testing.T) {
-	db, err := database.NewDatabase(database.Config{Type: database.SQLite, Path: filepath.Join(t.TempDir(), "tairitsu.db")})
-	require.NoError(t, err)
-	require.NoError(t, db.Init())
-	t.Cleanup(func() {
-		require.NoError(t, db.Close())
-	})
+	db := testutil.NewSQLiteDB(t)
 
 	sessionService := services.NewSessionService(db)
 	session, credential, err := sessionService.CreateSession(services.SessionCreateInput{
@@ -107,12 +91,7 @@ func TestSessionService_StoresOnlyCredentialHash(t *testing.T) {
 }
 
 func TestSessionService_PurgeUnusableSessionsRemovesCredentiallessRows(t *testing.T) {
-	db, err := database.NewDatabase(database.Config{Type: database.SQLite, Path: filepath.Join(t.TempDir(), "tairitsu.db")})
-	require.NoError(t, err)
-	require.NoError(t, db.Init())
-	t.Cleanup(func() {
-		require.NoError(t, db.Close())
-	})
+	db := testutil.NewSQLiteDB(t)
 
 	now := time.Now()
 	// A row written before session cookies existed carries no credential.
@@ -146,4 +125,52 @@ func TestSessionService_PurgeUnusableSessionsRemovesCredentiallessRows(t *testin
 	// The surviving session must still authenticate.
 	_, err = sessionService.ResolveSession(credential)
 	require.NoError(t, err)
+}
+
+// The session list is keyed by session ID and the ID travels in the URL, so
+// without an ownership check any signed-in account could sign out any other by
+// guessing or observing an ID.
+func TestSessionService_RevokeRejectsAnotherUsersSession(t *testing.T) {
+	db := testutil.NewSQLiteDB(t)
+	now := time.Now()
+	require.NoError(t, db.CreateUser(&models.User{
+		ID: "user-1", Username: "alice", Password: "hashed", Role: "user", CreatedAt: now, UpdatedAt: now,
+	}))
+	require.NoError(t, db.CreateUser(&models.User{
+		ID: "user-2", Username: "bob", Password: "hashed", Role: "user", CreatedAt: now, UpdatedAt: now,
+	}))
+
+	sessionService := services.NewSessionService(db)
+
+	victimSession, victimCredential, err := sessionService.CreateSession(services.SessionCreateInput{
+		UserID:     "user-1",
+		UserAgent:  "victim-browser",
+		IPAddress:  "127.0.0.1",
+		RememberMe: true,
+		ExpiresAt:  now.Add(time.Hour),
+	})
+	require.NoError(t, err)
+
+	// Bob is signed in on his own account and names Alice's session ID.
+	err = sessionService.RevokeSession("user-2", victimSession.ID)
+	assert.ErrorIs(t, err, services.ErrSessionAccessDenied)
+
+	// The credential must still work: a refused revocation cannot have revoked.
+	_, err = sessionService.ResolveSession(victimCredential)
+	assert.NoError(t, err, "another account must not be able to end this session")
+
+	// The owner can, so the refusal is about ownership and not a broken call.
+	require.NoError(t, sessionService.RevokeSession("user-1", victimSession.ID))
+	_, err = sessionService.ResolveSession(victimCredential)
+	assert.ErrorIs(t, err, services.ErrSessionRevoked)
+}
+
+// An unknown session ID is a missing resource rather than a permission problem,
+// which is what the route turns into a 404.
+func TestSessionService_RevokeRejectsUnknownSession(t *testing.T) {
+	db := testutil.NewSQLiteDB(t)
+	sessionService := services.NewSessionService(db)
+
+	err := sessionService.RevokeSession("user-1", "no-such-session")
+	assert.ErrorIs(t, err, services.ErrSessionNotFound)
 }

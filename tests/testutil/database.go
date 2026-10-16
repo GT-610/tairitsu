@@ -34,16 +34,23 @@ func NewSQLiteDB(t *testing.T) database.DBInterface {
 // the database reports without standing up a real backend. Callers seed the
 // accounts they need through NewFakeDB.
 //
-// Only the account operations are backed by storage, because that is all the
-// callers use; every other operation answers with a zero value. It is
+// Accounts and sessions are backed by storage because callers need to read back
+// what they wrote; every other operation answers with a zero value. It is
 // deliberately not a general mock, so it is safe to hand to a service that
 // touches only part of the interface.
 type FakeDB struct {
-	users []*models.User
+	users    []*models.User
+	sessions []*models.Session
 
 	// WithTransactionFails makes every transaction report this error, for
 	// callers that have to surface a transaction failure.
 	WithTransactionFails error
+	// GetUserByIDError makes a user lookup fail with this error, for callers
+	// that have to distinguish an unreachable database from a missing account.
+	//
+	// Sessions are stored, so a test can resolve one credential and then fail
+	// only the user lookup after it.
+	GetUserByIDError error
 }
 
 // NewFakeDB seeds an in-memory database with the supplied accounts.
@@ -54,6 +61,11 @@ func NewFakeDB(users ...*models.User) *FakeDB {
 // Users returns the accounts the fake currently holds.
 func (f *FakeDB) Users() []*models.User {
 	return f.users
+}
+
+// Sessions returns the sessions the fake currently holds.
+func (f *FakeDB) Sessions() []*models.Session {
+	return f.sessions
 }
 
 func (f *FakeDB) Init() error { return nil }
@@ -72,6 +84,10 @@ func (f *FakeDB) CreateUser(user *models.User) error {
 }
 
 func (f *FakeDB) GetUserByID(id string) (*models.User, error) {
+	if f.GetUserByIDError != nil {
+		return nil, f.GetUserByIDError
+	}
+
 	for _, user := range f.users {
 		if user.ID == id {
 			return user, nil
@@ -150,16 +166,40 @@ func (f *FakeDB) PromoteFirstAdministrator(userID string) (bool, error) {
 	return false, nil
 }
 
-func (f *FakeDB) CreateSession(session *models.Session) error { return nil }
+func (f *FakeDB) CreateSession(session *models.Session) error {
+	f.sessions = append(f.sessions, session)
+	return nil
+}
 
-func (f *FakeDB) GetSessionByID(id string) (*models.Session, error) { return nil, nil }
+func (f *FakeDB) GetSessionByID(id string) (*models.Session, error) {
+	for _, session := range f.sessions {
+		if session.ID == id {
+			return session, nil
+		}
+	}
+
+	return nil, nil
+}
 
 func (f *FakeDB) GetSessionByTokenHash(tokenHash string) (*models.Session, error) {
+	for _, session := range f.sessions {
+		if session.TokenHash != nil && *session.TokenHash == tokenHash {
+			return session, nil
+		}
+	}
+
 	return nil, nil
 }
 
 func (f *FakeDB) GetSessionsByUserID(userID string) ([]*models.Session, error) {
-	return []*models.Session{}, nil
+	result := []*models.Session{}
+	for _, session := range f.sessions {
+		if session.UserID == userID {
+			result = append(result, session)
+		}
+	}
+
+	return result, nil
 }
 
 func (f *FakeDB) UpdateSession(session *models.Session) error { return nil }
