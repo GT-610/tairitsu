@@ -24,6 +24,21 @@ func isAPIPath(path string) bool {
 	return path == apiPrefix || strings.HasPrefix(path, apiPrefix+"/")
 }
 
+// namesAFile reports whether the last segment of path looks like a file.
+//
+// It separates a client-side route, which must survive a reload by being handed
+// the app shell, from a request for an asset that is not in the bundle. Client
+// routes are paths like /networks or /networks/<hex id>; a request that ends in
+// something with an extension is asking for a file.
+func namesAFile(path string) bool {
+	lastSegment := path
+	if index := strings.LastIndexByte(path, '/'); index >= 0 {
+		lastSegment = path[index+1:]
+	}
+
+	return strings.ContainsRune(lastSegment, '.')
+}
+
 // mountFrontend serves the embedded frontend bundle from the same process as
 // the API. Unknown non-API paths return index.html so client-side routes survive
 // a page reload or a direct link.
@@ -72,6 +87,12 @@ func mountFrontend(router *fiber.App) {
 					"message":    "Not Found",
 					"error_code": "system.not_found",
 				})
+			}
+			// A missing file is a miss, not a route. Answering with the app
+			// shell would hand the caller an HTML document under whatever type
+			// it asked for, and pay for the whole page on every such request.
+			if namesAFile(c.Path()) {
+				return c.SendStatus(fiber.StatusNotFound)
 			}
 			return serveIndex(c)
 		},
