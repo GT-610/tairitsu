@@ -5,28 +5,22 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"path/filepath"
 	"testing"
 	"time"
 
-	"github.com/GT-610/tairitsu/internal/app/database"
 	apphandlers "github.com/GT-610/tairitsu/internal/app/handlers"
 	"github.com/GT-610/tairitsu/internal/app/middleware"
 	"github.com/GT-610/tairitsu/internal/app/models"
 	"github.com/GT-610/tairitsu/internal/app/services"
 	"github.com/GT-610/tairitsu/internal/zerotier"
+	"github.com/GT-610/tairitsu/tests/testutil"
 	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestNetworkHandler_ImportConsoleAndImportResponseShape(t *testing.T) {
-	db, err := database.NewDatabase(database.Config{Type: database.SQLite, Path: filepath.Join(t.TempDir(), "tairitsu.db")})
-	require.NoError(t, err)
-	require.NoError(t, db.Init())
-	t.Cleanup(func() {
-		require.NoError(t, db.Close())
-	})
+	db := testutil.NewSQLiteDB(t)
 
 	require.NoError(t, db.CreateUser(&models.User{
 		ID:        "admin-1",
@@ -45,8 +39,11 @@ func TestNetworkHandler_ImportConsoleAndImportResponseShape(t *testing.T) {
 		UpdatedAt: time.Now(),
 	}))
 
-	ztClient := newImportHandlerTestZTClient(t, map[string]zerotier.Network{
-		"8056c2e21c000001": {ID: "8056c2e21c000001", Name: "alpha", Description: "alpha-desc", Status: "OK"},
+	ztClient := testutil.NewFakeController(t, &testutil.FakeController{
+		Networks: map[string]zerotier.Network{
+			"8056c2e21c000001": {ID: "8056c2e21c000001", Name: "alpha", Description: "alpha-desc", Status: "OK"},
+		},
+		Members: map[string][]zerotier.Member{"8056c2e21c000001": {}},
 	})
 
 	networkService := services.NewNetworkService(ztClient, db)
@@ -89,45 +86,4 @@ func TestNetworkHandler_ImportConsoleAndImportResponseShape(t *testing.T) {
 	require.Len(t, importBody.Imported, 1)
 	assert.Equal(t, "8056c2e21c000001", importBody.Imported[0].NetworkID)
 	assert.Equal(t, "alice", importBody.Imported[0].OwnerUsername)
-}
-
-func newImportHandlerTestZTClient(t *testing.T, networks map[string]zerotier.Network) *zerotier.Client {
-	t.Helper()
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-
-		switch r.URL.Path {
-		case "/controller/network":
-			ids := make([]string, 0, len(networks))
-			for id := range networks {
-				ids = append(ids, id)
-			}
-			require.NoError(t, json.NewEncoder(w).Encode(ids))
-		default:
-			if len(r.URL.Path) <= len("/controller/network/") {
-				http.NotFound(w, r)
-				return
-			}
-			path := r.URL.Path[len("/controller/network/"):]
-			if len(path) > len("/member") && path[len(path)-len("/member"):] == "/member" {
-				require.NoError(t, json.NewEncoder(w).Encode([]zerotier.Member{}))
-				return
-			}
-
-			network, ok := networks[path]
-			if !ok {
-				http.NotFound(w, r)
-				return
-			}
-			require.NoError(t, json.NewEncoder(w).Encode(network))
-		}
-	}))
-	t.Cleanup(server.Close)
-
-	return &zerotier.Client{
-		BaseURL:    server.URL,
-		Token:      "test-token",
-		HTTPClient: server.Client(),
-	}
 }
