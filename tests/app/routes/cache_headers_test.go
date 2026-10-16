@@ -24,7 +24,7 @@ func TestAPIResponsesAreNotCacheable(t *testing.T) {
 
 	config.AppConfig = &config.Config{
 		Initialized: true,
-		Security:    config.SecurityConfig{JWTSecret: "test-secret"},
+		Security:    config.SecurityConfig{EncryptionKey: "test-secret"},
 	}
 
 	dependencies, err := assembly.NewDependencies(config.AppConfig, nil, nil)
@@ -55,7 +55,7 @@ func TestConsoleResponsesAreNotMarkedNoStore(t *testing.T) {
 
 	config.AppConfig = &config.Config{
 		Initialized: true,
-		Security:    config.SecurityConfig{JWTSecret: "test-secret"},
+		Security:    config.SecurityConfig{EncryptionKey: "test-secret"},
 	}
 
 	dependencies, err := assembly.NewDependencies(config.AppConfig, nil, nil)

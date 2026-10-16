@@ -16,28 +16,30 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestLoadConfigGeneratesAndPersistsJWTSecret(t *testing.T) {
+func TestLoadConfigGeneratesAndPersistsEncryptionKey(t *testing.T) {
 	useTemporaryWorkingDirectory(t)
+	t.Setenv("TAIRITSU_ENCRYPTION_KEY", "")
 	t.Setenv("JWT_SECRET", "")
 
 	first, err := config.LoadConfig()
 	require.NoError(t, err)
-	require.NotEmpty(t, first.Security.JWTSecret)
+	require.NotEmpty(t, first.Security.EncryptionKey)
 
 	configBytes, err := os.ReadFile(filepath.Join("data", "config.json"))
 	require.NoError(t, err)
 	var persisted config.Config
 	require.NoError(t, json.Unmarshal(configBytes, &persisted))
-	assert.Equal(t, first.Security.JWTSecret, persisted.Security.JWTSecret)
+	assert.Equal(t, first.Security.EncryptionKey, persisted.Security.EncryptionKey)
 
 	second, err := config.LoadConfig()
 	require.NoError(t, err)
-	assert.Equal(t, first.Security.JWTSecret, second.Security.JWTSecret)
+	assert.Equal(t, first.Security.EncryptionKey, second.Security.EncryptionKey)
 	assert.Empty(t, second.ZeroTier.Token)
 }
 
-func TestLoadConfigMigratesLegacyCredentialsEncryptedWithEmptyJWTSecret(t *testing.T) {
+func TestLoadConfigMigratesLegacyCredentialsEncryptedWithEmptyEncryptionKey(t *testing.T) {
 	useTemporaryWorkingDirectory(t)
+	t.Setenv("TAIRITSU_ENCRYPTION_KEY", "")
 	t.Setenv("JWT_SECRET", "")
 
 	legacyConfig := &config.Config{
@@ -52,7 +54,7 @@ func TestLoadConfigMigratesLegacyCredentialsEncryptedWithEmptyJWTSecret(t *testi
 
 	repaired, err := config.LoadConfig()
 	require.NoError(t, err)
-	require.NotEmpty(t, repaired.Security.JWTSecret)
+	require.NotEmpty(t, repaired.Security.EncryptionKey)
 
 	decrypted, err := config.GetZTTokenFrom(repaired)
 	require.NoError(t, err)
@@ -63,7 +65,7 @@ func TestLoadConfigMigratesLegacyCredentialsEncryptedWithEmptyJWTSecret(t *testi
 
 	reloaded, err := config.LoadConfig()
 	require.NoError(t, err)
-	assert.Equal(t, repaired.Security.JWTSecret, reloaded.Security.JWTSecret)
+	assert.Equal(t, repaired.Security.EncryptionKey, reloaded.Security.EncryptionKey)
 	decrypted, err = config.GetZTTokenFrom(reloaded)
 	require.NoError(t, err)
 	assert.Equal(t, "legacy-controller-token", decrypted)
@@ -74,13 +76,70 @@ func TestLoadConfigMigratesLegacyCredentialsEncryptedWithEmptyJWTSecret(t *testi
 
 func TestLoadConfigContinuesWhenTokenRetryFails(t *testing.T) {
 	useTemporaryWorkingDirectory(t)
+	t.Setenv("TAIRITSU_ENCRYPTION_KEY", "")
 	t.Setenv("JWT_SECRET", "")
 	t.Setenv("ZT_TOKEN_PATH", filepath.Join(t.TempDir(), "missing-authtoken.secret"))
 
 	cfg, err := config.LoadConfig()
 	require.NoError(t, err)
-	require.NotEmpty(t, cfg.Security.JWTSecret)
+	require.NotEmpty(t, cfg.Security.EncryptionKey)
 	assert.Empty(t, cfg.ZeroTier.Token)
+}
+
+// The encryption key used to be called jwt_secret. Adopting it matters because
+// the key protects credentials that are already stored: generating a fresh one
+// on upgrade would lose them.
+func TestLoadConfigAdoptsTheLegacyEncryptionKeyName(t *testing.T) {
+	useTemporaryWorkingDirectory(t)
+	t.Setenv("TAIRITSU_ENCRYPTION_KEY", "")
+	t.Setenv("JWT_SECRET", "")
+
+	require.NoError(t, os.MkdirAll("data", 0755))
+	legacy := map[string]any{
+		"initialized": true,
+		"security":    map[string]any{"jwt_secret": "existing-secret"},
+	}
+	configBytes, err := json.Marshal(legacy)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(filepath.Join("data", "config.json"), configBytes, 0600))
+
+	cfg, err := config.LoadConfig()
+	require.NoError(t, err)
+	assert.Equal(t, "existing-secret", cfg.Security.EncryptionKey)
+
+	// Saving rewrites it under the current name, so the old one disappears.
+	require.NoError(t, config.SaveConfig(cfg))
+	rewritten, err := os.ReadFile(filepath.Join("data", "config.json"))
+	require.NoError(t, err)
+
+	var persisted struct {
+		Security map[string]any `json:"security"`
+	}
+	require.NoError(t, json.Unmarshal(rewritten, &persisted))
+	assert.Equal(t, "existing-secret", persisted.Security["encryption_key"])
+	assert.NotContains(t, persisted.Security, "jwt_secret")
+}
+
+func TestLoadConfigReadsTheEncryptionKeyFromTheEnvironment(t *testing.T) {
+	useTemporaryWorkingDirectory(t)
+	t.Setenv("TAIRITSU_ENCRYPTION_KEY", "from-the-environment")
+	t.Setenv("JWT_SECRET", "from-the-old-name")
+
+	cfg, err := config.LoadConfig()
+	require.NoError(t, err)
+	assert.Equal(t, "from-the-environment", cfg.Security.EncryptionKey)
+}
+
+// An installation that still sets the old variable must keep working rather
+// than silently generating a new key.
+func TestLoadConfigFallsBackToTheDeprecatedEncryptionKeyVariable(t *testing.T) {
+	useTemporaryWorkingDirectory(t)
+	t.Setenv("TAIRITSU_ENCRYPTION_KEY", "")
+	t.Setenv("JWT_SECRET", "from-the-old-name")
+
+	cfg, err := config.LoadConfig()
+	require.NoError(t, err)
+	assert.Equal(t, "from-the-old-name", cfg.Security.EncryptionKey)
 }
 
 // The console port is fixed. An old config.json still carries a "server" block
@@ -88,6 +147,7 @@ func TestLoadConfigContinuesWhenTokenRetryFails(t *testing.T) {
 // the port the console listens on.
 func TestLoadConfigIgnoresLegacyServerPortFromExistingConfig(t *testing.T) {
 	useTemporaryWorkingDirectory(t)
+	t.Setenv("TAIRITSU_ENCRYPTION_KEY", "")
 	t.Setenv("JWT_SECRET", "")
 
 	require.NoError(t, os.MkdirAll("data", 0755))
@@ -115,6 +175,7 @@ func TestLoadConfigIgnoresLegacyServerPortFromExistingConfig(t *testing.T) {
 // port is no longer configurable and the operator maps it from the host.
 func TestLoadConfigIgnoresServerPortEnvironment(t *testing.T) {
 	useTemporaryWorkingDirectory(t)
+	t.Setenv("TAIRITSU_ENCRYPTION_KEY", "")
 	t.Setenv("JWT_SECRET", "")
 	t.Setenv("SERVER_PORT", "9090")
 
@@ -130,6 +191,7 @@ func TestLoadConfigIgnoresServerPortEnvironment(t *testing.T) {
 // so an upgraded deployment does not keep carrying a field that has no meaning.
 func TestSaveConfigDoesNotWriteLegacyServerBlock(t *testing.T) {
 	useTemporaryWorkingDirectory(t)
+	t.Setenv("TAIRITSU_ENCRYPTION_KEY", "")
 	t.Setenv("JWT_SECRET", "")
 
 	cfg, err := config.LoadConfig()

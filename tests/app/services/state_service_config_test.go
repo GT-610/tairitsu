@@ -84,7 +84,7 @@ func TestStateServiceSaveDatabaseConfigPersistsBoundConfig(t *testing.T) {
 
 	boundConfig := &config.Config{
 		Security: config.SecurityConfig{
-			JWTSecret: "test-secret",
+			EncryptionKey: "test-secret",
 		},
 	}
 	config.AppConfig = &config.Config{}
@@ -111,7 +111,7 @@ func TestStateServiceSaveZeroTierConfigPersistsBoundConfig(t *testing.T) {
 
 	boundConfig := &config.Config{
 		Security: config.SecurityConfig{
-			JWTSecret: "test-secret",
+			EncryptionKey: "test-secret",
 		},
 	}
 	config.AppConfig = &config.Config{}
@@ -133,7 +133,7 @@ func TestStateServiceSaveRuntimeSettingsPersistsBoundConfig(t *testing.T) {
 
 	boundConfig := &config.Config{
 		Security: config.SecurityConfig{
-			JWTSecret: "test-secret",
+			EncryptionKey: "test-secret",
 		},
 	}
 	config.AppConfig = &config.Config{}

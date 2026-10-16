@@ -23,7 +23,7 @@ func TestLoginRouteDoesNotUseSetupOnlyAfterInitialization(t *testing.T) {
 	config.AppConfig = &config.Config{
 		Initialized: true,
 		Security: config.SecurityConfig{
-			JWTSecret: "test-secret",
+			EncryptionKey: "test-secret",
 		},
 	}
 
@@ -49,7 +49,7 @@ func TestRegisterRouteDoesNotUseSetupOnlyAfterInitialization(t *testing.T) {
 	config.AppConfig = &config.Config{
 		Initialized: true,
 		Security: config.SecurityConfig{
-			JWTSecret: "test-secret",
+			EncryptionKey: "test-secret",
 		},
 	}
 

@@ -37,7 +37,7 @@ func newUninitializedApp(t *testing.T, dataRoot string) (*fiber.App, *assembly.D
 			URL:       "http://127.0.0.1:9993",
 			TokenPath: "/var/lib/zerotier-one/authtoken.secret",
 		},
-		Security: config.SecurityConfig{JWTSecret: "test-secret"},
+		Security: config.SecurityConfig{EncryptionKey: "test-secret"},
 	}
 
 	dependencies, err := assembly.NewDependencies(config.AppConfig, nil, nil)
@@ -169,7 +169,7 @@ func TestSetupEndpointsAreClosedAfterInitialization(t *testing.T) {
 
 	config.AppConfig = &config.Config{
 		Initialized: true,
-		Security:    config.SecurityConfig{JWTSecret: "test-secret"},
+		Security:    config.SecurityConfig{EncryptionKey: "test-secret"},
 	}
 
 	dependencies, err := assembly.NewDependencies(config.AppConfig, nil, nil)

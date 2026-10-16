@@ -22,7 +22,7 @@ func TestRuntimeRoutesDoNotUseSetupOnlyAfterInitialization(t *testing.T) {
 	config.AppConfig = &config.Config{
 		Initialized: true,
 		Security: config.SecurityConfig{
-			JWTSecret: "test-secret",
+			EncryptionKey: "test-secret",
 		},
 	}
 

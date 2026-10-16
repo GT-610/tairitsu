@@ -33,7 +33,7 @@ func TestAuthHandler_RegisterRejectsWhenPublicRegistrationDisabled(t *testing.T)
 			Path: dbPath,
 		},
 		Security: config.SecurityConfig{
-			JWTSecret: "test-secret",
+			EncryptionKey: "test-secret",
 		},
 	}
 

@@ -17,9 +17,10 @@ func ensureLogger() *zap.Logger {
 	return logger
 }
 
-// isProduction checks both APP_ENV and NODE_ENV for backward compatibility.
+// isProduction reports whether the process runs as a release. NODE_ENV used to
+// be checked as well, but nothing in this repository ever set it.
 func isProduction() bool {
-	return os.Getenv("APP_ENV") == "production" || os.Getenv("NODE_ENV") == "production"
+	return os.Getenv("APP_ENV") == "production"
 }
 
 // InitLogger initializes the logger

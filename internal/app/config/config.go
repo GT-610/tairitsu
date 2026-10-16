@@ -34,10 +34,23 @@ type ZeroTierConfig struct {
 	TokenPath string `json:"tokenPath"` // Token file path
 }
 
-// SecurityConfig Security configuration
+// SecurityConfig holds the key that protects stored credentials.
 type SecurityConfig struct {
-	JWTSecret string `json:"jwt_secret"`
+	// EncryptionKey encrypts the ZeroTier token and, before those backends were
+	// removed, the database password. It is generated on first start and stored
+	// beside the ciphertext, so it protects against a leaked copy of one file
+	// rather than against an attacker who can read the data directory.
+	EncryptionKey string `json:"encryption_key"`
 }
+
+// EncryptionKeyEnv seeds the encryption key on a fresh instance.
+const EncryptionKeyEnv = "TAIRITSU_ENCRYPTION_KEY"
+
+// legacyEncryptionKeyEnv is the name this variable had while the key was also
+// used to sign JSON Web Tokens. It is still read so that an existing
+// deployment does not silently generate a new key, and can be dropped once no
+// installation sets it.
+const legacyEncryptionKeyEnv = "JWT_SECRET"
 
 type RegistrationConfig struct {
 	AllowPublicRegistration *bool `json:"allow_public_registration,omitempty"`
@@ -191,13 +204,13 @@ func LoadConfig() (*Config, error) {
 	// First try to load from config.json
 	cfg, err := loadConfigFromJSON()
 	if err == nil {
-		generated, err := ensureJWTSecret(cfg)
+		generated, err := ensureEncryptionKey(cfg)
 		if err != nil {
-			return nil, fmt.Errorf("failed to generate JWT secret: %w", err)
+			return nil, fmt.Errorf("failed to generate the configuration encryption key: %w", err)
 		}
 		if generated {
 			if err := SaveConfig(cfg); err != nil {
-				return nil, fmt.Errorf("failed to save generated JWT secret: %w", err)
+				return nil, fmt.Errorf("failed to save the generated configuration encryption key: %w", err)
 			}
 		}
 		AppConfig = cfg
@@ -209,15 +222,15 @@ func LoadConfig() (*Config, error) {
 
 	// Try to load partial configuration from .env file or environment variables
 	loadEnvConfig(cfg)
-	generated, err := ensureJWTSecret(cfg)
+	generated, err := ensureEncryptionKey(cfg)
 	if err != nil {
-		return nil, fmt.Errorf("failed to generate JWT secret: %w", err)
+		return nil, fmt.Errorf("failed to generate the configuration encryption key: %w", err)
 	}
 	if generated && cfg.ZeroTier.TokenPath != "" && cfg.ZeroTier.Token == "" {
 		// Loading an environment-provided token path may have failed before a
 		// generated encryption key was available. Retry after creating the key.
 		if err := LoadTokenFromPathInto(cfg, cfg.ZeroTier.TokenPath); err != nil {
-			logger.Warn("failed to load environment-provided ZeroTier token after generating JWT secret; continuing without token", zap.Error(err))
+			logger.Warn("failed to load environment-provided ZeroTier token after generating the encryption key; continuing without token", zap.Error(err))
 		}
 	}
 
@@ -251,7 +264,33 @@ func loadConfigFromJSON() (*Config, error) {
 		return nil, fmt.Errorf("failed to parse configuration file: %w", err)
 	}
 
+	adoptLegacySecurityKey(cfg, data)
+
 	return cfg, nil
+}
+
+// adoptLegacySecurityKey reads the encryption key from the name it had before
+// the JWT service was removed.
+//
+// The field protects credentials that are already stored, so losing it would
+// lose them; the value is carried over and written back under the new name the
+// next time the configuration is saved.
+func adoptLegacySecurityKey(cfg *Config, raw []byte) {
+	if cfg == nil || cfg.Security.EncryptionKey != "" {
+		return
+	}
+
+	var legacy struct {
+		Security struct {
+			Key string `json:"jwt_secret"`
+		} `json:"security"`
+	}
+	if err := json.Unmarshal(raw, &legacy); err != nil || legacy.Security.Key == "" {
+		return
+	}
+
+	logger.Warn("configuration stores its encryption key under the old jwt_secret name; it will be rewritten as encryption_key on the next save")
+	cfg.Security.EncryptionKey = legacy.Security.Key
 }
 
 // SaveConfig Save configuration to JSON file
@@ -281,7 +320,7 @@ func createDefaultConfig() *Config {
 		Database:    DatabaseConfig{},
 		ZeroTier:    ZeroTierConfig{},
 		Security: SecurityConfig{
-			JWTSecret: "", // Generated and persisted by LoadConfig before service assembly.
+			EncryptionKey: "", // Generated and persisted by LoadConfig before service assembly.
 		},
 		Registration: RegistrationConfig{
 			AllowPublicRegistration: boolPtr(true),
@@ -289,8 +328,8 @@ func createDefaultConfig() *Config {
 	}
 }
 
-func ensureJWTSecret(cfg *Config) (bool, error) {
-	if cfg.Security.JWTSecret != "" {
+func ensureEncryptionKey(cfg *Config) (bool, error) {
+	if cfg.Security.EncryptionKey != "" {
 		return false, nil
 	}
 
@@ -307,7 +346,7 @@ func ensureJWTSecret(cfg *Config) (bool, error) {
 	if _, err := rand.Read(secretBytes); err != nil {
 		return false, err
 	}
-	cfg.Security.JWTSecret = base64.URLEncoding.EncodeToString(secretBytes)
+	cfg.Security.EncryptionKey = base64.URLEncoding.EncodeToString(secretBytes)
 	if token != "" {
 		if err := SetZTTokenOn(cfg, token); err != nil {
 			return false, err
@@ -343,8 +382,12 @@ func loadEnvConfig(cfg *Config) {
 	if url := Env("ZT_CONTROLLER_URL"); url != "" {
 		cfg.ZeroTier.URL = url
 	}
-	if jwt := Env("JWT_SECRET"); jwt != "" {
-		cfg.Security.JWTSecret = jwt
+	if key := Env(EncryptionKeyEnv); key != "" {
+		cfg.Security.EncryptionKey = key
+	} else if legacy := Env(legacyEncryptionKeyEnv); legacy != "" {
+		logger.Warn("ignoring the deprecated environment variable; rename it",
+			zap.String("deprecated", legacyEncryptionKeyEnv), zap.String("replacement", EncryptionKeyEnv))
+		cfg.Security.EncryptionKey = legacy
 	}
 
 	// Read ZT_TOKEN_PATH and try to read token from file
@@ -506,7 +549,7 @@ func encryptSensitiveDataWithConfig(cfg *Config, data string) (string, error) {
 		return "", fmt.Errorf("configuration not loaded")
 	}
 
-	key := cfg.Security.JWTSecret
+	key := cfg.Security.EncryptionKey
 	encrypted, err := crypto.Encrypt(data, key)
 	if err != nil {
 		return "", err
@@ -528,7 +571,7 @@ func decryptSensitiveDataWithConfig(cfg *Config, data string) (plaintext string,
 	}
 
 	encryptedData := strings.TrimPrefix(data, "encrypted:")
-	key := cfg.Security.JWTSecret
+	key := cfg.Security.EncryptionKey
 	plaintext, needsReEncrypt, err := crypto.DecryptWithLegacy(encryptedData, key)
 	if err != nil {
 		return "", "", err

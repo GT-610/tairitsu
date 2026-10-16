@@ -28,7 +28,7 @@ func newCompressionTestApp(t *testing.T) *fiber.App {
 
 	config.AppConfig = &config.Config{
 		Initialized: true,
-		Security:    config.SecurityConfig{JWTSecret: "test-secret"},
+		Security:    config.SecurityConfig{EncryptionKey: "test-secret"},
 		Database:    config.DatabaseConfig{Type: "sqlite", Path: "data/tairitsu.db"},
 		ZeroTier:    config.ZeroTierConfig{URL: "http://127.0.0.1:9993", TokenPath: "/var/lib/zerotier-one/authtoken.secret"},
 	}

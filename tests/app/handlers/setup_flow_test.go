@@ -39,7 +39,7 @@ func TestSetupFlow_ResetDatabaseThenRegisterAdmin(t *testing.T) {
 			Path: dbPath,
 		},
 		Security: config.SecurityConfig{
-			JWTSecret: "test-secret",
+			EncryptionKey: "test-secret",
 		},
 	}
 	config.SetTempSetting("admin_creation_reset_done", "")
