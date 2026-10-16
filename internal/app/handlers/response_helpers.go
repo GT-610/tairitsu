@@ -15,7 +15,6 @@ func writeErrorResponseWithCode(c fiber.Ctx, status int, code string, message st
 	return c.Status(status).JSON(fiber.Map{
 		"message":    message,
 		"error_code": code,
-		"code":       status,
 	})
 }
 
@@ -32,18 +31,17 @@ func writeErrorResponseWithDetail(c fiber.Ctx, status int, code string, message 
 	return c.Status(status).JSON(fiber.Map{
 		"message":    message,
 		"error_code": code,
-		"code":       status,
 		"detail":     detail,
 	})
 }
 
-func writeMessageResponse(c fiber.Ctx, status int, code string, message string, extra fiber.Map) error {
-	body := fiber.Map{
-		"message":      message,
-		"message_code": code,
-	}
+// writeMessageResponse returns a success body. It carries a human-readable
+// message and nothing else: the success codes that used to accompany it were
+// never read by the client, which renders its own copy.
+func writeMessageResponse(c fiber.Ctx, status int, message string, extra fiber.Map) error {
+	body := fiber.Map{"message": message}
 	for key, value := range extra {
-		if key == "message" || key == "message_code" {
+		if key == "message" {
 			continue
 		}
 		body[key] = value

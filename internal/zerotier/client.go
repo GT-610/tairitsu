@@ -71,7 +71,6 @@ func (n *Network) UnmarshalJSON(data []byte) error {
 
 	n.Config = NetworkConfig{
 		Private:                    resp.Private,
-		AllowPassivePortForwarding: resp.AllowPassivePortForwarding,
 		EnableBroadcast:            resp.EnableBroadcast,
 		Mtu:                        resp.Mtu,
 		MulticastLimit:             resp.MulticastLimit,

@@ -269,7 +269,6 @@ export interface SystemStats {
 
 export interface SetupStatus {
   initialized: boolean;
-  hasDatabase: boolean;
   databaseConfigured: boolean;
   // True when the request carried a valid setup token, which is what unlocks
   // the deployment details below. The endpoint itself is public.

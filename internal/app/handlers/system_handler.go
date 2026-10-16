@@ -152,7 +152,7 @@ func (h *SystemHandler) UpdateRuntimeSettings(c fiber.Ctx) error {
 		return setupErrorResponse(c, err)
 	}
 
-	return writeMessageResponse(c, fiber.StatusOK, "system.settings_updated", "Instance settings updated successfully", fiber.Map{"settings": req})
+	return writeMessageResponse(c, fiber.StatusOK, "Instance settings updated successfully", fiber.Map{"settings": req})
 }
 
 // ConfigureDatabase configures the database connection settings
@@ -174,8 +174,7 @@ func (h *SystemHandler) ConfigureDatabase(c fiber.Ctx) error {
 	logger.Info("Database configured successfully", zap.String("type", string(dbCfg.Type)))
 
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
-		"message":      "Database configured successfully",
-		"message_code": "system.database_configured",
+		"message": "Database configured successfully",
 		"config": fiber.Map{
 			"type": dbCfg.Type,
 			"path": dbCfg.Path,
@@ -211,8 +210,7 @@ func (h *SystemHandler) SaveZeroTierConfig(c fiber.Ctx) error {
 
 	logger.Info("ZeroTier configuration saved and validated")
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
-		"message":      "ZeroTier configuration saved successfully",
-		"message_code": "system.zerotier_configured",
+		"message": "ZeroTier configuration saved successfully",
 		"config": fiber.Map{
 			"controllerUrl": req.ControllerURL,
 		},
@@ -235,7 +233,6 @@ func (h *SystemHandler) InitializeAdminCreation(c fiber.Ctx) error {
 
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
 		"message":      "Administrator account creation step initialized successfully",
-		"message_code": "system.admin_creation_initialized",
 		"resetDone":    true,
 		"databaseType": databaseType,
 	})
@@ -259,7 +256,7 @@ func (h *SystemHandler) SetInitialized(c fiber.Ctx) error {
 		return setupErrorResponse(c, err)
 	}
 
-	return writeMessageResponse(c, fiber.StatusOK, "system.initialized_updated", "Initialization state updated successfully", nil)
+	return writeMessageResponse(c, fiber.StatusOK, "Initialization state updated successfully", nil)
 }
 
 // GetSystemStats retrieves system resource usage statistics

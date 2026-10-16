@@ -5,7 +5,6 @@ describe('setupWizard', () => {
   test('derives the first incomplete setup step from backend status', () => {
     expect(getInitialSetupWizardStep({
       initialized: false,
-      hasDatabase: false,
       databaseConfigured: false,
       hasAdmin: false,
       zerotierConfigured: false,
@@ -15,7 +14,6 @@ describe('setupWizard', () => {
 
     expect(getInitialSetupWizardStep({
       initialized: false,
-      hasDatabase: true,
       databaseConfigured: true,
       hasAdmin: false,
       zerotierConfigured: true,
@@ -25,7 +23,6 @@ describe('setupWizard', () => {
 
     expect(getInitialSetupWizardStep({
       initialized: false,
-      hasDatabase: true,
       databaseConfigured: true,
       hasAdmin: true,
       zerotierConfigured: false,
@@ -35,7 +32,6 @@ describe('setupWizard', () => {
 
     expect(getInitialSetupWizardStep({
       initialized: false,
-      hasDatabase: false,
       databaseConfigured: false,
       hasAdmin: true,
       zerotierConfigured: true,
@@ -45,7 +41,6 @@ describe('setupWizard', () => {
 
     expect(getInitialSetupWizardStep({
       initialized: false,
-      hasDatabase: true,
       databaseConfigured: true,
       hasAdmin: true,
       zerotierConfigured: true,
@@ -59,7 +54,6 @@ describe('setupWizard', () => {
   test('keeps an unauthorized caller on the token step', () => {
     expect(getResumableSetupWizardStep({
       initialized: false,
-      hasDatabase: true,
       databaseConfigured: true,
       setupAuthorized: false,
       hasAdmin: true,
@@ -78,7 +72,6 @@ describe('setupWizard', () => {
 
     expect(getResumableSetupWizardStep({
       ...base,
-      hasDatabase: false,
       databaseConfigured: false,
       hasAdmin: false,
       zerotierConfigured: false,
@@ -87,7 +80,6 @@ describe('setupWizard', () => {
 
     expect(getResumableSetupWizardStep({
       ...base,
-      hasDatabase: true,
       databaseConfigured: false,
       hasAdmin: false,
       zerotierConfigured: true,
@@ -96,7 +88,6 @@ describe('setupWizard', () => {
 
     expect(getResumableSetupWizardStep({
       ...base,
-      hasDatabase: true,
       databaseConfigured: true,
       hasAdmin: false,
       zerotierConfigured: true,
@@ -105,7 +96,6 @@ describe('setupWizard', () => {
 
     expect(getResumableSetupWizardStep({
       ...base,
-      hasDatabase: true,
       databaseConfigured: true,
       hasAdmin: true,
       zerotierConfigured: true,

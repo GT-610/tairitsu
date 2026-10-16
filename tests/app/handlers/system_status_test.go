@@ -168,7 +168,6 @@ func TestSystemHandler_GetSystemStatus_Uninitialized(t *testing.T) {
 	var body map[string]any
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(&body))
 	assert.Equal(t, false, body["initialized"])
-	assert.Equal(t, true, body["hasDatabase"])
 	assert.Equal(t, true, body["databaseConfigured"])
 	assert.Equal(t, true, body["zerotierConfigured"])
 	assert.Equal(t, true, body["adminCreationPrepared"])
@@ -217,7 +216,6 @@ func TestSystemHandler_GetSystemStatus_Initialized(t *testing.T) {
 
 	var body struct {
 		Initialized             bool `json:"initialized"`
-		HasDatabase             bool `json:"hasDatabase"`
 		HasAdmin                bool `json:"hasAdmin"`
 		AllowPublicRegistration bool `json:"allowPublicRegistration"`
 		ZTStatus                struct {
@@ -227,7 +225,6 @@ func TestSystemHandler_GetSystemStatus_Initialized(t *testing.T) {
 	}
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(&body))
 	assert.True(t, body.Initialized)
-	assert.True(t, body.HasDatabase)
 	assert.True(t, body.HasAdmin)
 	assert.False(t, body.AllowPublicRegistration)
 	assert.False(t, body.ZTStatus.Online)

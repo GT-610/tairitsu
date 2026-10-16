@@ -10,12 +10,12 @@ import (
 	"go.uber.org/zap"
 )
 
-// ErrorResponse represents an error response structure
+// ErrorResponse represents an error response structure. The HTTP status is not
+// repeated in the body: every client reads the status line.
 type ErrorResponse struct {
 	Error     string `json:"error"`
 	Message   string `json:"message,omitempty"`
 	ErrorCode string `json:"error_code,omitempty"`
-	Code      int    `json:"code,omitempty"`
 }
 
 // ErrorHandler is the global error handling middleware
@@ -31,7 +31,6 @@ func ErrorHandler() fiber.Handler {
 					Error:     http.StatusText(fiberErr.Code),
 					Message:   fiberErr.Message,
 					ErrorCode: httpcode.DefaultErrorCode(fiberErr.Code),
-					Code:      fiberErr.Code,
 				})
 			}
 
@@ -40,7 +39,6 @@ func ErrorHandler() fiber.Handler {
 				Error:     "Internal Server Error",
 				Message:   "Internal Server Error",
 				ErrorCode: "system.internal_error",
-				Code:      fiber.StatusInternalServerError,
 			})
 		}
 		return nil

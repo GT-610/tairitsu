@@ -51,7 +51,6 @@ type CreateUserRequest struct {
 
 type ResetPasswordResponse struct {
 	Message           string              `json:"message"`
-	MessageCode       string              `json:"message_code"`
 	User              models.UserResponse `json:"user"`
 	TemporaryPassword string              `json:"temporary_password"`
 	RevokedSessions   int                 `json:"revoked_sessions"`
@@ -59,7 +58,6 @@ type ResetPasswordResponse struct {
 
 type DeleteUserResponse struct {
 	Message             string              `json:"message"`
-	MessageCode         string              `json:"message_code"`
 	User                models.UserResponse `json:"user"`
 	TransferredNetworks int                 `json:"transferred_networks"`
 	RevokedSessions     int                 `json:"revoked_sessions"`
@@ -86,7 +84,6 @@ func (h *UserHandler) CreateUser(c fiber.Ctx) error {
 
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
 		"message":            "User created successfully. Share the temporary password securely outside this system.",
-		"message_code":       "user.created",
 		"user":               user.ToResponse(),
 		"temporary_password": temporaryPassword,
 	})
@@ -114,9 +111,8 @@ func (h *UserHandler) TransferAdmin(c fiber.Ctx) error {
 
 	logger.Info("Administrator role transferred", zap.String("current_user_id", currentUserID), zap.String("target_user_id", req.UserID))
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
-		"message":      "Administrator role transferred successfully",
-		"message_code": "user.admin_transferred",
-		"user":         user.ToResponse(),
+		"message": "Administrator role transferred successfully",
+		"user":    user.ToResponse(),
 	})
 }
 
@@ -148,7 +144,6 @@ func (h *UserHandler) ResetPassword(c fiber.Ctx) error {
 
 	return c.Status(fiber.StatusOK).JSON(ResetPasswordResponse{
 		Message:           "Password reset successfully. Share it securely outside this system and ask the user to change it soon.",
-		MessageCode:       "user.password_reset",
 		User:              user.ToResponse(),
 		TemporaryPassword: temporaryPassword,
 		RevokedSessions:   revokedSessions,
@@ -184,7 +179,6 @@ func (h *UserHandler) DeleteUser(c fiber.Ctx) error {
 
 	return c.Status(fiber.StatusOK).JSON(DeleteUserResponse{
 		Message:             "User deleted. Their networks were transferred to the current administrator.",
-		MessageCode:         "user.deleted",
 		User:                user.ToResponse(),
 		TransferredNetworks: transferredNetworks,
 		RevokedSessions:     revokedSessions,

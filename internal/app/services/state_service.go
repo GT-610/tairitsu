@@ -10,7 +10,6 @@ import (
 
 type SetupStatus struct {
 	Initialized             bool             `json:"initialized"`
-	HasDatabase             bool             `json:"hasDatabase"`
 	DatabaseConfigured      bool             `json:"databaseConfigured"`
 	SetupAuthorized         bool             `json:"setupAuthorized"`
 	HasAdmin                bool             `json:"hasAdmin"`
@@ -126,7 +125,6 @@ func (s *StateService) GetSetupStatus(userService *UserService, networkService *
 
 	status := SetupStatus{
 		Initialized:             s.IsInitialized(),
-		HasDatabase:             databaseConfigured,
 		DatabaseConfigured:      databaseConfigured,
 		SetupAuthorized:         includeSensitive,
 		ZeroTierConfigured:      zeroTierConfigured,

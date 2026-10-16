@@ -14,7 +14,6 @@ func SetupOnlyWithState(state initializationState) fiber.Handler {
 				Error:     "Already Initialized",
 				Message:   "The system is already initialized. This endpoint is only available during first-time setup.",
 				ErrorCode: "system.already_initialized",
-				Code:      fiber.StatusConflict,
 			})
 		}
 
@@ -30,7 +29,6 @@ func InitializedOnlyWithState(state initializationState) fiber.Handler {
 				Error:     "Setup Required",
 				Message:   "System setup is required. Complete the setup wizard first.",
 				ErrorCode: "system.setup_required",
-				Code:      fiber.StatusServiceUnavailable,
 			})
 		}
 

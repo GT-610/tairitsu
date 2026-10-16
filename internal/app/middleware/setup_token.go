@@ -28,7 +28,6 @@ func SetupTokenRequired(token *services.SetupToken) fiber.Handler {
 				Error:     "Forbidden",
 				Message:   "A valid setup token is required to configure an uninitialized instance",
 				ErrorCode: "setup.token_required",
-				Code:      fiber.StatusForbidden,
 			})
 		}
 

@@ -35,7 +35,6 @@ func TestStateService_GetSetupStatus_Uninitialized(t *testing.T) {
 	status := stateService.GetSetupStatus(nil, nil, true)
 
 	assert.False(t, status.Initialized)
-	assert.True(t, status.HasDatabase)
 	assert.True(t, status.DatabaseConfigured)
 	assert.True(t, status.SetupAuthorized)
 	assert.False(t, status.HasAdmin)
@@ -118,7 +117,6 @@ func TestStateService_GetSetupStatus_InitializedWithAdminAndOfflineZT(t *testing
 	status := stateService.GetSetupStatus(userService, networkService, true)
 
 	assert.True(t, status.Initialized)
-	assert.True(t, status.HasDatabase)
 	assert.True(t, status.DatabaseConfigured)
 	assert.True(t, status.HasAdmin)
 	assert.False(t, status.ZeroTierConfigured)

@@ -174,7 +174,6 @@ func rateLimitHandler(limiter *RateLimiter) fiber.Handler {
 				"error":      "Too many requests. Please try again later.",
 				"message":    "Too many requests. Please try again later.",
 				"error_code": "system.rate_limited",
-				"code":       fiber.StatusTooManyRequests,
 			})
 		}
 

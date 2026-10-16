@@ -71,7 +71,6 @@ func mountFrontend(router *fiber.App) {
 				return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 					"message":    "Not Found",
 					"error_code": "system.not_found",
-					"code":       fiber.StatusNotFound,
 				})
 			}
 			return serveIndex(c)
