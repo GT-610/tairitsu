@@ -3,6 +3,7 @@ package database
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/GT-610/tairitsu/internal/app/models"
@@ -25,9 +26,51 @@ type GormDB struct {
 
 // Init initializes the database
 func (g *GormDB) Init() error {
+	// The unique index on username is added here, and a database that predates
+	// it can hold duplicate names: registration used to check the name and then
+	// insert, so two concurrent attempts could both land. Adding the index over
+	// such rows fails with a driver-level message that names neither the
+	// accounts nor a way forward, so the collisions are reported first.
+	if err := g.rejectDuplicateUsernames(); err != nil {
+		return err
+	}
+
 	// Auto-migrate user models
 	if err := g.db.AutoMigrate(&models.User{}, &models.Network{}, &models.Session{}, &models.NetworkViewer{}); err != nil {
 		return fmt.Errorf("failed to auto-migrate models: %w", err)
+	}
+
+	return nil
+}
+
+// rejectDuplicateUsernames refuses to start against a users table that holds the
+// same name more than once.
+//
+// It fails rather than repairing, because the alternatives are worse: renaming
+// an account changes the name its owner signs in with, and dropping one destroys
+// data. Either has to be the operator's decision, so this only says which names
+// collide.
+func (g *GormDB) rejectDuplicateUsernames() error {
+	if !g.db.Migrator().HasTable(&models.User{}) {
+		return nil
+	}
+
+	var duplicates []string
+	err := g.db.Model(&models.User{}).
+		Select("username").
+		Group("username").
+		Having("COUNT(*) > 1").
+		Order("username").
+		Find(&duplicates).Error
+	if err != nil {
+		return fmt.Errorf("failed to check for duplicate usernames: %w", err)
+	}
+
+	if len(duplicates) > 0 {
+		return fmt.Errorf(
+			"the users table holds more than one account named %s; usernames are unique now, so rename or remove the extra rows before starting",
+			strings.Join(duplicates, ", "),
+		)
 	}
 
 	return nil
