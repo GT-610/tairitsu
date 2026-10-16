@@ -117,28 +117,45 @@ func (s *UserService) Register(req *models.RegisterRequest, role ...string) (*mo
 		UpdatedAt: time.Now(),
 	}
 
-	if err := db.CreateUser(user); err != nil {
-		logger.Error("service: registration failed while saving user", zap.String("username", username), zap.Error(err))
-		return nil, translateRegistrationConflict(db, username, err)
-	}
+	// The insert and the administrator claim travel together, so an error means
+	// no account was created. This used to insert first and delete the account
+	// again when the claim lost, which left a stray account behind whenever that
+	// compensating delete failed.
+	promoted := false
+	err = db.WithTransaction(func(tx database.DBInterface) error {
+		if err := tx.CreateUser(user); err != nil {
+			logger.Error("service: registration failed while saving user", zap.String("username", username), zap.Error(err))
+			return translateRegistrationConflict(tx, username, err)
+		}
 
-	if requestedRole == "admin" {
+		if requestedRole != "admin" {
+			return nil
+		}
+
 		// The administrator role is claimed rather than assigned: the caller
 		// checked that none existed, but that check is not what decides it.
-		promoted, err := db.PromoteFirstAdministrator(user.ID)
-		if err != nil {
-			return nil, fmt.Errorf("failed to grant the administrator role: %w", err)
+		claimed, claimErr := tx.PromoteFirstAdministrator(user.ID)
+		if claimErr != nil {
+			return fmt.Errorf("failed to grant the administrator role: %w", claimErr)
 		}
-		if !promoted {
-			// Another registration claimed the role first. Leave nothing behind,
-			// so that an error means no account was created.
-			if deleteErr := db.DeleteUser(user.ID); deleteErr != nil {
-				logger.Warn("failed to remove the account created by a losing administrator registration",
-					zap.String("user_id", user.ID), zap.Error(deleteErr))
-			}
+		if !claimed {
+			// Another registration claimed the role first. Rolling back takes
+			// this account with it, so the caller can read the error as "no
+			// account was created".
 			logger.Warn("service: registration for the administrator role lost the race", zap.String("username", username))
-			return nil, ErrAdminAlreadyExists
+			return ErrAdminAlreadyExists
 		}
+
+		promoted = true
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	// Set only once the claim is committed, so a rolled-back attempt cannot leave
+	// the caller holding a user that looks like an administrator.
+	if promoted {
 		user.Role = "admin"
 	}
 
@@ -195,23 +212,24 @@ func (s *UserService) CreateUserByAdmin(currentAdminID, username string) (*model
 // the result of the comparison is ignored: it exists only to spend the time.
 var unknownAccountPasswordHash = []byte("$2a$10$oxRIWMFa9hdnxEeMqyfJPezUMHCDOSKhU6wEigyvCOmVrInCOZnh.")
 
-// translateRegistrationConflict turns a lost registration race into something
-// the caller can act on.
+// translateRegistrationConflict turns a rejected insert into something the
+// caller can act on.
 //
-// The username index and the single-administrator index both surface as a
-// duplicate key, so the username is re-read to tell them apart rather than
-// matching driver-specific error text.
+// The insert carries a freshly generated identifier and a username, so the one
+// unique constraint it can violate is the one on the name. That is confirmed by
+// reading the name back rather than assumed, and anything else is reported as
+// the save failure it is: the administrator role is no longer guarded by a
+// database constraint, so a duplicate key must not be blamed on it.
 func translateRegistrationConflict(db database.DBInterface, username string, err error) error {
 	if !database.IsDuplicateKey(err) {
 		return fmt.Errorf("failed to save user: %w", err)
 	}
 
-	existing, lookupErr := db.GetUserByUsername(username)
-	if lookupErr == nil && existing != nil {
+	if existing, lookupErr := db.GetUserByUsername(username); lookupErr == nil && existing != nil {
 		return ErrUsernameExists
 	}
 
-	return ErrAdminAlreadyExists
+	return fmt.Errorf("failed to save user: %w", err)
 }
 
 func (s *UserService) Login(req *models.LoginRequest) (*models.User, error) {

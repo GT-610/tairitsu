@@ -13,14 +13,15 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// txFailingDB decorates a working database with the two failures these tests
-// need to inject. Embedding the interface keeps every other operation delegated,
-// so the wrapper only names the methods it actually changes.
+// txFailingDB decorates a working database with the failures these tests need
+// to inject. Embedding the interface keeps every other operation delegated, so
+// the wrapper only names the methods it actually changes.
 type txFailingDB struct {
 	database.DBInterface
 
 	failSessionUpdateAt   int
 	failDeleteUser        bool
+	failPromote           bool
 	sessionUpdateAttempts int
 }
 
@@ -30,8 +31,17 @@ func (d *txFailingDB) WithTransaction(fn func(database.DBInterface) error) error
 			DBInterface:         tx,
 			failSessionUpdateAt: d.failSessionUpdateAt,
 			failDeleteUser:      d.failDeleteUser,
+			failPromote:         d.failPromote,
 		})
 	})
+}
+
+func (d *txFailingDB) PromoteFirstAdministrator(userID string) (bool, error) {
+	if d.failPromote {
+		return false, fmt.Errorf("forced promotion failure")
+	}
+
+	return d.DBInterface.PromoteFirstAdministrator(userID)
 }
 
 func (d *txFailingDB) DeleteUser(id string) error {
@@ -574,4 +584,26 @@ func TestUserStoreRejectsDuplicateUsernames(t *testing.T) {
 	err := db.CreateUser(second)
 	require.Error(t, err)
 	assert.True(t, database.IsDuplicateKey(err), "the unique index on the username must reject the insert")
+}
+
+// An administrator registration is one unit: the account insert and the role
+// claim either both land or neither does. The claim can fail after the insert
+// has already been written, so this asserts the insert is undone rather than
+// left behind as an account nobody asked for.
+func TestUserServiceRegisterLeavesNoAccountWhenTheClaimFails(t *testing.T) {
+	db := testutil.NewSQLiteDB(t)
+	service := appservices.NewUserService(&txFailingDB{
+		DBInterface: db,
+		failPromote: true,
+	})
+
+	user, err := service.Register(&models.RegisterRequest{Username: "admin", Password: "secret123"}, "admin")
+	require.Error(t, err)
+	assert.Nil(t, user)
+	assert.NotErrorIs(t, err, appservices.ErrAdminAlreadyExists,
+		"a failed claim is not the same as losing the race")
+
+	users, listErr := db.GetAllUsers()
+	require.NoError(t, listErr)
+	assert.Empty(t, users, "the rolled-back transaction must not leave the account behind")
 }
