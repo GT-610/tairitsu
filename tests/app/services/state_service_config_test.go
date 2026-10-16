@@ -8,11 +8,14 @@ import (
 	"github.com/GT-610/tairitsu/internal/app/config"
 	"github.com/GT-610/tairitsu/internal/app/database"
 	appservices "github.com/GT-610/tairitsu/internal/app/services"
+	"github.com/GT-610/tairitsu/tests/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestStateServiceWithConfigUsesBoundConfig(t *testing.T) {
+	testutil.UseTempDataDir(t)
+
 	originalConfig := config.AppConfig
 	t.Cleanup(func() {
 		config.AppConfig = originalConfig
@@ -34,6 +37,8 @@ func TestStateServiceWithConfigUsesBoundConfig(t *testing.T) {
 }
 
 func TestStateServiceSetInitializedPersistsBoundConfig(t *testing.T) {
+	testutil.UseTempDataDir(t)
+
 	originalConfig := config.AppConfig
 	t.Cleanup(func() {
 		config.AppConfig = originalConfig
@@ -56,6 +61,8 @@ func TestStateServiceSetInitializedPersistsBoundConfig(t *testing.T) {
 }
 
 func TestStateServiceDatabaseConfigUsesBoundConfig(t *testing.T) {
+	testutil.UseTempDataDir(t)
+
 	originalConfig := config.AppConfig
 	t.Cleanup(func() {
 		config.AppConfig = originalConfig
@@ -77,6 +84,8 @@ func TestStateServiceDatabaseConfigUsesBoundConfig(t *testing.T) {
 }
 
 func TestStateServiceSaveDatabaseConfigPersistsBoundConfig(t *testing.T) {
+	testutil.UseTempDataDir(t)
+
 	originalConfig := config.AppConfig
 	t.Cleanup(func() {
 		config.AppConfig = originalConfig
@@ -101,6 +110,8 @@ func TestStateServiceSaveDatabaseConfigPersistsBoundConfig(t *testing.T) {
 }
 
 func TestStateServiceSaveZeroTierConfigPersistsBoundConfig(t *testing.T) {
+	testutil.UseTempDataDir(t)
+
 	originalConfig := config.AppConfig
 	t.Cleanup(func() {
 		config.AppConfig = originalConfig
@@ -126,6 +137,8 @@ func TestStateServiceSaveZeroTierConfigPersistsBoundConfig(t *testing.T) {
 }
 
 func TestStateServiceSaveRuntimeSettingsPersistsBoundConfig(t *testing.T) {
+	testutil.UseTempDataDir(t)
+
 	originalConfig := config.AppConfig
 	t.Cleanup(func() {
 		config.AppConfig = originalConfig

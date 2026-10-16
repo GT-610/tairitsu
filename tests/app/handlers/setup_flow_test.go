@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"path/filepath"
 	"testing"
 
@@ -13,6 +12,7 @@ import (
 	"github.com/GT-610/tairitsu/internal/app/database"
 	apphandlers "github.com/GT-610/tairitsu/internal/app/handlers"
 	"github.com/GT-610/tairitsu/internal/app/services"
+	"github.com/GT-610/tairitsu/tests/testutil"
 	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -101,14 +101,11 @@ func TestSetupFlow_ResetDatabaseThenRegisterAdmin(t *testing.T) {
 }
 
 func TestSetupFlow_ZeroTierTokenNotFoundReturnsOriginalDetail(t *testing.T) {
+	testutil.UseTempDataDir(t)
+
 	originalConfig := config.AppConfig
-	originalWorkingDirectory, err := os.Getwd()
-	require.NoError(t, err)
-	temporaryWorkingDirectory := t.TempDir()
-	require.NoError(t, os.Chdir(temporaryWorkingDirectory))
 	t.Cleanup(func() {
 		config.AppConfig = originalConfig
-		require.NoError(t, os.Chdir(originalWorkingDirectory))
 	})
 
 	stateService := services.NewStateServiceWithConfig(&config.Config{})

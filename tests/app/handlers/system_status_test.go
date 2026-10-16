@@ -117,6 +117,10 @@ func boolPtr(value bool) *bool {
 }
 
 func TestSystemHandler_RuntimeSettingsReadWrite(t *testing.T) {
+	// The settings endpoint persists the configuration, so it must not land in
+	// the source tree.
+	testutil.UseTempDataDir(t)
+
 	originalConfig := config.AppConfig
 	t.Cleanup(func() {
 		config.AppConfig = originalConfig
