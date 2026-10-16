@@ -22,6 +22,7 @@ type SetupService struct {
 var (
 	ErrSetupUnsupportedDatabase        = errors.New("setup.unsupported_database")
 	ErrSetupInvalidConfig              = errors.New("setup.invalid_config")
+	ErrSetupDatabasePathRejected       = errors.New("setup.database_path_rejected")
 	ErrSetupDatabaseConnectionFailed   = errors.New("setup.database_connection_failed")
 	ErrSetupDatabaseInitialization     = errors.New("setup.database_initialization_failed")
 	ErrSetupDatabaseConfigSaveFailed   = errors.New("setup.database_config_save_failed")
@@ -51,14 +52,16 @@ func (s *SetupService) ConfigureDatabase(dbConfig models.DatabaseConfig) (databa
 		return database.Config{}, ErrSetupUnsupportedDatabase
 	}
 
+	// The caller picks the SQLite path and a later reset deletes it, so it is
+	// confined to the mounted data directory before anything is created.
+	safePath, err := config.ResolveDataPath(dbConfig.Path)
+	if err != nil {
+		return database.Config{}, fmt.Errorf("%w: %v", ErrSetupDatabasePathRejected, err)
+	}
+
 	dbCfg := database.Config{
 		Type: database.DatabaseType(dbConfig.Type),
-		Path: dbConfig.Path,
-		Host: dbConfig.Host,
-		Port: dbConfig.Port,
-		User: dbConfig.User,
-		Pass: dbConfig.Pass,
-		Name: dbConfig.Name,
+		Path: safePath,
 	}
 
 	db, err := database.NewDatabase(dbCfg)
@@ -72,10 +75,6 @@ func (s *SetupService) ConfigureDatabase(dbConfig models.DatabaseConfig) (databa
 			return database.Config{}, fmt.Errorf("%w: %v; close database: %v", ErrSetupDatabaseInitialization, err, closeErr)
 		}
 		return database.Config{}, fmt.Errorf("%w: %v", ErrSetupDatabaseInitialization, err)
-	}
-
-	if dbCfg.Type == database.SQLite && dbCfg.Path == "" {
-		dbCfg.Path = "data/tairitsu.db"
 	}
 
 	if err := s.stateService.SaveDatabaseConfig(dbCfg); err != nil {
@@ -109,8 +108,8 @@ func (s *SetupService) SaveZeroTierConfig(controllerURL, tokenPath string) (*zer
 	return status, nil
 }
 
-func (s *SetupService) GetSetupStatus() SetupStatus {
-	return s.stateService.GetSetupStatus(s.userService, s.networkService)
+func (s *SetupService) GetSetupStatus(includeSensitive bool) SetupStatus {
+	return s.stateService.GetSetupStatus(s.userService, s.networkService, includeSensitive)
 }
 
 func (s *SetupService) GetRuntimeSettings() RuntimeSettings {

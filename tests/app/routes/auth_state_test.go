@@ -28,7 +28,9 @@ func TestLoginRouteDoesNotUseSetupOnlyAfterInitialization(t *testing.T) {
 	}
 
 	app := fiber.New()
-	routes.SetupRoutes(app, assembly.NewDependencies(config.AppConfig, nil, nil))
+	dependencies, err := assembly.NewDependencies(config.AppConfig, nil, nil)
+	require.NoError(t, err)
+	routes.SetupRoutes(app, dependencies)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/auth/login", bytes.NewBufferString(`{"username":"admin","password":"secret123"}`))
 	req.Header.Set("Content-Type", "application/json")
@@ -52,7 +54,9 @@ func TestRegisterRouteDoesNotUseSetupOnlyAfterInitialization(t *testing.T) {
 	}
 
 	app := fiber.New()
-	routes.SetupRoutes(app, assembly.NewDependencies(config.AppConfig, nil, nil))
+	dependencies, err := assembly.NewDependencies(config.AppConfig, nil, nil)
+	require.NoError(t, err)
+	routes.SetupRoutes(app, dependencies)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/auth/register", bytes.NewBufferString(`{"username":"user-1","password":"secret123"}`))
 	req.Header.Set("Content-Type", "application/json")

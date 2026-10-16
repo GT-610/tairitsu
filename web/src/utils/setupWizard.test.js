@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { getInitialSetupWizardStep } from './setupWizard'
+import { getInitialSetupWizardStep, getResumableSetupWizardStep } from './setupWizard'
 
 describe('setupWizard', () => {
   test('derives the first incomplete setup step from backend status', () => {
@@ -51,6 +51,65 @@ describe('setupWizard', () => {
       zerotierConfigured: true,
       adminCreationPrepared: true,
       allowPublicRegistration: true,
+    })).toBe(4)
+  })
+
+  // The setup endpoints reject callers without the token, so nothing that needs
+  // the stored configuration may be shown before it is accepted.
+  test('keeps an unauthorized caller on the token step', () => {
+    expect(getResumableSetupWizardStep({
+      initialized: false,
+      hasDatabase: true,
+      databaseConfigured: true,
+      setupAuthorized: false,
+      hasAdmin: true,
+      zerotierConfigured: true,
+      adminCreationPrepared: true,
+      allowPublicRegistration: true,
+    })).toBe(0)
+  })
+
+  test('resumes one step past the configured progress once authorized', () => {
+    const base = {
+      initialized: false,
+      allowPublicRegistration: true,
+      setupAuthorized: true,
+    }
+
+    expect(getResumableSetupWizardStep({
+      ...base,
+      hasDatabase: false,
+      databaseConfigured: false,
+      hasAdmin: false,
+      zerotierConfigured: false,
+      adminCreationPrepared: false,
+    })).toBe(1)
+
+    expect(getResumableSetupWizardStep({
+      ...base,
+      hasDatabase: true,
+      databaseConfigured: false,
+      hasAdmin: false,
+      zerotierConfigured: true,
+      adminCreationPrepared: false,
+    })).toBe(2)
+
+    expect(getResumableSetupWizardStep({
+      ...base,
+      hasDatabase: true,
+      databaseConfigured: true,
+      hasAdmin: false,
+      zerotierConfigured: true,
+      adminCreationPrepared: true,
+    })).toBe(3)
+
+    expect(getResumableSetupWizardStep({
+      ...base,
+      hasDatabase: true,
+      databaseConfigured: true,
+      hasAdmin: true,
+      zerotierConfigured: true,
+      adminCreationPrepared: true,
     })).toBe(4)
   })
 })

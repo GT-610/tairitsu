@@ -34,7 +34,9 @@ func newCompressionTestApp(t *testing.T) *fiber.App {
 	}
 
 	app := fiber.New()
-	routes.SetupRoutes(app, assembly.NewDependencies(config.AppConfig, nil, nil))
+	dependencies, err := assembly.NewDependencies(config.AppConfig, nil, nil)
+	require.NoError(t, err)
+	routes.SetupRoutes(app, dependencies)
 
 	return app
 }

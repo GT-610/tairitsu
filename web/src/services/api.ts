@@ -271,6 +271,9 @@ export interface SetupStatus {
   initialized: boolean;
   hasDatabase: boolean;
   databaseConfigured: boolean;
+  // True when the request carried a valid setup token, which is what unlocks
+  // the deployment details below. The endpoint itself is public.
+  setupAuthorized: boolean;
   hasAdmin: boolean;
   zerotierConfigured: boolean;
   adminCreationPrepared: boolean;
@@ -378,10 +381,20 @@ export interface GenerateSigningKeysResponse {
   current_key_path: string;
 }
 
-// Create axios instance.
-// The session cookie is HttpOnly and scoped to this origin, so it is sent
-// automatically as long as credentials are enabled. No Authorization header is
-// constructed here, and the credential is never visible to this code.
+// The first-run setup token gates the setup endpoints, which have to answer
+// before any account exists. The operator reads it from the server output and
+// it is held in memory only: like the session that replaces it, it is never
+// persisted on this side.
+let setupToken = ''
+
+export function setSetupToken(value: string) {
+  setupToken = value.trim()
+}
+
+export function getSetupToken(): string {
+  return setupToken
+}
+
 const api = axios.create({
   baseURL: '/api',
   timeout: 10000,
@@ -389,6 +402,15 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json'
   }
+})
+
+// Attach the setup token once the wizard has one. Requests made before that,
+// such as the initial setup-status check, simply go without it.
+api.interceptors.request.use(request => {
+  if (setupToken) {
+    request.headers.set('X-Setup-Token', setupToken)
+  }
+  return request
 })
 
 // Response interceptor

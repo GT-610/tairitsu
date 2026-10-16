@@ -62,6 +62,12 @@ const en: Record<string, string> = {
   'users.revokedSessions': 'Revoked sessions: {{count}}',
   'ipv6.mustBeInSubnet': 'Must be within {{subnet}}',
   'sponsor.button': 'Sponsor',
+  'setup.token.title': 'Setup token',
+  'setup.token.description': 'Tairitsu prints a one-time setup token on startup while it is not initialized. It keeps the setup endpoints closed to everyone else on the network.',
+  'setup.token.label': 'Setup token',
+  'setup.token.helper': 'Printed to the server output at startup; look for "Setup token". A restart issues a new one.',
+  'setup.token.required': 'Enter the setup token printed by the server',
+  'setup.token.rejected': 'That setup token is not valid. Check the server output and try again.',
 }
 
 const zh: Record<string, string> = {
@@ -94,10 +100,18 @@ const zh: Record<string, string> = {
   'users.revokedSessions': '吊销会话：{{count}} 个',
   'ipv6.mustBeInSubnet': '必须落在 {{subnet}} 内',
   'sponsor.button': '赞助',
+  'setup.token.title': '安装令牌',
+  'setup.token.description': 'Tairitsu 在未初始化时会在启动输出中打印一次性安装令牌，用于阻止网络中的其他访问者调用初始化接口。',
+  'setup.token.label': '安装令牌',
+  'setup.token.helper': '启动时打印在服务端输出中，请查找 "Setup token"。重启后会重新生成。',
+  'setup.token.required': '请输入服务端打印的安装令牌',
+  'setup.token.rejected': '安装令牌无效，请核对服务端输出后重试。',
 }
 
 const messageCodes: Record<string, { en: string; 'zh-CN': string }> = {
   'auth.missing_token': { en: 'Missing authentication token', 'zh-CN': '缺少认证令牌' },
+  'setup.token_required': { en: 'A valid setup token is required to configure an uninitialized instance', 'zh-CN': '需要在初始化前提供有效的安装令牌' },
+  'setup.database_path_rejected': { en: "The SQLite file must live inside Tairitsu's data directory", 'zh-CN': 'SQLite 文件必须位于 Tairitsu 的数据目录内' },
   'auth.invalid_format': { en: 'Invalid authentication format', 'zh-CN': '认证格式无效' },
   'auth.invalid_token': { en: 'Invalid authentication token', 'zh-CN': '无效的认证令牌' },
   'auth.required': { en: 'Authentication required', 'zh-CN': '需要认证' },

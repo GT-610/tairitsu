@@ -26,7 +26,12 @@ func TestSetupFlow_ResetDatabaseThenRegisterAdmin(t *testing.T) {
 		config.SetTempSetting("admin_creation_reset_done", originalResetFlag)
 	})
 
-	dbPath := filepath.Join(t.TempDir(), "nested", "tairitsu.db")
+	// The database path is confined to Tairitsu's data directory, so the test
+	// declares one and places the file inside it.
+	dataRoot := t.TempDir()
+	t.Setenv(config.DataDirEnv, dataRoot)
+
+	dbPath := filepath.Join(dataRoot, "nested", "tairitsu.db")
 	config.AppConfig = &config.Config{
 		Initialized: false,
 		Database: config.DatabaseConfig{
@@ -127,5 +132,7 @@ func TestSetupFlow_ZeroTierTokenNotFoundReturnsOriginalDetail(t *testing.T) {
 	var responseBody map[string]any
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(&responseBody))
 	assert.Equal(t, "setup.zerotier_config_save_failed", responseBody["error_code"])
-	assert.Equal(t, "failed to read token file: open /missing/authtoken.secret: no such file or directory", responseBody["detail"])
+	detail, _ := responseBody["detail"].(string)
+	assert.Contains(t, detail, "/missing/authtoken.secret")
+	assert.Contains(t, detail, "no such file or directory")
 }

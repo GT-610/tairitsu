@@ -27,7 +27,9 @@ func TestRuntimeRoutesDoNotUseSetupOnlyAfterInitialization(t *testing.T) {
 	}
 
 	app := fiber.New()
-	routes.SetupRoutes(app, assembly.NewDependencies(config.AppConfig, nil, nil))
+	dependencies, err := assembly.NewDependencies(config.AppConfig, nil, nil)
+	require.NoError(t, err)
+	routes.SetupRoutes(app, dependencies)
 
 	paths := []string{
 		"/api/networks",

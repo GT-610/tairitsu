@@ -5,7 +5,9 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 
@@ -72,12 +74,115 @@ var AppConfig *Config
 var tempSettings = make(map[string]string)
 var tempSettingsMutex sync.RWMutex
 
-const configFilePath = "./data/config.json"
+// dataDirName holds Tairitsu's persistent state: the configuration file and the
+// SQLite database created by the setup wizard.
+const dataDirName = "data"
+
+// DataDirEnv relocates dataDirName.
+const DataDirEnv = "TAIRITSU_DATA_DIR"
+
+// configFileName is the persisted configuration inside the data directory.
+const configFileName = "config.json"
+
+// defaultDatabaseFileName is the SQLite file used when setup does not name one.
+const defaultDatabaseFileName = "tairitsu.db"
+
+// DataRoot returns the absolute path of Tairitsu's data directory.
+//
+// Everything a request may ask the server to create or delete lives here, so
+// the directory the operator mounts is also the boundary the server enforces.
+// It is read on every call rather than cached, which keeps it correct for a
+// process whose working directory or environment changes under a test.
+func DataRoot() string {
+	root := Env(DataDirEnv)
+	if root == "" {
+		root = dataDirName
+	}
+
+	absolute, err := filepath.Abs(root)
+	if err != nil {
+		return root
+	}
+	return absolute
+}
+
+// ConfigFilePath returns the absolute path of the persisted configuration.
+func ConfigFilePath() string {
+	return filepath.Join(DataRoot(), configFileName)
+}
+
+// ResolveDataPath resolves candidate to an absolute path and refuses anything
+// that escapes Tairitsu's data directory. An empty candidate selects the
+// default database file.
+//
+// Setup input decides where the SQLite file lives and a later reset deletes
+// whatever that path names, so a request must not be able to point the server
+// at an arbitrary file. Containment is decided on the symlink-resolved location
+// while the returned path keeps the name the caller used, so a stored setting
+// is not rewritten into a different spelling of the same directory.
+func ResolveDataPath(candidate string) (string, error) {
+	resolvedRoot := DataRoot()
+	if evaluated, err := filepath.EvalSymlinks(resolvedRoot); err == nil {
+		resolvedRoot = evaluated
+	} else if err := os.MkdirAll(resolvedRoot, 0755); err == nil {
+		if evaluated, evalErr := filepath.EvalSymlinks(resolvedRoot); evalErr == nil {
+			resolvedRoot = evaluated
+		}
+	}
+
+	trimmed := strings.TrimSpace(candidate)
+	if trimmed == "" {
+		trimmed = filepath.Join(DataRoot(), defaultDatabaseFileName)
+	}
+	absolute, err := filepath.Abs(trimmed)
+	if err != nil {
+		return "", fmt.Errorf("invalid path %q", candidate)
+	}
+
+	// Both sides are resolved the same way, so a path that does not exist yet is
+	// compared against the location it would really live in rather than against
+	// its unresolved spelling.
+	relative, err := filepath.Rel(resolveExistingPrefix(resolvedRoot), resolveExistingPrefix(absolute))
+	if err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
+		return "", fmt.Errorf("path %q is outside the Tairitsu data directory (%s)", candidate, resolvedRoot)
+	}
+	if relative == "." {
+		return "", fmt.Errorf("path %q is the Tairitsu data directory itself", candidate)
+	}
+
+	return absolute, nil
+}
+
+// resolveExistingPrefix resolves symlinks in the longest existing ancestor of
+// path and re-appends the components that do not exist yet.
+//
+// A plain EvalSymlinks only works on a path that exists, which leaves a file
+// that is about to be created with no resolved location to compare.
+func resolveExistingPrefix(path string) string {
+	var missing []string
+	current := path
+
+	for {
+		if evaluated, err := filepath.EvalSymlinks(current); err == nil {
+			for index := len(missing) - 1; index >= 0; index-- {
+				evaluated = filepath.Join(evaluated, missing[index])
+			}
+			return evaluated
+		}
+
+		parent := filepath.Dir(current)
+		if parent == current {
+			return path
+		}
+		missing = append(missing, filepath.Base(current))
+		current = parent
+	}
+}
 
 // LoadConfig Load configuration (from config.json)
 func LoadConfig() (*Config, error) {
 	// Ensure data directory exists
-	dataDir := "./data"
+	dataDir := DataRoot()
 	if _, err := os.Stat(dataDir); os.IsNotExist(err) {
 		if err := os.MkdirAll(dataDir, 0755); err != nil {
 			return nil, fmt.Errorf("failed to create data directory: %w", err)
@@ -128,13 +233,15 @@ func LoadConfig() (*Config, error) {
 
 // loadConfigFromJSON Load configuration from JSON file
 func loadConfigFromJSON() (*Config, error) {
+	configFile := ConfigFilePath()
+
 	// Check if configuration file exists
-	if _, err := os.Stat(configFilePath); os.IsNotExist(err) {
+	if _, err := os.Stat(configFile); os.IsNotExist(err) {
 		return nil, fmt.Errorf("configuration file not found")
 	}
 
 	// Read configuration file
-	data, err := os.ReadFile(configFilePath)
+	data, err := os.ReadFile(configFile)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read configuration file: %w", err)
 	}
@@ -157,7 +264,7 @@ func SaveConfig(cfg *Config) error {
 	}
 
 	// Ensure data directory exists
-	dataDir := "./data"
+	dataDir := DataRoot()
 	if _, err := os.Stat(dataDir); os.IsNotExist(err) {
 		if err := os.MkdirAll(dataDir, 0755); err != nil {
 			return fmt.Errorf("failed to create data directory: %w", err)
@@ -165,7 +272,7 @@ func SaveConfig(cfg *Config) error {
 	}
 
 	// Write to file with appropriate permissions (owner read/write only)
-	return os.WriteFile(configFilePath, data, 0600)
+	return os.WriteFile(ConfigFilePath(), data, 0600)
 }
 
 // createDefaultConfig Create default configuration
@@ -310,18 +417,53 @@ func SetZTConfigOn(cfg *Config, url, tokenPath string) error {
 	return SaveConfig(cfg)
 }
 
+// tokenFileSizeLimit caps how much of a token file is read. A ZeroTier
+// authtoken is a few dozen bytes, and the path comes from a setup request, so
+// reading whatever size the named file happens to be would be a denial of
+// service.
+const tokenFileSizeLimit = 4096
+
+// LoadTokenFromPathInto reads the controller token from path and stores it
+// encrypted in cfg.
+//
+// The path is chosen by the operator, so it cannot be confined to a directory
+// the way the database path is: a ZeroTier data directory lives wherever the
+// controller was installed. Instead the read is refused unless the target is a
+// regular file of a plausible size.
 func LoadTokenFromPathInto(cfg *Config, path string) error {
 	if cfg == nil {
 		return fmt.Errorf("configuration not loaded")
 	}
 
-	tokenBytes, err := os.ReadFile(path)
+	trimmed := strings.TrimSpace(path)
+	if trimmed == "" {
+		return fmt.Errorf("token file path is empty")
+	}
+
+	info, err := os.Stat(trimmed)
 	if err != nil {
 		return fmt.Errorf("failed to read token file: %w", err)
 	}
+	if !info.Mode().IsRegular() {
+		return fmt.Errorf("token file %q is not a regular file", trimmed)
+	}
+
+	file, err := os.Open(trimmed)
+	if err != nil {
+		return fmt.Errorf("failed to read token file: %w", err)
+	}
+	defer file.Close()
+
+	content, err := io.ReadAll(io.LimitReader(file, tokenFileSizeLimit+1))
+	if err != nil {
+		return fmt.Errorf("failed to read token file: %w", err)
+	}
+	if len(content) > tokenFileSizeLimit {
+		return fmt.Errorf("token file %q is larger than %d bytes", trimmed, tokenFileSizeLimit)
+	}
 
 	// Successfully read file, remove newline and set token
-	token := strings.TrimSpace(string(tokenBytes))
+	token := strings.TrimSpace(string(content))
 	if token == "" {
 		return fmt.Errorf("token file is empty")
 	}

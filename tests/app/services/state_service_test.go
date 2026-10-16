@@ -32,11 +32,12 @@ func TestStateService_GetSetupStatus_Uninitialized(t *testing.T) {
 	config.SetTempSetting("admin_creation_reset_done", "true")
 
 	stateService := services.NewStateServiceWithConfig(config.AppConfig)
-	status := stateService.GetSetupStatus(nil, nil)
+	status := stateService.GetSetupStatus(nil, nil, true)
 
 	assert.False(t, status.Initialized)
 	assert.True(t, status.HasDatabase)
 	assert.True(t, status.DatabaseConfigured)
+	assert.True(t, status.SetupAuthorized)
 	assert.False(t, status.HasAdmin)
 	assert.True(t, status.ZeroTierConfigured)
 	assert.True(t, status.AdminCreationPrepared)
@@ -49,6 +50,47 @@ func TestStateService_GetSetupStatus_Uninitialized(t *testing.T) {
 		assert.Equal(t, "/tmp/authtoken.secret", status.ZeroTierConfig.TokenPath)
 	}
 	assert.Nil(t, status.ZTStatus)
+}
+
+// The endpoint that serves this is public, so an unauthorized caller must not
+// learn the administrator name, the database path or the controller details.
+func TestStateService_GetSetupStatus_WithholdsDetailsFromPublicCallers(t *testing.T) {
+	originalConfig := config.AppConfig
+	t.Cleanup(func() {
+		config.AppConfig = originalConfig
+	})
+
+	config.AppConfig = &config.Config{
+		Initialized: true,
+		ZeroTier: config.ZeroTierConfig{
+			URL:       "http://127.0.0.1:9993",
+			TokenPath: "/tmp/authtoken.secret",
+		},
+		Database: config.DatabaseConfig{
+			Type: string(database.SQLite),
+			Path: "data/test.db",
+		},
+	}
+
+	userService := services.NewUserService(&stateServiceDBStub{
+		users: []*models.User{
+			{ID: "1", Username: "admin", Role: "admin"},
+		},
+	})
+
+	stateService := services.NewStateServiceWithConfig(config.AppConfig)
+	status := stateService.GetSetupStatus(userService, nil, false)
+
+	assert.False(t, status.SetupAuthorized)
+	assert.True(t, status.HasAdmin, "the gate still needs to know an account can sign in")
+	assert.Empty(t, status.AdminUsername)
+	assert.Nil(t, status.DatabaseConfig)
+	assert.Nil(t, status.ZeroTierConfig)
+
+	// The flags the client routes on are not sensitive and must still be there.
+	assert.True(t, status.Initialized)
+	assert.True(t, status.DatabaseConfigured)
+	assert.True(t, status.ZeroTierConfigured)
 }
 
 func TestStateService_GetSetupStatus_InitializedWithAdminAndOfflineZT(t *testing.T) {
@@ -73,7 +115,7 @@ func TestStateService_GetSetupStatus_InitializedWithAdminAndOfflineZT(t *testing
 	networkService := services.NewNetworkService(nil, nil)
 
 	stateService := services.NewStateServiceWithConfig(config.AppConfig)
-	status := stateService.GetSetupStatus(userService, networkService)
+	status := stateService.GetSetupStatus(userService, networkService, true)
 
 	assert.True(t, status.Initialized)
 	assert.True(t, status.HasDatabase)

@@ -12,6 +12,7 @@ type SetupStatus struct {
 	Initialized             bool             `json:"initialized"`
 	HasDatabase             bool             `json:"hasDatabase"`
 	DatabaseConfigured      bool             `json:"databaseConfigured"`
+	SetupAuthorized         bool             `json:"setupAuthorized"`
 	HasAdmin                bool             `json:"hasAdmin"`
 	ZeroTierConfigured      bool             `json:"zerotierConfigured"`
 	AdminCreationPrepared   bool             `json:"adminCreationPrepared"`
@@ -110,7 +111,15 @@ func (s *StateService) CreateZTClient() (*zerotier.Client, error) {
 	return zerotier.NewClientWithConfig(s.Config())
 }
 
-func (s *StateService) GetSetupStatus(userService *UserService, networkService *NetworkService) SetupStatus {
+// GetSetupStatus reports how far the first-run wizard has progressed.
+//
+// includeSensitive controls whether the reply carries the details only the
+// operator may see: the administrator name, the SQLite path and the controller
+// URL and token path. The endpoint that serves this is public, because the
+// client has to know whether to show the wizard before anyone can sign in, so
+// callers pass the result of the setup-token check here rather than publishing
+// the deployment layout to every anonymous visitor.
+func (s *StateService) GetSetupStatus(userService *UserService, networkService *NetworkService, includeSensitive bool) SetupStatus {
 	cfg := s.Config()
 	databaseConfigured := s.DatabaseConfigured()
 	zeroTierConfigured := cfg != nil && cfg.ZeroTier.URL != "" && cfg.ZeroTier.TokenPath != ""
@@ -119,19 +128,20 @@ func (s *StateService) GetSetupStatus(userService *UserService, networkService *
 		Initialized:             s.IsInitialized(),
 		HasDatabase:             databaseConfigured,
 		DatabaseConfigured:      databaseConfigured,
+		SetupAuthorized:         includeSensitive,
 		ZeroTierConfigured:      zeroTierConfigured,
 		AdminCreationPrepared:   config.GetTempSetting("admin_creation_reset_done") == "true",
-		AllowPublicRegistration: config.AllowPublicRegistration(s.Config()),
+		AllowPublicRegistration: config.AllowPublicRegistration(cfg),
 	}
 
-	if databaseConfigured && cfg != nil {
+	if includeSensitive && databaseConfigured && cfg != nil {
 		status.DatabaseConfig = &SetupDatabase{
 			Type: string(cfg.Database.Type),
 			Path: cfg.Database.Path,
 		}
 	}
 
-	if zeroTierConfigured && cfg != nil {
+	if includeSensitive && zeroTierConfigured && cfg != nil {
 		status.ZeroTierConfig = &SetupZeroTier{
 			ControllerURL: cfg.ZeroTier.URL,
 			TokenPath:     cfg.ZeroTier.TokenPath,
@@ -139,16 +149,27 @@ func (s *StateService) GetSetupStatus(userService *UserService, networkService *
 	}
 
 	if databaseConfigured && userService != nil {
-		users, err := userService.GetAllUsers()
-		if err != nil {
-			logger.Warn("GetSetupStatus: GetAllUsers failed", zap.Error(err))
-		}
-		for _, user := range users {
-			if user.Role == "admin" {
-				status.HasAdmin = true
-				status.AdminUsername = user.Username
-				break
+		if includeSensitive {
+			// The wizard shows which account was created, so the name is needed.
+			users, err := userService.GetAllUsers()
+			if err != nil {
+				logger.Warn("GetSetupStatus: GetAllUsers failed", zap.Error(err))
 			}
+			for _, user := range users {
+				if user.Role == "admin" {
+					status.HasAdmin = true
+					status.AdminUsername = user.Username
+					break
+				}
+			}
+		} else {
+			// The public answer only needs to know whether anyone can sign in,
+			// which is a count rather than a full table read.
+			hasAdmin, err := userService.HasAdminUser()
+			if err != nil {
+				logger.Warn("GetSetupStatus: HasAdminUser failed", zap.Error(err))
+			}
+			status.HasAdmin = hasAdmin
 		}
 	}
 

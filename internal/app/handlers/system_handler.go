@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/GT-610/tairitsu/internal/app/logger"
+	"github.com/GT-610/tairitsu/internal/app/middleware"
 	"github.com/GT-610/tairitsu/internal/app/models"
 	"github.com/GT-610/tairitsu/internal/app/services"
 	"github.com/gofiber/fiber/v3"
@@ -30,7 +31,8 @@ func setupErrorResponse(c fiber.Ctx, err error) error {
 	// Determine HTTP status based on error type
 	switch {
 	case errors.Is(err, services.ErrSetupUnsupportedDatabase),
-		errors.Is(err, services.ErrSetupInvalidConfig):
+		errors.Is(err, services.ErrSetupInvalidConfig),
+		errors.Is(err, services.ErrSetupDatabasePathRejected):
 		status = fiber.StatusBadRequest
 	case errors.Is(err, services.ErrSetupDatabaseConnectionFailed),
 		errors.Is(err, services.ErrSetupDatabaseInitialization),
@@ -58,6 +60,9 @@ func setupErrorResponse(c fiber.Ctx, err error) error {
 	case errors.Is(err, services.ErrSetupInvalidConfig):
 		code = "setup.invalid_config"
 		message = "Setup configuration is incomplete"
+	case errors.Is(err, services.ErrSetupDatabasePathRejected):
+		code = "setup.database_path_rejected"
+		message = "The SQLite file must live inside Tairitsu's data directory"
 	case errors.Is(err, services.ErrSetupDatabaseConnectionFailed):
 		code = "setup.database_connection_failed"
 		message = "Database connection failed"
@@ -121,7 +126,9 @@ func NewSystemHandler(
 
 // GetSystemStatus retrieves the current system status
 func (h *SystemHandler) GetSystemStatus(c fiber.Ctx) error {
-	status := h.setupService.GetSetupStatus()
+	// The wizard is reachable before anyone can sign in, so the reply carries
+	// the deployment layout only for a caller that presented the setup token.
+	status := h.setupService.GetSetupStatus(middleware.SetupAuthorized(c))
 	if status.Initialized && status.ZTStatus != nil && !status.ZTStatus.Online {
 		logger.Debug("[system status] ZeroTier status check failed or is offline")
 	}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"os"
 	"strconv"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/GT-610/tairitsu/internal/app/database"
 	"github.com/GT-610/tairitsu/internal/app/logger"
 	"github.com/GT-610/tairitsu/internal/app/routes"
+	"github.com/GT-610/tairitsu/internal/app/services"
 	"github.com/GT-610/tairitsu/internal/zerotier"
 	"github.com/gofiber/fiber/v3"
 	"go.uber.org/zap"
@@ -52,8 +54,13 @@ func Build() (*App, error) {
 		logger.Warn("ZeroTier client initialization failed; continuing in uninitialized mode", zap.Error(err))
 	}
 
-	app.Dependencies = assembly.NewDependencies(app.Config, app.Database, app.ZTClient)
+	dependencies, err := assembly.NewDependencies(app.Config, app.Database, app.ZTClient)
+	if err != nil {
+		return nil, fmt.Errorf("failed to assemble dependencies: %w", err)
+	}
+	app.Dependencies = dependencies
 	app.Dependencies.Services.Session.PurgeUnusableSessions()
+	announceSetupToken(app.Dependencies.Services.SetupToken)
 	app.Router = newHTTPApp()
 	routes.SetupRoutes(app.Router, app.Dependencies)
 
@@ -82,6 +89,19 @@ const (
 // address. X-Forwarded-For is set by nginx, Caddy, Traefik and HAProxy alike;
 // the previously hardcoded X-Real-IP only exists in nginx.
 const defaultProxyHeader = "X-Forwarded-For"
+
+// announceSetupToken makes the first-run token impossible to miss. It is
+// written to standard output as well as the log, because the log file lives
+// inside the container while `docker logs` only shows what the process prints.
+func announceSetupToken(token *services.SetupToken) {
+	if token == nil || !token.Issued() {
+		return
+	}
+
+	value := token.Value()
+	fmt.Fprintf(os.Stdout, "\n  Tairitsu is not initialized yet.\n  Setup token: %s\n  Enter it in the setup wizard. A restart issues a new token.\n\n", value)
+	logger.Warn("first-run setup token issued; the setup endpoints require it", zap.String("setup_token", value))
+}
 
 func newHTTPApp() *fiber.App {
 	return fiber.New(httpAppConfig())

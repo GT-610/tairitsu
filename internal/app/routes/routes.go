@@ -31,6 +31,8 @@ func SetupRoutes(router *fiber.App, dependencies *assembly.Dependencies) {
 
 	authMiddleware := dependencies.Middleware.Auth
 	setupOnly := dependencies.Middleware.SetupOnly
+	setupToken := dependencies.Middleware.SetupToken
+	setupTokenOptional := dependencies.Middleware.SetupTokenOptional
 	runtimeOnly := dependencies.Middleware.RuntimeOnly
 	adminOnly := dependencies.Middleware.AdminOnly
 
@@ -56,8 +58,10 @@ func SetupRoutes(router *fiber.App, dependencies *assembly.Dependencies) {
 			return c.Status(fiber.StatusOK).JSON(fiber.Map{"status": "ok"})
 		})
 
-		// System status check (no authentication required)
-		api.Get("/system/status", systemHandler.GetSystemStatus)
+		// System status check. It has to answer before anyone can sign in, so it
+		// is public, but it only includes setup-only details for a caller that
+		// presented the setup token.
+		api.Get("/system/status", setupTokenOptional, systemHandler.GetSystemStatus)
 
 		auth := api.Group("/auth")
 		{
@@ -66,10 +70,14 @@ func SetupRoutes(router *fiber.App, dependencies *assembly.Dependencies) {
 			auth.Post("/logout", runtimeOnly, authMiddleware, authHandler.Logout)
 		}
 
-		api.Post("/system/database", setupOnly, systemHandler.ConfigureDatabase)
-		api.Post("/system/zerotier/config", setupOnly, systemHandler.SaveZeroTierConfig)
-		api.Post("/system/initialized", setupOnly, systemHandler.SetInitialized)
-		api.Post("/system/admin/init", setupOnly, systemHandler.InitializeAdminCreation)
+		// Every endpoint that changes setup state runs before any account exists,
+		// so authentication cannot protect it. The setup token, printed once at
+		// startup, is what keeps the first-run window closed to the rest of the
+		// network.
+		api.Post("/system/database", setupOnly, setupToken, systemHandler.ConfigureDatabase)
+		api.Post("/system/zerotier/config", setupOnly, setupToken, systemHandler.SaveZeroTierConfig)
+		api.Post("/system/initialized", setupOnly, setupToken, systemHandler.SetInitialized)
+		api.Post("/system/admin/init", setupOnly, setupToken, systemHandler.InitializeAdminCreation)
 
 		api.Get("/profile", runtimeOnly, authMiddleware, authHandler.GetProfile)
 		api.Put("/profile/password", runtimeOnly, authMiddleware, authHandler.ChangePassword)
