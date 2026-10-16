@@ -11,7 +11,9 @@ export interface SetupGateState {
   error: boolean
 }
 
-export function setupGateSuccess(status: SetupStatus): SetupGateState {
+// The gate depends on the initialization flag alone, so it accepts just that
+// instead of forcing every caller to hold a complete status payload.
+export function setupGateSuccess(status: Pick<SetupStatus, 'initialized'>): SetupGateState {
   return { isFirstRun: !status.initialized, loading: false, error: false }
 }
 

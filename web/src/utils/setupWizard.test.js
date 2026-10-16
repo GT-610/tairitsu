@@ -1,105 +1,63 @@
 import { describe, expect, test } from 'bun:test'
 import { getInitialSetupWizardStep, getResumableSetupWizardStep } from './setupWizard'
 
+/**
+ * Builds a complete setup-status payload, overriding only what a case cares about.
+ *
+ * @param {Partial<import('../services/api').SetupStatus>} overrides
+ * @returns {import('../services/api').SetupStatus}
+ */
+function status(overrides) {
+  return {
+    initialized: false,
+    databaseConfigured: false,
+    setupAuthorized: true,
+    hasAdmin: false,
+    zerotierConfigured: false,
+    adminCreationPrepared: false,
+    allowPublicRegistration: true,
+    ...overrides,
+  }
+}
+
 describe('setupWizard', () => {
   test('derives the first incomplete setup step from backend status', () => {
-    expect(getInitialSetupWizardStep({
-      initialized: false,
-      databaseConfigured: false,
-      hasAdmin: false,
-      zerotierConfigured: false,
-      adminCreationPrepared: false,
-      allowPublicRegistration: true,
-    })).toBe(0)
-
-    expect(getInitialSetupWizardStep({
-      initialized: false,
+    expect(getInitialSetupWizardStep(status({}))).toBe(0)
+    expect(getInitialSetupWizardStep(status({ databaseConfigured: true }))).toBe(1)
+    expect(getInitialSetupWizardStep(status({ zerotierConfigured: true }))).toBe(2)
+    expect(getInitialSetupWizardStep(status({
       databaseConfigured: true,
-      hasAdmin: false,
       zerotierConfigured: true,
-      adminCreationPrepared: true,
-      allowPublicRegistration: true,
-    })).toBe(3)
-
-    expect(getInitialSetupWizardStep({
-      initialized: false,
+    }))).toBe(3)
+    expect(getInitialSetupWizardStep(status({
       databaseConfigured: true,
-      hasAdmin: true,
-      zerotierConfigured: false,
-      adminCreationPrepared: true,
-      allowPublicRegistration: true,
-    })).toBe(1)
-
-    expect(getInitialSetupWizardStep({
-      initialized: false,
-      databaseConfigured: false,
-      hasAdmin: true,
       zerotierConfigured: true,
-      adminCreationPrepared: true,
-      allowPublicRegistration: true,
-    })).toBe(2)
-
-    expect(getInitialSetupWizardStep({
-      initialized: false,
-      databaseConfigured: true,
       hasAdmin: true,
-      zerotierConfigured: true,
-      adminCreationPrepared: true,
-      allowPublicRegistration: true,
-    })).toBe(4)
+    }))).toBe(4)
   })
 
   // The setup endpoints reject callers without the token, so nothing that needs
   // the stored configuration may be shown before it is accepted.
   test('keeps an unauthorized caller on the token step', () => {
-    expect(getResumableSetupWizardStep({
-      initialized: false,
-      databaseConfigured: true,
+    expect(getResumableSetupWizardStep(status({
       setupAuthorized: false,
-      hasAdmin: true,
+      databaseConfigured: true,
       zerotierConfigured: true,
-      adminCreationPrepared: true,
-      allowPublicRegistration: true,
-    })).toBe(0)
+      hasAdmin: true,
+    }))).toBe(0)
   })
 
   test('resumes one step past the configured progress once authorized', () => {
-    const base = {
-      initialized: false,
-      allowPublicRegistration: true,
-      setupAuthorized: true,
-    }
-
-    expect(getResumableSetupWizardStep({
-      ...base,
-      databaseConfigured: false,
-      hasAdmin: false,
-      zerotierConfigured: false,
-      adminCreationPrepared: false,
-    })).toBe(1)
-
-    expect(getResumableSetupWizardStep({
-      ...base,
-      databaseConfigured: false,
-      hasAdmin: false,
+    expect(getResumableSetupWizardStep(status({}))).toBe(1)
+    expect(getResumableSetupWizardStep(status({ zerotierConfigured: true }))).toBe(2)
+    expect(getResumableSetupWizardStep(status({
       zerotierConfigured: true,
-      adminCreationPrepared: false,
-    })).toBe(2)
-
-    expect(getResumableSetupWizardStep({
-      ...base,
       databaseConfigured: true,
-      hasAdmin: false,
+    }))).toBe(3)
+    expect(getResumableSetupWizardStep(status({
       zerotierConfigured: true,
-      adminCreationPrepared: true,
-    })).toBe(3)
-
-    expect(getResumableSetupWizardStep({
-      ...base,
       databaseConfigured: true,
       hasAdmin: true,
-      zerotierConfigured: true,
-      adminCreationPrepared: true,
-    })).toBe(4)
+    }))).toBe(4)
   })
 })
