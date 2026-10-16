@@ -12,7 +12,7 @@ type User struct {
 	// the same name both succeed, and every later lookup then binds to an
 	// arbitrary one of them.
 	Username  string    `json:"username" gorm:"uniqueIndex;size:16"`
-	Password  string    `json:"-"` // Password is never returned to the client
+	Password  string    `json:"-"`    // Password is never returned to the client
 	Role      string    `json:"role"` // admin, user
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
@@ -39,14 +39,11 @@ type ChangePasswordRequest struct {
 	LogoutOtherSessions bool   `json:"logout_other_sessions"`
 }
 
-// UserResponse is the API response shape for a user.
+// UserResponse is the API response shape for a user. It is not a table, so it
+// carries no persistence tags.
 type UserResponse struct {
-	ID string `json:"id"`
-	// Username carries a unique index because registration checks the name
-	// before inserting: without the constraint two concurrent registrations of
-	// the same name both succeed, and every later lookup then binds to an
-	// arbitrary one of them.
-	Username  string    `json:"username" gorm:"uniqueIndex;size:16"`
+	ID        string    `json:"id"`
+	Username  string    `json:"username"`
 	Role      string    `json:"role"`
 	CreatedAt time.Time `json:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt"`
