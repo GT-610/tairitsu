@@ -316,7 +316,7 @@ function SetupWizard() {
               {translateText('配置数据库')}
             </Typography>
             <Typography variant="body1" sx={{ mb: 2 }}>
-              {translateText('当前仅支持 SQLite。PostgreSQL 等其他数据库将在后续版本推出。')}
+              {translateText('Tairitsu 将数据保存在 SQLite 中。')}
             </Typography>
             <TextField
               margin="normal"

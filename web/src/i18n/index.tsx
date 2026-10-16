@@ -583,7 +583,7 @@ const rawEn: Record<string, string> = {
   'SQLite 路径：': 'SQLite path: ',
   '首个管理员：': 'First admin: ',
   '尚未创建': 'Not yet created',
-  '当前仅支持 SQLite。PostgreSQL 等其他数据库将在后续版本推出。': 'Currently only SQLite is supported.',
+  'Tairitsu 将数据保存在 SQLite 中。': 'Tairitsu keeps its data in SQLite.',
   '留空则使用默认值 data/tairitsu.db': 'Leave empty to use the default value data/tairitsu.db',
   '获取初始化状态失败': 'Failed to load setup status',
   '操作失败': 'Operation failed',

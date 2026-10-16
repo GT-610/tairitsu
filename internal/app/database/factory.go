@@ -7,8 +7,6 @@ import (
 	"path/filepath"
 	"time"
 
-	"gorm.io/driver/mysql"
-	"gorm.io/driver/postgres"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 
@@ -17,24 +15,16 @@ import (
 	"go.uber.org/zap"
 )
 
-// DatabaseType represents the type of database
+// DatabaseType names a storage backend. SQLite is the only implementation.
 type DatabaseType string
 
-const (
-	SQLite     DatabaseType = "sqlite"
-	PostgreSQL DatabaseType = "postgresql"
-	MySQL      DatabaseType = "mysql"
-)
+// SQLite is the only supported backend.
+const SQLite DatabaseType = "sqlite"
 
 // Config holds the database configuration
 type Config struct {
 	Type DatabaseType
 	Path string // SQLite database path
-	Host string // PostgreSQL/MySQL host
-	Port int    // PostgreSQL/MySQL port
-	User string // PostgreSQL/MySQL user
-	Pass string // PostgreSQL/MySQL password
-	Name string // PostgreSQL/MySQL database name
 }
 
 // NewDatabase creates a database instance based on the given configuration
@@ -70,57 +60,10 @@ func NewDatabase(dbConfig Config) (DBInterface, error) {
 
 		return &GormDB{db: db}, nil
 
-	case MySQL:
-		// Build DSN
-		dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?charset=utf8mb4&parseTime=True&loc=Local",
-			dbConfig.User, dbConfig.Pass, dbConfig.Host, dbConfig.Port, dbConfig.Name)
-
-		db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
-		if err != nil {
-			return nil, fmt.Errorf("failed to connect to MySQL database: %w", err)
-		}
-
-		sqlDB, err := db.DB()
-		if err != nil {
-			return nil, fmt.Errorf("failed to get MySQL database instance: %w", err)
-		}
-
-		// Configure connection pool
-		sqlDB.SetMaxIdleConns(10)
-		sqlDB.SetMaxOpenConns(100)
-		sqlDB.SetConnMaxLifetime(time.Hour)
-		sqlDB.SetConnMaxIdleTime(30 * time.Minute)
-
-		return &GormDB{db: db}, nil
-
-	case PostgreSQL:
-		sslMode := "require"
-		dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%d sslmode=%s TimeZone=Asia/Shanghai",
-			dbConfig.Host, dbConfig.User, dbConfig.Pass, dbConfig.Name, dbConfig.Port, sslMode)
-
-		db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
-		if err != nil {
-			return nil, fmt.Errorf("failed to connect to PostgreSQL database: %w", err)
-		}
-
-		sqlDB, err := db.DB()
-		if err != nil {
-			return nil, fmt.Errorf("failed to get PostgreSQL database instance: %w", err)
-		}
-
-		// Configure connection pool
-		sqlDB.SetMaxIdleConns(10)
-		sqlDB.SetMaxOpenConns(100)
-		sqlDB.SetConnMaxLifetime(time.Hour)
-		sqlDB.SetConnMaxIdleTime(30 * time.Minute)
-
-		return &GormDB{db: db}, nil
+	case "":
+		return nil, fmt.Errorf("database type is required")
 
 	default:
-		// Return error if database type is not specified
-		if dbConfig.Type == "" {
-			return nil, fmt.Errorf("database type is required")
-		}
 		return nil, fmt.Errorf("unsupported database type: %s", dbConfig.Type)
 	}
 }
@@ -130,16 +73,9 @@ func LoadConfigFromApp(cfg *config.Config) Config {
 		return Config{}
 	}
 
-	password, _ := config.GetDatabasePasswordFrom(cfg)
-
 	return Config{
 		Type: DatabaseType(cfg.Database.Type),
 		Path: cfg.Database.Path,
-		Host: cfg.Database.Host,
-		Port: cfg.Database.Port,
-		User: cfg.Database.User,
-		Pass: password,
-		Name: cfg.Database.Name,
 	}
 }
 
@@ -177,14 +113,6 @@ func ResetDatabase(dbConfig Config) error {
 
 		logger.Info("SQLite database reset successfully", zap.String("path", safePath))
 		return nil
-
-	case MySQL:
-		logger.Warn("MySQL database reset is not currently supported")
-		return fmt.Errorf("only SQLite is currently supported; MySQL reset is not supported")
-
-	case PostgreSQL:
-		logger.Warn("PostgreSQL database reset is not currently supported")
-		return fmt.Errorf("only SQLite is currently supported; PostgreSQL reset is not supported")
 
 	default:
 		logger.Error("unsupported database type", zap.String("type", string(dbConfig.Type)))
@@ -274,14 +202,6 @@ func SaveConfigToApp(cfg *config.Config, dbConfig Config) error {
 	// Update database configuration
 	cfg.Database.Type = string(dbConfig.Type)
 	cfg.Database.Path = dbConfig.Path
-	cfg.Database.Host = dbConfig.Host
-	cfg.Database.Port = dbConfig.Port
-	cfg.Database.User = dbConfig.User
-	cfg.Database.Name = dbConfig.Name
-
-	if err := config.SetDatabasePasswordOn(cfg, dbConfig.Pass); err != nil {
-		return fmt.Errorf("failed to save database password: %w", err)
-	}
 
 	return config.SaveConfig(cfg)
 }

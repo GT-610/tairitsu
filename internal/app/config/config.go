@@ -16,15 +16,15 @@ import (
 	"go.uber.org/zap"
 )
 
-// DatabaseConfig Database configuration
+// DatabaseConfig describes where Tairitsu keeps its data.
+//
+// Only SQLite is implemented: the setup wizard rejects every other type, so the
+// host, port, user, password and database-name fields that a MySQL or
+// PostgreSQL backend would have needed are gone rather than carried as dead
+// configuration.
 type DatabaseConfig struct {
 	Type string `json:"type"`
 	Path string `json:"path"`
-	Host string `json:"host"`
-	Port int    `json:"port"`
-	User string `json:"user"`
-	Pass string `json:"pass"` // Encrypted password
-	Name string `json:"name"`
 }
 
 // ZeroTierConfig ZeroTier configuration
@@ -337,10 +337,6 @@ func ensureEncryptionKey(cfg *Config) (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("failed to recover ZeroTier token: %w", err)
 	}
-	databasePassword, err := decryptWithEmptyLegacyKey(cfg.Database.Pass)
-	if err != nil {
-		return false, fmt.Errorf("failed to recover database password: %w", err)
-	}
 
 	secretBytes := make([]byte, 32)
 	if _, err := rand.Read(secretBytes); err != nil {
@@ -352,11 +348,7 @@ func ensureEncryptionKey(cfg *Config) (bool, error) {
 			return false, err
 		}
 	}
-	if databasePassword != "" {
-		if err := SetDatabasePasswordOn(cfg, databasePassword); err != nil {
-			return false, err
-		}
-	}
+
 	return true, nil
 }
 
@@ -506,42 +498,6 @@ func LoadTokenFromPathInto(cfg *Config, path string) error {
 	}
 
 	return SetZTTokenOn(cfg, token)
-}
-
-func GetDatabasePasswordFrom(cfg *Config) (string, error) {
-	if cfg == nil {
-		return "", fmt.Errorf("configuration not loaded")
-	}
-
-	if cfg.Database.Pass != "" {
-		plaintext, reEncrypted, err := decryptSensitiveDataWithConfig(cfg, cfg.Database.Pass)
-		if err != nil {
-			return "", fmt.Errorf("failed to decrypt database password: %w", err)
-		}
-		if reEncrypted != "" {
-			cfg.Database.Pass = reEncrypted
-			if saveErr := SaveConfig(cfg); saveErr != nil {
-				return plaintext, fmt.Errorf("decrypted password OK but failed to persist re-encrypted config: %w", saveErr)
-			}
-		}
-		return plaintext, nil
-	}
-
-	return "", nil
-}
-
-func SetDatabasePasswordOn(cfg *Config, password string) error {
-	if cfg == nil {
-		return fmt.Errorf("configuration not loaded")
-	}
-
-	encryptedPass, err := encryptSensitiveDataWithConfig(cfg, password)
-	if err != nil {
-		return fmt.Errorf("failed to encrypt password: %w", err)
-	}
-
-	cfg.Database.Pass = encryptedPass
-	return nil
 }
 
 func encryptSensitiveDataWithConfig(cfg *Config, data string) (string, error) {

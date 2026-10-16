@@ -46,9 +46,6 @@ func TestLoadConfigMigratesLegacyCredentialsEncryptedWithEmptyEncryptionKey(t *t
 		ZeroTier: config.ZeroTierConfig{
 			Token: "encrypted:" + encryptWithLegacyEmptyKey(t, "legacy-controller-token"),
 		},
-		Database: config.DatabaseConfig{
-			Pass: "encrypted:" + encryptWithLegacyEmptyKey(t, "legacy-database-password"),
-		},
 	}
 	require.NoError(t, config.SaveConfig(legacyConfig))
 
@@ -59,9 +56,6 @@ func TestLoadConfigMigratesLegacyCredentialsEncryptedWithEmptyEncryptionKey(t *t
 	decrypted, err := config.GetZTTokenFrom(repaired)
 	require.NoError(t, err)
 	assert.Equal(t, "legacy-controller-token", decrypted)
-	databasePassword, err := config.GetDatabasePasswordFrom(repaired)
-	require.NoError(t, err)
-	assert.Equal(t, "legacy-database-password", databasePassword)
 
 	reloaded, err := config.LoadConfig()
 	require.NoError(t, err)
@@ -69,9 +63,6 @@ func TestLoadConfigMigratesLegacyCredentialsEncryptedWithEmptyEncryptionKey(t *t
 	decrypted, err = config.GetZTTokenFrom(reloaded)
 	require.NoError(t, err)
 	assert.Equal(t, "legacy-controller-token", decrypted)
-	databasePassword, err = config.GetDatabasePasswordFrom(reloaded)
-	require.NoError(t, err)
-	assert.Equal(t, "legacy-database-password", databasePassword)
 }
 
 func TestLoadConfigContinuesWhenTokenRetryFails(t *testing.T) {

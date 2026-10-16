@@ -18,7 +18,7 @@ Tairitsu includes:
 
 The following are **not** supported today:
 
-- MySQL or PostgreSQL support
+- any storage backend other than SQLite
 - multi-tenant organizations or broader platform tenancy features
 - email-based password recovery
 - notification systems

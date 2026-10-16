@@ -7,7 +7,6 @@ import (
 	"github.com/GT-610/tairitsu/internal/app/config"
 	"github.com/GT-610/tairitsu/internal/app/database"
 	"github.com/GT-610/tairitsu/internal/app/logger"
-	"github.com/GT-610/tairitsu/internal/app/models"
 	"github.com/GT-610/tairitsu/internal/zerotier"
 	"go.uber.org/zap"
 )
@@ -47,7 +46,7 @@ func NewSetupService(runtimeService *RuntimeService, stateService *StateService,
 	}
 }
 
-func (s *SetupService) ConfigureDatabase(dbConfig models.DatabaseConfig) (database.Config, error) {
+func (s *SetupService) ConfigureDatabase(dbConfig config.DatabaseConfig) (database.Config, error) {
 	if dbConfig.Type != string(database.SQLite) {
 		return database.Config{}, ErrSetupUnsupportedDatabase
 	}

@@ -5,9 +5,9 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/GT-610/tairitsu/internal/app/config"
 	"github.com/GT-610/tairitsu/internal/app/logger"
 	"github.com/GT-610/tairitsu/internal/app/middleware"
-	"github.com/GT-610/tairitsu/internal/app/models"
 	"github.com/GT-610/tairitsu/internal/app/services"
 	"github.com/gofiber/fiber/v3"
 	"go.uber.org/zap"
@@ -157,7 +157,7 @@ func (h *SystemHandler) UpdateRuntimeSettings(c fiber.Ctx) error {
 
 // ConfigureDatabase configures the database connection settings
 func (h *SystemHandler) ConfigureDatabase(c fiber.Ctx) error {
-	var dbConfig models.DatabaseConfig
+	var dbConfig config.DatabaseConfig
 	if err := c.Bind().Body(&dbConfig); err != nil {
 		logger.Error("Failed to bind database configuration request", zap.Error(err))
 		return writeErrorResponseWithCode(c, fiber.StatusBadRequest, "system.invalid_request", "Invalid request body")
@@ -178,6 +178,7 @@ func (h *SystemHandler) ConfigureDatabase(c fiber.Ctx) error {
 		"message_code": "system.database_configured",
 		"config": fiber.Map{
 			"type": dbCfg.Type,
+			"path": dbCfg.Path,
 		},
 	})
 }
