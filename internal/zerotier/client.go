@@ -70,17 +70,17 @@ func (n *Network) UnmarshalJSON(data []byte) error {
 	n.Status = resp.Status
 
 	n.Config = NetworkConfig{
-		Private:                    resp.Private,
-		EnableBroadcast:            resp.EnableBroadcast,
-		Mtu:                        resp.Mtu,
-		MulticastLimit:             resp.MulticastLimit,
-		IpAssignmentPools:          resp.IpAssignmentPools,
-		Routes:                     resp.Routes,
-		Tags:                       resp.Tags,
-		Rules:                      resp.Rules,
-		DNS:                        resp.DNS,
-		V4AssignMode:               resp.V4AssignMode,
-		V6AssignMode:               resp.V6AssignMode,
+		Private:           resp.Private,
+		EnableBroadcast:   resp.EnableBroadcast,
+		Mtu:               resp.Mtu,
+		MulticastLimit:    resp.MulticastLimit,
+		IpAssignmentPools: resp.IpAssignmentPools,
+		Routes:            resp.Routes,
+		Tags:              resp.Tags,
+		Rules:             resp.Rules,
+		DNS:               resp.DNS,
+		V4AssignMode:      resp.V4AssignMode,
+		V6AssignMode:      resp.V6AssignMode,
 	}
 
 	return nil

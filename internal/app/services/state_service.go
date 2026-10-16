@@ -51,14 +51,6 @@ func (s *StateService) Config() *config.Config {
 	return nil
 }
 
-func (s *StateService) SaveConfig() error {
-	cfg := s.ensureConfig()
-	if err := config.SaveConfig(cfg); err != nil {
-		return err
-	}
-	return nil
-}
-
 func (s *StateService) SetInitialized(initialized bool) error {
 	cfg := s.ensureConfig()
 	cfg.Initialized = initialized

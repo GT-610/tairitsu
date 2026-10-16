@@ -9,7 +9,6 @@ import (
 	"github.com/GT-610/tairitsu/internal/app/middleware"
 	"github.com/GT-610/tairitsu/internal/app/models"
 	appservices "github.com/GT-610/tairitsu/internal/app/services"
-	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/require"
 )
 
@@ -34,18 +33,6 @@ func newTestSession(t *testing.T, sessionService *appservices.SessionService, us
 // authenticateRequest attaches the session cookie a browser would send.
 func authenticateRequest(req *http.Request, credential string) {
 	req.AddCookie(&http.Cookie{Name: middleware.SessionCookieName, Value: credential})
-}
-
-// newAuthenticatedApp wires the real auth middleware in front of handler so
-// tests exercise cookie authentication rather than a test double.
-func newAuthenticatedApp(sessionService *appservices.SessionService, userService *appservices.UserService) *fiber.App {
-	return newTestAppWithAuth(sessionService, userService)
-}
-
-func newTestAppWithAuth(sessionService *appservices.SessionService, userService *appservices.UserService) *fiber.App {
-	app := fiber.New()
-	app.Use(middleware.AuthMiddleware(sessionService, userService))
-	return app
 }
 
 // newTestDatabase opens an isolated SQLite database for a test.

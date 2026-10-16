@@ -121,13 +121,15 @@ func TestHTTPAppIgnoresProxyHeadersFromUntrustedClients(t *testing.T) {
 	assert.False(t, identity.Secure)
 }
 
+// The address a trusted proxy reports is what the rate limiter keys on, so two
+// clients behind that proxy must not share one budget.
 func TestHTTPAppRateLimitsForwardedClientsIndependently(t *testing.T) {
 	app := newTrustedTestProxyApp()
 	app.Use(func(c fiber.Ctx) error {
 		c.Set("X-Test-Observed-IP", c.IP())
 		return c.Next()
 	})
-	app.Use(middleware.RateLimitWithLimiter(middleware.NewRateLimiter(1, 0)))
+	app.Use(middleware.RateLimit())
 	app.Get("/limited", func(c fiber.Ctx) error {
 		return c.SendStatus(fiber.StatusNoContent)
 	})
@@ -140,19 +142,23 @@ func TestHTTPAppRateLimitsForwardedClientsIndependently(t *testing.T) {
 		return resp
 	}
 
-	first := request("203.0.113.10")
-	second := request("203.0.113.11")
-	third := request("203.0.113.10")
-	defer first.Body.Close()
-	defer second.Body.Close()
-	defer third.Body.Close()
+	// The API budget is 100 tokens, so the 101st request from one address is the
+	// one that must be refused.
+	for requestNumber := 0; requestNumber < 100; requestNumber++ {
+		resp := request("203.0.113.10")
+		require.Equal(t, fiber.StatusNoContent, resp.StatusCode)
+		resp.Body.Close()
+	}
 
-	assert.Equal(t, "203.0.113.10", first.Header.Get("X-Test-Observed-IP"))
-	assert.Equal(t, "203.0.113.11", second.Header.Get("X-Test-Observed-IP"))
-	assert.Equal(t, "203.0.113.10", third.Header.Get("X-Test-Observed-IP"))
-	assert.Equal(t, fiber.StatusNoContent, first.StatusCode)
-	assert.Equal(t, fiber.StatusNoContent, second.StatusCode)
-	assert.Equal(t, fiber.StatusTooManyRequests, third.StatusCode)
+	exhausted := request("203.0.113.10")
+	defer exhausted.Body.Close()
+	require.Equal(t, fiber.StatusTooManyRequests, exhausted.StatusCode)
+	assert.Equal(t, "203.0.113.10", exhausted.Header.Get("X-Test-Observed-IP"))
+
+	other := request("203.0.113.11")
+	defer other.Body.Close()
+	assert.Equal(t, fiber.StatusNoContent, other.StatusCode)
+	assert.Equal(t, "203.0.113.11", other.Header.Get("X-Test-Observed-IP"))
 }
 
 // A client behind a proxy that is trusted but does not report a scheme must not

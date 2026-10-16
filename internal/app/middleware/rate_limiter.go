@@ -10,41 +10,46 @@ import (
 	"go.uber.org/zap"
 )
 
-// RateLimiter middleware for API rate limiting.
-// Uses the token bucket algorithm.
+// Rate limiting uses the token bucket algorithm, keyed by client address.
 
-// TokenBucket represents a token bucket structure
-type TokenBucket struct {
-	capacity    int        // Bucket capacity
-	tokens      int        // Current number of tokens
-	refillRate  int        // Tokens added per second
-	lastRefill  time.Time  // Last time tokens were refilled
-	refillMutex sync.Mutex // Mutex for refilling tokens
+// tokenBucket holds the remaining budget for one client.
+type tokenBucket struct {
+	capacity   int       // Bucket capacity
+	tokens     int       // Current number of tokens
+	refillRate int       // Tokens added per second
+	lastRefill time.Time // Last time tokens were refilled
+	mutex      sync.Mutex
+	now        func() time.Time
 }
 
-// NewTokenBucket creates a new token bucket
-func NewTokenBucket(capacity, refillRate int) *TokenBucket {
-	return &TokenBucket{
+// newTokenBucket creates a new token bucket that reads the wall clock.
+func newTokenBucket(capacity, refillRate int) *tokenBucket {
+	return newTokenBucketWithClock(capacity, refillRate, time.Now)
+}
+
+// newTokenBucketWithClock creates a token bucket that reads the time from now,
+// so that refill behaviour can be tested without waiting for it.
+func newTokenBucketWithClock(capacity, refillRate int, now func() time.Time) *tokenBucket {
+	return &tokenBucket{
 		capacity:   capacity,
 		tokens:     capacity, // Initially full
 		refillRate: refillRate,
-		lastRefill: time.Now(),
+		lastRefill: now(),
+		now:        now,
 	}
 }
 
-// GetToken attempts to acquire a token.
-// Returns true on success, false on failure.
-func (tb *TokenBucket) GetToken() bool {
-	tb.refillMutex.Lock()
-	defer tb.refillMutex.Unlock()
+// getToken attempts to acquire a token, reporting whether it succeeded.
+func (tb *tokenBucket) getToken() bool {
+	tb.mutex.Lock()
+	defer tb.mutex.Unlock()
 
 	// Refill tokens
-	now := time.Now()
+	now := tb.now()
 	duration := now.Sub(tb.lastRefill)
 	tokensToAdd := int(duration.Seconds()) * tb.refillRate
 
 	if tokensToAdd > 0 {
-		// Update token count, capped at capacity
 		newTokens := tb.tokens + tokensToAdd
 		if newTokens > tb.capacity {
 			newTokens = tb.capacity
@@ -53,7 +58,6 @@ func (tb *TokenBucket) GetToken() bool {
 		tb.lastRefill = now
 	}
 
-	// Attempt to acquire a token
 	if tb.tokens > 0 {
 		tb.tokens--
 		return true
@@ -62,33 +66,47 @@ func (tb *TokenBucket) GetToken() bool {
 	return false
 }
 
-// RateLimiter is the rate limiter
-type RateLimiter struct {
-	buckets     map[string]*TokenBucket // IP address to token bucket mapping
-	bucketMutex sync.RWMutex            // Mutex for accessing buckets
+// rateLimiter tracks one bucket per client address.
+type rateLimiter struct {
+	buckets     map[string]*tokenBucket // Client address to token bucket mapping
+	bucketMutex sync.RWMutex            // Protects buckets
 	capacity    int                     // Default bucket capacity
 	refillRate  int                     // Default tokens added per second
-	maxBuckets  int                     // Maximum number of tracked IPs
-	denyBucket  *TokenBucket            // Reusable zero-token bucket for over-capacity IPs
+	maxBuckets  int                     // Maximum number of tracked clients
+	denyBucket  *tokenBucket            // Reusable zero-token bucket for over-capacity clients
+	now         func() time.Time
 }
 
-// NewRateLimiter creates a new rate limiter
-func NewRateLimiter(capacity, refillRate int) *RateLimiter {
-	rl := &RateLimiter{
-		buckets:    make(map[string]*TokenBucket),
-		capacity:   capacity,
-		refillRate: refillRate,
-		maxBuckets: 10000,
-		denyBucket: NewTokenBucket(0, 0),
-	}
-	go rl.cleanupLoop()
-	return rl
-}
+// maxTrackedClients bounds the memory a rate limiter can hold.
+const maxTrackedClients = 10000
 
 const cleanupInterval = 5 * time.Minute
 const bucketStaleThreshold = 10 * time.Minute
 
-func (rl *RateLimiter) cleanupLoop() {
+// newRateLimiter creates a rate limiter that reads the wall clock.
+func newRateLimiter(capacity, refillRate int) *rateLimiter {
+	return newRateLimiterWithClock(capacity, refillRate, time.Now)
+}
+
+func newRateLimiterWithClock(capacity, refillRate int, now func() time.Time) *rateLimiter {
+	return &rateLimiter{
+		buckets:    make(map[string]*tokenBucket),
+		capacity:   capacity,
+		refillRate: refillRate,
+		maxBuckets: maxTrackedClients,
+		denyBucket: newTokenBucketWithClock(0, 0, now),
+		now:        now,
+	}
+}
+
+// startCleanup drops buckets that no longer matter, so that a long-running
+// process does not keep one per address it has ever seen. Only the limiters
+// that live for the whole process need it.
+func (rl *rateLimiter) startCleanup() {
+	go rl.cleanupLoop()
+}
+
+func (rl *rateLimiter) cleanupLoop() {
 	ticker := time.NewTicker(cleanupInterval)
 	defer ticker.Stop()
 	for range ticker.C {
@@ -96,79 +114,82 @@ func (rl *RateLimiter) cleanupLoop() {
 	}
 }
 
-func (rl *RateLimiter) cleanupStale() {
+func (rl *rateLimiter) cleanupStale() {
 	rl.bucketMutex.Lock()
 	defer rl.bucketMutex.Unlock()
-	now := time.Now()
-	for ip, bucket := range rl.buckets {
-		bucket.refillMutex.Lock()
+
+	now := rl.now()
+	for address, bucket := range rl.buckets {
+		bucket.mutex.Lock()
 		stale := now.Sub(bucket.lastRefill) > bucketStaleThreshold
-		bucket.refillMutex.Unlock()
+		bucket.mutex.Unlock()
+
 		if stale {
-			delete(rl.buckets, ip)
+			delete(rl.buckets, address)
 		}
 	}
 }
 
-// GetBucket retrieves or creates the token bucket for the given IP
-func (rl *RateLimiter) GetBucket(ip string) *TokenBucket {
+// getBucket retrieves or creates the token bucket for the given client address.
+func (rl *rateLimiter) getBucket(address string) *tokenBucket {
 	rl.bucketMutex.RLock()
-	bucket, exists := rl.buckets[ip]
+	bucket, exists := rl.buckets[address]
 	rl.bucketMutex.RUnlock()
 
 	if exists {
 		return bucket
 	}
 
-	// Create a new token bucket
-	newBucket := NewTokenBucket(rl.capacity, rl.refillRate)
+	newBucket := newTokenBucketWithClock(rl.capacity, rl.refillRate, rl.now)
 
 	rl.bucketMutex.Lock()
-	// Double-check: another goroutine may have inserted this IP
-	if bucket, exists := rl.buckets[ip]; exists {
-		rl.bucketMutex.Unlock()
+	defer rl.bucketMutex.Unlock()
+
+	// Another goroutine may have inserted this address while the lock was free.
+	if bucket, exists := rl.buckets[address]; exists {
 		return bucket
 	}
 
-	// Reject new IPs when the bucket map is at capacity
+	// Reject new client addresses once the map is at capacity, so a flood of
+	// distinct addresses cannot grow it without bound.
 	if len(rl.buckets) >= rl.maxBuckets {
-		rl.bucketMutex.Unlock()
 		return rl.denyBucket
 	}
 
-	rl.buckets[ip] = newBucket
-	rl.bucketMutex.Unlock()
-
+	rl.buckets[address] = newBucket
 	return newBucket
 }
 
-// DefaultRateLimiter is the default rate limiter instance
-var DefaultRateLimiter = NewRateLimiter(100, 10) // 100 tokens, refills 10 per second
+// apiRateLimiter is the budget for the JSON surface.
+var apiRateLimiter = newRateLimiter(100, 10) // 100 tokens, refills 10 per second
 
-// AuthRateLimiter is a stricter rate limiter for authentication endpoints
-var AuthRateLimiter = NewRateLimiter(20, 2) // 20 tokens, refills 2 per second
+// authenticationRateLimiter is the stricter budget for authentication endpoints.
+var authenticationRateLimiter = newRateLimiter(20, 2) // 20 tokens, refills 2 per second
 
-// RateLimit is the API rate limiting middleware
+func init() {
+	apiRateLimiter.startCleanup()
+	authenticationRateLimiter.startCleanup()
+}
+
+// RateLimit is the API rate limiting middleware.
 func RateLimit() fiber.Handler {
-	return rateLimitHandler(DefaultRateLimiter)
+	return rateLimitHandler(apiRateLimiter)
 }
 
-// AuthRateLimit is the stricter rate limiting middleware for auth endpoints
+// AuthRateLimit is the stricter rate limiting middleware for auth endpoints.
 func AuthRateLimit() fiber.Handler {
-	return rateLimitHandler(AuthRateLimiter)
+	return rateLimitHandler(authenticationRateLimiter)
 }
 
-func RateLimitWithLimiter(limiter *RateLimiter) fiber.Handler {
-	return rateLimitHandler(limiter)
-}
-
-func rateLimitHandler(limiter *RateLimiter) fiber.Handler {
+func rateLimitHandler(limiter *rateLimiter) fiber.Handler {
 	return func(c fiber.Ctx) error {
-		clientIP := strings.Clone(c.IP())
-		bucket := limiter.GetBucket(clientIP)
+		// The context is only valid for this request, so the bucket map must not
+		// hold a reference into its buffer.
+		clientAddress := strings.Clone(c.IP())
+		bucket := limiter.getBucket(clientAddress)
 
-		if !bucket.GetToken() {
-			logger.Warn("API rate limit triggered", zap.String("client_ip", clientIP), zap.String("path", c.Path()))
+		if !bucket.getToken() {
+			logger.Warn("API rate limit triggered", zap.String("client_ip", clientAddress), zap.String("path", c.Path()))
 
 			return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
 				"error":      "Too many requests. Please try again later.",
