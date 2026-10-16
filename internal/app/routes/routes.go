@@ -36,9 +36,10 @@ func SetupRoutes(router *fiber.App, dependencies *assembly.Dependencies) {
 	runtimeOnly := dependencies.Middleware.RuntimeOnly
 	adminOnly := dependencies.Middleware.AdminOnly
 
-	// API routes group. Rate limiting applies to the JSON surface only: static
-	// assets are now served by this process and must not consume the API budget.
-	api := router.Group("/api", middleware.RateLimit())
+	// API routes group. Rate limiting and the uncacheable marker apply to the
+	// JSON surface only: static assets are served by this process too, and they
+	// are meant to be cached while no API response ever should be.
+	api := router.Group("/api", middleware.NoStore(), middleware.RateLimit())
 	{
 		// Liveness probe (no dependency checks)
 		api.Get("/health", func(c fiber.Ctx) error {
