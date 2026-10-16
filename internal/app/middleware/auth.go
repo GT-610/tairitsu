@@ -60,9 +60,14 @@ func ExpiredSessionCookie(secure bool) *fiber.Cookie {
 }
 
 // IsSecureRequest reports whether the browser reached the server over HTTPS.
-// TLS is commonly terminated by a reverse proxy, so the forwarded scheme counts.
+// TLS is commonly terminated by a reverse proxy, so the forwarded scheme counts
+// as soon as the proxy itself is trusted.
+//
+// Fiber exposes the scheme through Secure()/Scheme(). Its Protocol() returns
+// the HTTP version ("HTTP/1.1"), so a comparison against Protocol() can never
+// be true and must not be used here.
 func IsSecureRequest(c fiber.Ctx) bool {
-	return c.Secure() || c.Protocol() == "https"
+	return c.Secure()
 }
 
 // AuthMiddleware authenticates a request from its session cookie and loads the
@@ -127,7 +132,6 @@ func unauthorized(c fiber.Ctx, code string, message string) error {
 		Error:     "Unauthorized",
 		Message:   message,
 		ErrorCode: code,
-		Code:      fiber.StatusUnauthorized,
 	})
 }
 
@@ -139,7 +143,6 @@ func authUnavailable(c fiber.Ctx, code string, message string) error {
 		Error:     "Service Unavailable",
 		Message:   message,
 		ErrorCode: code,
-		Code:      fiber.StatusServiceUnavailable,
 	})
 }
 
@@ -153,7 +156,6 @@ func AdminRequiredWithUserService(userService *services.UserService) fiber.Handl
 				Error:     "Forbidden",
 				Message:   "Authentication required",
 				ErrorCode: "auth.required",
-				Code:      fiber.StatusForbidden,
 			})
 		}
 
@@ -162,7 +164,6 @@ func AdminRequiredWithUserService(userService *services.UserService) fiber.Handl
 				Error:     "Service Unavailable",
 				Message:   "User service is unavailable",
 				ErrorCode: "system.user_service_unavailable",
-				Code:      fiber.StatusServiceUnavailable,
 			})
 		}
 
@@ -174,14 +175,12 @@ func AdminRequiredWithUserService(userService *services.UserService) fiber.Handl
 					Error:     "Service Unavailable",
 					Message:   "User service is unavailable",
 					ErrorCode: "user.db_unavailable",
-					Code:      fiber.StatusServiceUnavailable,
 				})
 			}
 			return c.Status(fiber.StatusForbidden).JSON(ErrorResponse{
 				Error:     "Forbidden",
 				Message:   "Administrator permission required",
 				ErrorCode: "auth.admin_required",
-				Code:      fiber.StatusForbidden,
 			})
 		}
 
@@ -190,7 +189,6 @@ func AdminRequiredWithUserService(userService *services.UserService) fiber.Handl
 				Error:     "Forbidden",
 				Message:   "Administrator permission required",
 				ErrorCode: "auth.admin_required",
-				Code:      fiber.StatusForbidden,
 			})
 		}
 

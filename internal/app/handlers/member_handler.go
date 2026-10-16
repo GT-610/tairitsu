@@ -136,5 +136,5 @@ func (h *MemberHandler) DeleteMember(c fiber.Ctx) error {
 		return writeNetworkServiceError(c, err, "Network not found", "Network member delete access denied")
 	}
 
-	return writeMessageResponse(c, fiber.StatusOK, "member.delete_success", "Member deleted successfully", nil)
+	return writeMessageResponse(c, fiber.StatusOK, "Member deleted successfully", nil)
 }

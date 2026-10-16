@@ -8,108 +8,61 @@ import (
 	"github.com/GT-610/tairitsu/internal/app/database"
 	"github.com/GT-610/tairitsu/internal/app/models"
 	appservices "github.com/GT-610/tairitsu/internal/app/services"
+	"github.com/GT-610/tairitsu/tests/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
+// txFailingDB decorates a working database with the failures these tests need
+// to inject. Embedding the interface keeps every other operation delegated, so
+// the wrapper only names the methods it actually changes.
 type txFailingDB struct {
-	inner                 database.DBInterface
+	database.DBInterface
+
 	failSessionUpdateAt   int
 	failDeleteUser        bool
+	failPromote           bool
 	sessionUpdateAttempts int
 }
 
-func (d *txFailingDB) Init() error { return d.inner.Init() }
 func (d *txFailingDB) WithTransaction(fn func(database.DBInterface) error) error {
-	return d.inner.WithTransaction(func(tx database.DBInterface) error {
+	return d.DBInterface.WithTransaction(func(tx database.DBInterface) error {
 		return fn(&txFailingDB{
-			inner:               tx,
+			DBInterface:         tx,
 			failSessionUpdateAt: d.failSessionUpdateAt,
 			failDeleteUser:      d.failDeleteUser,
+			failPromote:         d.failPromote,
 		})
 	})
 }
-func (d *txFailingDB) CreateUser(user *models.User) error { return d.inner.CreateUser(user) }
-func (d *txFailingDB) GetUserByID(id string) (*models.User, error) {
-	return d.inner.GetUserByID(id)
+
+func (d *txFailingDB) PromoteFirstAdministrator(userID string) (bool, error) {
+	if d.failPromote {
+		return false, fmt.Errorf("forced promotion failure")
+	}
+
+	return d.DBInterface.PromoteFirstAdministrator(userID)
 }
-func (d *txFailingDB) GetUserByUsername(username string) (*models.User, error) {
-	return d.inner.GetUserByUsername(username)
-}
-func (d *txFailingDB) GetAllUsers() ([]*models.User, error) { return d.inner.GetAllUsers() }
-func (d *txFailingDB) GetUsersByIDs(ids []string) ([]*models.User, error) {
-	return d.inner.GetUsersByIDs(ids)
-}
-func (d *txFailingDB) UpdateUser(user *models.User) error   { return d.inner.UpdateUser(user) }
+
 func (d *txFailingDB) DeleteUser(id string) error {
 	if d.failDeleteUser {
 		return fmt.Errorf("forced delete failure")
 	}
-	return d.inner.DeleteUser(id)
+
+	return d.DBInterface.DeleteUser(id)
 }
-func (d *txFailingDB) CreateSession(session *models.Session) error {
-	return d.inner.CreateSession(session)
-}
-func (d *txFailingDB) GetSessionByID(id string) (*models.Session, error) {
-	return d.inner.GetSessionByID(id)
-}
-func (d *txFailingDB) GetSessionsByUserID(userID string) ([]*models.Session, error) {
-	return d.inner.GetSessionsByUserID(userID)
-}
+
 func (d *txFailingDB) UpdateSession(session *models.Session) error {
 	d.sessionUpdateAttempts++
 	if d.failSessionUpdateAt > 0 && d.sessionUpdateAttempts == d.failSessionUpdateAt {
 		return fmt.Errorf("forced session update failure")
 	}
-	return d.inner.UpdateSession(session)
+
+	return d.DBInterface.UpdateSession(session)
 }
-func (d *txFailingDB) CreateNetwork(network *models.Network) error {
-	return d.inner.CreateNetwork(network)
-}
-func (d *txFailingDB) GetNetworkByID(id string) (*models.Network, error) {
-	return d.inner.GetNetworkByID(id)
-}
-func (d *txFailingDB) GetNetworksByOwnerID(ownerID string) ([]*models.Network, error) {
-	return d.inner.GetNetworksByOwnerID(ownerID)
-}
-func (d *txFailingDB) GetAllNetworks() ([]*models.Network, error) { return d.inner.GetAllNetworks() }
-func (d *txFailingDB) UpdateNetwork(network *models.Network) error {
-	return d.inner.UpdateNetwork(network)
-}
-func (d *txFailingDB) DeleteNetwork(id string) error { return d.inner.DeleteNetwork(id) }
-func (d *txFailingDB) UpsertNetworkViewer(viewer *models.NetworkViewer) error {
-	return d.inner.UpsertNetworkViewer(viewer)
-}
-func (d *txFailingDB) GetNetworkViewer(networkID, userID string) (*models.NetworkViewer, error) {
-	return d.inner.GetNetworkViewer(networkID, userID)
-}
-func (d *txFailingDB) GetNetworkViewers(networkID string) ([]*models.NetworkViewer, error) {
-	return d.inner.GetNetworkViewers(networkID)
-}
-func (d *txFailingDB) GetSharedNetworksByUserID(userID string) ([]*models.Network, error) {
-	return d.inner.GetSharedNetworksByUserID(userID)
-}
-func (d *txFailingDB) DeleteNetworkViewer(networkID, userID string) error {
-	return d.inner.DeleteNetworkViewer(networkID, userID)
-}
-func (d *txFailingDB) DeleteAllNetworkViewers(networkID string) error {
-	return d.inner.DeleteAllNetworkViewers(networkID)
-}
-func (d *txFailingDB) DeleteExpiredSessions(before time.Time) error {
-	return d.inner.DeleteExpiredSessions(before)
-}
-func (d *txFailingDB) DeleteSessionsWithoutCredential() (int64, error) {
-	return d.inner.DeleteSessionsWithoutCredential()
-}
-func (d *txFailingDB) GetSessionByTokenHash(tokenHash string) (*models.Session, error) {
-	return d.inner.GetSessionByTokenHash(tokenHash)
-}
-func (d *txFailingDB) HasAdminUser() (bool, error)   { return d.inner.HasAdminUser() }
-func (d *txFailingDB) Ping() error                  { return d.inner.Ping() }
-func (d *txFailingDB) Close() error                  { return d.inner.Close() }
 
 func TestUserServiceRegisterReturnsSentinelForDuplicateUsername(t *testing.T) {
-	db := newTestSQLiteDB(t)
+	db := testutil.NewSQLiteDB(t)
 	service := appservices.NewUserService(db)
 
 	_, err := service.Register(&models.RegisterRequest{Username: "admin", Password: "secret123"}, "admin")
@@ -120,7 +73,7 @@ func TestUserServiceRegisterReturnsSentinelForDuplicateUsername(t *testing.T) {
 }
 
 func TestUserServiceRegisterRejectsEmptyOrWhitespaceUsername(t *testing.T) {
-	db := newTestSQLiteDB(t)
+	db := testutil.NewSQLiteDB(t)
 	service := appservices.NewUserService(db)
 
 	_, err := service.Register(&models.RegisterRequest{Username: "", Password: "secret123"}, "user")
@@ -131,7 +84,7 @@ func TestUserServiceRegisterRejectsEmptyOrWhitespaceUsername(t *testing.T) {
 }
 
 func TestUserServiceRegisterRejectsTooLongUsername(t *testing.T) {
-	db := newTestSQLiteDB(t)
+	db := testutil.NewSQLiteDB(t)
 	service := appservices.NewUserService(db)
 
 	_, err := service.Register(&models.RegisterRequest{Username: "a1234567890123456", Password: "secret123"}, "user")
@@ -139,7 +92,7 @@ func TestUserServiceRegisterRejectsTooLongUsername(t *testing.T) {
 }
 
 func TestUserServiceRegisterAcceptsMaxLengthUsername(t *testing.T) {
-	db := newTestSQLiteDB(t)
+	db := testutil.NewSQLiteDB(t)
 	service := appservices.NewUserService(db)
 
 	user, err := service.Register(&models.RegisterRequest{Username: "a123456789012345", Password: "secret123"}, "user")
@@ -148,7 +101,7 @@ func TestUserServiceRegisterAcceptsMaxLengthUsername(t *testing.T) {
 }
 
 func TestUserServiceRegisterRejectsTooShortPassword(t *testing.T) {
-	db := newTestSQLiteDB(t)
+	db := testutil.NewSQLiteDB(t)
 	service := appservices.NewUserService(db)
 
 	_, err := service.Register(&models.RegisterRequest{Username: "alice", Password: "short"}, "user")
@@ -156,7 +109,7 @@ func TestUserServiceRegisterRejectsTooShortPassword(t *testing.T) {
 }
 
 func TestUserServiceRegisterRejectsTooLongPassword(t *testing.T) {
-	db := newTestSQLiteDB(t)
+	db := testutil.NewSQLiteDB(t)
 	service := appservices.NewUserService(db)
 
 	longPassword := "a12345678901234567890123456789012x"
@@ -165,7 +118,7 @@ func TestUserServiceRegisterRejectsTooLongPassword(t *testing.T) {
 }
 
 func TestUserServiceRegisterNormalizesUsernameBeforeCheckingDuplicates(t *testing.T) {
-	db := newTestSQLiteDB(t)
+	db := testutil.NewSQLiteDB(t)
 	service := appservices.NewUserService(db)
 
 	user, err := service.Register(&models.RegisterRequest{Username: "  alice  ", Password: "secret123"}, "user")
@@ -177,7 +130,7 @@ func TestUserServiceRegisterNormalizesUsernameBeforeCheckingDuplicates(t *testin
 }
 
 func TestUserServiceLoginReturnsSentinelForInvalidCredentials(t *testing.T) {
-	db := newTestSQLiteDB(t)
+	db := testutil.NewSQLiteDB(t)
 	service := appservices.NewUserService(db)
 
 	_, err := service.Login(&models.LoginRequest{Username: "missing", Password: "secret123"})
@@ -185,7 +138,7 @@ func TestUserServiceLoginReturnsSentinelForInvalidCredentials(t *testing.T) {
 }
 
 func TestUserServiceChangePasswordReturnsSentinelForWrongPassword(t *testing.T) {
-	db := newTestSQLiteDB(t)
+	db := testutil.NewSQLiteDB(t)
 	service := appservices.NewUserService(db)
 
 	user, err := service.Register(&models.RegisterRequest{Username: "admin", Password: "secret123"}, "admin")
@@ -196,9 +149,9 @@ func TestUserServiceChangePasswordReturnsSentinelForWrongPassword(t *testing.T) 
 }
 
 func TestUserServiceChangePasswordAndRevokeOtherSessionsRollsBackOnSessionFailure(t *testing.T) {
-	db := newTestSQLiteDB(t)
+	db := testutil.NewSQLiteDB(t)
 	service := appservices.NewUserService(&txFailingDB{
-		inner:               db,
+		DBInterface:         db,
 		failSessionUpdateAt: 1,
 	})
 
@@ -244,7 +197,7 @@ func TestUserServiceChangePasswordAndRevokeOtherSessionsRollsBackOnSessionFailur
 }
 
 func TestUserServiceTransferAdminTransfersSingleAdminRole(t *testing.T) {
-	db := newTestSQLiteDB(t)
+	db := testutil.NewSQLiteDB(t)
 	service := appservices.NewUserService(db)
 
 	currentAdmin, err := service.Register(&models.RegisterRequest{Username: "admin", Password: "secret123"}, "admin")
@@ -266,7 +219,7 @@ func TestUserServiceTransferAdminTransfersSingleAdminRole(t *testing.T) {
 }
 
 func TestUserServiceTransferAdminRejectsTransferToSelf(t *testing.T) {
-	db := newTestSQLiteDB(t)
+	db := testutil.NewSQLiteDB(t)
 	service := appservices.NewUserService(db)
 
 	currentAdmin, err := service.Register(&models.RegisterRequest{Username: "admin", Password: "secret123"}, "admin")
@@ -277,7 +230,7 @@ func TestUserServiceTransferAdminRejectsTransferToSelf(t *testing.T) {
 }
 
 func TestUserServiceResetPasswordByAdminRejectsSelfReset(t *testing.T) {
-	db := newTestSQLiteDB(t)
+	db := testutil.NewSQLiteDB(t)
 	service := appservices.NewUserService(db)
 
 	admin, err := service.Register(&models.RegisterRequest{Username: "admin", Password: "secret123"}, "admin")
@@ -288,7 +241,7 @@ func TestUserServiceResetPasswordByAdminRejectsSelfReset(t *testing.T) {
 }
 
 func TestUserServiceResetPasswordByAdminUpdatesPasswordAndRevokesSessions(t *testing.T) {
-	db := newTestSQLiteDB(t)
+	db := testutil.NewSQLiteDB(t)
 	service := appservices.NewUserService(db)
 
 	admin, err := service.Register(&models.RegisterRequest{Username: "admin", Password: "secret123"}, "admin")
@@ -343,9 +296,9 @@ func TestUserServiceResetPasswordByAdminUpdatesPasswordAndRevokesSessions(t *tes
 }
 
 func TestUserServiceResetPasswordByAdminRollsBackOnSessionRevokeFailure(t *testing.T) {
-	db := newTestSQLiteDB(t)
+	db := testutil.NewSQLiteDB(t)
 	service := appservices.NewUserService(&txFailingDB{
-		inner:               db,
+		DBInterface:         db,
 		failSessionUpdateAt: 1,
 	})
 
@@ -380,7 +333,7 @@ func TestUserServiceResetPasswordByAdminRollsBackOnSessionRevokeFailure(t *testi
 }
 
 func TestUserServiceCreateUserByAdminCreatesUserWithTemporaryPassword(t *testing.T) {
-	db := newTestSQLiteDB(t)
+	db := testutil.NewSQLiteDB(t)
 	service := appservices.NewUserService(db)
 
 	admin, err := service.Register(&models.RegisterRequest{Username: "admin", Password: "secret123"}, "admin")
@@ -398,7 +351,7 @@ func TestUserServiceCreateUserByAdminCreatesUserWithTemporaryPassword(t *testing
 }
 
 func TestUserServiceCreateUserByAdminRejectsWhitespaceUsername(t *testing.T) {
-	db := newTestSQLiteDB(t)
+	db := testutil.NewSQLiteDB(t)
 	service := appservices.NewUserService(db)
 
 	admin, err := service.Register(&models.RegisterRequest{Username: "admin", Password: "secret123"}, "admin")
@@ -409,7 +362,7 @@ func TestUserServiceCreateUserByAdminRejectsWhitespaceUsername(t *testing.T) {
 }
 
 func TestUserServiceDeleteUserByAdminTransfersNetworksAndRevokesSessions(t *testing.T) {
-	db := newTestSQLiteDB(t)
+	db := testutil.NewSQLiteDB(t)
 	service := appservices.NewUserService(db)
 
 	admin, err := service.Register(&models.RegisterRequest{Username: "admin", Password: "secret123"}, "admin")
@@ -482,9 +435,9 @@ func TestUserServiceDeleteUserByAdminTransfersNetworksAndRevokesSessions(t *test
 }
 
 func TestUserServiceDeleteUserByAdminRollsBackOnDeleteFailure(t *testing.T) {
-	db := newTestSQLiteDB(t)
+	db := testutil.NewSQLiteDB(t)
 	service := appservices.NewUserService(&txFailingDB{
-		inner:          db,
+		DBInterface:    db,
 		failDeleteUser: true,
 	})
 
@@ -533,7 +486,7 @@ func TestUserServiceDeleteUserByAdminRollsBackOnDeleteFailure(t *testing.T) {
 }
 
 func TestUserServiceDeleteUserByAdminRejectsDeletingSelf(t *testing.T) {
-	db := newTestSQLiteDB(t)
+	db := testutil.NewSQLiteDB(t)
 	service := appservices.NewUserService(db)
 
 	admin, err := service.Register(&models.RegisterRequest{Username: "admin", Password: "secret123"}, "admin")
@@ -543,15 +496,114 @@ func TestUserServiceDeleteUserByAdminRejectsDeletingSelf(t *testing.T) {
 	require.ErrorIs(t, err, appservices.ErrAdminDeleteSelf)
 }
 
+// An installation can hold more than one administrator -- from before the
+// first-run grant was made atomic, or from direct database access -- so the
+// guard against deleting one is kept and reached by seeding that state directly
+// rather than by registering a second administrator, which is no longer a way
+// to obtain one.
 func TestUserServiceDeleteUserByAdminRejectsDeletingAdmin(t *testing.T) {
-	db := newTestSQLiteDB(t)
+	db := testutil.NewSQLiteDB(t)
 	service := appservices.NewUserService(db)
 
 	admin, err := service.Register(&models.RegisterRequest{Username: "admin", Password: "secret123"}, "admin")
 	require.NoError(t, err)
-	otherAdmin, err := service.Register(&models.RegisterRequest{Username: "other-admin", Password: "secret123"}, "admin")
-	require.NoError(t, err)
+
+	otherAdmin := &models.User{
+		ID:        "other-admin-id",
+		Username:  "other-admin",
+		Password:  "hashed-password",
+		Role:      "admin",
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+	require.NoError(t, db.CreateUser(otherAdmin))
 
 	_, _, _, err = service.DeleteUserByAdmin(admin.ID, otherAdmin.ID)
 	require.ErrorIs(t, err, appservices.ErrAdminDeleteBlocked)
+}
+
+// The first-run grant asks whether an administrator exists and then promotes
+// whoever registered. Both requests can see "none yet", so the role has to be
+// claimed rather than assigned, and exactly one of them may win.
+func TestUserServiceRegisterGrantsTheAdministratorRoleOnlyOnce(t *testing.T) {
+	db := testutil.NewSQLiteDB(t)
+	service := appservices.NewUserService(db)
+
+	const contenders = 6
+
+	results := make(chan error, contenders)
+	start := make(chan struct{})
+	for index := 0; index < contenders; index++ {
+		go func(index int) {
+			<-start
+			_, err := service.Register(&models.RegisterRequest{
+				Username: fmt.Sprintf("admin-%d", index),
+				Password: "secret123",
+			}, "admin")
+			results <- err
+		}(index)
+	}
+	close(start)
+
+	granted := 0
+	for index := 0; index < contenders; index++ {
+		err := <-results
+		if err == nil {
+			granted++
+			continue
+		}
+		require.ErrorIs(t, err, appservices.ErrAdminAlreadyExists)
+	}
+
+	assert.Equal(t, 1, granted, "only one registration may become the administrator")
+
+	users, err := db.GetAllUsers()
+	require.NoError(t, err)
+
+	administrators := 0
+	for _, user := range users {
+		if user.Role == "admin" {
+			administrators++
+		}
+	}
+	assert.Equal(t, 1, administrators)
+
+	// A losing registration must not leave an account behind.
+	assert.Len(t, users, 1)
+}
+
+// The database refuses a second account with the same name, which is what keeps
+// the service's check-then-insert from admitting two.
+func TestUserStoreRejectsDuplicateUsernames(t *testing.T) {
+	db := testutil.NewSQLiteDB(t)
+
+	first := &models.User{ID: "user-1", Username: "alice", Password: "x", Role: "user", CreatedAt: time.Now(), UpdatedAt: time.Now()}
+	require.NoError(t, db.CreateUser(first))
+
+	second := &models.User{ID: "user-2", Username: "alice", Password: "x", Role: "user", CreatedAt: time.Now(), UpdatedAt: time.Now()}
+	err := db.CreateUser(second)
+	require.Error(t, err)
+	assert.True(t, database.IsDuplicateKey(err), "the unique index on the username must reject the insert")
+}
+
+// An administrator registration is one unit: the account insert and the role
+// claim either both land or neither does. The claim can fail after the insert
+// has already been written, so this asserts the insert is undone rather than
+// left behind as an account nobody asked for.
+func TestUserServiceRegisterLeavesNoAccountWhenTheClaimFails(t *testing.T) {
+	db := testutil.NewSQLiteDB(t)
+	service := appservices.NewUserService(&txFailingDB{
+		DBInterface: db,
+		failPromote: true,
+	})
+
+	user, err := service.Register(&models.RegisterRequest{Username: "admin", Password: "secret123"}, "admin")
+	require.Error(t, err)
+	assert.Nil(t, user)
+	assert.NotErrorIs(t, err, appservices.ErrAdminAlreadyExists,
+		"a failed claim is not the same as losing the race")
+
+	users, listErr := db.GetAllUsers()
+	require.NoError(t, listErr)
+	assert.Empty(t, users, "the rolled-back transaction must not leave the account behind")
 }

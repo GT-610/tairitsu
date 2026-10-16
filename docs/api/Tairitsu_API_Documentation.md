@@ -46,7 +46,8 @@ Example:
 ```json
 {
   "initialized": true,
-  "hasDatabase": true,
+  "databaseConfigured": true,
+  "setupAuthorized": false,
   "hasAdmin": true,
   "allowPublicRegistration": true,
   "ztStatus": {

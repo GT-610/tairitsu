@@ -147,7 +147,7 @@ function Dashboard() {
     void fetchSystemStats();
 
     // 每5秒获取一次系统统计信息
-    const interval = setInterval(fetchSystemStats, 5000);
+    const interval = setInterval(() => { void fetchSystemStats(); }, 5000);
 
     // 清除定时器
     return () => clearInterval(interval);

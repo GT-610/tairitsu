@@ -18,11 +18,31 @@ Tairitsu includes:
 
 The following are **not** supported today:
 
-- MySQL or PostgreSQL support
+- any storage backend other than SQLite
 - multi-tenant organizations or broader platform tenancy features
 - email-based password recovery
 - notification systems
 - a polished public manual-installation guide
+
+## Reverse Proxy
+
+Forwarding headers are only believed when they come from a proxy that was
+explicitly listed. Only loopback is trusted by default, which covers a proxy in
+the same container or on the host's loopback; everything else is ignored, so a
+client cannot claim to be someone else.
+
+If TLS terminates in a sibling container or on the Docker gateway, list that
+proxy, otherwise the session cookie loses its `Secure` flag and HSTS is not sent
+even though users reach Tairitsu over HTTPS:
+
+- `TAIRITSU_TRUSTED_PROXIES` — comma separated addresses or CIDR ranges, for
+  example `172.17.0.1,10.0.0.0/8`. Entries that cannot be parsed are rejected
+  with a warning.
+- `TAIRITSU_PROXY_HEADER` — the header carrying the client address. Defaults to
+  `X-Forwarded-For`, which nginx, Caddy, Traefik and HAProxy all set. Set it to
+  `X-Real-IP` only for an nginx that sends that instead.
+- `TAIRITSU_TRUSTED_PROXY_LOOPBACK` — set to `false` to stop trusting loopback
+  proxies entirely.
 
 ## Experimental Surface
 

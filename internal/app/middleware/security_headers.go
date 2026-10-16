@@ -15,3 +15,16 @@ func SecurityHeaders() fiber.Handler {
 		return c.Next()
 	}
 }
+
+// NoStore marks responses as uncacheable.
+//
+// It belongs on the JSON surface rather than on the whole process: the
+// console's hashed assets are meant to be cached for a year, while an API
+// response can carry a session's data and two of them carry a one-time
+// password. Nothing downstream should keep a copy of those.
+func NoStore() fiber.Handler {
+	return func(c fiber.Ctx) error {
+		c.Set(fiber.HeaderCacheControl, "no-store")
+		return c.Next()
+	}
+}

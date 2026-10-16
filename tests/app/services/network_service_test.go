@@ -1,11 +1,8 @@
 package services
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
-	"net/http/httptest"
-	"path/filepath"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -14,6 +11,7 @@ import (
 	"github.com/GT-610/tairitsu/internal/app/models"
 	"github.com/GT-610/tairitsu/internal/app/services"
 	"github.com/GT-610/tairitsu/internal/zerotier"
+	"github.com/GT-610/tairitsu/tests/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -39,15 +37,8 @@ func TestNewNetworkService(t *testing.T) {
 	assert.NotNil(t, networkService)
 }
 
-func TestImportableNetworkSummariesStartAsEmptySlice(t *testing.T) {
-	summaries := make([]services.ImportableNetworkCandidate, 0)
-
-	assert.NotNil(t, summaries)
-	assert.Len(t, summaries, 0)
-}
-
 func TestNetworkServiceImportNetworks_AllSuccess(t *testing.T) {
-	db := newTestSQLiteDB(t)
+	db := testutil.NewSQLiteDB(t)
 	createTestUser(t, db, "user-1", "user")
 	client := newTestZTClient(t, map[string]zerotier.Network{
 		"8056c2e21c000001": {ID: "8056c2e21c000001", Name: "alpha", Description: "alpha-desc"},
@@ -77,7 +68,7 @@ func TestNetworkServiceImportNetworks_AllSuccess(t *testing.T) {
 }
 
 func TestNetworkServiceImportNetworks_PartialFailures(t *testing.T) {
-	db := newTestSQLiteDB(t)
+	db := testutil.NewSQLiteDB(t)
 	createTestUser(t, db, "user-1", "user")
 	now := time.Now()
 	require.NoError(t, db.CreateNetwork(&models.Network{
@@ -120,7 +111,7 @@ func TestNetworkServiceImportNetworks_PartialFailures(t *testing.T) {
 }
 
 func TestNetworkServiceGetImportableNetworks_EmptySliceWhenControllerHasNoNetworks(t *testing.T) {
-	db := newTestSQLiteDB(t)
+	db := testutil.NewSQLiteDB(t)
 	client := newTestZTClient(t, map[string]zerotier.Network{})
 
 	service := services.NewNetworkService(client, db)
@@ -133,7 +124,7 @@ func TestNetworkServiceGetImportableNetworks_EmptySliceWhenControllerHasNoNetwor
 }
 
 func TestNetworkServiceGetRuntimeStatus_UsesZeroTierAndDatabaseTruth(t *testing.T) {
-	db := newTestSQLiteDB(t)
+	db := testutil.NewSQLiteDB(t)
 	createTestUser(t, db, "admin-1", "admin")
 	client := newTestZTClientWithStatus(t, map[string]zerotier.Network{}, zerotier.Status{
 		Version:     "1.14.2",
@@ -159,7 +150,7 @@ func TestNetworkServiceGetRuntimeStatus_UsesZeroTierAndDatabaseTruth(t *testing.
 }
 
 func TestNetworkServiceGetRuntimeStatus_ReturnsErrorStates(t *testing.T) {
-	db := newTestSQLiteDB(t)
+	db := testutil.NewSQLiteDB(t)
 	client := newTestZTClientWithStatusError(t, map[string]zerotier.Network{}, http.StatusInternalServerError)
 
 	service := services.NewNetworkService(client, db)
@@ -172,7 +163,7 @@ func TestNetworkServiceGetRuntimeStatus_ReturnsErrorStates(t *testing.T) {
 }
 
 func TestNetworkServiceImportNetworks_RejectsNonAdmin(t *testing.T) {
-	db := newTestSQLiteDB(t)
+	db := testutil.NewSQLiteDB(t)
 	createTestUser(t, db, "user-1", "user")
 	client := newTestZTClient(t, map[string]zerotier.Network{
 		"8056c2e21c000001": {ID: "8056c2e21c000001", Name: "alpha"},
@@ -186,7 +177,7 @@ func TestNetworkServiceImportNetworks_RejectsNonAdmin(t *testing.T) {
 }
 
 func TestNetworkServiceImportNetworks_RequiresExistingOwner(t *testing.T) {
-	db := newTestSQLiteDB(t)
+	db := testutil.NewSQLiteDB(t)
 	client := newTestZTClient(t, map[string]zerotier.Network{
 		"8056c2e21c000001": {ID: "8056c2e21c000001", Name: "alpha"},
 	})
@@ -199,7 +190,7 @@ func TestNetworkServiceImportNetworks_RequiresExistingOwner(t *testing.T) {
 }
 
 func TestNetworkServiceGetImportableNetworks_MarksOwnedNetworksAsNotImportable(t *testing.T) {
-	db := newTestSQLiteDB(t)
+	db := testutil.NewSQLiteDB(t)
 	now := time.Now()
 	require.NoError(t, db.CreateNetwork(&models.Network{
 		ID:          "8056c2e21c000001",
@@ -241,7 +232,7 @@ func TestNetworkServiceGetImportableNetworks_MarksOwnedNetworksAsNotImportable(t
 }
 
 func TestNetworkServiceGetImportableNetworks_IncludesUnassignedAndBlockedCandidates(t *testing.T) {
-	db := newTestSQLiteDB(t)
+	db := testutil.NewSQLiteDB(t)
 	createTestUser(t, db, "user-1", "user")
 	now := time.Now()
 	require.NoError(t, db.CreateNetwork(&models.Network{
@@ -293,7 +284,7 @@ func TestNetworkServiceGetImportableNetworks_IncludesUnassignedAndBlockedCandida
 }
 
 func TestNetworkServiceGetNetworkByIDRejectsDifferentOwner(t *testing.T) {
-	db := newTestSQLiteDB(t)
+	db := testutil.NewSQLiteDB(t)
 	now := time.Now()
 	require.NoError(t, db.CreateNetwork(&models.Network{
 		ID:          "8056c2e21c000001",
@@ -314,7 +305,7 @@ func TestNetworkServiceGetNetworkByIDRejectsDifferentOwner(t *testing.T) {
 }
 
 func TestNetworkServiceGetNetworkMembersRejectsDifferentOwner(t *testing.T) {
-	db := newTestSQLiteDB(t)
+	db := testutil.NewSQLiteDB(t)
 	now := time.Now()
 	require.NoError(t, db.CreateNetwork(&models.Network{
 		ID:          "8056c2e21c000001",
@@ -340,7 +331,7 @@ func TestNetworkServiceGetNetworkMembersRejectsDifferentOwner(t *testing.T) {
 }
 
 func TestNetworkServiceViewerGrantAndSharedList(t *testing.T) {
-	db := newTestSQLiteDB(t)
+	db := testutil.NewSQLiteDB(t)
 	createTestUser(t, db, "owner-1", "user")
 	createTestUser(t, db, "viewer-1", "user")
 	createTestUser(t, db, "viewer-2", "user")
@@ -390,7 +381,7 @@ func TestNetworkServiceViewerGrantAndSharedList(t *testing.T) {
 }
 
 func TestNetworkServiceViewerGrantRejectsNonOwnerAndInvalidTarget(t *testing.T) {
-	db := newTestSQLiteDB(t)
+	db := testutil.NewSQLiteDB(t)
 	createTestUser(t, db, "owner-1", "user")
 	createTestUser(t, db, "viewer-1", "user")
 	createTestUser(t, db, "admin-1", "admin")
@@ -418,7 +409,7 @@ func TestNetworkServiceViewerGrantRejectsNonOwnerAndInvalidTarget(t *testing.T) 
 }
 
 func TestNetworkServiceViewerRevokeRemovesSharedAccess(t *testing.T) {
-	db := newTestSQLiteDB(t)
+	db := testutil.NewSQLiteDB(t)
 	createTestUser(t, db, "owner-1", "user")
 	createTestUser(t, db, "viewer-1", "user")
 
@@ -452,7 +443,7 @@ func TestNetworkServiceViewerRevokeRemovesSharedAccess(t *testing.T) {
 }
 
 func TestNetworkServiceDeleteNetworkRemovesViewerGrants(t *testing.T) {
-	db := newTestSQLiteDB(t)
+	db := testutil.NewSQLiteDB(t)
 	createTestUser(t, db, "owner-1", "user")
 	createTestUser(t, db, "viewer-1", "user")
 
@@ -493,7 +484,7 @@ func TestNetworkServiceDeleteNetworkRemovesViewerGrants(t *testing.T) {
 }
 
 func TestNetworkServiceGetAllNetworksIncludesMemberStats(t *testing.T) {
-	db := newTestSQLiteDB(t)
+	db := testutil.NewSQLiteDB(t)
 	now := time.Now()
 	require.NoError(t, db.CreateNetwork(&models.Network{
 		ID:          "8056c2e21c000001",
@@ -528,7 +519,7 @@ func TestNetworkServiceGetAllNetworksIncludesMemberStats(t *testing.T) {
 }
 
 func TestNetworkServiceGetAllNetworksReusesCachedMemberStats(t *testing.T) {
-	db := newTestSQLiteDB(t)
+	db := testutil.NewSQLiteDB(t)
 	now := time.Now()
 	require.NoError(t, db.CreateNetwork(&models.Network{
 		ID:          "8056c2e21c000001",
@@ -563,7 +554,7 @@ func TestNetworkServiceGetAllNetworksReusesCachedMemberStats(t *testing.T) {
 }
 
 func TestNetworkServiceGetNetworkByIDIncludesMembers(t *testing.T) {
-	db := newTestSQLiteDB(t)
+	db := testutil.NewSQLiteDB(t)
 	now := time.Now()
 	require.NoError(t, db.CreateNetwork(&models.Network{
 		ID:          "f76fd3000b86b177",
@@ -599,7 +590,7 @@ func TestNetworkServiceGetNetworkByIDIncludesMembers(t *testing.T) {
 }
 
 func TestNetworkServiceGetAllNetworksIncludesMemberStatsFromObjectResponse(t *testing.T) {
-	db := newTestSQLiteDB(t)
+	db := testutil.NewSQLiteDB(t)
 	now := time.Now()
 	require.NoError(t, db.CreateNetwork(&models.Network{
 		ID:          "8056c2e21c000009",
@@ -633,19 +624,13 @@ func TestNetworkServiceGetAllNetworksIncludesMemberStatsFromObjectResponse(t *te
 }
 
 func TestZTClientGetMembersReturnsPreviewOnUnexpectedShape(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		require.NoError(t, json.NewEncoder(w).Encode(map[string]string{
-			"unexpected": "not-a-member-object",
-		}))
-	}))
-	t.Cleanup(server.Close)
-
-	client := &zerotier.Client{
-		BaseURL:    server.URL,
-		Token:      "test-token",
-		HTTPClient: server.Client(),
-	}
+	// The body decodes as JSON but is not a member collection in either shape
+	// the client accepts, so the error has to carry enough of it to diagnose.
+	client := testutil.NewFakeController(t, &testutil.FakeController{
+		MemberResponse: func() any {
+			return map[string]string{"unexpected": "not-a-member-object"}
+		},
+	})
 
 	members, err := client.GetMembers("8056c2e21c000009")
 	require.Nil(t, members)
@@ -655,23 +640,13 @@ func TestZTClientGetMembersReturnsPreviewOnUnexpectedShape(t *testing.T) {
 }
 
 func TestZTClientGetStatusSupportsTcpFallbackActive(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		require.NoError(t, json.NewEncoder(w).Encode(map[string]any{
-			"version":           "1.14.2",
-			"address":           "f76fd3000b",
-			"online":            true,
-			"tcpFallbackActive": true,
-			"apiReady":          true,
-		}))
-	}))
-	t.Cleanup(server.Close)
-
-	client := &zerotier.Client{
-		BaseURL:    server.URL,
-		Token:      "test-token",
-		HTTPClient: server.Client(),
-	}
+	client := newTestZTClientWithStatus(t, map[string]zerotier.Network{}, zerotier.Status{
+		Version:     "1.14.2",
+		Address:     "f76fd3000b",
+		Online:      true,
+		TCPFallback: true,
+		APIReady:    true,
+	})
 
 	status, err := client.GetStatus()
 	require.NoError(t, err)
@@ -681,7 +656,7 @@ func TestZTClientGetStatusSupportsTcpFallbackActive(t *testing.T) {
 }
 
 func TestNetworkServiceGetAllNetworksIncludesMemberStatsFromIndexResponse(t *testing.T) {
-	db := newTestSQLiteDB(t)
+	db := testutil.NewSQLiteDB(t)
 	now := time.Now()
 	require.NoError(t, db.CreateNetwork(&models.Network{
 		ID:          "f76fd3000b86b177",
@@ -719,7 +694,7 @@ func TestNetworkServiceGetAllNetworksIncludesMemberStatsFromIndexResponse(t *tes
 }
 
 func TestNetworkServiceGetAllNetworksFetchesMemberStatsConcurrently(t *testing.T) {
-	db := newTestSQLiteDB(t)
+	db := testutil.NewSQLiteDB(t)
 	now := time.Now()
 	for i := 1; i <= 5; i++ {
 		id := fmt.Sprintf("8056c2e21c00000%d", i)
@@ -748,387 +723,121 @@ func TestNetworkServiceGetAllNetworksFetchesMemberStatsConcurrently(t *testing.T
 	assert.Less(t, elapsed, 600*time.Millisecond)
 }
 
-func newTestSQLiteDB(t *testing.T) database.DBInterface {
-	t.Helper()
-
-	db, err := database.NewDatabase(database.Config{Type: database.SQLite, Path: filepath.Join(t.TempDir(), "tairitsu.db")})
-	require.NoError(t, err)
-	require.NoError(t, db.Init())
-	t.Cleanup(func() {
-		require.NoError(t, db.Close())
-	})
-
-	return db
+func intPtr(value int) *int {
+	return &value
 }
 
+// The helpers below configure the shared controller fake. Each one used to be a
+// bespoke httptest handler repeating the same routing.
 func newTestZTClient(t *testing.T, networks map[string]zerotier.Network) *zerotier.Client {
-	return newTestZTClientWithMembers(t, networks, map[string][]zerotier.Member{})
+	t.Helper()
+
+	return testutil.NewFakeController(t, &testutil.FakeController{Networks: networks})
 }
 
 func newTestZTClientWithStatus(t *testing.T, networks map[string]zerotier.Network, status zerotier.Status) *zerotier.Client {
 	t.Helper()
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-
-		switch r.URL.Path {
-		case "/status":
-			require.NoError(t, json.NewEncoder(w).Encode(map[string]any{
-				"version":              status.Version,
-				"address":              status.Address,
-				"online":               status.Online,
-				"tcpFallbackAvailable": status.TCPFallback,
-				"apiReady":             status.APIReady,
-			}))
-		case "/controller/network":
-			ids := make([]string, 0, len(networks))
-			for id := range networks {
-				ids = append(ids, id)
-			}
-			require.NoError(t, json.NewEncoder(w).Encode(ids))
-		default:
-			if len(r.URL.Path) <= len("/controller/network/") {
-				http.NotFound(w, r)
-				return
-			}
-			path := r.URL.Path[len("/controller/network/"):]
-			network, ok := networks[path]
-			if !ok {
-				http.NotFound(w, r)
-				return
-			}
-			require.NoError(t, json.NewEncoder(w).Encode(network))
-		}
-	}))
-	t.Cleanup(server.Close)
-
-	return &zerotier.Client{
-		BaseURL:    server.URL,
-		Token:      "test-token",
-		HTTPClient: server.Client(),
-	}
+	return testutil.NewFakeController(t, &testutil.FakeController{
+		Networks: networks,
+		Status:   status,
+	})
 }
 
 func newTestZTClientWithStatusError(t *testing.T, networks map[string]zerotier.Network, statusCode int) *zerotier.Client {
 	t.Helper()
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-
-		switch r.URL.Path {
-		case "/status":
-			http.Error(w, "broken status", statusCode)
-		case "/controller/network":
-			ids := make([]string, 0, len(networks))
-			for id := range networks {
-				ids = append(ids, id)
-			}
-			require.NoError(t, json.NewEncoder(w).Encode(ids))
-		default:
-			http.NotFound(w, r)
-		}
-	}))
-	t.Cleanup(server.Close)
-
-	return &zerotier.Client{
-		BaseURL:    server.URL,
-		Token:      "test-token",
-		HTTPClient: server.Client(),
-	}
+	return testutil.NewFakeController(t, &testutil.FakeController{
+		Networks:   networks,
+		StatusCode: statusCode,
+	})
 }
 
 func newTestZTClientWithMembers(t *testing.T, networks map[string]zerotier.Network, members map[string][]zerotier.Member) *zerotier.Client {
 	t.Helper()
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-
-		switch r.URL.Path {
-		case "/controller/network":
-			ids := make([]string, 0, len(networks))
-			for id := range networks {
-				ids = append(ids, id)
-			}
-			require.NoError(t, json.NewEncoder(w).Encode(ids))
-		default:
-			if len(r.URL.Path) <= len("/controller/network/") {
-				http.NotFound(w, r)
-				return
-			}
-			path := r.URL.Path[len("/controller/network/"):]
-			for networkID, memberList := range members {
-				if path == networkID+"/member" {
-					require.NoError(t, json.NewEncoder(w).Encode(memberList))
-					return
-				}
-			}
-
-			network, ok := networks[path]
-			if !ok {
-				http.NotFound(w, r)
-				return
-			}
-			require.NoError(t, json.NewEncoder(w).Encode(network))
-		}
-	}))
-	t.Cleanup(server.Close)
-
-	return &zerotier.Client{
-		BaseURL:    server.URL,
-		Token:      "test-token",
-		HTTPClient: server.Client(),
-	}
+	return testutil.NewFakeController(t, &testutil.FakeController{
+		Networks: networks,
+		Members:  members,
+	})
 }
 
 func newCountingMemberZTClient(t *testing.T, networks map[string]zerotier.Network, members map[string][]zerotier.Member, memberRequests *atomic.Int32) *zerotier.Client {
 	t.Helper()
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-
-		switch r.URL.Path {
-		case "/controller/network":
-			ids := make([]string, 0, len(networks))
-			for id := range networks {
-				ids = append(ids, id)
-			}
-			require.NoError(t, json.NewEncoder(w).Encode(ids))
-		default:
-			if len(r.URL.Path) <= len("/controller/network/") {
-				http.NotFound(w, r)
-				return
-			}
-			path := r.URL.Path[len("/controller/network/"):]
-			for networkID, memberList := range members {
-				if path == networkID+"/member" {
-					memberRequests.Add(1)
-					require.NoError(t, json.NewEncoder(w).Encode(memberList))
-					return
-				}
-			}
-
-			network, ok := networks[path]
-			if !ok {
-				http.NotFound(w, r)
-				return
-			}
-			require.NoError(t, json.NewEncoder(w).Encode(network))
-		}
-	}))
-	t.Cleanup(server.Close)
-
-	return &zerotier.Client{
-		BaseURL:    server.URL,
-		Token:      "test-token",
-		HTTPClient: server.Client(),
-	}
+	return testutil.NewFakeController(t, &testutil.FakeController{
+		Networks: networks,
+		Members:  members,
+		Hooks: testutil.MemberHooks{
+			OnMemberRequest: func() { memberRequests.Add(1) },
+		},
+	})
 }
 
 func newDelayedMemberZTClient(t *testing.T, delay time.Duration, activeRequests *atomic.Int32, maxConcurrent *atomic.Int32) *zerotier.Client {
 	t.Helper()
 
 	networks := map[string]zerotier.Network{}
+	members := map[string][]zerotier.Member{}
 	for i := 1; i <= 5; i++ {
 		id := fmt.Sprintf("8056c2e21c00000%d", i)
 		networks[id] = zerotier.Network{ID: id, Name: fmt.Sprintf("net-%d", i)}
-	}
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-
-		switch r.URL.Path {
-		case "/controller/network":
-			ids := make([]string, 0, len(networks))
-			for id := range networks {
-				ids = append(ids, id)
-			}
-			require.NoError(t, json.NewEncoder(w).Encode(ids))
-		default:
-			if len(r.URL.Path) <= len("/controller/network/") {
-				http.NotFound(w, r)
-				return
-			}
-			path := r.URL.Path[len("/controller/network/"):]
-			for networkID := range networks {
-				if path == networkID+"/member" {
-					current := activeRequests.Add(1)
-					for {
-						observed := maxConcurrent.Load()
-						if current <= observed || maxConcurrent.CompareAndSwap(observed, current) {
-							break
-						}
-					}
-					time.Sleep(delay)
-					activeRequests.Add(-1)
-					require.NoError(t, json.NewEncoder(w).Encode([]zerotier.Member{
-						{ID: "member-1", Config: zerotier.MemberConfig{Authorized: true}},
-					}))
-					return
-				}
-			}
-
-			network, ok := networks[path]
-			if !ok {
-				http.NotFound(w, r)
-				return
-			}
-			require.NoError(t, json.NewEncoder(w).Encode(network))
+		members[id] = []zerotier.Member{
+			{ID: "member-1", Config: zerotier.MemberConfig{Authorized: true}},
 		}
-	}))
-	t.Cleanup(server.Close)
-
-	return &zerotier.Client{
-		BaseURL:    server.URL,
-		Token:      "test-token",
-		HTTPClient: server.Client(),
 	}
+
+	return testutil.NewFakeController(t, &testutil.FakeController{
+		Networks: networks,
+		Members:  members,
+		Delay:    delay,
+		Hooks: testutil.MemberHooks{
+			OnMemberRequest: func() {
+				current := activeRequests.Add(1)
+				for {
+					observed := maxConcurrent.Load()
+					if current <= observed || maxConcurrent.CompareAndSwap(observed, current) {
+						break
+					}
+				}
+			},
+			OnMemberResponse: func() { activeRequests.Add(-1) },
+		},
+	})
 }
 
 func newTestZTClientWithBrokenNetworkRead(t *testing.T, networks map[string]zerotier.Network, members map[string][]zerotier.Member, brokenNetworkID string) *zerotier.Client {
 	t.Helper()
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-
-		switch r.URL.Path {
-		case "/controller/network":
-			ids := make([]string, 0, len(networks)+1)
-			for id := range networks {
-				ids = append(ids, id)
-			}
-			ids = append(ids, brokenNetworkID)
-			require.NoError(t, json.NewEncoder(w).Encode(ids))
-		default:
-			if len(r.URL.Path) <= len("/controller/network/") {
-				http.NotFound(w, r)
-				return
-			}
-			path := r.URL.Path[len("/controller/network/"):]
-			for networkID, memberList := range members {
-				if path == networkID+"/member" {
-					require.NoError(t, json.NewEncoder(w).Encode(memberList))
-					return
-				}
-			}
-
-			if path == brokenNetworkID {
-				http.Error(w, "broken", http.StatusInternalServerError)
-				return
-			}
-
-			network, ok := networks[path]
-			if !ok {
-				http.NotFound(w, r)
-				return
-			}
-			require.NoError(t, json.NewEncoder(w).Encode(network))
-		}
-	}))
-	t.Cleanup(server.Close)
-
-	return &zerotier.Client{
-		BaseURL:    server.URL,
-		Token:      "test-token",
-		HTTPClient: server.Client(),
-	}
+	return testutil.NewFakeController(t, &testutil.FakeController{
+		Networks:        networks,
+		Members:         members,
+		BrokenNetworkID: brokenNetworkID,
+	})
 }
 
-func intPtr(value int) *int {
-	return &value
-}
-
-func newTestZTClientWithMemberObjectResponse(t *testing.T, networks map[string]zerotier.Network, members map[string]map[string]zerotier.Member) *zerotier.Client {
+func newTestZTClientWithMemberObjectResponse(t *testing.T, networks map[string]zerotier.Network, memberObjects map[string]map[string]zerotier.Member) *zerotier.Client {
 	t.Helper()
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-
-		switch r.URL.Path {
-		case "/controller/network":
-			ids := make([]string, 0, len(networks))
-			for id := range networks {
-				ids = append(ids, id)
-			}
-			require.NoError(t, json.NewEncoder(w).Encode(ids))
-		default:
-			if len(r.URL.Path) <= len("/controller/network/") {
-				http.NotFound(w, r)
-				return
-			}
-			path := r.URL.Path[len("/controller/network/"):]
-			for networkID, memberMap := range members {
-				if path == networkID+"/member" {
-					require.NoError(t, json.NewEncoder(w).Encode(memberMap))
-					return
-				}
-			}
-
-			network, ok := networks[path]
-			if !ok {
-				http.NotFound(w, r)
-				return
-			}
-			require.NoError(t, json.NewEncoder(w).Encode(network))
-		}
-	}))
-	t.Cleanup(server.Close)
-
-	return &zerotier.Client{
-		BaseURL:    server.URL,
-		Token:      "test-token",
-		HTTPClient: server.Client(),
-	}
+	return testutil.NewFakeController(t, &testutil.FakeController{
+		Networks:      networks,
+		MemberObjects: memberObjects,
+	})
 }
 
 func newTestZTClientWithMemberIndexResponse(t *testing.T, networks map[string]zerotier.Network, memberIndexes map[string]map[string]int, memberDetails map[string]zerotier.Member) *zerotier.Client {
 	t.Helper()
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-
-		switch r.URL.Path {
-		case "/controller/network":
-			ids := make([]string, 0, len(networks))
-			for id := range networks {
-				ids = append(ids, id)
-			}
-			require.NoError(t, json.NewEncoder(w).Encode(ids))
-		default:
-			if len(r.URL.Path) <= len("/controller/network/") {
-				http.NotFound(w, r)
-				return
-			}
-			path := r.URL.Path[len("/controller/network/"):]
-
-			for networkID, memberIndex := range memberIndexes {
-				if path == networkID+"/member" {
-					require.NoError(t, json.NewEncoder(w).Encode(memberIndex))
-					return
-				}
-			}
-
-			for memberID, member := range memberDetails {
-				for networkID := range memberIndexes {
-					if path == networkID+"/member/"+memberID {
-						require.NoError(t, json.NewEncoder(w).Encode(member))
-						return
-					}
-				}
-			}
-
-			network, ok := networks[path]
-			if !ok {
-				http.NotFound(w, r)
-				return
-			}
-			require.NoError(t, json.NewEncoder(w).Encode(network))
-		}
-	}))
-	t.Cleanup(server.Close)
-
-	return &zerotier.Client{
-		BaseURL:    server.URL,
-		Token:      "test-token",
-		HTTPClient: server.Client(),
+	// The details are shared across networks, so every network that publishes an
+	// index can also serve the member objects it points at.
+	details := make(map[string]map[string]zerotier.Member, len(memberIndexes))
+	for networkID := range memberIndexes {
+		details[networkID] = memberDetails
 	}
+
+	return testutil.NewFakeController(t, &testutil.FakeController{
+		Networks:      networks,
+		MemberIndexes: memberIndexes,
+		MemberObjects: details,
+	})
 }

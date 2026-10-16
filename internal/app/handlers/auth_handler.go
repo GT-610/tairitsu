@@ -78,9 +78,8 @@ func (h *AuthHandler) Register(c fiber.Ctx) error {
 	}
 
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
-		"user":         user.ToResponse(),
-		"message":      "Registration succeeded",
-		"message_code": "auth.registration_success",
+		"user":    user.ToResponse(),
+		"message": "Registration succeeded",
 	})
 }
 
@@ -188,7 +187,6 @@ func (h *AuthHandler) ChangePassword(c fiber.Ctx) error {
 	// Return success response
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
 		"message":                "Password updated successfully",
-		"message_code":           "auth.password_updated",
 		"revoked_other_sessions": revokedCount,
 	})
 }
@@ -238,7 +236,7 @@ func (h *AuthHandler) Logout(c fiber.Ctx) error {
 	// so the browser stops sending a dead cookie.
 	c.Cookie(middleware.ExpiredSessionCookie(middleware.IsSecureRequest(c)))
 
-	return writeMessageResponse(c, fiber.StatusOK, "auth.logout_success", "Current session signed out", nil)
+	return writeMessageResponse(c, fiber.StatusOK, "Current session signed out", nil)
 }
 
 // RevokeSession revokes one session owned by the current user.
@@ -255,7 +253,7 @@ func (h *AuthHandler) RevokeSession(c fiber.Ctx) error {
 		return writeUserServiceError(c, err)
 	}
 
-	return writeMessageResponse(c, fiber.StatusOK, "auth.session_removed", "Session removed", nil)
+	return writeMessageResponse(c, fiber.StatusOK, "Session removed", nil)
 }
 
 // RevokeOtherSessions revokes all other sessions of the current user.
@@ -274,8 +272,7 @@ func (h *AuthHandler) RevokeOtherSessions(c fiber.Ctx) error {
 	}
 
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
-		"message":      "Other sessions removed",
-		"message_code": "auth.other_sessions_removed",
-		"count":        count,
+		"message": "Other sessions removed",
+		"count":   count,
 	})
 }

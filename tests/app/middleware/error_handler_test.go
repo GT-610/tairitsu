@@ -22,12 +22,13 @@ func TestErrorHandlerPreservesFiberErrorStatus(t *testing.T) {
 	assert.Equal(t, fiber.StatusNotFound, resp.StatusCode)
 
 	var body struct {
-		Error   string `json:"error"`
-		Message string `json:"message"`
-		Code    int    `json:"code"`
+		Error     string `json:"error"`
+		Message   string `json:"message"`
+		ErrorCode string `json:"error_code"`
 	}
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(&body))
 	assert.Equal(t, "Not Found", body.Error)
 	assert.Equal(t, "Not Found", body.Message)
-	assert.Equal(t, fiber.StatusNotFound, body.Code)
+	// The status lives on the status line; the body carries no copy of it.
+	assert.Equal(t, "http.not_found", body.ErrorCode)
 }

@@ -5,8 +5,9 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/GT-610/tairitsu/internal/app/config"
 	"github.com/GT-610/tairitsu/internal/app/logger"
-	"github.com/GT-610/tairitsu/internal/app/models"
+	"github.com/GT-610/tairitsu/internal/app/middleware"
 	"github.com/GT-610/tairitsu/internal/app/services"
 	"github.com/gofiber/fiber/v3"
 	"go.uber.org/zap"
@@ -30,7 +31,8 @@ func setupErrorResponse(c fiber.Ctx, err error) error {
 	// Determine HTTP status based on error type
 	switch {
 	case errors.Is(err, services.ErrSetupUnsupportedDatabase),
-		errors.Is(err, services.ErrSetupInvalidConfig):
+		errors.Is(err, services.ErrSetupInvalidConfig),
+		errors.Is(err, services.ErrSetupDatabasePathRejected):
 		status = fiber.StatusBadRequest
 	case errors.Is(err, services.ErrSetupDatabaseConnectionFailed),
 		errors.Is(err, services.ErrSetupDatabaseInitialization),
@@ -58,6 +60,9 @@ func setupErrorResponse(c fiber.Ctx, err error) error {
 	case errors.Is(err, services.ErrSetupInvalidConfig):
 		code = "setup.invalid_config"
 		message = "Setup configuration is incomplete"
+	case errors.Is(err, services.ErrSetupDatabasePathRejected):
+		code = "setup.database_path_rejected"
+		message = "The SQLite file must live inside Tairitsu's data directory"
 	case errors.Is(err, services.ErrSetupDatabaseConnectionFailed):
 		code = "setup.database_connection_failed"
 		message = "Database connection failed"
@@ -121,7 +126,9 @@ func NewSystemHandler(
 
 // GetSystemStatus retrieves the current system status
 func (h *SystemHandler) GetSystemStatus(c fiber.Ctx) error {
-	status := h.setupService.GetSetupStatus()
+	// The wizard is reachable before anyone can sign in, so the reply carries
+	// the deployment layout only for a caller that presented the setup token.
+	status := h.setupService.GetSetupStatus(middleware.SetupAuthorized(c))
 	if status.Initialized && status.ZTStatus != nil && !status.ZTStatus.Online {
 		logger.Debug("[system status] ZeroTier status check failed or is offline")
 	}
@@ -145,12 +152,12 @@ func (h *SystemHandler) UpdateRuntimeSettings(c fiber.Ctx) error {
 		return setupErrorResponse(c, err)
 	}
 
-	return writeMessageResponse(c, fiber.StatusOK, "system.settings_updated", "Instance settings updated successfully", fiber.Map{"settings": req})
+	return writeMessageResponse(c, fiber.StatusOK, "Instance settings updated successfully", fiber.Map{"settings": req})
 }
 
 // ConfigureDatabase configures the database connection settings
 func (h *SystemHandler) ConfigureDatabase(c fiber.Ctx) error {
-	var dbConfig models.DatabaseConfig
+	var dbConfig config.DatabaseConfig
 	if err := c.Bind().Body(&dbConfig); err != nil {
 		logger.Error("Failed to bind database configuration request", zap.Error(err))
 		return writeErrorResponseWithCode(c, fiber.StatusBadRequest, "system.invalid_request", "Invalid request body")
@@ -167,10 +174,10 @@ func (h *SystemHandler) ConfigureDatabase(c fiber.Ctx) error {
 	logger.Info("Database configured successfully", zap.String("type", string(dbCfg.Type)))
 
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
-		"message":      "Database configured successfully",
-		"message_code": "system.database_configured",
+		"message": "Database configured successfully",
 		"config": fiber.Map{
 			"type": dbCfg.Type,
+			"path": dbCfg.Path,
 		},
 	})
 }
@@ -203,8 +210,7 @@ func (h *SystemHandler) SaveZeroTierConfig(c fiber.Ctx) error {
 
 	logger.Info("ZeroTier configuration saved and validated")
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
-		"message":      "ZeroTier configuration saved successfully",
-		"message_code": "system.zerotier_configured",
+		"message": "ZeroTier configuration saved successfully",
 		"config": fiber.Map{
 			"controllerUrl": req.ControllerURL,
 		},
@@ -227,7 +233,6 @@ func (h *SystemHandler) InitializeAdminCreation(c fiber.Ctx) error {
 
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
 		"message":      "Administrator account creation step initialized successfully",
-		"message_code": "system.admin_creation_initialized",
 		"resetDone":    true,
 		"databaseType": databaseType,
 	})
@@ -251,7 +256,7 @@ func (h *SystemHandler) SetInitialized(c fiber.Ctx) error {
 		return setupErrorResponse(c, err)
 	}
 
-	return writeMessageResponse(c, fiber.StatusOK, "system.initialized_updated", "Initialization state updated successfully", nil)
+	return writeMessageResponse(c, fiber.StatusOK, "Initialization state updated successfully", nil)
 }
 
 // GetSystemStats retrieves system resource usage statistics

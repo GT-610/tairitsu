@@ -2,10 +2,10 @@ package middleware
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
 
 	"github.com/GT-610/tairitsu/internal/app/middleware"
 	"github.com/gofiber/fiber/v3"
@@ -13,82 +13,102 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestTokenBucket_GetToken(t *testing.T) {
-	// Arrange
-	bucket := middleware.NewTokenBucket(5, 1) // 容量5，每秒补充1个
+// app.Test drives requests without a real connection, so Fiber reports every
+// caller as the same placeholder address unless a proxy is trusted. Trusting
+// one here is what makes the client address controllable, and it is also how a
+// deployment behind a reverse proxy presents itself.
+func newLimitedApp(t *testing.T, limiter fiber.Handler) *fiber.App {
+	t.Helper()
 
-	// Act & Assert
-	// 初始状态应该有5个令牌
-	for i := 0; i < 5; i++ {
-		assert.True(t, bucket.GetToken())
-	}
-
-	// 第6个请求应该失败
-	assert.False(t, bucket.GetToken())
-
-	// 等待1秒，应该补充1个令牌
-	time.Sleep(time.Second)
-	assert.True(t, bucket.GetToken())
-
-	// 再次请求应该失败
-	assert.False(t, bucket.GetToken())
-}
-
-func TestRateLimiter_GetBucket(t *testing.T) {
-	// Arrange
-	limiter := middleware.NewRateLimiter(10, 2)
-
-	// Act
-	bucket1 := limiter.GetBucket("192.168.1.1")
-	bucket2 := limiter.GetBucket("192.168.1.2")
-	bucket3 := limiter.GetBucket("192.168.1.1") // 同一个IP应该返回同一个桶
-
-	// Assert
-	assert.NotNil(t, bucket1)
-	assert.NotNil(t, bucket2)
-	assert.NotNil(t, bucket3)
-	assert.NotEqual(t, bucket1, bucket2) // 不同IP应该有不同的桶
-	assert.Equal(t, bucket1, bucket3)    // 同一个IP应该返回同一个桶
-}
-
-func TestRateLimitMiddleware(t *testing.T) {
-	app := fiber.New()
-	app.Use(middleware.RateLimitWithLimiter(middleware.NewRateLimiter(1, 0)))
+	app := fiber.New(fiber.Config{
+		TrustProxy:       true,
+		ProxyHeader:      "X-Forwarded-For",
+		TrustProxyConfig: fiber.TrustProxyConfig{Proxies: []string{"0.0.0.0/0", "::/0"}},
+	})
+	app.Use(limiter)
 	app.Get("/limited", func(c fiber.Ctx) error {
 		return c.SendStatus(fiber.StatusNoContent)
 	})
+	return app
+}
 
-	firstResp, err := app.Test(httptest.NewRequest(http.MethodGet, "/limited", nil))
-	require.NoError(t, err)
-	assert.Equal(t, fiber.StatusNoContent, firstResp.StatusCode)
+// Each test spends a distinct client address so that the process-wide limiters
+// keep their budgets to themselves.
+var rateLimitTestAddress = 0
 
-	secondResp, err := app.Test(httptest.NewRequest(http.MethodGet, "/limited", nil))
+func nextAddress(t *testing.T) string {
+	t.Helper()
+
+	rateLimitTestAddress++
+	// 198.51.100.0/24 is reserved for documentation, so it cannot collide with
+	// an address a real caller would have.
+	return fmt.Sprintf("198.51.100.%d", rateLimitTestAddress%250+1)
+}
+
+func requestFrom(t *testing.T, app *fiber.App, address string) *http.Response {
+	t.Helper()
+
+	req := httptest.NewRequest(http.MethodGet, "/limited", nil)
+	req.Header.Set("X-Forwarded-For", address)
+
+	resp, err := app.Test(req)
 	require.NoError(t, err)
-	assert.Equal(t, fiber.StatusTooManyRequests, secondResp.StatusCode)
+	return resp
+}
+
+func spendBudget(t *testing.T, app *fiber.App, address string, requests int) {
+	t.Helper()
+
+	for request := 0; request < requests; request++ {
+		resp := requestFrom(t, app, address)
+		require.Equal(t, fiber.StatusNoContent, resp.StatusCode)
+		resp.Body.Close()
+	}
+}
+
+// Two clients must not share a budget, or one of them can lock the other out.
+func TestRateLimitMiddlewareKeepsClientBudgetsSeparate(t *testing.T) {
+	app := newLimitedApp(t, middleware.RateLimit())
+
+	first := nextAddress(t)
+	second := nextAddress(t)
+
+	// The API budget is 100 tokens, so the 101st request is the one refused.
+	spendBudget(t, app, first, 100)
+
+	exhausted := requestFrom(t, app, first)
+	defer exhausted.Body.Close()
+	require.Equal(t, fiber.StatusTooManyRequests, exhausted.StatusCode)
+
+	other := requestFrom(t, app, second)
+	defer other.Body.Close()
+	assert.Equal(t, fiber.StatusNoContent, other.StatusCode, "an unrelated client must still be served")
+}
+
+func TestRateLimitMiddlewareReportsAStableErrorCode(t *testing.T) {
+	app := newLimitedApp(t, middleware.RateLimit())
+	address := nextAddress(t)
+
+	spendBudget(t, app, address, 100)
+
+	resp := requestFrom(t, app, address)
+	defer resp.Body.Close()
+	require.Equal(t, fiber.StatusTooManyRequests, resp.StatusCode)
 
 	var body map[string]any
-	require.NoError(t, json.NewDecoder(secondResp.Body).Decode(&body))
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&body))
 	assert.Equal(t, "system.rate_limited", body["error_code"])
+	assert.Equal(t, "Too many requests. Please try again later.", body["message"])
 }
 
-func TestRateLimitMiddleware_WithWait(t *testing.T) {
-	app := fiber.New()
-	app.Use(middleware.RateLimitWithLimiter(middleware.NewRateLimiter(1, 1)))
-	app.Get("/limited", func(c fiber.Ctx) error {
-		return c.SendStatus(fiber.StatusNoContent)
-	})
+// The authentication surface has a much smaller budget than the API surface.
+func TestAuthRateLimitMiddlewareUsesTheSmallerBudget(t *testing.T) {
+	app := newLimitedApp(t, middleware.AuthRateLimit())
+	address := nextAddress(t)
 
-	firstResp, err := app.Test(httptest.NewRequest(http.MethodGet, "/limited", nil))
-	require.NoError(t, err)
-	assert.Equal(t, fiber.StatusNoContent, firstResp.StatusCode)
+	spendBudget(t, app, address, 20)
 
-	secondResp, err := app.Test(httptest.NewRequest(http.MethodGet, "/limited", nil))
-	require.NoError(t, err)
-	assert.Equal(t, fiber.StatusTooManyRequests, secondResp.StatusCode)
-
-	time.Sleep(1100 * time.Millisecond)
-
-	thirdResp, err := app.Test(httptest.NewRequest(http.MethodGet, "/limited", nil))
-	require.NoError(t, err)
-	assert.Equal(t, fiber.StatusNoContent, thirdResp.StatusCode)
+	resp := requestFrom(t, app, address)
+	defer resp.Body.Close()
+	assert.Equal(t, fiber.StatusTooManyRequests, resp.StatusCode)
 }

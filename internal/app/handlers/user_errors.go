@@ -36,6 +36,8 @@ func writeUserServiceError(c fiber.Ctx, err error) error {
 		return writeErrorResponseWithCode(c, fiber.StatusBadRequest, "user.old_password_incorrect", err.Error())
 	case services.IsAdminTransferSelf(err), services.IsAdminResetSelf(err), services.IsAdminDeleteSelf(err), services.IsAdminDeleteBlocked(err), services.IsTransferTargetAdmin(err):
 		return writeErrorResponseWithCode(c, fiber.StatusBadRequest, "user.invalid_admin_operation", err.Error())
+	case services.IsAdminAlreadyExists(err):
+		return writeErrorResponseWithCode(c, fiber.StatusConflict, "user.admin_already_exists", err.Error())
 	case services.IsAdminAccessDenied(err):
 		return writeErrorResponseWithCode(c, fiber.StatusForbidden, "user.admin_access_denied", err.Error())
 	case services.IsSessionAccessDenied(err):

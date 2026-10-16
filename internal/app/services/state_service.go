@@ -10,8 +10,8 @@ import (
 
 type SetupStatus struct {
 	Initialized             bool             `json:"initialized"`
-	HasDatabase             bool             `json:"hasDatabase"`
 	DatabaseConfigured      bool             `json:"databaseConfigured"`
+	SetupAuthorized         bool             `json:"setupAuthorized"`
 	HasAdmin                bool             `json:"hasAdmin"`
 	ZeroTierConfigured      bool             `json:"zerotierConfigured"`
 	AdminCreationPrepared   bool             `json:"adminCreationPrepared"`
@@ -47,14 +47,6 @@ func NewStateServiceWithConfig(cfg *config.Config) *StateService {
 func (s *StateService) Config() *config.Config {
 	if s.cfg != nil {
 		return s.cfg
-	}
-	return nil
-}
-
-func (s *StateService) SaveConfig() error {
-	cfg := s.ensureConfig()
-	if err := config.SaveConfig(cfg); err != nil {
-		return err
 	}
 	return nil
 }
@@ -110,28 +102,42 @@ func (s *StateService) CreateZTClient() (*zerotier.Client, error) {
 	return zerotier.NewClientWithConfig(s.Config())
 }
 
-func (s *StateService) GetSetupStatus(userService *UserService, networkService *NetworkService) SetupStatus {
+// GetSetupStatus reports how far the first-run wizard has progressed.
+//
+// setupCaller reports whether the request presented the setup token. The
+// endpoint that serves this is public, because the client has to know whether
+// to show the wizard before anyone can sign in, so that token is what decides
+// whether the reply carries the deployment layout: the administrator name, the
+// SQLite path, and the controller URL and token path.
+//
+// The details are withheld once the instance is initialized even from a caller
+// holding the token. The token exists to close the first-run window, and this
+// process keeps the one it issued until it restarts, so honouring it afterwards
+// would leave the deployment layout readable from a stale log line forever.
+func (s *StateService) GetSetupStatus(userService *UserService, networkService *NetworkService, setupCaller bool) SetupStatus {
 	cfg := s.Config()
+	initialized := s.IsInitialized()
+	includeSensitive := setupCaller && !initialized
 	databaseConfigured := s.DatabaseConfigured()
 	zeroTierConfigured := cfg != nil && cfg.ZeroTier.URL != "" && cfg.ZeroTier.TokenPath != ""
 
 	status := SetupStatus{
-		Initialized:             s.IsInitialized(),
-		HasDatabase:             databaseConfigured,
+		Initialized:             initialized,
 		DatabaseConfigured:      databaseConfigured,
+		SetupAuthorized:         includeSensitive,
 		ZeroTierConfigured:      zeroTierConfigured,
 		AdminCreationPrepared:   config.GetTempSetting("admin_creation_reset_done") == "true",
-		AllowPublicRegistration: config.AllowPublicRegistration(s.Config()),
+		AllowPublicRegistration: config.AllowPublicRegistration(cfg),
 	}
 
-	if databaseConfigured && cfg != nil {
+	if includeSensitive && databaseConfigured && cfg != nil {
 		status.DatabaseConfig = &SetupDatabase{
 			Type: string(cfg.Database.Type),
 			Path: cfg.Database.Path,
 		}
 	}
 
-	if zeroTierConfigured && cfg != nil {
+	if includeSensitive && zeroTierConfigured && cfg != nil {
 		status.ZeroTierConfig = &SetupZeroTier{
 			ControllerURL: cfg.ZeroTier.URL,
 			TokenPath:     cfg.ZeroTier.TokenPath,
@@ -139,16 +145,27 @@ func (s *StateService) GetSetupStatus(userService *UserService, networkService *
 	}
 
 	if databaseConfigured && userService != nil {
-		users, err := userService.GetAllUsers()
-		if err != nil {
-			logger.Warn("GetSetupStatus: GetAllUsers failed", zap.Error(err))
-		}
-		for _, user := range users {
-			if user.Role == "admin" {
-				status.HasAdmin = true
-				status.AdminUsername = user.Username
-				break
+		if includeSensitive {
+			// The wizard shows which account was created, so the name is needed.
+			users, err := userService.GetAllUsers()
+			if err != nil {
+				logger.Warn("GetSetupStatus: GetAllUsers failed", zap.Error(err))
 			}
+			for _, user := range users {
+				if user.Role == "admin" {
+					status.HasAdmin = true
+					status.AdminUsername = user.Username
+					break
+				}
+			}
+		} else {
+			// The public answer only needs to know whether anyone can sign in,
+			// which is a count rather than a full table read.
+			hasAdmin, err := userService.HasAdminUser()
+			if err != nil {
+				logger.Warn("GetSetupStatus: HasAdminUser failed", zap.Error(err))
+			}
+			status.HasAdmin = hasAdmin
 		}
 	}
 

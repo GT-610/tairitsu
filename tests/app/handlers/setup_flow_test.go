@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"path/filepath"
 	"testing"
 
@@ -13,6 +12,7 @@ import (
 	"github.com/GT-610/tairitsu/internal/app/database"
 	apphandlers "github.com/GT-610/tairitsu/internal/app/handlers"
 	"github.com/GT-610/tairitsu/internal/app/services"
+	"github.com/GT-610/tairitsu/tests/testutil"
 	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -26,7 +26,12 @@ func TestSetupFlow_ResetDatabaseThenRegisterAdmin(t *testing.T) {
 		config.SetTempSetting("admin_creation_reset_done", originalResetFlag)
 	})
 
-	dbPath := filepath.Join(t.TempDir(), "nested", "tairitsu.db")
+	// The database path is confined to Tairitsu's data directory, so the test
+	// declares one and places the file inside it.
+	dataRoot := t.TempDir()
+	t.Setenv(config.DataDirEnv, dataRoot)
+
+	dbPath := filepath.Join(dataRoot, "nested", "tairitsu.db")
 	config.AppConfig = &config.Config{
 		Initialized: false,
 		Database: config.DatabaseConfig{
@@ -34,7 +39,7 @@ func TestSetupFlow_ResetDatabaseThenRegisterAdmin(t *testing.T) {
 			Path: dbPath,
 		},
 		Security: config.SecurityConfig{
-			JWTSecret: "test-secret",
+			EncryptionKey: "test-secret",
 		},
 	}
 	config.SetTempSetting("admin_creation_reset_done", "")
@@ -61,7 +66,7 @@ func TestSetupFlow_ResetDatabaseThenRegisterAdmin(t *testing.T) {
 
 	initReq := httptest.NewRequest(http.MethodPost, "/system/admin/init", bytes.NewReader([]byte("{}")))
 	initReq.Header.Set("Content-Type", "application/json")
-	initResp, err := app.Test(initReq)
+	initResp, err := app.Test(initReq, testRequestTimeout)
 	require.NoError(t, err)
 	assert.Equal(t, fiber.StatusOK, initResp.StatusCode)
 
@@ -73,7 +78,7 @@ func TestSetupFlow_ResetDatabaseThenRegisterAdmin(t *testing.T) {
 
 	registerReq := httptest.NewRequest(http.MethodPost, "/auth/register", bytes.NewReader(registerPayload))
 	registerReq.Header.Set("Content-Type", "application/json")
-	registerResp, err := app.Test(registerReq)
+	registerResp, err := app.Test(registerReq, testRequestTimeout)
 	require.NoError(t, err)
 	assert.Equal(t, fiber.StatusCreated, registerResp.StatusCode)
 
@@ -85,7 +90,7 @@ func TestSetupFlow_ResetDatabaseThenRegisterAdmin(t *testing.T) {
 
 	secondInitReq := httptest.NewRequest(http.MethodPost, "/system/admin/init", bytes.NewReader([]byte("{}")))
 	secondInitReq.Header.Set("Content-Type", "application/json")
-	secondInitResp, err := app.Test(secondInitReq)
+	secondInitResp, err := app.Test(secondInitReq, testRequestTimeout)
 	require.NoError(t, err)
 	assert.Equal(t, fiber.StatusOK, secondInitResp.StatusCode)
 
@@ -96,14 +101,11 @@ func TestSetupFlow_ResetDatabaseThenRegisterAdmin(t *testing.T) {
 }
 
 func TestSetupFlow_ZeroTierTokenNotFoundReturnsOriginalDetail(t *testing.T) {
+	testutil.UseTempDataDir(t)
+
 	originalConfig := config.AppConfig
-	originalWorkingDirectory, err := os.Getwd()
-	require.NoError(t, err)
-	temporaryWorkingDirectory := t.TempDir()
-	require.NoError(t, os.Chdir(temporaryWorkingDirectory))
 	t.Cleanup(func() {
 		config.AppConfig = originalConfig
-		require.NoError(t, os.Chdir(originalWorkingDirectory))
 	})
 
 	stateService := services.NewStateServiceWithConfig(&config.Config{})
@@ -120,12 +122,14 @@ func TestSetupFlow_ZeroTierTokenNotFoundReturnsOriginalDetail(t *testing.T) {
 	body := bytes.NewBufferString(`{"controllerUrl":"http://127.0.0.1:9993","tokenPath":"/missing/authtoken.secret"}`)
 	req := httptest.NewRequest(http.MethodPost, "/system/zerotier/config", body)
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := app.Test(req)
+	resp, err := app.Test(req, testRequestTimeout)
 	require.NoError(t, err)
 	assert.Equal(t, fiber.StatusInternalServerError, resp.StatusCode)
 
 	var responseBody map[string]any
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(&responseBody))
 	assert.Equal(t, "setup.zerotier_config_save_failed", responseBody["error_code"])
-	assert.Equal(t, "failed to read token file: open /missing/authtoken.secret: no such file or directory", responseBody["detail"])
+	detail, _ := responseBody["detail"].(string)
+	assert.Contains(t, detail, "/missing/authtoken.secret")
+	assert.Contains(t, detail, "no such file or directory")
 }

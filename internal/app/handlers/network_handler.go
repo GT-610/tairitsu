@@ -230,7 +230,7 @@ func (h *NetworkHandler) DeleteNetwork(c fiber.Ctx) error {
 
 	logger.Info("Network deleted", zap.String("network_id", id))
 
-	return writeMessageResponse(c, fiber.StatusOK, "network.delete_success", "Network deleted successfully", nil)
+	return writeMessageResponse(c, fiber.StatusOK, "Network deleted successfully", nil)
 }
 
 // GetImportableNetworks retrieves the list of importable networks
@@ -358,7 +358,7 @@ func (h *NetworkHandler) AddNetworkViewer(c fiber.Ctx) error {
 		return writeNetworkServiceError(c, err, "Network not found", "Network viewer access denied")
 	}
 
-	return writeMessageResponse(c, fiber.StatusOK, "network.viewer_added", "Read-only viewer access granted", nil)
+	return writeMessageResponse(c, fiber.StatusOK, "Read-only viewer access granted", nil)
 }
 
 func (h *NetworkHandler) DeleteNetworkViewer(c fiber.Ctx) error {
@@ -379,5 +379,5 @@ func (h *NetworkHandler) DeleteNetworkViewer(c fiber.Ctx) error {
 		return writeNetworkServiceError(c, err, "Network not found", "Network viewer access denied")
 	}
 
-	return writeMessageResponse(c, fiber.StatusOK, "network.viewer_removed", "Read-only viewer access removed", nil)
+	return writeMessageResponse(c, fiber.StatusOK, "Read-only viewer access removed", nil)
 }

@@ -103,26 +103,63 @@ func (s *UserService) Register(req *models.RegisterRequest, role ...string) (*mo
 		return nil, err
 	}
 
-	userRole := "user"
+	requestedRole := "user"
 	if len(role) > 0 && role[0] != "" {
-		userRole = role[0]
+		requestedRole = role[0]
 	}
 
 	user := &models.User{
 		ID:        uuid.New().String(),
 		Username:  username,
 		Password:  string(hashedPassword),
-		Role:      userRole,
+		Role:      "user",
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
 
-	if err := db.CreateUser(user); err != nil {
-		logger.Error("service: registration failed while saving user", zap.String("username", username), zap.Error(err))
-		return nil, fmt.Errorf("failed to save user: %w", err)
+	// The insert and the administrator claim travel together, so an error means
+	// no account was created. This used to insert first and delete the account
+	// again when the claim lost, which left a stray account behind whenever that
+	// compensating delete failed.
+	promoted := false
+	err = db.WithTransaction(func(tx database.DBInterface) error {
+		if err := tx.CreateUser(user); err != nil {
+			logger.Error("service: registration failed while saving user", zap.String("username", username), zap.Error(err))
+			return translateRegistrationConflict(tx, username, err)
+		}
+
+		if requestedRole != "admin" {
+			return nil
+		}
+
+		// The administrator role is claimed rather than assigned: the caller
+		// checked that none existed, but that check is not what decides it.
+		claimed, claimErr := tx.PromoteFirstAdministrator(user.ID)
+		if claimErr != nil {
+			return fmt.Errorf("failed to grant the administrator role: %w", claimErr)
+		}
+		if !claimed {
+			// Another registration claimed the role first. Rolling back takes
+			// this account with it, so the caller can read the error as "no
+			// account was created".
+			logger.Warn("service: registration for the administrator role lost the race", zap.String("username", username))
+			return ErrAdminAlreadyExists
+		}
+
+		promoted = true
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
 
-	logger.Info("service: user registered successfully", zap.String("user_id", user.ID), zap.String("username", user.Username), zap.String("role", userRole))
+	// Set only once the claim is committed, so a rolled-back attempt cannot leave
+	// the caller holding a user that looks like an administrator.
+	if promoted {
+		user.Role = "admin"
+	}
+
+	logger.Info("service: user registered successfully", zap.String("user_id", user.ID), zap.String("username", user.Username), zap.String("role", user.Role))
 
 	return user, nil
 }
@@ -163,6 +200,38 @@ func (s *UserService) CreateUserByAdmin(currentAdminID, username string) (*model
 	return user, temporaryPassword, nil
 }
 
+// unknownAccountPasswordHash is compared against when the supplied username
+// matches no account.
+//
+// The response is the same either way, but without this the unknown-user path
+// returns after a single indexed read while the known-user path also pays for
+// bcrypt. That difference is a username enumeration oracle, so both paths are
+// made to cost the same.
+//
+// The hash is of a random value that was discarded when it was generated, and
+// the result of the comparison is ignored: it exists only to spend the time.
+var unknownAccountPasswordHash = []byte("$2a$10$oxRIWMFa9hdnxEeMqyfJPezUMHCDOSKhU6wEigyvCOmVrInCOZnh.")
+
+// translateRegistrationConflict turns a rejected insert into something the
+// caller can act on.
+//
+// The insert carries a freshly generated identifier and a username, so the one
+// unique constraint it can violate is the one on the name. That is confirmed by
+// reading the name back rather than assumed, and anything else is reported as
+// the save failure it is: the administrator role is no longer guarded by a
+// database constraint, so a duplicate key must not be blamed on it.
+func translateRegistrationConflict(db database.DBInterface, username string, err error) error {
+	if !database.IsDuplicateKey(err) {
+		return fmt.Errorf("failed to save user: %w", err)
+	}
+
+	if existing, lookupErr := db.GetUserByUsername(username); lookupErr == nil && existing != nil {
+		return ErrUsernameExists
+	}
+
+	return fmt.Errorf("failed to save user: %w", err)
+}
+
 func (s *UserService) Login(req *models.LoginRequest) (*models.User, error) {
 	db := s.getDB()
 	if db == nil {
@@ -179,6 +248,9 @@ func (s *UserService) Login(req *models.LoginRequest) (*models.User, error) {
 		return nil, ErrInvalidCredentials
 	}
 	if user == nil {
+		// Spend the same time as a real comparison would, so that the response
+		// does not reveal whether the username is registered.
+		_ = bcrypt.CompareHashAndPassword(unknownAccountPasswordHash, []byte(req.Password))
 		logger.Error("service: login failed; user does not exist", zap.String("username", username))
 		return nil, ErrInvalidCredentials
 	}

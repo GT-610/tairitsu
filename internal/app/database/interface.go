@@ -46,6 +46,9 @@ type DBInterface interface {
 
 	// Check whether an admin user already exists
 	HasAdminUser() (bool, error)
+	// PromoteFirstAdministrator grants the administrator role only while no
+	// account holds it, and reports whether the grant happened.
+	PromoteFirstAdministrator(userID string) (bool, error)
 
 	// Check whether the database connection is alive
 	Ping() error

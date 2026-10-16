@@ -18,9 +18,9 @@ import {
 } from '@mui/material';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import { useTranslation, type LanguagePreference } from '../i18n';
-import { authAPI, systemAPI, type DatabaseSetupConfig, type SetupStatus, type ZeroTierSetupConfig } from '../services/api';
+import { authAPI, getSetupToken, setSetupToken, systemAPI, type DatabaseSetupConfig, type SetupStatus, type ZeroTierSetupConfig } from '../services/api';
 import { getErrorMessage } from '../services/errors';
-import { getInitialSetupWizardStep } from '../utils/setupWizard';
+import { getInitialSetupWizardStep, getResumableSetupWizardStep } from '../utils/setupWizard';
 
 interface AdminData {
   username: string;
@@ -58,10 +58,17 @@ function SetupWizard() {
   const [adminData, setAdminData] = useState<AdminData>({ username: '', password: '' });
   const [dbConfig, setDbConfig] = useState<DatabaseSetupConfig>(defaultDbConfig);
   const [ztConfig, setZtConfig] = useState<ZeroTierSetupConfig>(defaultZtConfig);
+  const [tokenInput, setTokenInput] = useState(() => getSetupToken());
 
   const hydrateFromStatus = (nextStatus: SetupStatus) => {
     setStatus(nextStatus);
-    setActiveStep(getInitialSetupWizardStep(nextStatus));
+
+    // Without the token the server withholds the stored configuration, so the
+    // only honest thing to show is the token step.
+    setActiveStep(getResumableSetupWizardStep(nextStatus));
+    if (!nextStatus.setupAuthorized) {
+      return;
+    }
     setZtConfig({
       controllerUrl: nextStatus.zeroTierConfig?.controllerUrl || defaultZtConfig.controllerUrl,
       tokenPath: nextStatus.zeroTierConfig?.tokenPath || defaultZtConfig.tokenPath,
@@ -109,7 +116,21 @@ function SetupWizard() {
 
     try {
       if (activeStep === 0) {
-        setActiveStep(1);
+        const candidate = tokenInput.trim();
+        if (!candidate) {
+          setError(t('setup.token.required'));
+          return;
+        }
+
+        setSetupToken(candidate);
+        const nextStatus = await fetchSetupStatus();
+        if (!nextStatus.setupAuthorized) {
+          setSetupToken('');
+          setError(t('setup.token.rejected'));
+          return;
+        }
+
+        setActiveStep(getResumableSetupWizardStep(nextStatus));
         return;
       }
 
@@ -212,13 +233,33 @@ function SetupWizard() {
     switch (activeStep) {
       case 0:
         return (
-          <Paper sx={{ p: 3, height: '300px', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
-            <Typography variant="h3" gutterBottom align="center" sx={{ mb: 3 }}>
+          <Paper sx={{ p: 3, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
+            <Typography variant="h3" gutterBottom align="center" sx={{ mb: 1 }}>
               {translateText('欢迎使用 Tairitsu')}
             </Typography>
-            <Typography variant="body1" align="center" sx={{ maxWidth: 520, mb: 4 }}>
+            <Typography variant="body1" align="center" sx={{ maxWidth: 520, mb: 2 }}>
               {translateText('本向导会依次完成 ZeroTier 控制器连接、SQLite 配置、首个管理员创建，以及运行态切换。')}
             </Typography>
+            <Typography variant="body2" color="text.secondary" align="center" sx={{ maxWidth: 520, mb: 2 }}>
+              {t('setup.token.description')}
+            </Typography>
+            <TextField
+              margin="normal"
+              required
+              fullWidth
+              id="setupToken"
+              name="setupToken"
+              // The token unlocks the setup endpoints, so it stays masked and
+              // out of the browser's saved form history.
+              type="password"
+              autoComplete="off"
+              label={t('setup.token.label')}
+              value={tokenInput}
+              onChange={(event) => setTokenInput(event.target.value)}
+              disabled={loading}
+              helperText={t('setup.token.helper')}
+              sx={{ maxWidth: 520 }}
+            />
             <Button
               variant="contained"
               startIcon={<ArrowForwardIcon />}
@@ -279,7 +320,7 @@ function SetupWizard() {
               {translateText('配置数据库')}
             </Typography>
             <Typography variant="body1" sx={{ mb: 2 }}>
-              {translateText('当前仅支持 SQLite。PostgreSQL 等其他数据库将在后续版本推出。')}
+              {translateText('Tairitsu 将数据保存在 SQLite 中。')}
             </Typography>
             <TextField
               margin="normal"

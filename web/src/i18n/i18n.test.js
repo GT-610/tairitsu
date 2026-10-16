@@ -8,6 +8,19 @@ import {
   translateRawText,
 } from './index'
 
+// `detectSystemThemeMode` reads `matches` and nothing else. The stub below
+// provides just that and narrows through `unknown` so it can stand in for the
+// full MediaQueryList the global signature declares.
+/**
+ * @param {boolean} matches
+ * @returns {typeof globalThis.matchMedia}
+ */
+function matchMediaStub(matches) {
+  return /** @type {typeof globalThis.matchMedia} */ (
+    /** @type {unknown} */ (() => ({ matches }))
+  )
+}
+
 describe('i18n language resolution', () => {
   test('uses Simplified Chinese for generic and non-traditional zh locales', () => {
     expect(detectSystemLanguage(['zh'])).toBe('zh-CN')
@@ -43,10 +56,10 @@ describe('i18n language resolution', () => {
   test('detects system theme mode from matchMedia when no argument', () => {
     const originalMatchMedia = globalThis.matchMedia
     try {
-      globalThis.matchMedia = () => ({ matches: true })
+      globalThis.matchMedia = matchMediaStub(true)
       expect(detectSystemThemeMode()).toBe('dark')
 
-      globalThis.matchMedia = () => ({ matches: false })
+      globalThis.matchMedia = matchMediaStub(false)
       expect(detectSystemThemeMode()).toBe('light')
     } finally {
       globalThis.matchMedia = originalMatchMedia

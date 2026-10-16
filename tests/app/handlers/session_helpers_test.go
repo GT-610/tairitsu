@@ -5,13 +5,20 @@ import (
 	"testing"
 	"time"
 
-	"github.com/GT-610/tairitsu/internal/app/database"
 	"github.com/GT-610/tairitsu/internal/app/middleware"
 	"github.com/GT-610/tairitsu/internal/app/models"
 	appservices "github.com/GT-610/tairitsu/internal/app/services"
 	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/require"
 )
+
+// testRequestTimeout replaces the one second budget fiber applies to Test by
+// default. An endpoint that hashes a password exceeds it: under the race
+// detector bcrypt costs roughly ten times what it does otherwise, so a login or
+// a registration on a loaded machine would fail with an i/o timeout instead of
+// reporting what the handler actually did. The Go test deadline stays as the
+// backstop for a handler that really does hang.
+var testRequestTimeout = fiber.TestConfig{Timeout: 10 * time.Second, FailOnTimeout: true}
 
 // newTestSession creates a session for a user and returns the raw credential
 // that a browser would hold. Tests authenticate by putting it in the session
@@ -34,33 +41,4 @@ func newTestSession(t *testing.T, sessionService *appservices.SessionService, us
 // authenticateRequest attaches the session cookie a browser would send.
 func authenticateRequest(req *http.Request, credential string) {
 	req.AddCookie(&http.Cookie{Name: middleware.SessionCookieName, Value: credential})
-}
-
-// newAuthenticatedApp wires the real auth middleware in front of handler so
-// tests exercise cookie authentication rather than a test double.
-func newAuthenticatedApp(sessionService *appservices.SessionService, userService *appservices.UserService) *fiber.App {
-	return newTestAppWithAuth(sessionService, userService)
-}
-
-func newTestAppWithAuth(sessionService *appservices.SessionService, userService *appservices.UserService) *fiber.App {
-	app := fiber.New()
-	app.Use(middleware.AuthMiddleware(sessionService, userService))
-	return app
-}
-
-// newTestDatabase opens an isolated SQLite database for a test.
-func newTestDatabase(t *testing.T) database.DBInterface {
-	t.Helper()
-
-	db, err := database.NewDatabase(database.Config{
-		Type: database.SQLite,
-		Path: t.TempDir() + "/tairitsu.db",
-	})
-	require.NoError(t, err)
-	require.NoError(t, db.Init())
-	t.Cleanup(func() {
-		require.NoError(t, db.Close())
-	})
-
-	return db
 }

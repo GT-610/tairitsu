@@ -66,12 +66,25 @@ services:
       - /path/to/tairitsu-data:/app/data
 ```
 
+While Tairitsu is uninitialized it prints a one-time setup token on startup. The
+setup endpoints reject requests that do not carry it, so that finishing setup
+first is not a race against anyone else who can reach the port. Read it from the
+container output:
+
+```bash
+docker logs tairitsu | grep "Setup token"
+```
+
 Open `http://<host>:3000` and complete the setup wizard:
 
-1. Enter the ZeroTier controller URL.
-2. Enter the token file path.
-3. Configure the SQLite database path if needed.
-4. Create the initial administrator account.
+1. Enter the setup token printed by the server.
+2. Enter the ZeroTier controller URL.
+3. Enter the token file path.
+4. Configure the SQLite database path if needed.
+5. Create the initial administrator account.
+
+The token is only valid for the current process: restart Tairitsu and a new one
+is printed. It stops being issued at all once setup is complete.
 
 Sessions are held in an HttpOnly cookie. Serve Tairitsu over HTTPS in any
 deployment reachable beyond a trusted network; on plain HTTP the cookie cannot

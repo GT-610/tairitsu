@@ -38,10 +38,11 @@ jobs:
       - name: Vet
         run: go vet ./...
 
-      # A checkout without a frontend build still compiles and passes tests, so
-      # this covers the Go half of the release before the bundle exists.
+      # The suite drives concurrent member loading and shares a rate-limiter
+      # map, and the race detector is the only thing that inspects that. -count=1
+      # keeps a cached pass from hiding a failure.
       - name: Test
-        run: go test ./...
+        run: go test -race -count=1 ./...
 
   frontend:
     name: Frontend

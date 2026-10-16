@@ -7,7 +7,6 @@ import (
 	"net/http/httptest"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/GT-610/tairitsu/internal/app/database"
 	apphandlers "github.com/GT-610/tairitsu/internal/app/handlers"
@@ -55,22 +54,17 @@ func TestAuthHandler_ChangePasswordRevokesOtherSessionsWhenRequested(t *testing.
 	req := httptest.NewRequest(http.MethodPut, "/profile/password", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	authenticateRequest(req, credential)
-	resp, err := app.Test(req, fiber.TestConfig{
-		Timeout:       10 * time.Second,
-		FailOnTimeout: true,
-	})
+	resp, err := app.Test(req, testRequestTimeout)
 	require.NoError(t, err)
 	defer resp.Body.Close()
 	assert.Equal(t, fiber.StatusOK, resp.StatusCode)
 
 	var responseBody struct {
-		MessageCode          string `json:"message_code"`
 		Message              string `json:"message"`
 		RevokedOtherSessions int    `json:"revoked_other_sessions"`
 	}
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(&responseBody))
 	assert.Equal(t, "Password updated successfully", responseBody.Message)
-	assert.Equal(t, "auth.password_updated", responseBody.MessageCode)
 	assert.Equal(t, 1, responseBody.RevokedOtherSessions)
 
 	_, err = sessionService.ResolveSession(credential)
