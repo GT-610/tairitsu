@@ -59,13 +59,17 @@ func TestHTTPAppConfigTrustsOnlyLoopbackProxiesByDefault(t *testing.T) {
 
 	assert.True(t, appConfig.TrustProxy)
 	assert.Equal(t, "X-Forwarded-For", appConfig.ProxyHeader)
+	assert.True(t, appConfig.EnableIPValidation)
+
+	// The trust set is the whole security decision here: every flag that widens
+	// it lets a peer forge the client address, and with it the per-IP rate limit
+	// and the address recorded on a session. Broadening any of them
+	// unintentionally is the mistake this guards, so each is asserted rather
+	// than only the one that looks dangerous today.
 	assert.True(t, appConfig.TrustProxyConfig.Loopback)
 	assert.Empty(t, appConfig.TrustProxyConfig.Proxies)
-	// Trusting every private address would let any peer on the container network
-	// forge the client address, and with it the per-IP rate limit and the
-	// address recorded on a session.
 	assert.False(t, appConfig.TrustProxyConfig.Private)
-	assert.True(t, appConfig.EnableIPValidation)
+	assert.False(t, appConfig.TrustProxyConfig.LinkLocal)
 }
 
 func TestHTTPAppConfigReadsTrustedProxiesFromTheEnvironment(t *testing.T) {

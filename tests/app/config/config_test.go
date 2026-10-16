@@ -158,8 +158,11 @@ func TestLoadConfigIgnoresLegacyServerPortFromExistingConfig(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, cfg)
 
-	assert.Equal(t, config.ConsolePort, 3000)
+	// Comparing only against the constant would hold whichever value the code
+	// produced. What this has to show is that the legacy block was ignored, so
+	// the resolved address must not be the port that block asked for.
 	assert.Equal(t, ":3000", config.ServerAddress())
+	assert.NotEqual(t, ":8080", config.ServerAddress(), "the legacy server.port must not move the console")
 }
 
 // A stale SERVER_PORT in the environment must not move the console, since the
@@ -174,8 +177,8 @@ func TestLoadConfigIgnoresServerPortEnvironment(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, cfg)
 
-	assert.Equal(t, 3000, config.ConsolePort)
 	assert.Equal(t, ":3000", config.ServerAddress())
+	assert.NotEqual(t, ":9090", config.ServerAddress(), "the stale SERVER_PORT must not move the console")
 }
 
 // A legacy "server" block must not be reintroduced when the config is rewritten,
@@ -197,14 +200,17 @@ func TestSaveConfigDoesNotWriteLegacyServerBlock(t *testing.T) {
 	assert.NotContains(t, persisted, "server")
 }
 
+// useTemporaryWorkingDirectory runs the test somewhere other than the source
+// tree, because loading the configuration writes a data/config.json next to the
+// working directory.
+//
+// t.Chdir restores the directory even when the test panics, and refuses to run
+// in a parallel test, where a process-wide chdir would race with the rest of the
+// suite.
 func useTemporaryWorkingDirectory(t *testing.T) {
 	t.Helper()
-	originalWorkingDirectory, err := os.Getwd()
-	require.NoError(t, err)
-	require.NoError(t, os.Chdir(t.TempDir()))
-	t.Cleanup(func() {
-		require.NoError(t, os.Chdir(originalWorkingDirectory))
-	})
+
+	t.Chdir(t.TempDir())
 }
 
 func encryptWithLegacyEmptyKey(t *testing.T, plaintext string) string {
