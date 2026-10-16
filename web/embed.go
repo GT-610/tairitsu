@@ -18,13 +18,9 @@ const distDir = "dist"
 var bundled embed.FS
 
 // Assets returns the embedded frontend bundle rooted at the build output.
+//
+// A checkout without a frontend build still compiles: the placeholder bundle is
+// embedded and callers detect the missing app shell by looking for index.html.
 func Assets() (fs.FS, error) {
 	return fs.Sub(bundled, distDir)
-}
-
-// IsBuilt reports whether a real frontend build was embedded. It is false when
-// the binary was compiled without running the frontend build first.
-func IsBuilt() bool {
-	_, err := fs.Stat(bundled, distDir+"/index.html")
-	return err == nil
 }

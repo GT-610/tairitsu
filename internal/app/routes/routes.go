@@ -5,12 +5,20 @@ import (
 	"github.com/GT-610/tairitsu/internal/app/handlers"
 	"github.com/GT-610/tairitsu/internal/app/middleware"
 	"github.com/gofiber/fiber/v3"
+	"github.com/gofiber/fiber/v3/middleware/compress"
 )
 
 // SetupRoutes configures application routes
 func SetupRoutes(router *fiber.App, dependencies *assembly.Dependencies) {
 	// Apply middleware
 	router.Use(middleware.Logger())
+	// Compression is mounted outside the error handler and ahead of the
+	// embedded console, so it covers the JSON API, error responses, and the
+	// static bundle alike. Both halves are text, and shipping the bundle raw
+	// costs several times the bytes on every cold load. The handler negotiates
+	// brotli or gzip and skips bodies that are already encoded, too small to
+	// benefit, or marked no-transform.
+	router.Use(compress.New())
 	router.Use(middleware.SecurityHeaders())
 	router.Use(middleware.ErrorHandler())
 

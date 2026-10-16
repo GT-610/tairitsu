@@ -16,7 +16,13 @@ env:
 
 
 jobs:
+  # The image embeds the frontend bundle and depends on a backend that passes
+  # its own tests, so nothing is built or pushed until both halves are green.
+  test:
+    uses: ./.github/workflows/test.yml
+
   build:
+    needs: test
 
     runs-on: ubuntu-latest
     permissions:
@@ -32,6 +38,11 @@ jobs:
 
       - name: Install cosign
         uses: sigstore/cosign-installer@v4.0.0
+
+      # The SQLite driver is CGO, so building the arm64 image under emulation
+      # requires QEMU to be registered with the builder.
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v4.4.0
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3.12.0
@@ -57,7 +68,7 @@ jobs:
         with:
           context: .
           push: true
-          platforms: linux/amd64
+          platforms: linux/amd64,linux/arm64
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha

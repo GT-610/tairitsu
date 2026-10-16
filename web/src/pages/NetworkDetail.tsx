@@ -82,7 +82,6 @@ import { useTranslation } from '../i18n'
 
 const defaultNetworkConfig: Partial<NetworkConfig> = {
   private: true,
-  allowPassiveBridging: true,
   enableBroadcast: true,
   mtu: 2800,
   multicastLimit: 32,

@@ -107,7 +107,6 @@ export interface NetworkViewer {
 
 export interface NetworkConfig {
   private: boolean;
-  allowPassiveBridging?: boolean;
   enableBroadcast: boolean;
   mtu?: number;
   multicastLimit?: number;
@@ -128,7 +127,6 @@ export interface NetworkUpdateRequest {
   name?: string;
   description?: string;
   private?: boolean;
-  allowPassiveBridging?: boolean;
   enableBroadcast?: boolean;
   mtu?: number;
   multicastLimit?: number;
