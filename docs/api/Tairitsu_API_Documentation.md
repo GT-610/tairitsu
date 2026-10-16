@@ -643,7 +643,7 @@ Request:
 
 When supplied, `signing_key_path` must name a directory inside the directory
 containing the configured ZeroTier token file. When omitted, a fresh signing key
-pair is generated instead of being read from disk.
+pair is generated in memory and is neither read from nor written to disk.
 
 Success response:
 
