@@ -39,13 +39,6 @@ func TestNewNetworkService(t *testing.T) {
 	assert.NotNil(t, networkService)
 }
 
-func TestImportableNetworkSummariesStartAsEmptySlice(t *testing.T) {
-	summaries := make([]services.ImportableNetworkCandidate, 0)
-
-	assert.NotNil(t, summaries)
-	assert.Len(t, summaries, 0)
-}
-
 func TestNetworkServiceImportNetworks_AllSuccess(t *testing.T) {
 	db := newTestSQLiteDB(t)
 	createTestUser(t, db, "user-1", "user")
