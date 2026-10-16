@@ -103,26 +103,46 @@ func (s *UserService) Register(req *models.RegisterRequest, role ...string) (*mo
 		return nil, err
 	}
 
-	userRole := "user"
+	requestedRole := "user"
 	if len(role) > 0 && role[0] != "" {
-		userRole = role[0]
+		requestedRole = role[0]
 	}
 
 	user := &models.User{
 		ID:        uuid.New().String(),
 		Username:  username,
 		Password:  string(hashedPassword),
-		Role:      userRole,
+		Role:      "user",
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
 
 	if err := db.CreateUser(user); err != nil {
 		logger.Error("service: registration failed while saving user", zap.String("username", username), zap.Error(err))
-		return nil, fmt.Errorf("failed to save user: %w", err)
+		return nil, translateRegistrationConflict(db, username, err)
 	}
 
-	logger.Info("service: user registered successfully", zap.String("user_id", user.ID), zap.String("username", user.Username), zap.String("role", userRole))
+	if requestedRole == "admin" {
+		// The administrator role is claimed rather than assigned: the caller
+		// checked that none existed, but that check is not what decides it.
+		promoted, err := db.PromoteFirstAdministrator(user.ID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to grant the administrator role: %w", err)
+		}
+		if !promoted {
+			// Another registration claimed the role first. Leave nothing behind,
+			// so that an error means no account was created.
+			if deleteErr := db.DeleteUser(user.ID); deleteErr != nil {
+				logger.Warn("failed to remove the account created by a losing administrator registration",
+					zap.String("user_id", user.ID), zap.Error(deleteErr))
+			}
+			logger.Warn("service: registration for the administrator role lost the race", zap.String("username", username))
+			return nil, ErrAdminAlreadyExists
+		}
+		user.Role = "admin"
+	}
+
+	logger.Info("service: user registered successfully", zap.String("user_id", user.ID), zap.String("username", user.Username), zap.String("role", user.Role))
 
 	return user, nil
 }
@@ -163,6 +183,37 @@ func (s *UserService) CreateUserByAdmin(currentAdminID, username string) (*model
 	return user, temporaryPassword, nil
 }
 
+// unknownAccountPasswordHash is compared against when the supplied username
+// matches no account.
+//
+// The response is the same either way, but without this the unknown-user path
+// returns after a single indexed read while the known-user path also pays for
+// bcrypt. That difference is a username enumeration oracle, so both paths are
+// made to cost the same.
+//
+// The hash is of a random value that was discarded when it was generated, and
+// the result of the comparison is ignored: it exists only to spend the time.
+var unknownAccountPasswordHash = []byte("$2a$10$oxRIWMFa9hdnxEeMqyfJPezUMHCDOSKhU6wEigyvCOmVrInCOZnh.")
+
+// translateRegistrationConflict turns a lost registration race into something
+// the caller can act on.
+//
+// The username index and the single-administrator index both surface as a
+// duplicate key, so the username is re-read to tell them apart rather than
+// matching driver-specific error text.
+func translateRegistrationConflict(db database.DBInterface, username string, err error) error {
+	if !database.IsDuplicateKey(err) {
+		return fmt.Errorf("failed to save user: %w", err)
+	}
+
+	existing, lookupErr := db.GetUserByUsername(username)
+	if lookupErr == nil && existing != nil {
+		return ErrUsernameExists
+	}
+
+	return ErrAdminAlreadyExists
+}
+
 func (s *UserService) Login(req *models.LoginRequest) (*models.User, error) {
 	db := s.getDB()
 	if db == nil {
@@ -179,6 +230,9 @@ func (s *UserService) Login(req *models.LoginRequest) (*models.User, error) {
 		return nil, ErrInvalidCredentials
 	}
 	if user == nil {
+		// Spend the same time as a real comparison would, so that the response
+		// does not reveal whether the username is registered.
+		_ = bcrypt.CompareHashAndPassword(unknownAccountPasswordHash, []byte(req.Password))
 		logger.Error("service: login failed; user does not exist", zap.String("username", username))
 		return nil, ErrInvalidCredentials
 	}

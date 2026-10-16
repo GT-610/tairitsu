@@ -50,7 +50,9 @@ func NewDatabase(dbConfig Config) (DBInterface, error) {
 			return nil, err
 		}
 
-		db, err := gorm.Open(sqlite.Open(dbConfig.Path+"?_journal_mode=WAL&_busy_timeout=5000"), &gorm.Config{})
+		// TranslateError turns constraint violations into gorm sentinels so a
+		// lost race can be recognised without matching driver message text.
+		db, err := gorm.Open(sqlite.Open(dbConfig.Path+"?_journal_mode=WAL&_busy_timeout=5000"), &gorm.Config{TranslateError: true})
 		if err != nil {
 			return nil, fmt.Errorf("failed to connect to SQLite database: %w", err)
 		}

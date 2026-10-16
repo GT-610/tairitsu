@@ -18,6 +18,7 @@ var (
 	ErrAdminDeleteBlocked         = errors.New("cannot delete the current administrator account; transfer administrator role first")
 	ErrTransferTargetAdmin        = errors.New("target user is already an administrator")
 	ErrAdminAccessDenied          = errors.New("current user is not an administrator")
+	ErrAdminAlreadyExists         = errors.New("an administrator account already exists")
 	ErrPublicRegistrationDisabled = errors.New("public registration is disabled; contact an administrator to create an account")
 	ErrSessionNotFound            = errors.New("session not found")
 	ErrSessionAccessDenied        = errors.New("session access denied")
@@ -83,6 +84,10 @@ func IsTransferTargetAdmin(err error) bool {
 
 func IsAdminAccessDenied(err error) bool {
 	return errors.Is(err, ErrAdminAccessDenied)
+}
+
+func IsAdminAlreadyExists(err error) bool {
+	return errors.Is(err, ErrAdminAlreadyExists)
 }
 
 func IsPublicRegistrationDisabled(err error) bool {

@@ -36,6 +36,20 @@ func (s *stateServiceDBStub) GetUserByUsername(username string) (*models.User, e
 	return nil, nil
 }
 func (s *stateServiceDBStub) GetAllUsers() ([]*models.User, error) { return s.users, nil }
+func (s *stateServiceDBStub) PromoteFirstAdministrator(userID string) (bool, error) {
+	for _, user := range s.users {
+		if user.Role == "admin" {
+			return false, nil
+		}
+	}
+	for _, user := range s.users {
+		if user.ID == userID {
+			user.Role = "admin"
+			return true, nil
+		}
+	}
+	return false, nil
+}
 func (s *stateServiceDBStub) GetUsersByIDs(ids []string) ([]*models.User, error) {
 	var result []*models.User
 	for _, user := range s.users {

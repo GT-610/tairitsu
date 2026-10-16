@@ -1,6 +1,7 @@
 package database
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -8,6 +9,14 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
+
+// IsDuplicateKey reports whether err is a unique or primary key violation.
+//
+// Driver errors are translated by GORM when TranslateError is enabled, so
+// callers can react to a lost race without parsing error text.
+func IsDuplicateKey(err error) bool {
+	return errors.Is(err, gorm.ErrDuplicatedKey)
+}
 
 // GormDB is the GORM-based database implementation
 type GormDB struct {
@@ -20,7 +29,28 @@ func (g *GormDB) Init() error {
 	if err := g.db.AutoMigrate(&models.User{}, &models.Network{}, &models.Session{}, &models.NetworkViewer{}); err != nil {
 		return fmt.Errorf("failed to auto-migrate models: %w", err)
 	}
+
 	return nil
+}
+
+// PromoteFirstAdministrator grants the administrator role to userID, but only
+// while no account holds it yet. It reports whether the grant happened.
+//
+// Registration asks whether an administrator exists and then promotes whoever
+// registered, and two requests can both see "none yet" and both promote. Asking
+// is what makes that a race, so the question and the update are one statement
+// here: the row is matched only if the role is still unclaimed, which SQLite
+// evaluates under the same write lock as the update itself.
+func (g *GormDB) PromoteFirstAdministrator(userID string) (bool, error) {
+	result := g.db.Exec(
+		"UPDATE users SET role = ?, updated_at = ? WHERE id = ? AND NOT EXISTS (SELECT 1 FROM users WHERE role = ?)",
+		"admin", time.Now(), userID, "admin",
+	)
+	if result.Error != nil {
+		return false, result.Error
+	}
+
+	return result.RowsAffected == 1, nil
 }
 
 // WithTransaction executes database operations within a transaction
@@ -41,7 +71,7 @@ func (g *GormDB) GetUserByID(id string) (*models.User, error) {
 	var user models.User
 	result := g.db.First(&user, "id = ?", id)
 	if result.Error != nil {
-		if result.Error == gorm.ErrRecordNotFound {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return nil, nil
 		}
 		return nil, result.Error
@@ -54,7 +84,7 @@ func (g *GormDB) GetUserByUsername(username string) (*models.User, error) {
 	var user models.User
 	result := g.db.First(&user, "username = ?", username)
 	if result.Error != nil {
-		if result.Error == gorm.ErrRecordNotFound {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return nil, nil
 		}
 		return nil, result.Error
@@ -108,7 +138,7 @@ func (g *GormDB) GetSessionByID(id string) (*models.Session, error) {
 	var session models.Session
 	result := g.db.First(&session, "id = ?", id)
 	if result.Error != nil {
-		if result.Error == gorm.ErrRecordNotFound {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return nil, nil
 		}
 		return nil, result.Error
@@ -121,7 +151,7 @@ func (g *GormDB) GetSessionByTokenHash(tokenHash string) (*models.Session, error
 	var session models.Session
 	result := g.db.First(&session, "token_hash = ?", tokenHash)
 	if result.Error != nil {
-		if result.Error == gorm.ErrRecordNotFound {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return nil, nil
 		}
 		return nil, result.Error
@@ -179,7 +209,7 @@ func (g *GormDB) GetNetworkByID(id string) (*models.Network, error) {
 	var network models.Network
 	result := g.db.First(&network, "id = ?", id)
 	if result.Error != nil {
-		if result.Error == gorm.ErrRecordNotFound {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return nil, nil
 		}
 		return nil, result.Error
@@ -233,7 +263,7 @@ func (g *GormDB) GetNetworkViewer(networkID, userID string) (*models.NetworkView
 	var viewer models.NetworkViewer
 	result := g.db.First(&viewer, "network_id = ? AND user_id = ?", networkID, userID)
 	if result.Error != nil {
-		if result.Error == gorm.ErrRecordNotFound {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return nil, nil
 		}
 		return nil, result.Error

@@ -110,6 +110,7 @@ const zh: Record<string, string> = {
 
 const messageCodes: Record<string, { en: string; 'zh-CN': string }> = {
   'auth.missing_token': { en: 'Missing authentication token', 'zh-CN': '缺少认证令牌' },
+  'user.admin_already_exists': { en: 'An administrator account already exists', 'zh-CN': '管理员账户已存在' },
   'setup.token_required': { en: 'A valid setup token is required to configure an uninitialized instance', 'zh-CN': '需要在初始化前提供有效的安装令牌' },
   'setup.database_path_rejected': { en: "The SQLite file must live inside Tairitsu's data directory", 'zh-CN': 'SQLite 文件必须位于 Tairitsu 的数据目录内' },
   'auth.invalid_format': { en: 'Invalid authentication format', 'zh-CN': '认证格式无效' },

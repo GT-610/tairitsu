@@ -37,6 +37,9 @@ func (d *txFailingDB) GetUserByUsername(username string) (*models.User, error) {
 	return d.inner.GetUserByUsername(username)
 }
 func (d *txFailingDB) GetAllUsers() ([]*models.User, error) { return d.inner.GetAllUsers() }
+func (d *txFailingDB) PromoteFirstAdministrator(userID string) (bool, error) {
+	return d.inner.PromoteFirstAdministrator(userID)
+}
 func (d *txFailingDB) GetUsersByIDs(ids []string) ([]*models.User, error) {
 	return d.inner.GetUsersByIDs(ids)
 }
@@ -543,15 +546,92 @@ func TestUserServiceDeleteUserByAdminRejectsDeletingSelf(t *testing.T) {
 	require.ErrorIs(t, err, appservices.ErrAdminDeleteSelf)
 }
 
+// An installation can hold more than one administrator -- from before the
+// first-run grant was made atomic, or from direct database access -- so the
+// guard against deleting one is kept and reached by seeding that state directly
+// rather than by registering a second administrator, which is no longer a way
+// to obtain one.
 func TestUserServiceDeleteUserByAdminRejectsDeletingAdmin(t *testing.T) {
 	db := newTestSQLiteDB(t)
 	service := appservices.NewUserService(db)
 
 	admin, err := service.Register(&models.RegisterRequest{Username: "admin", Password: "secret123"}, "admin")
 	require.NoError(t, err)
-	otherAdmin, err := service.Register(&models.RegisterRequest{Username: "other-admin", Password: "secret123"}, "admin")
-	require.NoError(t, err)
+
+	otherAdmin := &models.User{
+		ID:        "other-admin-id",
+		Username:  "other-admin",
+		Password:  "hashed-password",
+		Role:      "admin",
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+	require.NoError(t, db.CreateUser(otherAdmin))
 
 	_, _, _, err = service.DeleteUserByAdmin(admin.ID, otherAdmin.ID)
 	require.ErrorIs(t, err, appservices.ErrAdminDeleteBlocked)
+}
+
+// The first-run grant asks whether an administrator exists and then promotes
+// whoever registered. Both requests can see "none yet", so the role has to be
+// claimed rather than assigned, and exactly one of them may win.
+func TestUserServiceRegisterGrantsTheAdministratorRoleOnlyOnce(t *testing.T) {
+	db := newTestSQLiteDB(t)
+	service := appservices.NewUserService(db)
+
+	const contenders = 6
+
+	results := make(chan error, contenders)
+	start := make(chan struct{})
+	for index := 0; index < contenders; index++ {
+		go func(index int) {
+			<-start
+			_, err := service.Register(&models.RegisterRequest{
+				Username: fmt.Sprintf("admin-%d", index),
+				Password: "secret123",
+			}, "admin")
+			results <- err
+		}(index)
+	}
+	close(start)
+
+	granted := 0
+	for index := 0; index < contenders; index++ {
+		err := <-results
+		if err == nil {
+			granted++
+			continue
+		}
+		require.ErrorIs(t, err, appservices.ErrAdminAlreadyExists)
+	}
+
+	assert.Equal(t, 1, granted, "only one registration may become the administrator")
+
+	users, err := db.GetAllUsers()
+	require.NoError(t, err)
+
+	administrators := 0
+	for _, user := range users {
+		if user.Role == "admin" {
+			administrators++
+		}
+	}
+	assert.Equal(t, 1, administrators)
+
+	// A losing registration must not leave an account behind.
+	assert.Len(t, users, 1)
+}
+
+// The database refuses a second account with the same name, which is what keeps
+// the service's check-then-insert from admitting two.
+func TestUserStoreRejectsDuplicateUsernames(t *testing.T) {
+	db := newTestSQLiteDB(t)
+
+	first := &models.User{ID: "user-1", Username: "alice", Password: "x", Role: "user", CreatedAt: time.Now(), UpdatedAt: time.Now()}
+	require.NoError(t, db.CreateUser(first))
+
+	second := &models.User{ID: "user-2", Username: "alice", Password: "x", Role: "user", CreatedAt: time.Now(), UpdatedAt: time.Now()}
+	err := db.CreateUser(second)
+	require.Error(t, err)
+	assert.True(t, database.IsDuplicateKey(err), "the unique index on the username must reject the insert")
 }
