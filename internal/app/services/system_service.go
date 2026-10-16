@@ -11,6 +11,8 @@ import (
 	"go.uber.org/zap"
 )
 
+const defaultStatsCacheExpiry = 5 * time.Second
+
 // SystemStats represents system resource usage statistics
 type SystemStats struct {
 	CPUUsage        float64 `json:"cpuUsage"`        // CPU usage percentage
@@ -27,27 +29,68 @@ type SystemService struct {
 	statsCache  *SystemStats
 	cacheMutex  sync.RWMutex
 	cacheExpiry time.Duration
+	now         func() time.Time
+	collect     func() (*SystemStats, error)
+}
+
+// SystemServiceOption customises a SystemService. The expiry, the clock and the
+// collector are injectable so the cache can be exercised against a controlled
+// clock and sample instead of waiting a second for a real CPU reading.
+type SystemServiceOption func(*SystemService)
+
+// WithStatsCacheExpiry replaces how long a collected sample stays fresh.
+func WithStatsCacheExpiry(expiry time.Duration) SystemServiceOption {
+	return func(s *SystemService) {
+		s.cacheExpiry = expiry
+	}
+}
+
+// WithClock replaces the time source used to stamp and age samples.
+func WithClock(now func() time.Time) SystemServiceOption {
+	return func(s *SystemService) {
+		if now != nil {
+			s.now = now
+		}
+	}
+}
+
+// withStatsCollector replaces the sample source. It stays unexported because
+// production always reads the machine it runs on.
+func withStatsCollector(collect func() (*SystemStats, error)) SystemServiceOption {
+	return func(s *SystemService) {
+		if collect != nil {
+			s.collect = collect
+		}
+	}
 }
 
 // NewSystemService creates a new system service instance
-func NewSystemService() *SystemService {
-	return &SystemService{
-		cacheExpiry: 5 * time.Second, // Cache expiry time: 5 seconds
+func NewSystemService(options ...SystemServiceOption) *SystemService {
+	service := &SystemService{
+		cacheExpiry: defaultStatsCacheExpiry,
+		now:         time.Now,
 	}
+
+	for _, option := range options {
+		option(service)
+	}
+
+	if service.collect == nil {
+		service.collect = service.collectSystemStats
+	}
+
+	return service
 }
 
 // GetSystemStats retrieves the current system statistics
 // It uses a cache to avoid frequent system calls
 func (s *SystemService) GetSystemStats() (*SystemStats, error) {
-	// Check if cache is valid
-	if s.isCacheValid() {
-		s.cacheMutex.RLock()
-		defer s.cacheMutex.RUnlock()
-		return s.statsCache, nil
+	if cached := s.freshCachedStats(); cached != nil {
+		return cached, nil
 	}
 
 	// Cache is invalid, update it
-	stats, err := s.collectSystemStats()
+	stats, err := s.collect()
 	if err != nil {
 		logger.Error("Failed to collect system stats", zap.Error(err))
 		return nil, err
@@ -61,18 +104,24 @@ func (s *SystemService) GetSystemStats() (*SystemStats, error) {
 	return stats, nil
 }
 
-// isCacheValid checks if the cache is still valid
-func (s *SystemService) isCacheValid() bool {
+// freshCachedStats returns the cached sample while it is still fresh. The
+// freshness test and the read share one critical section: deciding outside the
+// lock and reading inside it leaves a window in which another caller can replace
+// the entry, so the caller could receive the value it just decided to discard.
+func (s *SystemService) freshCachedStats() *SystemStats {
 	s.cacheMutex.RLock()
 	defer s.cacheMutex.RUnlock()
 
 	if s.statsCache == nil {
-		return false
+		return nil
 	}
 
 	// Check if cache has expired
-	cacheTime := time.UnixMilli(s.statsCache.Timestamp)
-	return time.Since(cacheTime) < s.cacheExpiry
+	if s.now().Sub(time.UnixMilli(s.statsCache.Timestamp)) >= s.cacheExpiry {
+		return nil
+	}
+
+	return s.statsCache
 }
 
 // collectSystemStats collects system statistics from the OS
@@ -101,7 +150,7 @@ func (s *SystemService) collectSystemStats() (*SystemStats, error) {
 	return &SystemStats{
 		CPUUsage:        cpuUsage,
 		MemoryUsage:     memoryUsage,
-		Timestamp:       time.Now().UnixMilli(),
+		Timestamp:       s.now().UnixMilli(),
 		OSName:          hostInfo.OS,
 		Platform:        hostInfo.Platform,
 		PlatformVersion: hostInfo.PlatformVersion,
