@@ -1,6 +1,6 @@
 module github.com/GT-610/tairitsu
 
-go 1.26.0
+go 1.26.10
 
 require (
 	github.com/gofiber/fiber/v3 v3.5.0
