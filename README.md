@@ -104,8 +104,7 @@ read it; expect it to change in any release.
 
 Prerequisites:
 
-- Go 1.26.10 or later with CGO enabled (1.27.x must be 1.27.3 or later; older
-  toolchains predate the CVE-2026-111943 certificate denylist)
+- Go 1.26.10 or later with CGO enabled (1.27.x must be 1.27.3 or later)
 - Node.js or Bun latest
 - A local or Dockerized ZeroTier controller
 
