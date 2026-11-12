@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type MouseEvent, type SyntheticEvent } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent, type SyntheticEvent } from 'react'
 import {
   Alert,
   Box,
@@ -173,9 +173,14 @@ function NetworkDetail() {
   const [accessLoading, setAccessLoading] = useState(false)
 
   // The route reuses this component when :id changes, so a response for the
-  // previous network must not be allowed to replace the current one.
+  // previous network must not be allowed to replace the current one. The ref is
+  // updated after commit, so a render that React discards never changes which
+  // network is considered active.
   const activeNetworkId = useRef(id)
-  activeNetworkId.current = id
+
+  useLayoutEffect(() => {
+    activeNetworkId.current = id
+  }, [id])
 
   useEffect(() => {
     void fetchNetworkDetail()
@@ -204,6 +209,9 @@ function NetworkDetail() {
   }
 
   const fetchNetworkDetail = async (silent = false) => {
+    // A handler for the previous network may still call this after navigation.
+    // Return before touching the current page's loading state.
+    if (activeNetworkId.current !== id) return
     if (!silent) setLoading(true)
     try {
       if (!id) {
@@ -275,7 +283,7 @@ function NetworkDetail() {
   }
 
   const refreshNetworkAccess = async () => {
-    if (!id) return
+    if (!id || activeNetworkId.current !== id) return
     setAccessLoading(true)
     try {
       const response = await networkAPI.getNetworkAccess(id)
