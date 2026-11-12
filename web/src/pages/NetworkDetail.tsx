@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type MouseEvent, type SyntheticEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type MouseEvent, type SyntheticEvent } from 'react'
 import {
   Alert,
   Box,
@@ -172,6 +172,11 @@ function NetworkDetail() {
   const [networkAccess, setNetworkAccess] = useState<NetworkAccessDetail | null>(null)
   const [accessLoading, setAccessLoading] = useState(false)
 
+  // The route reuses this component when :id changes, so a response for the
+  // previous network must not be allowed to replace the current one.
+  const activeNetworkId = useRef(id)
+  activeNetworkId.current = id
+
   useEffect(() => {
     void fetchNetworkDetail()
   }, [id])
@@ -206,6 +211,7 @@ function NetworkDetail() {
       }
 
       const networkResponse = await networkAPI.getNetwork(id)
+      if (activeNetworkId.current !== id) return
       const networkData = networkResponse.data
       if (!networkData) return
 
@@ -245,16 +251,18 @@ function NetworkDetail() {
         setAccessLoading(true)
         try {
           const accessResponse = await networkAPI.getNetworkAccess(id)
+          if (activeNetworkId.current !== id) return
           setNetworkAccess(accessResponse.data)
         } catch {
-          setNetworkAccess(null)
+          if (activeNetworkId.current === id) setNetworkAccess(null)
         } finally {
-          setAccessLoading(false)
+          if (activeNetworkId.current === id) setAccessLoading(false)
         }
       } else {
         setNetworkAccess(null)
       }
     } catch (err: unknown) {
+      if (activeNetworkId.current !== id) return
       const message = getErrorMessage(err, translateText('获取网络详情失败'))
       if (silent) {
         showSnackbar(message, 'error')
@@ -262,7 +270,7 @@ function NetworkDetail() {
         setError(message)
       }
     } finally {
-      if (!silent) setLoading(false)
+      if (!silent && activeNetworkId.current === id) setLoading(false)
     }
   }
 
@@ -271,6 +279,7 @@ function NetworkDetail() {
     setAccessLoading(true)
     try {
       const response = await networkAPI.getNetworkAccess(id)
+      if (activeNetworkId.current !== id) return
       setNetworkAccess(response.data)
       setNetwork((previous) => (previous ? {
         ...previous,
@@ -280,9 +289,10 @@ function NetworkDetail() {
         },
       } : previous))
     } catch (err: unknown) {
+      if (activeNetworkId.current !== id) return
       showSnackbar(getErrorMessage(err, translateText('刷新成员与权限失败')), 'error')
     } finally {
-      setAccessLoading(false)
+      if (activeNetworkId.current === id) setAccessLoading(false)
     }
   }
 
