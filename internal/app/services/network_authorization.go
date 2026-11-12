@@ -9,9 +9,6 @@ import (
 var (
 	ErrNetworkNotFound     = errors.New("network not found")
 	ErrNetworkAccessDenied = errors.New("network access denied")
-	ErrMemberAccessDenied  = errors.New("network member access denied")
-	ErrViewerAccessDenied  = errors.New("network viewer access denied")
-	ErrViewerTargetInvalid = errors.New("only regular users can be granted network viewer access")
 	ErrImportAccessDenied  = errors.New("only administrators can import networks")
 	ErrImportOwnerRequired = errors.New("network owner is required")
 	ErrImportOwnerNotFound = errors.New("specified network owner was not found")
@@ -34,67 +31,63 @@ func (s *NetworkService) getNetwork(networkID string) (*models.Network, error) {
 	return network, nil
 }
 
-func (s *NetworkService) getOwnedNetwork(networkID, userID string) (*models.Network, error) {
-	network, err := s.getNetwork(networkID)
-	if err != nil {
-		return nil, err
-	}
-	if network.OwnerID != userID {
-		return nil, ErrNetworkAccessDenied
-	}
-
-	return network, nil
-}
-
-func (s *NetworkService) authorizeOwnedNetwork(networkID, userID string) (*models.Network, error) {
-	return s.getOwnedNetwork(networkID, userID)
-}
-
-func (s *NetworkService) authorizeMemberReadAccess(networkID, userID string) (*models.Network, error) {
-	network, err := s.getNetwork(networkID)
-	if err != nil {
-		return nil, err
-	}
+// getNetworkRole resolves the caller's effective role on an already-loaded
+// network: ownership first, then the account's delegated grant.
+func (s *NetworkService) getNetworkRole(network *models.Network, userID string) (NetworkRole, error) {
 	if network.OwnerID == userID {
-		return network, nil
+		return NetworkRoleOwner, nil
 	}
 
 	db := s.getDB()
 	if db == nil {
-		return nil, errors.New("database is not initialized")
-	}
-	viewer, viewerErr := db.GetNetworkViewer(networkID, userID)
-	if viewerErr != nil {
-		return nil, viewerErr
-	}
-	if viewer == nil {
-		return nil, ErrMemberAccessDenied
+		return "", errors.New("database is not initialized")
 	}
 
-	return network, nil
+	grant, err := db.GetNetworkGrant(network.ID, models.NetworkGrantSubjectUser, userID)
+	if err != nil {
+		return "", err
+	}
+	if grant == nil {
+		return "", ErrNetworkAccessDenied
+	}
+
+	role, ok := ParseNetworkRole(grant.Role)
+	if !ok {
+		return "", ErrNetworkAccessDenied
+	}
+
+	return role, nil
 }
 
-func (s *NetworkService) authorizeMemberWriteAccess(networkID, userID string) (*models.Network, error) {
-	network, err := s.getOwnedNetwork(networkID, userID)
+// EffectiveNetworkRole returns the role the user holds on the network, or
+// ErrNetworkAccessDenied when they hold none.
+func (s *NetworkService) EffectiveNetworkRole(networkID, userID string) (NetworkRole, error) {
+	network, err := s.getNetwork(networkID)
 	if err != nil {
-		if IsNetworkAccessDenied(err) {
-			return nil, ErrMemberAccessDenied
-		}
-		return nil, err
+		return "", err
 	}
-
-	return network, nil
+	return s.getNetworkRole(network, userID)
 }
 
-func (s *NetworkService) authorizeViewerManagement(networkID, userID string) (*models.Network, error) {
-	network, err := s.getOwnedNetwork(networkID, userID)
+// authorizeNetwork is the one place handlers and services ask whether a caller
+// may act. It loads the network, resolves the role, and checks the requested
+// permission, so a missing grant and an insufficient role both fail closed.
+func (s *NetworkService) authorizeNetwork(networkID, userID string, permission NetworkPermission) (*models.Network, NetworkRole, error) {
+	network, err := s.getNetwork(networkID)
 	if err != nil {
-		if IsNetworkAccessDenied(err) {
-			return nil, ErrViewerAccessDenied
-		}
-		return nil, err
+		return nil, "", err
 	}
-	return network, nil
+
+	role, err := s.getNetworkRole(network, userID)
+	if err != nil {
+		return nil, "", err
+	}
+
+	if !role.Has(permission) {
+		return nil, role, ErrNetworkPermissionDenied
+	}
+
+	return network, role, nil
 }
 
 func authorizeImport(actorRole, ownerID string) error {
@@ -112,5 +105,6 @@ func IsNetworkNotFound(err error) bool {
 }
 
 func IsNetworkAccessDenied(err error) bool {
-	return errors.Is(err, ErrNetworkAccessDenied) || errors.Is(err, ErrMemberAccessDenied) || errors.Is(err, ErrViewerAccessDenied)
+	return errors.Is(err, ErrNetworkAccessDenied) ||
+		errors.Is(err, ErrNetworkPermissionDenied)
 }

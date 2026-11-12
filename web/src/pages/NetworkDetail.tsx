@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState, type MouseEvent, type SyntheticEvent } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent, type SyntheticEvent } from 'react'
 import {
   Alert,
   Box,
   Button,
+  Chip,
   CircularProgress,
   Dialog,
   DialogActions,
@@ -15,7 +16,6 @@ import {
   Snackbar,
   Tab,
   Tabs,
-  TextField,
   Typography,
 } from '@mui/material'
 import { Alert as MuiAlert } from '@mui/material'
@@ -25,8 +25,8 @@ import {
   type IpAssignmentPool,
   type Network,
   type NetworkConfig,
+  type NetworkAccessDetail,
   type NetworkMetadataUpdateRequest,
-  type NetworkViewer,
   type Route,
   memberAPI,
   networkAPI,
@@ -40,6 +40,7 @@ import IPv6AssignmentSection from '../components/network-detail/IPv6AssignmentSe
 import ManagedRoutesSection from '../components/network-detail/ManagedRoutesSection'
 import MulticastSettingsSection from '../components/network-detail/MulticastSettingsSection'
 import NetworkBasicSettingsSection from '../components/network-detail/NetworkBasicSettingsSection'
+import NetworkAccessSection from '../components/network-detail/NetworkAccessSection'
 import NetworkMembersSection from '../components/network-detail/NetworkMembersSection'
 import SettingsSectionCard from '../components/network-detail/SettingsSectionCard'
 import type {
@@ -78,6 +79,7 @@ import {
   isValidDnsServer,
 } from '../utils/networkValidation'
 import { formatNetworkMember } from '../utils/memberUtils'
+import { networkRoleLabel } from '../utils/networkAccess'
 import { useTranslation } from '../i18n'
 
 const defaultNetworkConfig: Partial<NetworkConfig> = {
@@ -131,7 +133,7 @@ function generateRandomIPv4Subnet(): string {
 }
 
 function NetworkDetail() {
-  const { formatDateTime, translateText } = useTranslation()
+  const { translateText } = useTranslation()
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const [network, setNetwork] = useState<Network | null>(null)
@@ -167,13 +169,34 @@ function NetworkDetail() {
   const [memberDialogOpen, setMemberDialogOpen] = useState(false)
   const [memberDeleteDialogOpen, setMemberDeleteDialogOpen] = useState(false)
   const [memberForm, setMemberForm] = useState<MemberFormState>(emptyMemberForm)
-  const [networkViewers, setNetworkViewers] = useState<NetworkViewer[]>([])
-  const [viewerCandidates, setViewerCandidates] = useState<NetworkViewer[]>([])
-  const [selectedViewerCandidateId, setSelectedViewerCandidateId] = useState('')
+  const [networkAccess, setNetworkAccess] = useState<NetworkAccessDetail | null>(null)
+  const [accessLoading, setAccessLoading] = useState(false)
+
+  // The route reuses this component when :id changes, so a response for the
+  // previous network must not be allowed to replace the current one. The ref is
+  // updated after commit, so a render that React discards never changes which
+  // network is considered active.
+  const activeNetworkId = useRef(id)
+
+  useLayoutEffect(() => {
+    activeNetworkId.current = id
+  }, [id])
 
   useEffect(() => {
     void fetchNetworkDetail()
   }, [id])
+
+  const permissions = network?.access?.permissions ?? []
+  const canWriteMembers = permissions.includes('members.write')
+  const canEditBridge = permissions.includes('members.bridge')
+  const canWriteSettings = permissions.includes('settings.write')
+  const isOwner = network?.access?.role === 'owner'
+
+  useEffect(() => {
+    if (!canWriteSettings && activeTab === 2) {
+      setActiveTab(0)
+    }
+  }, [activeTab, canWriteSettings])
 
   const showSnackbar = (message: string, severity: 'success' | 'error' | 'info' = 'success') => {
     setSnackbar({ open: true, message, severity })
@@ -181,29 +204,23 @@ function NetworkDetail() {
 
   const scheduleRefetch = () => {
     window.setTimeout(() => {
-      void fetchNetworkDetail()
+      void fetchNetworkDetail(true)
     }, 1000)
   }
 
-  const fetchNetworkDetail = async () => {
-    setLoading(true)
+  const fetchNetworkDetail = async (silent = false) => {
+    // A handler for the previous network may still call this after navigation.
+    // Return before touching the current page's loading state.
+    if (activeNetworkId.current !== id) return
+    if (!silent) setLoading(true)
     try {
       if (!id) {
         throw new Error(translateText('网络ID不能为空'))
       }
 
-      const [networkResponse, viewersResult, viewerCandidatesResult] = await Promise.allSettled([
-        networkAPI.getNetwork(id),
-        networkAPI.getNetworkViewers(id),
-        networkAPI.getNetworkViewerCandidates(id),
-      ])
-      if (networkResponse.status !== 'fulfilled') {
-        throw networkResponse.reason
-      }
-
-      const networkData = networkResponse.value.data
-      const viewersData = viewersResult.status === 'fulfilled' ? viewersResult.value.data : []
-      const viewerCandidatesData = viewerCandidatesResult.status === 'fulfilled' ? viewerCandidatesResult.value.data : []
+      const networkResponse = await networkAPI.getNetwork(id)
+      if (activeNetworkId.current !== id) return
+      const networkData = networkResponse.data
       if (!networkData) return
 
       networkData.config = { ...defaultNetworkConfig, ...networkData.config }
@@ -235,23 +252,55 @@ function NetworkDetail() {
       setDnsSettings(nextDns)
       setInitialMulticastSettings(nextMulticast)
       setMulticastSettings(nextMulticast)
-      setNetworkViewers(Array.isArray(viewersData) ? viewersData : [])
-      const nextViewerCandidates = Array.isArray(viewerCandidatesData) ? viewerCandidatesData : []
-      setViewerCandidates(nextViewerCandidates)
-      setSelectedViewerCandidateId((previous) => (
-        nextViewerCandidates.some((candidate) => candidate.id === previous)
-          ? previous
-          : nextViewerCandidates[0]?.id || ''
-      ))
-      if (viewersResult.status !== 'fulfilled' || viewerCandidatesResult.status !== 'fulfilled') {
-        showSnackbar('只读授权信息暂时无法加载，其他网络内容仍可正常查看', 'info')
-      }
       setHidePendingBanner(false)
       setError('')
+
+      if (networkData.access?.permissions.includes('access.read')) {
+        setAccessLoading(true)
+        try {
+          const accessResponse = await networkAPI.getNetworkAccess(id)
+          if (activeNetworkId.current !== id) return
+          setNetworkAccess(accessResponse.data)
+        } catch {
+          if (activeNetworkId.current === id) setNetworkAccess(null)
+        } finally {
+          if (activeNetworkId.current === id) setAccessLoading(false)
+        }
+      } else {
+        setNetworkAccess(null)
+      }
     } catch (err: unknown) {
-      setError(getErrorMessage(err, translateText('获取网络详情失败')))
+      if (activeNetworkId.current !== id) return
+      const message = getErrorMessage(err, translateText('获取网络详情失败'))
+      if (silent) {
+        showSnackbar(message, 'error')
+      } else {
+        setError(message)
+      }
     } finally {
-      setLoading(false)
+      if (!silent && activeNetworkId.current === id) setLoading(false)
+    }
+  }
+
+  const refreshNetworkAccess = async () => {
+    if (!id || activeNetworkId.current !== id) return
+    setAccessLoading(true)
+    try {
+      const response = await networkAPI.getNetworkAccess(id)
+      if (activeNetworkId.current !== id) return
+      setNetworkAccess(response.data)
+      setNetwork((previous) => (previous ? {
+        ...previous,
+        access: {
+          role: response.data.my_role,
+          permissions: response.data.my_permissions,
+        },
+      } : previous))
+    } catch (err: unknown) {
+      if (activeNetworkId.current !== id) return
+      showSnackbar(getErrorMessage(err, translateText('刷新成员与权限失败')), 'error')
+    } finally {
+      if (activeNetworkId.current === id) setAccessLoading(false)
     }
   }
 
@@ -309,7 +358,7 @@ function NetworkDetail() {
   }
 
   const handleUpdateMemberStatus = async (member: NetworkMemberDevice, authorized: boolean) => {
-    if (!id) return
+    if (!id || !canWriteMembers) return
     setSaving(true)
     try {
       await memberAPI.updateMember(id, member.id, { authorized })
@@ -324,15 +373,15 @@ function NetworkDetail() {
   }
 
   const handleSaveMember = async () => {
-    if (!id || !selectedMember) return
+    if (!id || !selectedMember || !canWriteMembers) return
     setSaving(true)
     try {
       await memberAPI.updateMember(id, selectedMember.id, {
         name: memberForm.name,
         authorized: memberForm.authorized,
-        activeBridge: memberForm.activeBridge,
         noAutoAssignIps: memberForm.noAutoAssignIps,
         ipAssignments: memberForm.ipAssignments.map((ip) => ip.trim()).filter((ip) => ip !== ''),
+        ...(canEditBridge ? { activeBridge: memberForm.activeBridge } : {}),
       })
       showSnackbar('成员信息更新成功')
       setMemberDialogOpen(false)
@@ -345,7 +394,7 @@ function NetworkDetail() {
   }
 
   const handleDeleteMember = async () => {
-    if (!id || !selectedMember) return
+    if (!id || !selectedMember || !canWriteMembers) return
     setSaving(true)
     try {
       await memberAPI.deleteMember(id, selectedMember.id)
@@ -381,7 +430,7 @@ function NetworkDetail() {
   }
 
   const handleSaveMetadata = async () => {
-    if (!id) return
+    if (!id || !canWriteSettings) return
     setSaving(true)
     try {
       const metadataData: NetworkMetadataUpdateRequest = {
@@ -399,7 +448,7 @@ function NetworkDetail() {
   }
 
   const handleDeleteNetwork = async () => {
-    if (!id) return
+    if (!id || !isOwner) return
     setSaving(true)
     try {
       await networkAPI.deleteNetwork(id)
@@ -416,7 +465,7 @@ function NetworkDetail() {
   }
 
   const handleSaveIPv4 = async () => {
-    if (!id || !network) return
+    if (!id || !network || !canWriteSettings) return
     if (ipv4ConfigurationIssues.length > 0) {
       showSnackbar(ipv4ConfigurationIssues[0], 'error')
       return
@@ -450,7 +499,7 @@ function NetworkDetail() {
   }
 
   const handleSaveIPv6 = async () => {
-    if (!id || !network) return
+    if (!id || !network || !canWriteSettings) return
     if (ipv6ConfigurationIssues.length > 0) {
       showSnackbar(ipv6ConfigurationIssues[0], 'error')
       return
@@ -488,7 +537,7 @@ function NetworkDetail() {
   }
 
   const handleSaveManagedRoutes = async () => {
-    if (!id || !network) return
+    if (!id || !network || !canWriteSettings) return
     setSaving(true)
     try {
       await networkAPI.updateNetwork(id, {
@@ -510,7 +559,7 @@ function NetworkDetail() {
   }
 
   const handleSaveDNS = async () => {
-    if (!id) return
+    if (!id || !canWriteSettings) return
     setSaving(true)
     try {
       await networkAPI.updateNetwork(id, {
@@ -529,7 +578,7 @@ function NetworkDetail() {
   }
 
   const handleSaveMulticast = async () => {
-    if (!id) return
+    if (!id || !canWriteSettings) return
     setSaving(true)
     try {
       await networkAPI.updateNetwork(id, {
@@ -655,34 +704,6 @@ function NetworkDetail() {
     setSnackbar((prev) => ({ ...prev, open: false }))
   }
 
-  const handleAddViewer = async () => {
-    if (!id || !selectedViewerCandidateId) return
-    setSaving(true)
-    try {
-      await networkAPI.addNetworkViewer(id, selectedViewerCandidateId)
-      showSnackbar('只读查看权限已授予')
-      await fetchNetworkDetail()
-    } catch (err: unknown) {
-      showSnackbar(getErrorMessage(err, translateText('授予只读查看权限失败')), 'error')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const handleRemoveViewer = async (viewerUserID: string) => {
-    if (!id) return
-    setSaving(true)
-    try {
-      await networkAPI.deleteNetworkViewer(id, viewerUserID)
-      showSnackbar('只读查看权限已移除')
-      await fetchNetworkDetail()
-    } catch (err: unknown) {
-      showSnackbar(getErrorMessage(err, translateText('移除只读查看权限失败')), 'error')
-    } finally {
-      setSaving(false)
-    }
-  }
-
   if (error || !id) {
     return (
       <Box sx={{ p: 3 }}>
@@ -706,6 +727,13 @@ function NetworkDetail() {
           <Typography variant="h4" component="h1">
             {network?.name}
           </Typography>
+          {network?.access && (
+            <Chip
+              label={translateText(networkRoleLabel[network.access.role])}
+              color={network.access.role === 'owner' ? 'primary' : 'default'}
+              size="small"
+            />
+          )}
         </Box>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <Typography variant="body1" color="text.secondary">
@@ -719,8 +747,9 @@ function NetworkDetail() {
 
       <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
         <Tabs value={activeTab} onChange={handleTabChange} aria-label="network tabs">
-          <Tab label={translateText('成员设备')} />
-          <Tab label={translateText('设置')} />
+          <Tab label={translateText('设备')} />
+          <Tab label={translateText('成员')} />
+          {canWriteSettings && <Tab label={translateText('设置')} />}
         </Tabs>
       </Box>
 
@@ -731,95 +760,37 @@ function NetworkDetail() {
       ) : (
         <>
           {activeTab === 0 && (
-            <>
-              <NetworkMembersSection
-                memberDevices={memberDevices}
-                pendingMembers={pendingMembers}
-                authorizedMembers={authorizedMembers}
-                filteredMembers={filteredMembers}
-                memberSearchTerm={memberSearchTerm}
-                saving={saving}
-                hidePendingBanner={hidePendingBanner}
-                onMemberSearchTermChange={setMemberSearchTerm}
-                onHidePendingBanner={() => setHidePendingBanner(true)}
-                onQuickApprove={() => { void handleUpdateMemberStatus(pendingMembers[0], true) }}
-                onQuickReject={() => { void handleUpdateMemberStatus(pendingMembers[0], false) }}
-                onOpenMemberMenu={handleOpenMemberMenu}
-              />
-
-              <SettingsSectionCard titleKey="只读查看授权">
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                  {translateText('这里可以授予普通用户只读查看该网络成员设备的权限。被授权用户只能查看设备和元信息，不能修改任何内容。')}
-                </Typography>
-                <Box sx={{ display: 'flex', gap: 2, mb: 3, flexWrap: 'wrap', alignItems: 'center' }}>
-                  <TextField
-                    select
-                    label={translateText('选择用户')}
-                    value={selectedViewerCandidateId}
-                    onChange={(event) => setSelectedViewerCandidateId(event.target.value)}
-                    sx={{ minWidth: 260 }}
-                    slotProps={{ select: { native: false } }}
-                    disabled={saving || viewerCandidates.length === 0}
-                  >
-                    {viewerCandidates.map((candidate) => (
-                      <MenuItem key={candidate.id} value={candidate.id}>
-                        {candidate.username}
-                      </MenuItem>
-                    ))}
-                  </TextField>
-                  <Button
-                    variant="contained"
-                    onClick={() => { void handleAddViewer() }}
-                    disabled={saving || !selectedViewerCandidateId}
-                  >
-                    {translateText('授予只读查看')}
-                  </Button>
-                </Box>
-
-                {networkViewers.length === 0 ? (
-                  <Typography variant="body2" color="text.secondary">
-                    {translateText('当前还没有被授予只读查看权限的用户。')}
-                  </Typography>
-                ) : (
-                  <Box sx={{ display: 'grid', gap: 1.5 }}>
-                    {networkViewers.map((viewer) => (
-                      <Box
-                        key={viewer.id}
-                        sx={{
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
-                          gap: 2,
-                          p: 2,
-                          border: 1,
-                          borderColor: 'divider',
-                          borderRadius: 1,
-                        }}
-                      >
-                        <Box>
-                          <Typography variant="body1">{viewer.username}</Typography>
-                          <Typography variant="body2" color="text.secondary">
-                            {translateText('授权时间：')}{viewer.created_at ? formatDateTime(viewer.created_at) : '-'}
-                          </Typography>
-                        </Box>
-                        <Button
-                          variant="outlined"
-                          color="error"
-                          size="small"
-                          onClick={() => { void handleRemoveViewer(viewer.id) }}
-                          disabled={saving}
-                        >
-                          {translateText('移除权限')}
-                        </Button>
-                      </Box>
-                    ))}
-                  </Box>
-                )}
-              </SettingsSectionCard>
-            </>
+            <NetworkMembersSection
+              memberDevices={memberDevices}
+              pendingMembers={pendingMembers}
+              authorizedMembers={authorizedMembers}
+              filteredMembers={filteredMembers}
+              memberSearchTerm={memberSearchTerm}
+              saving={saving}
+              hidePendingBanner={hidePendingBanner}
+              onMemberSearchTermChange={setMemberSearchTerm}
+              readOnly={!canWriteMembers}
+              onHidePendingBanner={canWriteMembers ? () => setHidePendingBanner(true) : undefined}
+              onQuickApprove={canWriteMembers ? () => { void handleUpdateMemberStatus(pendingMembers[0], true) } : undefined}
+              onQuickReject={canWriteMembers ? () => { void handleUpdateMemberStatus(pendingMembers[0], false) } : undefined}
+              onOpenMemberMenu={canWriteMembers ? handleOpenMemberMenu : undefined}
+            />
           )}
 
           {activeTab === 1 && (
+            <NetworkAccessSection
+              networkId={id}
+              access={networkAccess}
+              loading={accessLoading}
+              canManage={permissions.includes('access.write')}
+              onChanged={refreshNetworkAccess}
+              onOwnershipChanged={async () => { await fetchNetworkDetail(true) }}
+              onLeft={() => { void navigate('/networks', { replace: true }) }}
+              onNotice={(message, severity = 'success') => showSnackbar(message, severity)}
+            />
+          )}
+
+          {activeTab === 2 && (
             <>
               <NetworkBasicSettingsSection
                 saving={saving}
@@ -914,29 +885,33 @@ function NetworkDetail() {
                 onSave={() => { void handleSaveMulticast() }}
               />
 
-              <SettingsSectionCard titleKey="删除网络">
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                  {translateText('此操作不可恢复。删除网络将断开所有连接的设备，并永久删除网络配置。')}
-                </Typography>
-                <Button variant="contained" color="error" size="large" onClick={() => setDeleteDialogOpen(true)}>
-                  {translateText('删除网络')}
-                </Button>
-              </SettingsSectionCard>
+              {isOwner && (
+                <>
+                  <SettingsSectionCard titleKey="删除网络">
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                      {translateText('此操作不可恢复。删除网络将断开所有连接的设备，并永久删除网络配置。')}
+                    </Typography>
+                    <Button variant="contained" color="error" size="large" onClick={() => setDeleteDialogOpen(true)}>
+                      {translateText('删除网络')}
+                    </Button>
+                  </SettingsSectionCard>
 
-              <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>
-                <DialogTitle>{translateText('确认删除网络')}</DialogTitle>
-                <DialogContent>
-                  <DialogContentText>
-                    {translateText('您确定要删除网络')} "{network?.name}" {translateText('吗？此操作不可恢复，将永久删除该网络及其所有配置。')}
-                  </DialogContentText>
-                </DialogContent>
-                <DialogActions>
-                  <Button onClick={() => setDeleteDialogOpen(false)} color="primary">{translateText('取消')}</Button>
-                  <Button onClick={() => { void handleDeleteNetwork() }} color="error" autoFocus disabled={saving}>
-                    {saving ? translateText('删除中...') : translateText('确认删除')}
-                  </Button>
-                </DialogActions>
-              </Dialog>
+                  <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>
+                    <DialogTitle>{translateText('确认删除网络')}</DialogTitle>
+                    <DialogContent>
+                      <DialogContentText>
+                        {translateText('您确定要删除网络')} "{network?.name}" {translateText('吗？此操作不可恢复，将永久删除该网络及其所有配置。')}
+                      </DialogContentText>
+                    </DialogContent>
+                    <DialogActions>
+                      <Button onClick={() => setDeleteDialogOpen(false)} color="primary">{translateText('取消')}</Button>
+                      <Button onClick={() => { void handleDeleteNetwork() }} color="error" autoFocus disabled={saving}>
+                        {saving ? translateText('删除中...') : translateText('确认删除')}
+                      </Button>
+                    </DialogActions>
+                  </Dialog>
+                </>
+              )}
             </>
           )}
         </>
@@ -974,6 +949,7 @@ function NetworkDetail() {
         onCopyMemberID={() => { void handleCopyMemberID() }}
         onMemberFormChange={setMemberForm}
         onSave={() => { void handleSaveMember() }}
+        canEditBridge={canEditBridge}
       />
 
       <DeleteMemberDialog

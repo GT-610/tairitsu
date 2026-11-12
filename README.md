@@ -10,7 +10,7 @@ Tairitsu is a self-hosted web console for a separately installed ZeroTier contro
 
 - Setup wizard for controller connection, SQLite, and initial admin creation
 - User registration, login, password change, session handling, admin transfer, admin-created users, password reset, and user deletion
-- Network creation, detail view, and member approval / rejection / removal
+- Network creation, detail view, member approval / rejection / removal, and per-network roles (owner, manager, operator, viewer)
 - IPv4, IPv6, managed routes, DNS, and multicast settings
 - Import takeover for controller networks not yet owned in Tairitsu
 - Experimental `Planet` generation

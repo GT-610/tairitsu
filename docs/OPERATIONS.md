@@ -11,8 +11,18 @@ Tairitsu includes:
 - user governance by the platform admin
 - owner-scoped network management
 - member approval, rejection, editing, and removal
+- per-network roles (owner, manager, operator, viewer)
 - IPv4, IPv6, routes, DNS, and multicast settings
 - import takeover of controller networks not yet owned in Tairitsu
+
+### Upgrading from read-only shares
+
+On the first start after upgrading from a release that used `network_viewers`,
+Tairitsu copies every legacy read-only share into `network_grants` as a
+`viewer` grant and removes the old table. Users keep their existing access and
+do not need to sign in again or re-share anything. The server log records the
+legacy row count and the number of inserted grants; no manual migration step is
+required.
 
 ## Explicit Boundaries
 

@@ -6,9 +6,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/GT-610/tairitsu/internal/app/logger"
 	"github.com/GT-610/tairitsu/internal/app/models"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 )
 
 // IsDuplicateKey reports whether err is a unique or primary key violation.
@@ -36,10 +37,61 @@ func (g *GormDB) Init() error {
 	}
 
 	// Auto-migrate user models
-	if err := g.db.AutoMigrate(&models.User{}, &models.Network{}, &models.Session{}, &models.NetworkViewer{}); err != nil {
+	if err := g.db.AutoMigrate(&models.User{}, &models.Network{}, &models.Session{}, &models.NetworkGrant{}); err != nil {
 		return fmt.Errorf("failed to auto-migrate models: %w", err)
 	}
 
+	if err := g.migrateLegacyNetworkViewers(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// migrateLegacyNetworkViewers moves the single-role sharing table that preceded
+// network_grants. Upgrading copies every row into the grants table as a viewer
+// grant and removes the old table, so users keep their existing access without
+// doing anything and a later startup cannot resurrect a revoked grant.
+func (g *GormDB) migrateLegacyNetworkViewers() error {
+	const legacyTable = "network_viewers"
+	if !g.db.Migrator().HasTable(legacyTable) {
+		return nil
+	}
+
+	var legacyRows int64
+	if err := g.db.Table(legacyTable).Count(&legacyRows).Error; err != nil {
+		return fmt.Errorf("failed to inspect the legacy network_viewers table: %w", err)
+	}
+
+	if legacyRows == 0 {
+		if err := g.db.Migrator().DropTable(legacyTable); err != nil {
+			return fmt.Errorf("failed to remove the empty legacy network_viewers table: %w", err)
+		}
+		logger.Info("database: removed the empty legacy network_viewers table")
+		return nil
+	}
+
+	inserted := int64(0)
+	if err := g.db.Transaction(func(tx *gorm.DB) error {
+		result := tx.Exec(`
+			INSERT OR IGNORE INTO network_grants
+				(network_id, subject_type, subject_id, role, granted_by, created_at, updated_at)
+			SELECT network_id, ?, user_id, ?, granted_by, created_at, updated_at
+			FROM network_viewers
+			WHERE network_id <> '' AND user_id <> ''
+		`, models.NetworkGrantSubjectUser, "viewer")
+		if result.Error != nil {
+			return result.Error
+		}
+		inserted = result.RowsAffected
+		return tx.Migrator().DropTable(legacyTable)
+	}); err != nil {
+		return fmt.Errorf("failed to migrate legacy network_viewers grants: %w", err)
+	}
+
+	logger.Info("database: migrated legacy network_viewers grants",
+		zap.Int64("legacy_rows", legacyRows),
+		zap.Int64("inserted_grants", inserted))
 	return nil
 }
 
@@ -286,63 +338,212 @@ func (g *GormDB) UpdateNetwork(network *models.Network) error {
 	return result.Error
 }
 
+// UpdateNetworkMetadata writes only the display fields. A metadata request can
+// overlap an ownership transfer, so it must not write OwnerID or other columns
+// from a stale full-record read.
+func (g *GormDB) UpdateNetworkMetadata(id string, name, description *string, updatedAt time.Time) error {
+	updates := map[string]any{"updated_at": updatedAt}
+	if name != nil {
+		updates["name"] = *name
+	}
+	if description != nil {
+		updates["description"] = *description
+	}
+	return g.db.Model(&models.Network{}).Where("id = ?", id).Updates(updates).Error
+}
+
+// UpdateNetworkOwnerIfCurrent changes the owner only while currentOwnerID still
+// owns the network. Two racing transfers therefore cannot both commit, and the
+// loser gets zero rows instead of overwriting the winner.
+func (g *GormDB) UpdateNetworkOwnerIfCurrent(networkID, currentOwnerID, newOwnerID string, updatedAt time.Time) (int64, error) {
+	result := g.db.Model(&models.Network{}).
+		Where("id = ? AND owner_id = ?", networkID, currentOwnerID).
+		Updates(map[string]any{
+			"owner_id":   newOwnerID,
+			"updated_at": updatedAt,
+		})
+	return result.RowsAffected, result.Error
+}
+
 // DeleteNetwork deletes a network
 func (g *GormDB) DeleteNetwork(id string) error {
 	result := g.db.Delete(&models.Network{}, "id = ?", id)
 	return result.Error
 }
 
-func (g *GormDB) UpsertNetworkViewer(viewer *models.NetworkViewer) error {
-	return g.db.Clauses(clause.OnConflict{
-		Columns: []clause.Column{
-			{Name: "network_id"},
-			{Name: "user_id"},
-		},
-		DoUpdates: clause.AssignmentColumns([]string{"granted_by", "updated_at"}),
-	}).Create(viewer).Error
-}
-
-func (g *GormDB) GetNetworkViewer(networkID, userID string) (*models.NetworkViewer, error) {
-	var viewer models.NetworkViewer
-	result := g.db.First(&viewer, "network_id = ? AND user_id = ?", networkID, userID)
-	if result.Error != nil {
-		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			return nil, nil
-		}
-		return nil, result.Error
+func (g *GormDB) GetNetworksByIDs(ids []string) ([]*models.Network, error) {
+	if len(ids) == 0 {
+		return []*models.Network{}, nil
 	}
-	return &viewer, nil
-}
-
-func (g *GormDB) GetNetworkViewers(networkID string) ([]*models.NetworkViewer, error) {
-	var viewers []*models.NetworkViewer
-	result := g.db.Where("network_id = ?", networkID).Order("created_at ASC").Find(&viewers)
-	if result.Error != nil {
-		return nil, result.Error
-	}
-	return viewers, nil
-}
-
-func (g *GormDB) GetSharedNetworksByUserID(userID string) ([]*models.Network, error) {
 	var networks []*models.Network
-	result := g.db.Table("networks").
-		Select("networks.id, networks.name, networks.description, networks.owner_id, networks.created_at, networks.updated_at").
-		Joins("JOIN network_viewers ON network_viewers.network_id = networks.id").
-		Where("network_viewers.user_id = ?", userID).
-		Order("networks.created_at DESC").
-		Find(&networks)
+	result := g.db.Where("id IN ?", ids).Find(&networks)
 	if result.Error != nil {
 		return nil, result.Error
 	}
 	return networks, nil
 }
 
-func (g *GormDB) DeleteNetworkViewer(networkID, userID string) error {
-	return g.db.Delete(&models.NetworkViewer{}, "network_id = ? AND user_id = ?", networkID, userID).Error
+func (g *GormDB) CreateNetworkGrant(grant *models.NetworkGrant) error {
+	return g.db.Create(grant).Error
 }
 
-func (g *GormDB) DeleteAllNetworkViewers(networkID string) error {
-	return g.db.Delete(&models.NetworkViewer{}, "network_id = ?", networkID).Error
+// CreateNetworkGrantIfActorCanWrite inserts the grant only while the actor still
+// owns the network or holds a manager grant. The permission check and the insert
+// are one statement, so a manager revoked mid-request cannot create access.
+func (g *GormDB) CreateNetworkGrantIfActorCanWrite(grant *models.NetworkGrant, actorID string) (int64, error) {
+	result := g.db.Exec(`
+		INSERT INTO network_grants
+			(network_id, subject_type, subject_id, role, granted_by, created_at, updated_at)
+		SELECT ?, ?, ?, ?, ?, ?, ?
+		WHERE (
+			EXISTS (SELECT 1 FROM networks WHERE id = ? AND owner_id = ?)
+			OR (
+				? IN ('viewer', 'operator')
+				AND EXISTS (
+					SELECT 1 FROM network_grants AS actor_grant
+					WHERE actor_grant.network_id = ?
+						AND actor_grant.subject_type = ?
+						AND actor_grant.subject_id = ?
+						AND actor_grant.role = 'manager'
+				)
+			)
+		)
+		AND NOT EXISTS (
+			SELECT 1 FROM network_grants
+			WHERE network_id = ? AND subject_type = ? AND subject_id = ?
+		)
+	`, grant.NetworkID, grant.SubjectType, grant.SubjectID, grant.Role, grant.GrantedBy, grant.CreatedAt, grant.UpdatedAt,
+		grant.NetworkID, actorID,
+		grant.Role,
+		grant.NetworkID, models.NetworkGrantSubjectUser, actorID,
+		grant.NetworkID, grant.SubjectType, grant.SubjectID)
+	return result.RowsAffected, result.Error
+}
+
+func (g *GormDB) GetNetworkGrant(networkID, subjectType, subjectID string) (*models.NetworkGrant, error) {
+	var grant models.NetworkGrant
+	result := g.db.First(&grant, "network_id = ? AND subject_type = ? AND subject_id = ?", networkID, subjectType, subjectID)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, result.Error
+	}
+	return &grant, nil
+}
+
+func (g *GormDB) GetNetworkGrants(networkID string) ([]*models.NetworkGrant, error) {
+	var grants []*models.NetworkGrant
+	result := g.db.Where("network_id = ?", networkID).Order("created_at ASC").Find(&grants)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	return grants, nil
+}
+
+func (g *GormDB) GetNetworkGrantsByUserID(userID string) ([]*models.NetworkGrant, error) {
+	var grants []*models.NetworkGrant
+	result := g.db.
+		Where("subject_type = ? AND subject_id = ?", models.NetworkGrantSubjectUser, userID).
+		Order("created_at ASC").
+		Find(&grants)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	return grants, nil
+}
+
+func (g *GormDB) UpdateNetworkGrantIfActorCanWriteAndRole(grant *models.NetworkGrant, actorID, expectedRole string) (int64, error) {
+	result := g.db.Exec(`
+		UPDATE network_grants
+		SET role = ?, granted_by = ?, updated_at = ?
+		WHERE network_id = ? AND subject_type = ? AND subject_id = ? AND role = ?
+			AND (
+				EXISTS (SELECT 1 FROM networks WHERE id = ? AND owner_id = ?)
+				OR (
+					? IN ('viewer', 'operator')
+					AND ? IN ('viewer', 'operator')
+					AND EXISTS (
+						SELECT 1 FROM network_grants AS actor_grant
+						WHERE actor_grant.network_id = ?
+							AND actor_grant.subject_type = ?
+							AND actor_grant.subject_id = ?
+							AND actor_grant.role = 'manager'
+					)
+				)
+			)
+	`, grant.Role, grant.GrantedBy, grant.UpdatedAt,
+		grant.NetworkID, grant.SubjectType, grant.SubjectID, expectedRole,
+		grant.NetworkID, actorID,
+		grant.Role, expectedRole,
+		grant.NetworkID, models.NetworkGrantSubjectUser, actorID)
+	return result.RowsAffected, result.Error
+}
+
+func (g *GormDB) DeleteNetworkGrant(networkID, subjectType, subjectID string) error {
+	return g.db.
+		Delete(&models.NetworkGrant{}, "network_id = ? AND subject_type = ? AND subject_id = ?", networkID, subjectType, subjectID).
+		Error
+}
+
+func (g *GormDB) DeleteNetworkGrantIfActorCanWriteAndRole(networkID, subjectType, subjectID, actorID, expectedRole string) (int64, error) {
+	result := g.db.Exec(`
+		DELETE FROM network_grants
+		WHERE network_id = ? AND subject_type = ? AND subject_id = ? AND role = ?
+			AND (
+				EXISTS (SELECT 1 FROM networks WHERE id = ? AND owner_id = ?)
+				OR (
+					? IN ('viewer', 'operator')
+					AND EXISTS (
+						SELECT 1 FROM network_grants AS actor_grant
+						WHERE actor_grant.network_id = ?
+							AND actor_grant.subject_type = ?
+							AND actor_grant.subject_id = ?
+							AND actor_grant.role = 'manager'
+					)
+				)
+			)
+	`, networkID, subjectType, subjectID, expectedRole,
+		networkID, actorID,
+		expectedRole,
+		networkID, models.NetworkGrantSubjectUser, actorID)
+	return result.RowsAffected, result.Error
+}
+
+func (g *GormDB) DeleteNetworkGrants(networkID string) error {
+	return g.db.Delete(&models.NetworkGrant{}, "network_id = ?", networkID).Error
+}
+
+func (g *GormDB) DeleteUserNetworkGrants(userID string) error {
+	return g.db.
+		Delete(&models.NetworkGrant{}, "subject_type = ? AND subject_id = ?", models.NetworkGrantSubjectUser, userID).
+		Error
+}
+
+// SearchUsers returns accounts whose username contains query. An empty query
+// returns no rows so an owner cannot page through the whole account directory
+// by opening the picker.
+func (g *GormDB) SearchUsers(query string, limit int) ([]*models.User, error) {
+	query = strings.TrimSpace(query)
+	if query == "" {
+		return []*models.User{}, nil
+	}
+	if limit <= 0 || limit > 50 {
+		limit = 20
+	}
+
+	escaped := strings.NewReplacer("!", "!!", "%", "!%", "_", "!_").Replace(strings.ToLower(query))
+
+	var users []*models.User
+	result := g.db.
+		Where("LOWER(username) LIKE ? ESCAPE '!'", "%"+escaped+"%").
+		Order("username ASC").
+		Limit(limit).
+		Find(&users)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	return users, nil
 }
 
 // Ping checks if the database connection is alive.

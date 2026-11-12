@@ -24,6 +24,7 @@ func SetupRoutes(router *fiber.App, dependencies *assembly.Dependencies) {
 
 	networkHandler := dependencies.Handlers.Network
 	memberHandler := dependencies.Handlers.Member
+	accessHandler := dependencies.Handlers.Access
 	authHandler := dependencies.Handlers.Auth
 	userHandler := dependencies.Handlers.User
 	systemHandler := dependencies.Handlers.System
@@ -97,10 +98,13 @@ func SetupRoutes(router *fiber.App, dependencies *assembly.Dependencies) {
 		api.Put("/networks/:id", runtimeOnly, authMiddleware, networkHandler.UpdateNetwork)
 		api.Put("/networks/:id/metadata", runtimeOnly, authMiddleware, networkHandler.UpdateNetworkMetadata)
 		api.Delete("/networks/:id", runtimeOnly, authMiddleware, networkHandler.DeleteNetwork)
-		api.Get("/networks/:id/viewers", runtimeOnly, authMiddleware, networkHandler.GetNetworkViewers)
-		api.Get("/networks/:id/viewers/available", runtimeOnly, authMiddleware, networkHandler.GetNetworkViewerCandidates)
-		api.Post("/networks/:id/viewers", runtimeOnly, authMiddleware, networkHandler.AddNetworkViewer)
-		api.Delete("/networks/:id/viewers/:userId", runtimeOnly, authMiddleware, networkHandler.DeleteNetworkViewer)
+		api.Get("/networks/:id/access", runtimeOnly, authMiddleware, accessHandler.GetNetworkAccess)
+		api.Get("/networks/:id/access/candidates", runtimeOnly, authMiddleware, accessHandler.GetNetworkAccessCandidates)
+		api.Post("/networks/:id/access/users", runtimeOnly, authMiddleware, accessHandler.GrantNetworkAccess)
+		api.Patch("/networks/:id/access/users/:userId", runtimeOnly, authMiddleware, accessHandler.UpdateNetworkAccess)
+		api.Delete("/networks/:id/access/users/:userId", runtimeOnly, authMiddleware, accessHandler.RevokeNetworkAccess)
+		api.Post("/networks/:id/owner", runtimeOnly, authMiddleware, accessHandler.TransferNetworkOwnership)
+		api.Post("/networks/:id/leave", runtimeOnly, authMiddleware, accessHandler.LeaveNetwork)
 
 		api.Get("/networks/:id/members", runtimeOnly, authMiddleware, memberHandler.GetMembers)
 		api.Get("/networks/:id/members/:memberId", runtimeOnly, authMiddleware, memberHandler.GetMember)

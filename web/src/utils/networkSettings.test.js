@@ -22,6 +22,7 @@ const baseNetwork = {
     ],
   },
   members: [],
+  access: /** @type {import('../services/api').NetworkAccessInfo} */ ({ role: 'owner', permissions: ['network.read'] }),
   status: 'OK',
   createdAt: '',
   updatedAt: '',

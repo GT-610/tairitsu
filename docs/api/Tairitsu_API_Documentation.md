@@ -280,11 +280,17 @@ Revokes all other sessions of the current user.
 
 ## Networks and Members
 
-Network and member access is owner-scoped:
+Network and member access is role-based:
 
-- users only see networks where they are the recorded `owner_id`
-- accessing someone else's network returns `403`
-- accessing a missing network returns `404`
+- `owner` has full control, including deleting the network and transferring ownership
+- `manager` can read and modify network settings and manage members
+- `operator` can read the network and manage devices
+- `viewer` can read the network, its devices, and its access list
+- a request that lacks the required role returns `403`
+- a missing network returns `404`
+
+`GET /networks` returns networks the current user owns; delegated networks are
+returned by `GET /networks/shared` with the caller's role.
 
 ### `GET /networks`
 
@@ -298,6 +304,7 @@ Example item:
   "name": "alpha",
   "description": "alpha-desc",
   "owner_id": "user-uuid",
+  "role": "owner",
   "member_count": 3,
   "authorized_member_count": 2,
   "pending_member_count": 1,
@@ -308,8 +315,8 @@ Example item:
 
 ### `GET /networks/shared`
 
-Returns networks that other users own but have granted the current user
-read-only access to.
+Returns networks that other users own but have granted the current user a
+role on.
 
 Example item:
 
@@ -320,6 +327,7 @@ Example item:
   "description": "beta-desc",
   "owner_id": "owner-uuid",
   "owner_username": "bob",
+  "role": "viewer",
   "member_count": 4,
   "authorized_member_count": 3,
   "pending_member_count": 1,
@@ -334,65 +342,129 @@ Creates a network owned by the current user.
 
 ### `GET /networks/:id`
 
-Returns full network detail, database description, and current members.
+Returns full network detail, database description, current devices, and the caller's `access` role and permission list.
 
 ### `PUT /networks/:id`
 
-Updates network configuration.
+Updates network configuration. Requires the `settings.write` permission (manager or owner).
 
 ### `PUT /networks/:id/metadata`
 
-Updates network name and description.
+Updates network name and description. Requires the `settings.write` permission (manager or owner).
 
 ### `DELETE /networks/:id`
 
-Deletes an owned network.
+Deletes a network. Requires the `network.delete` permission, which only the owner holds.
 
-### `GET /networks/:id/viewers`
+### Network roles
 
-Returns the users currently granted read-only access to an owned network.
+Every network has one owner (`networks.owner_id`) and any number of delegated
+accounts. A grant is stored in `network_grants` with one of these roles:
 
-Example item:
+| Role | Capabilities |
+| --- | --- |
+| `viewer` | Read the network, its devices, and the access list |
+| `operator` | `viewer` plus approve, reject, remove, rename, and address devices |
+| `manager` | `operator` plus bridge mode, network settings, and access management |
+| `owner` | Everything, plus deleting the network and transferring ownership |
+
+`GET /networks/:id` includes an `access` object for the caller:
 
 ```json
 {
-  "id": "user-uuid",
+  "access": {
+    "role": "manager",
+    "permissions": [
+      "network.read",
+      "members.read",
+      "members.write",
+      "members.bridge",
+      "settings.write",
+      "access.read",
+      "access.write"
+    ]
+  }
+}
+```
+
+The frontend renders actions from `permissions`; it never compares role names.
+
+### `GET /networks/:id/access`
+
+Returns the owner and delegated accounts for a network.
+
+Example entry:
+
+```json
+{
+  "user_id": "user-uuid",
   "username": "alice",
-  "role": "user",
+  "role": "operator",
   "granted_by": "owner-uuid",
+  "granted_by_username": "owner",
   "created_at": "2026-04-23T10:00:00Z",
   "updated_at": "2026-04-23T10:00:00Z"
 }
 ```
 
-### `GET /networks/:id/viewers/available`
+### `GET /networks/:id/access/candidates?q=`
 
-Returns users eligible to be granted read-only access, using the same item shape
-as `GET /networks/:id/viewers`.
+Searches accounts that are not on the network yet. Returns at most 20 matches;
+an empty `q` returns no rows.
 
-### `POST /networks/:id/viewers`
+### `POST /networks/:id/access/users`
 
-Grants read-only access to one user.
+Grants one account a role.
 
 Request:
 
 ```json
 {
-  "user_id": "user-uuid"
+  "user_id": "user-uuid",
+  "role": "operator"
 }
 ```
 
-### `DELETE /networks/:id/viewers/:userId`
+A manager may grant `operator` or `viewer`; only the owner may grant `manager`.
+`owner` cannot be granted through this endpoint.
 
-Revokes read-only access from one user.
+### `PATCH /networks/:id/access/users/:userId`
+
+Changes one account's role. The same role constraints apply. A user cannot change
+their own role through this endpoint; they leave instead.
+
+### `DELETE /networks/:id/access/users/:userId`
+
+Revokes one account's access. The owner cannot be removed.
+
+### `POST /networks/:id/owner`
+
+Transfers ownership to an existing member.
+
+Request:
+
+```json
+{
+  "user_id": "user-uuid",
+  "previous_owner_role": "manager"
+}
+```
+
+`previous_owner_role` may be `manager`, `operator`, `viewer`, or `none`. It
+defaults to `manager` when omitted. The new owner's old grant is removed because
+ownership is implicit.
+
+### `POST /networks/:id/leave`
+
+Removes the caller's own grant. The owner must transfer ownership first.
 
 ### `GET /networks/:id/members`
 
-Returns members for an owned network.
+Returns devices for a network the caller can read.
 
 ### `GET /networks/:id/members/:memberId`
 
-Returns one member in an owned network.
+Returns one device in a network the caller can read.
 
 ### `PUT /networks/:id/members/:memberId`
 

@@ -620,18 +620,8 @@ func (s *UserService) DeleteUserByAdmin(currentAdminID, targetUserID string) (*m
 			revokedSessions++
 		}
 
-		sharedNetworks, err := tx.GetSharedNetworksByUserID(targetUserID)
-		if err != nil {
-			return fmt.Errorf("failed to read shared network grants for user: %w", err)
-		}
-
-		for _, network := range sharedNetworks {
-			if network == nil {
-				continue
-			}
-			if err := tx.DeleteNetworkViewer(network.ID, targetUserID); err != nil {
-				return fmt.Errorf("failed to delete shared network grants for user: %w", err)
-			}
+		if err := tx.DeleteUserNetworkGrants(targetUserID); err != nil {
+			return fmt.Errorf("failed to delete network access grants for user: %w", err)
 		}
 
 		if err := tx.DeleteUser(targetUserID); err != nil {

@@ -388,12 +388,14 @@ func TestUserServiceDeleteUserByAdminTransfersNetworksAndRevokesSessions(t *test
 		CreatedAt:   now,
 		UpdatedAt:   now,
 	}))
-	require.NoError(t, db.UpsertNetworkViewer(&models.NetworkViewer{
-		NetworkID: "net-2",
-		UserID:    target.ID,
-		GrantedBy: admin.ID,
-		CreatedAt: now,
-		UpdatedAt: now,
+	require.NoError(t, db.CreateNetworkGrant(&models.NetworkGrant{
+		NetworkID:   "net-2",
+		SubjectType: models.NetworkGrantSubjectUser,
+		SubjectID:   target.ID,
+		Role:        "viewer",
+		GrantedBy:   admin.ID,
+		CreatedAt:   now,
+		UpdatedAt:   now,
 	}))
 
 	session := &models.Session{
@@ -426,9 +428,9 @@ func TestUserServiceDeleteUserByAdminTransfersNetworksAndRevokesSessions(t *test
 	require.NoError(t, err)
 	assert.Nil(t, reloadedUser)
 
-	reloadedViewerGrant, err := db.GetNetworkViewer("net-2", target.ID)
+	reloadedGrant, err := db.GetNetworkGrant("net-2", models.NetworkGrantSubjectUser, target.ID)
 	require.NoError(t, err)
-	assert.Nil(t, reloadedViewerGrant)
+	assert.Nil(t, reloadedGrant)
 
 	_, err = service.Login(&models.LoginRequest{Username: "alice", Password: "secret123"})
 	require.ErrorIs(t, err, appservices.ErrInvalidCredentials)

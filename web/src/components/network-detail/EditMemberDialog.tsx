@@ -11,6 +11,7 @@ interface EditMemberDialogProps {
   onCopyMemberID: () => void;
   onMemberFormChange: (next: MemberFormState) => void;
   onSave: () => void;
+  canEditBridge: boolean;
 }
 
 function parseMemberCreationTime(value?: string | number): Date | null {
@@ -74,6 +75,7 @@ function EditMemberDialog({
   onCopyMemberID,
   onMemberFormChange,
   onSave,
+  canEditBridge,
 }: EditMemberDialogProps) {
   const { formatDateTime, translateText } = useTranslation()
   const updateIps = (ipAssignments: string[]) => onMemberFormChange({ ...memberForm, ipAssignments })
@@ -225,10 +227,16 @@ function EditMemberDialog({
                   <Switch
                     checked={memberForm.activeBridge}
                     onChange={(event) => onMemberFormChange({ ...memberForm, activeBridge: event.target.checked })}
+                    disabled={!canEditBridge}
                   />
                 )}
                 label={translateText('允许以桥接设备身份接入')}
               />
+              {!canEditBridge && (
+                <Typography variant="body2" color="text.secondary">
+                  {translateText('只有网络管理员可以修改桥接模式。')}
+                </Typography>
+              )}
             </Stack>
           </Paper>
         </Stack>

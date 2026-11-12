@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useParams } from 'react-router-dom';
 import { Alert, Button, CircularProgress, Box } from '@mui/material';
 import Login from './pages/Login';
 import Register from './pages/Register';
@@ -18,8 +18,13 @@ const lazyPages = {
   Dashboard: lazy(() => import('./pages/Dashboard')),
   Settings: lazy(() => import('./pages/Settings')),
   NetworkDetail: lazy(() => import('./pages/NetworkDetail')),
-  SharedNetworkMembers: lazy(() => import('./pages/SharedNetworkMembers')),
 };
+
+// Old shared-network bookmarks still open the unified detail page.
+function SharedNetworkRedirect() {
+  const { id } = useParams<{ id: string }>();
+  return <Navigate to={id ? `/networks/${id}` : '/networks'} replace />;
+}
 
 function Loading() {
   return (
@@ -98,7 +103,7 @@ function AppContent() {
                 <Route path="/" element={<Layout user={user} />}>
                   {/* 公共路由 */}
                   <Route path="networks" element={<Networks />}></Route>
-                  <Route path="networks/shared/:id" element={<Suspense fallback={<Loading />}><lazyPages.SharedNetworkMembers /></Suspense>}></Route>
+                  <Route path="networks/shared/:id" element={<SharedNetworkRedirect />}></Route>
                   <Route path="networks/:id" element={<Suspense fallback={<Loading />}><lazyPages.NetworkDetail /></Suspense>}></Route>
                   <Route path="settings" element={<Suspense fallback={<Loading />}><lazyPages.Settings /></Suspense>}></Route>
                   
