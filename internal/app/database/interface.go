@@ -34,15 +34,23 @@ type DBInterface interface {
 	CreateNetwork(network *models.Network) error
 	GetNetworkByID(id string) (*models.Network, error)
 	GetNetworksByOwnerID(ownerID string) ([]*models.Network, error)
+	GetNetworksByIDs(ids []string) ([]*models.Network, error)
 	GetAllNetworks() ([]*models.Network, error)
 	UpdateNetwork(network *models.Network) error
 	DeleteNetwork(id string) error
-	UpsertNetworkViewer(viewer *models.NetworkViewer) error
-	GetNetworkViewer(networkID, userID string) (*models.NetworkViewer, error)
-	GetNetworkViewers(networkID string) ([]*models.NetworkViewer, error)
-	GetSharedNetworksByUserID(userID string) ([]*models.Network, error)
-	DeleteNetworkViewer(networkID, userID string) error
-	DeleteAllNetworkViewers(networkID string) error
+
+	// Network access grants
+	CreateNetworkGrant(grant *models.NetworkGrant) error
+	GetNetworkGrant(networkID, subjectType, subjectID string) (*models.NetworkGrant, error)
+	GetNetworkGrants(networkID string) ([]*models.NetworkGrant, error)
+	GetNetworkGrantsByUserID(userID string) ([]*models.NetworkGrant, error)
+	UpdateNetworkGrant(grant *models.NetworkGrant) error
+	DeleteNetworkGrant(networkID, subjectType, subjectID string) error
+	DeleteNetworkGrants(networkID string) error
+	DeleteUserNetworkGrants(userID string) error
+
+	// SearchUsers returns accounts whose username contains query, capped at limit.
+	SearchUsers(query string, limit int) ([]*models.User, error)
 
 	// Check whether an admin user already exists
 	HasAdminUser() (bool, error)

@@ -4,6 +4,7 @@
 package testutil
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -206,23 +207,44 @@ func (f *FakeDB) UpdateNetwork(network *models.Network) error { return nil }
 
 func (f *FakeDB) DeleteNetwork(id string) error { return nil }
 
-func (f *FakeDB) UpsertNetworkViewer(viewer *models.NetworkViewer) error { return nil }
-
-func (f *FakeDB) GetNetworkViewer(networkID, userID string) (*models.NetworkViewer, error) {
-	return nil, nil
-}
-
-func (f *FakeDB) GetNetworkViewers(networkID string) ([]*models.NetworkViewer, error) {
-	return []*models.NetworkViewer{}, nil
-}
-
-func (f *FakeDB) GetSharedNetworksByUserID(userID string) ([]*models.Network, error) {
+func (f *FakeDB) GetNetworksByIDs(ids []string) ([]*models.Network, error) {
 	return []*models.Network{}, nil
 }
 
-func (f *FakeDB) DeleteNetworkViewer(networkID, userID string) error { return nil }
+func (f *FakeDB) CreateNetworkGrant(grant *models.NetworkGrant) error { return nil }
 
-func (f *FakeDB) DeleteAllNetworkViewers(networkID string) error { return nil }
+func (f *FakeDB) GetNetworkGrant(networkID, subjectType, subjectID string) (*models.NetworkGrant, error) {
+	return nil, nil
+}
+
+func (f *FakeDB) GetNetworkGrants(networkID string) ([]*models.NetworkGrant, error) {
+	return []*models.NetworkGrant{}, nil
+}
+
+func (f *FakeDB) GetNetworkGrantsByUserID(userID string) ([]*models.NetworkGrant, error) {
+	return []*models.NetworkGrant{}, nil
+}
+
+func (f *FakeDB) UpdateNetworkGrant(grant *models.NetworkGrant) error { return nil }
+
+func (f *FakeDB) DeleteNetworkGrant(networkID, subjectType, subjectID string) error { return nil }
+
+func (f *FakeDB) DeleteNetworkGrants(networkID string) error { return nil }
+
+func (f *FakeDB) DeleteUserNetworkGrants(userID string) error { return nil }
+
+func (f *FakeDB) SearchUsers(query string, limit int) ([]*models.User, error) {
+	result := make([]*models.User, 0)
+	for _, user := range f.users {
+		if strings.Contains(strings.ToLower(user.Username), strings.ToLower(query)) {
+			result = append(result, user)
+		}
+		if len(result) >= limit {
+			break
+		}
+	}
+	return result, nil
+}
 
 func (f *FakeDB) Ping() error { return nil }
 

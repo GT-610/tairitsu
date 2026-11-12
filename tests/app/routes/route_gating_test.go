@@ -62,6 +62,8 @@ func TestRouteGatingAfterInitialization(t *testing.T) {
 	runtimePaths := []string{
 		"/api/networks",
 		"/api/networks/shared",
+		"/api/networks/8056c2e21c000001/access",
+		"/api/networks/8056c2e21c000001/access/candidates",
 		"/api/system/stats",
 		"/api/users",
 		"/api/admin/networks/importable",

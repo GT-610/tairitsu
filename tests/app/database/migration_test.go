@@ -102,3 +102,99 @@ func TestInitCreatesTheSchemaOnAnEmptyDatabase(t *testing.T) {
 
 	require.NoError(t, db.Init())
 }
+
+// writeLegacyNetworkViewers creates the single-role sharing table that the RBAC
+// migration replaces. The column names match the old GORM model exactly.
+func writeLegacyNetworkViewers(t *testing.T, dbPath string, rows ...[3]string) {
+	t.Helper()
+
+	raw, err := sql.Open("sqlite3", dbPath)
+	require.NoError(t, err)
+	defer raw.Close()
+
+	_, err = raw.Exec(`CREATE TABLE network_viewers (
+		network_id text,
+		user_id text,
+		granted_by text,
+		created_at datetime,
+		updated_at datetime,
+		PRIMARY KEY (network_id, user_id)
+	)`)
+	require.NoError(t, err)
+
+	now := time.Now()
+	for _, row := range rows {
+		_, err = raw.Exec(
+			"INSERT INTO network_viewers (network_id, user_id, granted_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+			row[0], row[1], row[2], now, now,
+		)
+		require.NoError(t, err)
+	}
+}
+
+func hasLegacyViewerTable(t *testing.T, dbPath string) bool {
+	t.Helper()
+
+	raw, err := sql.Open("sqlite3", dbPath)
+	require.NoError(t, err)
+	defer raw.Close()
+
+	var count int
+	err = raw.QueryRow("SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'network_viewers'").Scan(&count)
+	require.NoError(t, err)
+	return count > 0
+}
+
+func TestInitMigratesLegacyNetworkViewers(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "tairitsu.db")
+	writeLegacyNetworkViewers(t, dbPath,
+		[3]string{"8056c2e21c000001", "user-1", "owner-1"},
+		[3]string{"8056c2e21c000002", "user-1", "owner-1"},
+	)
+
+	db, err := appdb.NewDatabase(appdb.Config{Type: appdb.SQLite, Path: dbPath})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
+
+	require.NoError(t, db.Init())
+
+	grant, err := db.GetNetworkGrant("8056c2e21c000001", models.NetworkGrantSubjectUser, "user-1")
+	require.NoError(t, err)
+	require.NotNil(t, grant)
+	assert.Equal(t, "viewer", grant.Role)
+	assert.Equal(t, "owner-1", grant.GrantedBy)
+
+	grants, err := db.GetNetworkGrants("8056c2e21c000001")
+	require.NoError(t, err)
+	assert.Len(t, grants, 1)
+
+	assert.False(t, hasLegacyViewerTable(t, dbPath), "the legacy table must be removed after a successful copy")
+
+	// A second start must be a no-op rather than a second copy.
+	require.NoError(t, db.Init())
+	grants, err = db.GetNetworkGrants("8056c2e21c000001")
+	require.NoError(t, err)
+	assert.Len(t, grants, 1)
+}
+
+func TestInitRemovesAnEmptyLegacyNetworkViewerTable(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "tairitsu.db")
+	writeLegacyNetworkViewers(t, dbPath)
+
+	db, err := appdb.NewDatabase(appdb.Config{Type: appdb.SQLite, Path: dbPath})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
+
+	require.NoError(t, db.Init())
+	assert.False(t, hasLegacyViewerTable(t, dbPath))
+}
+
+func TestInitLeavesAFreshDatabaseWithoutALegacyTable(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "tairitsu.db")
+	db, err := appdb.NewDatabase(appdb.Config{Type: appdb.SQLite, Path: dbPath})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
+
+	require.NoError(t, db.Init())
+	assert.False(t, hasLegacyViewerTable(t, dbPath))
+}

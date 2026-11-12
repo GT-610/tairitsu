@@ -6,9 +6,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/GT-610/tairitsu/internal/app/logger"
 	"github.com/GT-610/tairitsu/internal/app/models"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 )
 
 // IsDuplicateKey reports whether err is a unique or primary key violation.
@@ -36,10 +37,61 @@ func (g *GormDB) Init() error {
 	}
 
 	// Auto-migrate user models
-	if err := g.db.AutoMigrate(&models.User{}, &models.Network{}, &models.Session{}, &models.NetworkViewer{}); err != nil {
+	if err := g.db.AutoMigrate(&models.User{}, &models.Network{}, &models.Session{}, &models.NetworkGrant{}); err != nil {
 		return fmt.Errorf("failed to auto-migrate models: %w", err)
 	}
 
+	if err := g.migrateLegacyNetworkViewers(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// migrateLegacyNetworkViewers moves the single-role sharing table that preceded
+// network_grants. Upgrading copies every row into the grants table as a viewer
+// grant and removes the old table, so users keep their existing access without
+// doing anything and a later startup cannot resurrect a revoked grant.
+func (g *GormDB) migrateLegacyNetworkViewers() error {
+	const legacyTable = "network_viewers"
+	if !g.db.Migrator().HasTable(legacyTable) {
+		return nil
+	}
+
+	var legacyRows int64
+	if err := g.db.Table(legacyTable).Count(&legacyRows).Error; err != nil {
+		return fmt.Errorf("failed to inspect the legacy network_viewers table: %w", err)
+	}
+
+	if legacyRows == 0 {
+		if err := g.db.Migrator().DropTable(legacyTable); err != nil {
+			return fmt.Errorf("failed to remove the empty legacy network_viewers table: %w", err)
+		}
+		logger.Info("database: removed the empty legacy network_viewers table")
+		return nil
+	}
+
+	inserted := int64(0)
+	if err := g.db.Transaction(func(tx *gorm.DB) error {
+		result := tx.Exec(`
+			INSERT OR IGNORE INTO network_grants
+				(network_id, subject_type, subject_id, role, granted_by, created_at, updated_at)
+			SELECT network_id, ?, user_id, ?, granted_by, created_at, updated_at
+			FROM network_viewers
+			WHERE network_id <> '' AND user_id <> ''
+		`, models.NetworkGrantSubjectUser, "viewer")
+		if result.Error != nil {
+			return result.Error
+		}
+		inserted = result.RowsAffected
+		return tx.Migrator().DropTable(legacyTable)
+	}); err != nil {
+		return fmt.Errorf("failed to migrate legacy network_viewers grants: %w", err)
+	}
+
+	logger.Info("database: migrated legacy network_viewers grants",
+		zap.Int64("legacy_rows", legacyRows),
+		zap.Int64("inserted_grants", inserted))
 	return nil
 }
 
@@ -292,57 +344,97 @@ func (g *GormDB) DeleteNetwork(id string) error {
 	return result.Error
 }
 
-func (g *GormDB) UpsertNetworkViewer(viewer *models.NetworkViewer) error {
-	return g.db.Clauses(clause.OnConflict{
-		Columns: []clause.Column{
-			{Name: "network_id"},
-			{Name: "user_id"},
-		},
-		DoUpdates: clause.AssignmentColumns([]string{"granted_by", "updated_at"}),
-	}).Create(viewer).Error
-}
-
-func (g *GormDB) GetNetworkViewer(networkID, userID string) (*models.NetworkViewer, error) {
-	var viewer models.NetworkViewer
-	result := g.db.First(&viewer, "network_id = ? AND user_id = ?", networkID, userID)
-	if result.Error != nil {
-		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			return nil, nil
-		}
-		return nil, result.Error
+func (g *GormDB) GetNetworksByIDs(ids []string) ([]*models.Network, error) {
+	if len(ids) == 0 {
+		return []*models.Network{}, nil
 	}
-	return &viewer, nil
-}
-
-func (g *GormDB) GetNetworkViewers(networkID string) ([]*models.NetworkViewer, error) {
-	var viewers []*models.NetworkViewer
-	result := g.db.Where("network_id = ?", networkID).Order("created_at ASC").Find(&viewers)
-	if result.Error != nil {
-		return nil, result.Error
-	}
-	return viewers, nil
-}
-
-func (g *GormDB) GetSharedNetworksByUserID(userID string) ([]*models.Network, error) {
 	var networks []*models.Network
-	result := g.db.Table("networks").
-		Select("networks.id, networks.name, networks.description, networks.owner_id, networks.created_at, networks.updated_at").
-		Joins("JOIN network_viewers ON network_viewers.network_id = networks.id").
-		Where("network_viewers.user_id = ?", userID).
-		Order("networks.created_at DESC").
-		Find(&networks)
+	result := g.db.Where("id IN ?", ids).Find(&networks)
 	if result.Error != nil {
 		return nil, result.Error
 	}
 	return networks, nil
 }
 
-func (g *GormDB) DeleteNetworkViewer(networkID, userID string) error {
-	return g.db.Delete(&models.NetworkViewer{}, "network_id = ? AND user_id = ?", networkID, userID).Error
+func (g *GormDB) CreateNetworkGrant(grant *models.NetworkGrant) error {
+	return g.db.Create(grant).Error
 }
 
-func (g *GormDB) DeleteAllNetworkViewers(networkID string) error {
-	return g.db.Delete(&models.NetworkViewer{}, "network_id = ?", networkID).Error
+func (g *GormDB) GetNetworkGrant(networkID, subjectType, subjectID string) (*models.NetworkGrant, error) {
+	var grant models.NetworkGrant
+	result := g.db.First(&grant, "network_id = ? AND subject_type = ? AND subject_id = ?", networkID, subjectType, subjectID)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, result.Error
+	}
+	return &grant, nil
+}
+
+func (g *GormDB) GetNetworkGrants(networkID string) ([]*models.NetworkGrant, error) {
+	var grants []*models.NetworkGrant
+	result := g.db.Where("network_id = ?", networkID).Order("created_at ASC").Find(&grants)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	return grants, nil
+}
+
+func (g *GormDB) GetNetworkGrantsByUserID(userID string) ([]*models.NetworkGrant, error) {
+	var grants []*models.NetworkGrant
+	result := g.db.
+		Where("subject_type = ? AND subject_id = ?", models.NetworkGrantSubjectUser, userID).
+		Order("created_at ASC").
+		Find(&grants)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	return grants, nil
+}
+
+func (g *GormDB) UpdateNetworkGrant(grant *models.NetworkGrant) error {
+	return g.db.Save(grant).Error
+}
+
+func (g *GormDB) DeleteNetworkGrant(networkID, subjectType, subjectID string) error {
+	return g.db.
+		Delete(&models.NetworkGrant{}, "network_id = ? AND subject_type = ? AND subject_id = ?", networkID, subjectType, subjectID).
+		Error
+}
+
+func (g *GormDB) DeleteNetworkGrants(networkID string) error {
+	return g.db.Delete(&models.NetworkGrant{}, "network_id = ?", networkID).Error
+}
+
+func (g *GormDB) DeleteUserNetworkGrants(userID string) error {
+	return g.db.
+		Delete(&models.NetworkGrant{}, "subject_type = ? AND subject_id = ?", models.NetworkGrantSubjectUser, userID).
+		Error
+}
+
+// SearchUsers returns accounts whose username contains query. An empty query
+// returns no rows so an owner cannot page through the whole account directory
+// by opening the picker.
+func (g *GormDB) SearchUsers(query string, limit int) ([]*models.User, error) {
+	query = strings.TrimSpace(query)
+	if query == "" {
+		return []*models.User{}, nil
+	}
+	if limit <= 0 || limit > 50 {
+		limit = 20
+	}
+
+	var users []*models.User
+	result := g.db.
+		Where("LOWER(username) LIKE ?", "%"+strings.ToLower(query)+"%").
+		Order("username ASC").
+		Limit(limit).
+		Find(&users)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	return users, nil
 }
 
 // Ping checks if the database connection is alive.

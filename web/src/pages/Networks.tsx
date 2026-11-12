@@ -2,10 +2,11 @@ import { useState, useEffect } from 'react';
 import { Box, Typography, Button, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, CircularProgress, Alert, Modal, TextField, IconButton, Grid, Card, CardContent, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions, Stack, Chip } from '@mui/material';
 import { Link, useLocation } from 'react-router-dom';
 import { Add, Delete, Close, Refresh } from '@mui/icons-material';
-import { networkAPI, type NetworkSummary, type SharedNetworkSummary } from '../services/api';
+import { networkAPI, type NetworkRole, type NetworkSummary, type SharedNetworkSummary } from '../services/api';
 import { getErrorMessage } from '../services/errors';
 import { useTranslation } from '../i18n';
 import { getNavigationMessage, summaryCardSx } from '../utils/sharedStyles';
+import { networkRoleLabel } from '../utils/networkAccess';
 
 type DisplayNetwork = {
   id: string;
@@ -18,7 +19,7 @@ type DisplayNetwork = {
   pending_member_count: number;
   created_at: string;
   updated_at: string;
-  readOnly: boolean;
+  role: NetworkRole;
   detailPath: string;
 }
 
@@ -60,13 +61,13 @@ function Networks() {
       setNetworks([
         ...ownedNetworks.map((network: NetworkSummary): DisplayNetwork => ({
           ...network,
-          readOnly: false,
+          role: 'owner',
           detailPath: `/networks/${network.id}`,
         })),
         ...sharedNetworks.map((network: SharedNetworkSummary): DisplayNetwork => ({
           ...network,
-          readOnly: true,
-          detailPath: `/networks/shared/${network.id}`,
+          role: network.role,
+          detailPath: `/networks/${network.id}`,
         })),
       ])
       if (sharedResult.status !== 'fulfilled') {
@@ -87,7 +88,7 @@ function Networks() {
   }, [])
 
   const handleOpenModal = (network: DisplayNetwork | null = null) => {
-    if (network?.readOnly) {
+    if (network && network.role !== 'owner' && network.role !== 'manager') {
       return
     }
 
@@ -180,8 +181,8 @@ function Networks() {
   }
 
   const totalNetworks = networks.length
-  const ownedNetworksCount = networks.filter((network) => !network.readOnly).length
-  const readOnlyNetworksCount = networks.filter((network) => network.readOnly).length
+  const ownedNetworksCount = networks.filter((network) => network.role === 'owner').length
+  const sharedNetworksCount = networks.filter((network) => network.role !== 'owner').length
   const filteredNetworks = getFilteredNetworks()
   const isSearchMode = searchQuery.trim() !== ''
   const isEmptyState = !loading && networks.length === 0
@@ -250,7 +251,7 @@ function Networks() {
                   {translateText('共享给我')}
                 </Typography>
                 <Typography variant="h4">
-                  {readOnlyNetworksCount}
+                  {sharedNetworksCount}
                 </Typography>
               </CardContent>
             </Card>
@@ -328,16 +329,19 @@ function Networks() {
                           <Typography variant="body1">
                             {network.name || translateText('未命名网络')}
                           </Typography>
-                          {network.readOnly && (
-                            <Chip label={translateText('只读')} size="small" color="default" variant="outlined" />
-                          )}
+                          <Chip
+                            label={translateText(networkRoleLabel[network.role])}
+                            size="small"
+                            color={network.role === 'owner' ? 'primary' : 'default'}
+                            variant={network.role === 'owner' ? 'filled' : 'outlined'}
+                          />
                         </Stack>
                         {network.description ? (
                           <Typography variant="body2" color="text.secondary">
                             {network.description}
                           </Typography>
                         ) : null}
-                        {network.readOnly && network.owner_username ? (
+                        {network.role !== 'owner' && network.owner_username ? (
                           <Typography variant="body2" color="text.secondary">
                             {translateText('共享来源：')}{network.owner_username}
                           </Typography>
@@ -358,9 +362,9 @@ function Networks() {
                             variant="outlined"
                             size="small"
                           >
-                            {network.readOnly ? translateText('查看设备') : translateText('详情')}
+                            {translateText('详情')}
                           </Button>
-                          {!network.readOnly && (
+                          {network.role === 'owner' && (
                             <Button
                               variant="outlined"
                               size="small"

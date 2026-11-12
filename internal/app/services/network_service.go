@@ -2,6 +2,7 @@ package services
 
 import (
 	"fmt"
+	"sort"
 	"sync"
 	"time"
 
@@ -211,15 +212,16 @@ func (s *NetworkService) GetRuntimeStatus() *RuntimeStatus {
 
 // NetworkSummary contains summary information for a network (retrieved from database)
 type NetworkSummary struct {
-	ID                    string    `json:"id"`
-	Name                  string    `json:"name"`
-	Description           string    `json:"description"`
-	OwnerID               string    `json:"owner_id"`
-	MemberCount           int       `json:"member_count"`
-	AuthorizedMemberCount int       `json:"authorized_member_count"`
-	PendingMemberCount    int       `json:"pending_member_count"`
-	CreatedAt             time.Time `json:"created_at"`
-	UpdatedAt             time.Time `json:"updated_at"`
+	ID                    string      `json:"id"`
+	Name                  string      `json:"name"`
+	Description           string      `json:"description"`
+	OwnerID               string      `json:"owner_id"`
+	Role                  NetworkRole `json:"role"`
+	MemberCount           int         `json:"member_count"`
+	AuthorizedMemberCount int         `json:"authorized_member_count"`
+	PendingMemberCount    int         `json:"pending_member_count"`
+	CreatedAt             time.Time   `json:"created_at"`
+	UpdatedAt             time.Time   `json:"updated_at"`
 }
 
 func (n *NetworkSummary) SetMemberStats(memberCount, authorizedCount, pendingCount int) {
@@ -229,16 +231,17 @@ func (n *NetworkSummary) SetMemberStats(memberCount, authorizedCount, pendingCou
 }
 
 type SharedNetworkSummary struct {
-	ID                    string    `json:"id"`
-	Name                  string    `json:"name"`
-	Description           string    `json:"description"`
-	OwnerID               string    `json:"owner_id"`
-	OwnerUsername         string    `json:"owner_username"`
-	MemberCount           int       `json:"member_count"`
-	AuthorizedMemberCount int       `json:"authorized_member_count"`
-	PendingMemberCount    int       `json:"pending_member_count"`
-	CreatedAt             time.Time `json:"created_at"`
-	UpdatedAt             time.Time `json:"updated_at"`
+	ID                    string      `json:"id"`
+	Name                  string      `json:"name"`
+	Description           string      `json:"description"`
+	OwnerID               string      `json:"owner_id"`
+	OwnerUsername         string      `json:"owner_username"`
+	Role                  NetworkRole `json:"role"`
+	MemberCount           int         `json:"member_count"`
+	AuthorizedMemberCount int         `json:"authorized_member_count"`
+	PendingMemberCount    int         `json:"pending_member_count"`
+	CreatedAt             time.Time   `json:"created_at"`
+	UpdatedAt             time.Time   `json:"updated_at"`
 }
 
 func (n *SharedNetworkSummary) SetMemberStats(memberCount, authorizedCount, pendingCount int) {
@@ -247,13 +250,11 @@ func (n *SharedNetworkSummary) SetMemberStats(memberCount, authorizedCount, pend
 	n.PendingMemberCount = pendingCount
 }
 
-type NetworkViewerSummary struct {
-	ID        string    `json:"id"`
-	Username  string    `json:"username"`
-	Role      string    `json:"role"`
-	GrantedBy string    `json:"granted_by"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+// NetworkAccessInfo is returned with the network detail so the frontend can
+// render actions from permissions instead of comparing role names.
+type NetworkAccessInfo struct {
+	Role        NetworkRole         `json:"role"`
+	Permissions []NetworkPermission `json:"permissions"`
 }
 
 // NetworkDetail contains detailed network information (includes controller data and database description)
@@ -261,6 +262,7 @@ type NetworkDetail struct {
 	*zerotier.Network
 	DBDescription string            `json:"db_description"`
 	Members       []zerotier.Member `json:"members"`
+	Access        NetworkAccessInfo `json:"access"`
 }
 
 // GetAllNetworks retrieves all networks owned by a specific user from database
@@ -290,6 +292,7 @@ func (s *NetworkService) GetAllNetworks(ownerID string) ([]NetworkSummary, error
 			Name:        net.Name,
 			Description: net.Description,
 			OwnerID:     net.OwnerID,
+			Role:        NetworkRoleOwner,
 			CreatedAt:   net.CreatedAt,
 			UpdatedAt:   net.UpdatedAt,
 		}
@@ -315,19 +318,57 @@ func (s *NetworkService) GetSharedNetworks(userID string) ([]SharedNetworkSummar
 		return nil, fmt.Errorf("database is not initialized")
 	}
 
-	sharedNetworks, err := db.GetSharedNetworksByUserID(userID)
+	grants, err := db.GetNetworkGrantsByUserID(userID)
 	if err != nil {
-		logger.Error("service: failed to get shared network list", zap.String("user_id", userID), zap.Error(err))
+		logger.Error("service: failed to get shared network grants", zap.String("user_id", userID), zap.Error(err))
 		return nil, err
 	}
-	if len(sharedNetworks) == 0 {
+	if len(grants) == 0 {
 		return []SharedNetworkSummary{}, nil
 	}
 
+	roleByNetwork := make(map[string]NetworkRole, len(grants))
+	networkIDs := make([]string, 0, len(grants))
+	for _, grant := range grants {
+		if grant == nil {
+			continue
+		}
+		role, ok := ParseNetworkRole(grant.Role)
+		if !ok {
+			logger.Warn("service: ignoring shared network with unknown role",
+				zap.String("network_id", grant.NetworkID),
+				zap.String("role", grant.Role))
+			continue
+		}
+		if _, exists := roleByNetwork[grant.NetworkID]; exists {
+			continue
+		}
+		roleByNetwork[grant.NetworkID] = role
+		networkIDs = append(networkIDs, grant.NetworkID)
+	}
+	if len(networkIDs) == 0 {
+		return []SharedNetworkSummary{}, nil
+	}
+
+	sharedNetworks, err := db.GetNetworksByIDs(networkIDs)
+	if err != nil {
+		logger.Error("service: failed to load shared networks", zap.String("user_id", userID), zap.Error(err))
+		return nil, err
+	}
+
 	ownerIDs := make(map[string]struct{}, len(sharedNetworks))
+	visibleNetworks := make([]*models.Network, 0, len(sharedNetworks))
 	for _, network := range sharedNetworks {
+		if network == nil || network.OwnerID == userID {
+			continue
+		}
+		visibleNetworks = append(visibleNetworks, network)
 		ownerIDs[network.OwnerID] = struct{}{}
 	}
+	if len(visibleNetworks) == 0 {
+		return []SharedNetworkSummary{}, nil
+	}
+
 	ids := make([]string, 0, len(ownerIDs))
 	for id := range ownerIDs {
 		ids = append(ids, id)
@@ -341,21 +382,26 @@ func (s *NetworkService) GetSharedNetworks(userID string) ([]SharedNetworkSummar
 		ownersByID[owner.ID] = owner.Username
 	}
 
-	summaries := make([]SharedNetworkSummary, len(sharedNetworks))
-	for i, net := range sharedNetworks {
+	sort.Slice(visibleNetworks, func(i, j int) bool {
+		return visibleNetworks[i].CreatedAt.After(visibleNetworks[j].CreatedAt)
+	})
+
+	summaries := make([]SharedNetworkSummary, len(visibleNetworks))
+	for i, net := range visibleNetworks {
 		summaries[i] = SharedNetworkSummary{
 			ID:            net.ID,
 			Name:          net.Name,
 			Description:   net.Description,
 			OwnerID:       net.OwnerID,
 			OwnerUsername: ownersByID[net.OwnerID],
+			Role:          roleByNetwork[net.ID],
 			CreatedAt:     net.CreatedAt,
 			UpdatedAt:     net.UpdatedAt,
 		}
 	}
 
-	sharedIDs := make([]string, len(sharedNetworks))
-	for i, net := range sharedNetworks {
+	sharedIDs := make([]string, len(visibleNetworks))
+	for i, net := range visibleNetworks {
 		sharedIDs[i] = net.ID
 	}
 	targets := make([]memberStatsSetter, len(summaries))
@@ -373,7 +419,7 @@ func (s *NetworkService) GetNetworkByID(id string, userID string) (*NetworkDetai
 		return nil, fmt.Errorf("ZeroTier client is not initialized")
 	}
 
-	ownedNetwork, err := s.authorizeOwnedNetwork(id, userID)
+	dbNetwork, role, err := s.authorizeNetwork(id, userID, NetworkPermissionRead)
 	if err != nil {
 		logger.Warn("service: failed to get network", zap.String("network_id", id), zap.String("user_id", userID), zap.Error(err))
 		return nil, err
@@ -402,14 +448,18 @@ func (s *NetworkService) GetNetworkByID(id string, userID string) (*NetworkDetai
 	logger.Info("service: network details retrieved successfully",
 		zap.String("network_id", id),
 		zap.Any("ipAssignmentPools", network.Config.IpAssignmentPools),
-		zap.String("db_description", ownedNetwork.Description),
+		zap.String("db_description", dbNetwork.Description),
 		zap.Int("member_count", len(members)))
 
 	// Return combined network detail with database description
 	return &NetworkDetail{
 		Network:       network,
-		DBDescription: ownedNetwork.Description,
+		DBDescription: dbNetwork.Description,
 		Members:       members,
+		Access: NetworkAccessInfo{
+			Role:        role,
+			Permissions: role.Permissions(),
+		},
 	}, nil
 }
 
@@ -467,7 +517,7 @@ func (s *NetworkService) UpdateNetwork(id string, updateReq *zerotier.NetworkUpd
 		return nil, fmt.Errorf("database is not initialized")
 	}
 
-	ownedNetwork, err := s.authorizeOwnedNetwork(id, userID)
+	dbNetwork, _, err := s.authorizeNetwork(id, userID, NetworkPermissionSettingsWrite)
 	if err != nil {
 		logger.Warn("service: no permission to update network", zap.String("network_id", id), zap.String("user_id", userID), zap.Error(err))
 		return nil, err
@@ -484,13 +534,13 @@ func (s *NetworkService) UpdateNetwork(id string, updateReq *zerotier.NetworkUpd
 
 	// Update network name and description in database
 	if updateReq.Name != "" {
-		ownedNetwork.Name = updateReq.Name
+		dbNetwork.Name = updateReq.Name
 	}
 	if updateReq.Description != "" {
-		ownedNetwork.Description = updateReq.Description
+		dbNetwork.Description = updateReq.Description
 	}
 	if updateReq.Name != "" || updateReq.Description != "" {
-		if err := db.UpdateNetwork(ownedNetwork); err != nil {
+		if err := db.UpdateNetwork(dbNetwork); err != nil {
 			logger.Error("service: failed to update network information in database", zap.String("network_id", id), zap.Error(err))
 			return nil, fmt.Errorf("failed to sync network to database after controller update: %w", err)
 		}
@@ -511,7 +561,7 @@ func (s *NetworkService) UpdateNetworkMetadata(id string, name string, descripti
 		return nil, fmt.Errorf("database is not initialized")
 	}
 
-	ownedNetwork, err := s.authorizeOwnedNetwork(id, userID)
+	dbNetwork, _, err := s.authorizeNetwork(id, userID, NetworkPermissionSettingsWrite)
 	if err != nil {
 		logger.Warn("service: no permission to update network metadata", zap.String("network_id", id), zap.String("user_id", userID), zap.Error(err))
 		return nil, err
@@ -528,9 +578,9 @@ func (s *NetworkService) UpdateNetworkMetadata(id string, name string, descripti
 	}
 
 	// Update name and description in the database (description is database-only)
-	ownedNetwork.Name = name
-	ownedNetwork.Description = description
-	if err := db.UpdateNetwork(ownedNetwork); err != nil {
+	dbNetwork.Name = name
+	dbNetwork.Description = description
+	if err := db.UpdateNetwork(dbNetwork); err != nil {
 		logger.Error("service: failed to update database network information", zap.String("network_id", id), zap.Error(err))
 		return nil, err
 	}
@@ -553,7 +603,7 @@ func (s *NetworkService) DeleteNetwork(networkID string, userID string) error {
 		return fmt.Errorf("database is not initialized")
 	}
 
-	_, err := s.authorizeOwnedNetwork(networkID, userID)
+	_, _, err := s.authorizeNetwork(networkID, userID, NetworkPermissionNetworkDelete)
 	if err != nil {
 		logger.Warn("service: no permission to delete network", zap.String("network_id", networkID), zap.String("user_id", userID), zap.Error(err))
 		return err
@@ -567,12 +617,12 @@ func (s *NetworkService) DeleteNetwork(networkID string, userID string) error {
 	}
 
 	if err := db.WithTransaction(func(tx database.DBInterface) error {
-		if deleteErr := tx.DeleteAllNetworkViewers(networkID); deleteErr != nil {
+		if deleteErr := tx.DeleteNetworkGrants(networkID); deleteErr != nil {
 			return deleteErr
 		}
 		return tx.DeleteNetwork(networkID)
 	}); err != nil {
-		logger.Error("service: failed to delete network and viewer grants from database", zap.String("network_id", networkID), zap.Error(err))
+		logger.Error("service: failed to delete network and access grants from database", zap.String("network_id", networkID), zap.Error(err))
 		return fmt.Errorf("ZeroTier network deleted but database cleanup failed: %w", err)
 	}
 
@@ -586,7 +636,7 @@ func (s *NetworkService) GetNetworkMembers(networkID string, userID string) ([]z
 		return nil, fmt.Errorf("ZeroTier client is not initialized")
 	}
 
-	_, err := s.authorizeMemberReadAccess(networkID, userID)
+	_, _, err := s.authorizeNetwork(networkID, userID, NetworkPermissionMembersRead)
 	if err != nil {
 		logger.Warn("service: no permission to access network members", zap.String("network_id", networkID), zap.String("user_id", userID), zap.Error(err))
 		return nil, err
@@ -610,7 +660,7 @@ func (s *NetworkService) GetNetworkMember(networkID, memberID string, userID str
 		return nil, fmt.Errorf("ZeroTier client is not initialized")
 	}
 
-	_, err := s.authorizeMemberReadAccess(networkID, userID)
+	_, _, err := s.authorizeNetwork(networkID, userID, NetworkPermissionMembersRead)
 	if err != nil {
 		logger.Warn("service: no permission to access network members", zap.String("network_id", networkID), zap.String("user_id", userID), zap.Error(err))
 		return nil, err
@@ -639,10 +689,18 @@ func (s *NetworkService) UpdateNetworkMember(networkID, memberID string, member 
 		return nil, fmt.Errorf("ZeroTier client is not initialized")
 	}
 
-	_, err := s.authorizeMemberWriteAccess(networkID, userID)
+	_, role, err := s.authorizeNetwork(networkID, userID, NetworkPermissionMembersWrite)
 	if err != nil {
 		logger.Warn("service: no permission to update network member", zap.String("network_id", networkID), zap.String("user_id", userID), zap.Error(err))
 		return nil, err
+	}
+
+	// Bridge mode exposes the device's LAN to the whole network, so it is a
+	// manager-level action even though the rest of the member fields belong to
+	// the operator role. Disabling it stays available to operators because that
+	// only reduces exposure.
+	if member.ActiveBridge != nil && *member.ActiveBridge && !role.Has(NetworkPermissionMembersBridge) {
+		return nil, ErrNetworkPermissionDenied
 	}
 
 	updatedMember, err := s.ztClient.UpdateMember(networkID, memberID, member)
@@ -733,7 +791,7 @@ func (s *NetworkService) RemoveNetworkMember(networkID, memberID string, userID 
 		return fmt.Errorf("ZeroTier client is not initialized")
 	}
 
-	_, err := s.authorizeMemberWriteAccess(networkID, userID)
+	_, _, err := s.authorizeNetwork(networkID, userID, NetworkPermissionMembersWrite)
 	if err != nil {
 		logger.Warn("service: no permission to remove network member", zap.String("network_id", networkID), zap.String("user_id", userID), zap.Error(err))
 		return err
@@ -747,144 +805,6 @@ func (s *NetworkService) RemoveNetworkMember(networkID, memberID string, userID 
 	s.invalidateMemberStats(networkID)
 
 	return nil
-}
-
-func (s *NetworkService) GetNetworkViewers(networkID, ownerID string) ([]NetworkViewerSummary, error) {
-	db := s.getDB()
-	if db == nil {
-		return nil, fmt.Errorf("database is not initialized")
-	}
-
-	network, err := s.authorizeViewerManagement(networkID, ownerID)
-	if err != nil {
-		return nil, err
-	}
-
-	viewers, err := db.GetNetworkViewers(network.ID)
-	if err != nil {
-		return nil, err
-	}
-
-	summaries := make([]NetworkViewerSummary, 0, len(viewers))
-	if len(viewers) > 0 {
-		viewerIDs := make([]string, len(viewers))
-		for i, v := range viewers {
-			viewerIDs[i] = v.UserID
-		}
-		users, userErr := db.GetUsersByIDs(viewerIDs)
-		if userErr != nil {
-			return nil, userErr
-		}
-		usersByID := make(map[string]*models.User, len(users))
-		for _, u := range users {
-			usersByID[u.ID] = u
-		}
-		for _, viewer := range viewers {
-			user := usersByID[viewer.UserID]
-			if user == nil {
-				continue
-			}
-			summaries = append(summaries, NetworkViewerSummary{
-				ID:        user.ID,
-				Username:  user.Username,
-				Role:      user.Role,
-				GrantedBy: viewer.GrantedBy,
-				CreatedAt: viewer.CreatedAt,
-				UpdatedAt: viewer.UpdatedAt,
-			})
-		}
-	}
-
-	return summaries, nil
-}
-
-func (s *NetworkService) GetNetworkViewerCandidates(networkID, ownerID string) ([]NetworkViewerSummary, error) {
-	db := s.getDB()
-	if db == nil {
-		return nil, fmt.Errorf("database is not initialized")
-	}
-
-	network, err := s.authorizeViewerManagement(networkID, ownerID)
-	if err != nil {
-		return nil, err
-	}
-
-	users, err := db.GetAllUsers()
-	if err != nil {
-		return nil, err
-	}
-	viewers, err := db.GetNetworkViewers(network.ID)
-	if err != nil {
-		return nil, err
-	}
-
-	viewerSet := make(map[string]struct{}, len(viewers))
-	for _, viewer := range viewers {
-		viewerSet[viewer.UserID] = struct{}{}
-	}
-
-	candidates := make([]NetworkViewerSummary, 0)
-	for _, user := range users {
-		if user == nil || user.ID == network.OwnerID || user.Role != "user" {
-			continue
-		}
-		if _, exists := viewerSet[user.ID]; exists {
-			continue
-		}
-		candidates = append(candidates, NetworkViewerSummary{
-			ID:       user.ID,
-			Username: user.Username,
-			Role:     user.Role,
-		})
-	}
-
-	return candidates, nil
-}
-
-func (s *NetworkService) GrantNetworkViewer(networkID, targetUserID, ownerID string) error {
-	db := s.getDB()
-	if db == nil {
-		return fmt.Errorf("database is not initialized")
-	}
-
-	network, err := s.authorizeViewerManagement(networkID, ownerID)
-	if err != nil {
-		return err
-	}
-
-	targetUser, err := db.GetUserByID(targetUserID)
-	if err != nil {
-		return err
-	}
-	if targetUser == nil {
-		return ErrUserNotFound
-	}
-	if targetUser.Role != "user" || targetUser.ID == network.OwnerID {
-		return ErrViewerTargetInvalid
-	}
-
-	now := time.Now()
-	return db.UpsertNetworkViewer(&models.NetworkViewer{
-		NetworkID: network.ID,
-		UserID:    targetUser.ID,
-		GrantedBy: ownerID,
-		CreatedAt: now,
-		UpdatedAt: now,
-	})
-}
-
-func (s *NetworkService) RevokeNetworkViewer(networkID, targetUserID, ownerID string) error {
-	db := s.getDB()
-	if db == nil {
-		return fmt.Errorf("database is not initialized")
-	}
-
-	network, err := s.authorizeViewerManagement(networkID, ownerID)
-	if err != nil {
-		return err
-	}
-
-	return db.DeleteNetworkViewer(network.ID, targetUserID)
 }
 
 // SetZTClient sets the ZeroTier client

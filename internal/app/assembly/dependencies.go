@@ -26,6 +26,7 @@ type Services struct {
 type Handlers struct {
 	Network *handlers.NetworkHandler
 	Member  *handlers.MemberHandler
+	Access  *handlers.AccessHandler
 	Auth    *handlers.AuthHandler
 	User    *handlers.UserHandler
 	System  *handlers.SystemHandler
@@ -92,6 +93,7 @@ func NewDependencies(cfg *config.Config, db database.DBInterface, ztClient *zero
 		Handlers: Handlers{
 			Network: handlers.NewNetworkHandler(networkService),
 			Member:  handlers.NewMemberHandler(networkService),
+			Access:  handlers.NewAccessHandler(networkService),
 			Auth:    authHandler,
 			User:    handlers.NewUserHandler(userService),
 			System:  handlers.NewSystemHandler(setupService, systemService),

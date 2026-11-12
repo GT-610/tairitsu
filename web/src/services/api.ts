@@ -66,6 +66,7 @@ export interface Network {
   db_description?: string;
   config: NetworkConfig;
   members: Member[];
+  access: NetworkAccessInfo;
   status: string;
   createdAt: string;
   updatedAt: string;
@@ -76,6 +77,7 @@ export interface NetworkSummary {
   name: string;
   description?: string;
   owner_id: string;
+  role: NetworkRole;
   member_count: number;
   authorized_member_count: number;
   pending_member_count: number;
@@ -89,6 +91,7 @@ export interface SharedNetworkSummary {
   description?: string;
   owner_id: string;
   owner_username: string;
+  role: NetworkRole;
   member_count: number;
   authorized_member_count: number;
   pending_member_count: number;
@@ -96,13 +99,44 @@ export interface SharedNetworkSummary {
   updated_at: string;
 }
 
-export interface NetworkViewer {
-  id: string;
+export type NetworkRole = 'owner' | 'manager' | 'operator' | 'viewer';
+
+export type NetworkPermission =
+  | 'network.read'
+  | 'members.read'
+  | 'members.write'
+  | 'members.bridge'
+  | 'settings.write'
+  | 'access.read'
+  | 'access.write'
+  | 'network.delete'
+  | 'network.transfer';
+
+export interface NetworkAccessInfo {
+  role: NetworkRole;
+  permissions: NetworkPermission[];
+}
+
+export interface NetworkAccessEntry {
+  user_id: string;
   username: string;
-  role: 'admin' | 'user';
+  role: NetworkRole;
   granted_by: string;
+  granted_by_username: string;
   created_at: string;
   updated_at: string;
+}
+
+export interface NetworkAccessDetail {
+  owner_id: string;
+  owner_username: string;
+  my_role: NetworkRole;
+  entries: NetworkAccessEntry[];
+}
+
+export interface NetworkAccessCandidate {
+  id: string;
+  username: string;
 }
 
 export interface NetworkConfig {
@@ -473,14 +507,25 @@ export const networkAPI = {
   updateNetworkMetadata: (networkId: string, data: NetworkMetadataUpdateRequest) => api.put<Network>(`/networks/${networkId}/metadata`, data),
   // Delete a network
   deleteNetwork: (networkId: string) => api.delete<void>(`/networks/${networkId}`),
-  // Get read-only viewers for an owned network
-  getNetworkViewers: (networkId: string) => api.get<NetworkViewer[]>(`/networks/${networkId}/viewers`),
-  // Get eligible users for read-only sharing
-  getNetworkViewerCandidates: (networkId: string) => api.get<NetworkViewer[]>(`/networks/${networkId}/viewers/available`),
-  // Grant read-only viewer access
-  addNetworkViewer: (networkId: string, userId: string) => api.post<{ message: string }>(`/networks/${networkId}/viewers`, { user_id: userId }),
-  // Revoke read-only viewer access
-  deleteNetworkViewer: (networkId: string, userId: string) => api.delete<{ message: string }>(`/networks/${networkId}/viewers/${userId}`),
+  // List owners and delegated roles for a network
+  getNetworkAccess: (networkId: string) => api.get<NetworkAccessDetail>(`/networks/${networkId}/access`),
+  // Search accounts that can still be added to a network
+  getNetworkAccessCandidates: (networkId: string, query: string) => api.get<NetworkAccessCandidate[]>(`/networks/${networkId}/access/candidates`, {
+    params: { q: query }
+  }),
+  // Grant one account a role on a network
+  grantNetworkAccess: (networkId: string, userId: string, role: NetworkRole) => api.post<{ message: string }>(`/networks/${networkId}/access/users`, { user_id: userId, role }),
+  // Change one account's role
+  updateNetworkAccess: (networkId: string, userId: string, role: NetworkRole) => api.patch<{ message: string }>(`/networks/${networkId}/access/users/${userId}`, { role }),
+  // Remove one account from a network
+  revokeNetworkAccess: (networkId: string, userId: string) => api.delete<{ message: string }>(`/networks/${networkId}/access/users/${userId}`),
+  // Transfer network ownership to another member
+  transferNetworkOwnership: (networkId: string, userId: string, previousOwnerRole: NetworkRole | 'none') => api.post<{ message: string }>(`/networks/${networkId}/owner`, {
+    user_id: userId,
+    previous_owner_role: previousOwnerRole
+  }),
+  // Leave a network the current user does not own
+  leaveNetwork: (networkId: string) => api.post<{ message: string }>(`/networks/${networkId}/leave`),
   // Get importable networks (admin only)
   getImportableNetworks: () => api.get<ImportableNetworksResponse>('/admin/networks/importable'),
   // Import specified networks (admin only)
