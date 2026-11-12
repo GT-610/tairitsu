@@ -1,7 +1,5 @@
 # Tairitsu
 
-![Tairitsu banner](../assets/readme-banner.png)
-
 Tairitsu 是一个面向独立安装 ZeroTier 控制器的自托管 Web 控制台，提供初始化、用户账户、网络与成员管理、网络设置，以及控制器网络导入等能力。
 
 ## 功能
@@ -12,6 +10,33 @@ Tairitsu 是一个面向独立安装 ZeroTier 控制器的自托管 Web 控制�
 - IPv4、IPv6、Managed Routes、DNS、多播设置
 - 导入尚未被 Tairitsu 接管的控制器网络
 - 实验性的 `Planet` 生成功能
+
+## 界面预览
+
+截图来自一次性测试控制器，数据均为演示数据。
+
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <img src="../assets/screenshots/zh-CN/networks.png" alt="网络管理：自有网络与共享网络" width="100%">
+      <sub><b>网络列表</b><br>自有与共享网络，展示网络角色和成员统计。</sub>
+    </td>
+    <td width="50%" valign="top">
+      <img src="../assets/screenshots/zh-CN/network-devices.png" alt="网络设备与成员授权" width="100%">
+      <sub><b>设备管理</b><br>审批与授权成员，分配托管 IP，处理待授权设备。</sub>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <img src="../assets/screenshots/zh-CN/network-settings.png" alt="IPv4、IPv6、托管路由、DNS 与多播设置" width="100%">
+      <sub><b>网络设置</b><br>IPv4 / IPv6 地址分配、托管路由、DNS 与多播。</sub>
+    </td>
+    <td width="50%" valign="top">
+      <img src="../assets/screenshots/zh-CN/users.png" alt="用户管理与管理员转让" width="100%">
+      <sub><b>用户管理</b><br>账户、一次性密码与管理员转让。</sub>
+    </td>
+  </tr>
+</table>
 
 ## 安装
 

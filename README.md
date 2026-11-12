@@ -1,7 +1,5 @@
 # Tairitsu
 
-![Tairitsu banner](assets/readme-banner.png)
-
 [**简体中文**](readme-i18n/README.zh-CN.md)
 
 Tairitsu is a self-hosted web console for a separately installed ZeroTier controller. It provides a web UI for setup, user accounts, network and member management, network settings, and controller network import.
@@ -14,6 +12,33 @@ Tairitsu is a self-hosted web console for a separately installed ZeroTier contro
 - IPv4, IPv6, managed routes, DNS, and multicast settings
 - Import takeover for controller networks not yet owned in Tairitsu
 - Experimental `Planet` generation
+
+## Screenshots
+
+Screenshots come from a disposable test controller with synthetic demo data.
+
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <img src="assets/screenshots/en/networks.png" alt="Network management with owned and shared networks" width="100%">
+      <sub><b>Networks</b><br>Owned and shared networks with per-network roles and member counts.</sub>
+    </td>
+    <td width="50%" valign="top">
+      <img src="assets/screenshots/en/network-devices.png" alt="Network devices and member authorization" width="100%">
+      <sub><b>Devices</b><br>Approve members, assign managed IPs, and review pending devices.</sub>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <img src="assets/screenshots/en/network-settings.png" alt="IPv4, IPv6, routes, DNS, and multicast settings" width="100%">
+      <sub><b>Network settings</b><br>IPv4 and IPv6 assignment, managed routes, DNS, and multicast.</sub>
+    </td>
+    <td width="50%" valign="top">
+      <img src="assets/screenshots/en/users.png" alt="User management and administrator transfer" width="100%">
+      <sub><b>User management</b><br>Accounts, one-time passwords, and administrator transfer.</sub>
+    </td>
+  </tr>
+</table>
 
 ## Installation
 
