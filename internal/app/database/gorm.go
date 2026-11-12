@@ -341,15 +341,15 @@ func (g *GormDB) UpdateNetwork(network *models.Network) error {
 // UpdateNetworkMetadata writes only the display fields. A metadata request can
 // overlap an ownership transfer, so it must not write OwnerID or other columns
 // from a stale full-record read.
-func (g *GormDB) UpdateNetworkMetadata(id, name, description string, updatedAt time.Time) error {
-	result := g.db.Model(&models.Network{}).
-		Where("id = ?", id).
-		Updates(map[string]any{
-			"name":        name,
-			"description": description,
-			"updated_at":  updatedAt,
-		})
-	return result.Error
+func (g *GormDB) UpdateNetworkMetadata(id string, name, description *string, updatedAt time.Time) error {
+	updates := map[string]any{"updated_at": updatedAt}
+	if name != nil {
+		updates["name"] = *name
+	}
+	if description != nil {
+		updates["description"] = *description
+	}
+	return g.db.Model(&models.Network{}).Where("id = ?", id).Updates(updates).Error
 }
 
 // UpdateNetworkOwnerIfCurrent changes the owner only while currentOwnerID still
@@ -387,6 +387,39 @@ func (g *GormDB) CreateNetworkGrant(grant *models.NetworkGrant) error {
 	return g.db.Create(grant).Error
 }
 
+// CreateNetworkGrantIfActorCanWrite inserts the grant only while the actor still
+// owns the network or holds a manager grant. The permission check and the insert
+// are one statement, so a manager revoked mid-request cannot create access.
+func (g *GormDB) CreateNetworkGrantIfActorCanWrite(grant *models.NetworkGrant, actorID string) (int64, error) {
+	result := g.db.Exec(`
+		INSERT INTO network_grants
+			(network_id, subject_type, subject_id, role, granted_by, created_at, updated_at)
+		SELECT ?, ?, ?, ?, ?, ?, ?
+		WHERE (
+			EXISTS (SELECT 1 FROM networks WHERE id = ? AND owner_id = ?)
+			OR (
+				? IN ('viewer', 'operator')
+				AND EXISTS (
+					SELECT 1 FROM network_grants AS actor_grant
+					WHERE actor_grant.network_id = ?
+						AND actor_grant.subject_type = ?
+						AND actor_grant.subject_id = ?
+						AND actor_grant.role = 'manager'
+				)
+			)
+		)
+		AND NOT EXISTS (
+			SELECT 1 FROM network_grants
+			WHERE network_id = ? AND subject_type = ? AND subject_id = ?
+		)
+	`, grant.NetworkID, grant.SubjectType, grant.SubjectID, grant.Role, grant.GrantedBy, grant.CreatedAt, grant.UpdatedAt,
+		grant.NetworkID, actorID,
+		grant.Role,
+		grant.NetworkID, models.NetworkGrantSubjectUser, actorID,
+		grant.NetworkID, grant.SubjectType, grant.SubjectID)
+	return result.RowsAffected, result.Error
+}
+
 func (g *GormDB) GetNetworkGrant(networkID, subjectType, subjectID string) (*models.NetworkGrant, error) {
 	var grant models.NetworkGrant
 	result := g.db.First(&grant, "network_id = ? AND subject_type = ? AND subject_id = ?", networkID, subjectType, subjectID)
@@ -420,15 +453,30 @@ func (g *GormDB) GetNetworkGrantsByUserID(userID string) ([]*models.NetworkGrant
 	return grants, nil
 }
 
-func (g *GormDB) UpdateNetworkGrantIfRole(grant *models.NetworkGrant, expectedRole string) (int64, error) {
-	result := g.db.Model(&models.NetworkGrant{}).
-		Where("network_id = ? AND subject_type = ? AND subject_id = ? AND role = ?",
-			grant.NetworkID, grant.SubjectType, grant.SubjectID, expectedRole).
-		Updates(map[string]any{
-			"role":       grant.Role,
-			"granted_by": grant.GrantedBy,
-			"updated_at": grant.UpdatedAt,
-		})
+func (g *GormDB) UpdateNetworkGrantIfActorCanWriteAndRole(grant *models.NetworkGrant, actorID, expectedRole string) (int64, error) {
+	result := g.db.Exec(`
+		UPDATE network_grants
+		SET role = ?, granted_by = ?, updated_at = ?
+		WHERE network_id = ? AND subject_type = ? AND subject_id = ? AND role = ?
+			AND (
+				EXISTS (SELECT 1 FROM networks WHERE id = ? AND owner_id = ?)
+				OR (
+					? IN ('viewer', 'operator')
+					AND ? IN ('viewer', 'operator')
+					AND EXISTS (
+						SELECT 1 FROM network_grants AS actor_grant
+						WHERE actor_grant.network_id = ?
+							AND actor_grant.subject_type = ?
+							AND actor_grant.subject_id = ?
+							AND actor_grant.role = 'manager'
+					)
+				)
+			)
+	`, grant.Role, grant.GrantedBy, grant.UpdatedAt,
+		grant.NetworkID, grant.SubjectType, grant.SubjectID, expectedRole,
+		grant.NetworkID, actorID,
+		grant.Role, expectedRole,
+		grant.NetworkID, models.NetworkGrantSubjectUser, actorID)
 	return result.RowsAffected, result.Error
 }
 
@@ -438,11 +486,27 @@ func (g *GormDB) DeleteNetworkGrant(networkID, subjectType, subjectID string) er
 		Error
 }
 
-func (g *GormDB) DeleteNetworkGrantIfRole(networkID, subjectType, subjectID, expectedRole string) (int64, error) {
-	result := g.db.
-		Where("network_id = ? AND subject_type = ? AND subject_id = ? AND role = ?",
-			networkID, subjectType, subjectID, expectedRole).
-		Delete(&models.NetworkGrant{})
+func (g *GormDB) DeleteNetworkGrantIfActorCanWriteAndRole(networkID, subjectType, subjectID, actorID, expectedRole string) (int64, error) {
+	result := g.db.Exec(`
+		DELETE FROM network_grants
+		WHERE network_id = ? AND subject_type = ? AND subject_id = ? AND role = ?
+			AND (
+				EXISTS (SELECT 1 FROM networks WHERE id = ? AND owner_id = ?)
+				OR (
+					? IN ('viewer', 'operator')
+					AND EXISTS (
+						SELECT 1 FROM network_grants AS actor_grant
+						WHERE actor_grant.network_id = ?
+							AND actor_grant.subject_type = ?
+							AND actor_grant.subject_id = ?
+							AND actor_grant.role = 'manager'
+					)
+				)
+			)
+	`, networkID, subjectType, subjectID, expectedRole,
+		networkID, actorID,
+		expectedRole,
+		networkID, models.NetworkGrantSubjectUser, actorID)
 	return result.RowsAffected, result.Error
 }
 

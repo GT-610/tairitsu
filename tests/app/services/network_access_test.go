@@ -86,6 +86,8 @@ func TestNetworkServiceAccessGrantAndSharedList(t *testing.T) {
 	viewerAccess, err := service.GetNetworkAccess("8056c2e21c000021", "viewer-1")
 	require.NoError(t, err)
 	assert.Equal(t, services.NetworkRoleViewer, viewerAccess.MyRole)
+	assert.Contains(t, viewerAccess.MyPermissions, services.NetworkPermissionMembersRead)
+	assert.NotContains(t, viewerAccess.MyPermissions, services.NetworkPermissionMembersWrite)
 
 	_, err = service.GetNetworkAccessCandidates("8056c2e21c000021", "viewer-1", "outside")
 	require.ErrorIs(t, err, services.ErrNetworkPermissionDenied)

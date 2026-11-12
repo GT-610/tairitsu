@@ -37,18 +37,19 @@ type DBInterface interface {
 	GetNetworksByIDs(ids []string) ([]*models.Network, error)
 	GetAllNetworks() ([]*models.Network, error)
 	UpdateNetwork(network *models.Network) error
-	UpdateNetworkMetadata(id, name, description string, updatedAt time.Time) error
+	UpdateNetworkMetadata(id string, name, description *string, updatedAt time.Time) error
 	UpdateNetworkOwnerIfCurrent(networkID, currentOwnerID, newOwnerID string, updatedAt time.Time) (int64, error)
 	DeleteNetwork(id string) error
 
 	// Network access grants
 	CreateNetworkGrant(grant *models.NetworkGrant) error
+	CreateNetworkGrantIfActorCanWrite(grant *models.NetworkGrant, actorID string) (int64, error)
 	GetNetworkGrant(networkID, subjectType, subjectID string) (*models.NetworkGrant, error)
 	GetNetworkGrants(networkID string) ([]*models.NetworkGrant, error)
 	GetNetworkGrantsByUserID(userID string) ([]*models.NetworkGrant, error)
-	UpdateNetworkGrantIfRole(grant *models.NetworkGrant, expectedRole string) (int64, error)
+	UpdateNetworkGrantIfActorCanWriteAndRole(grant *models.NetworkGrant, actorID, expectedRole string) (int64, error)
 	DeleteNetworkGrant(networkID, subjectType, subjectID string) error
-	DeleteNetworkGrantIfRole(networkID, subjectType, subjectID, expectedRole string) (int64, error)
+	DeleteNetworkGrantIfActorCanWriteAndRole(networkID, subjectType, subjectID, actorID, expectedRole string) (int64, error)
 	DeleteNetworkGrants(networkID string) error
 	DeleteUserNetworkGrants(userID string) error
 

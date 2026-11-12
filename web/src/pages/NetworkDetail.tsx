@@ -272,6 +272,13 @@ function NetworkDetail() {
     try {
       const response = await networkAPI.getNetworkAccess(id)
       setNetworkAccess(response.data)
+      setNetwork((previous) => (previous ? {
+        ...previous,
+        access: {
+          role: response.data.my_role,
+          permissions: response.data.my_permissions,
+        },
+      } : previous))
     } catch (err: unknown) {
       showSnackbar(getErrorMessage(err, translateText('刷新成员与权限失败')), 'error')
     } finally {

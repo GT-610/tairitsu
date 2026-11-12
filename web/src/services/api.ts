@@ -131,6 +131,7 @@ export interface NetworkAccessDetail {
   owner_id: string;
   owner_username: string;
   my_role: NetworkRole;
+  my_permissions: NetworkPermission[];
   entries: NetworkAccessEntry[];
 }
 

@@ -205,7 +205,7 @@ func (f *FakeDB) GetAllNetworks() ([]*models.Network, error) {
 
 func (f *FakeDB) UpdateNetwork(network *models.Network) error { return nil }
 
-func (f *FakeDB) UpdateNetworkMetadata(id, name, description string, updatedAt time.Time) error {
+func (f *FakeDB) UpdateNetworkMetadata(id string, name, description *string, updatedAt time.Time) error {
 	return nil
 }
 
@@ -221,6 +221,10 @@ func (f *FakeDB) GetNetworksByIDs(ids []string) ([]*models.Network, error) {
 
 func (f *FakeDB) CreateNetworkGrant(grant *models.NetworkGrant) error { return nil }
 
+func (f *FakeDB) CreateNetworkGrantIfActorCanWrite(grant *models.NetworkGrant, actorID string) (int64, error) {
+	return 1, nil
+}
+
 func (f *FakeDB) GetNetworkGrant(networkID, subjectType, subjectID string) (*models.NetworkGrant, error) {
 	return nil, nil
 }
@@ -233,13 +237,13 @@ func (f *FakeDB) GetNetworkGrantsByUserID(userID string) ([]*models.NetworkGrant
 	return []*models.NetworkGrant{}, nil
 }
 
-func (f *FakeDB) UpdateNetworkGrantIfRole(grant *models.NetworkGrant, expectedRole string) (int64, error) {
+func (f *FakeDB) UpdateNetworkGrantIfActorCanWriteAndRole(grant *models.NetworkGrant, actorID, expectedRole string) (int64, error) {
 	return 1, nil
 }
 
 func (f *FakeDB) DeleteNetworkGrant(networkID, subjectType, subjectID string) error { return nil }
 
-func (f *FakeDB) DeleteNetworkGrantIfRole(networkID, subjectType, subjectID, expectedRole string) (int64, error) {
+func (f *FakeDB) DeleteNetworkGrantIfActorCanWriteAndRole(networkID, subjectType, subjectID, actorID, expectedRole string) (int64, error) {
 	return 1, nil
 }
 

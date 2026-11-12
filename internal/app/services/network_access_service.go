@@ -29,6 +29,7 @@ type NetworkAccessDetail struct {
 	OwnerID       string               `json:"owner_id"`
 	OwnerUsername string               `json:"owner_username"`
 	MyRole        NetworkRole          `json:"my_role"`
+	MyPermissions []NetworkPermission  `json:"my_permissions"`
 	Entries       []NetworkAccessEntry `json:"entries"`
 }
 
@@ -75,9 +76,10 @@ func (s *NetworkService) GetNetworkAccess(networkID, actorID string) (*NetworkAc
 	}
 
 	detail := &NetworkAccessDetail{
-		OwnerID: network.OwnerID,
-		MyRole:  actorRole,
-		Entries: make([]NetworkAccessEntry, 0, len(grants)),
+		OwnerID:       network.OwnerID,
+		MyRole:        actorRole,
+		MyPermissions: actorRole.Permissions(),
+		Entries:       make([]NetworkAccessEntry, 0, len(grants)),
 	}
 	if owner := usersByID[network.OwnerID]; owner != nil {
 		detail.OwnerUsername = owner.Username
@@ -209,7 +211,7 @@ func (s *NetworkService) GrantNetworkAccess(networkID, actorID, targetUserID, ro
 	}
 
 	now := time.Now()
-	if err := db.CreateNetworkGrant(&models.NetworkGrant{
+	rows, err := db.CreateNetworkGrantIfActorCanWrite(&models.NetworkGrant{
 		NetworkID:   network.ID,
 		SubjectType: models.NetworkGrantSubjectUser,
 		SubjectID:   target.ID,
@@ -217,11 +219,30 @@ func (s *NetworkService) GrantNetworkAccess(networkID, actorID, targetUserID, ro
 		GrantedBy:   actorID,
 		CreatedAt:   now,
 		UpdatedAt:   now,
-	}); err != nil {
+	}, actorID)
+	if err != nil {
 		if database.IsDuplicateKey(err) {
 			return ErrNetworkGrantExists
 		}
 		return err
+	}
+	if rows == 0 {
+		// Either a concurrent grant won the race or the actor lost access.
+		existing, lookupErr := db.GetNetworkGrant(network.ID, models.NetworkGrantSubjectUser, target.ID)
+		if lookupErr != nil {
+			return lookupErr
+		}
+		if existing != nil {
+			return ErrNetworkGrantExists
+		}
+		allowed, allowedErr := s.actorCanWriteAccess(network.ID, actorID)
+		if allowedErr != nil {
+			return allowedErr
+		}
+		if !allowed {
+			return ErrNetworkPermissionDenied
+		}
+		return ErrNetworkGrantChanged
 	}
 
 	logger.Info("service: network access granted",
@@ -274,12 +295,12 @@ func (s *NetworkService) UpdateNetworkAccess(networkID, actorID, targetUserID, r
 	grant.Role = string(role)
 	grant.GrantedBy = actorID
 	grant.UpdatedAt = time.Now()
-	rows, err := db.UpdateNetworkGrantIfRole(grant, string(currentRole))
+	rows, err := db.UpdateNetworkGrantIfActorCanWriteAndRole(grant, actorID, string(currentRole))
 	if err != nil {
 		return err
 	}
 	if rows == 0 {
-		return ErrNetworkGrantChanged
+		return s.explainGrantMutationFailure(network.ID, actorID)
 	}
 
 	logger.Info("service: network access updated",
@@ -324,12 +345,12 @@ func (s *NetworkService) RevokeNetworkAccess(networkID, actorID, targetUserID st
 		return ErrNetworkPermissionDenied
 	}
 
-	rows, err := db.DeleteNetworkGrantIfRole(network.ID, models.NetworkGrantSubjectUser, targetUserID, string(currentRole))
+	rows, err := db.DeleteNetworkGrantIfActorCanWriteAndRole(network.ID, models.NetworkGrantSubjectUser, targetUserID, actorID, string(currentRole))
 	if err != nil {
 		return err
 	}
 	if rows == 0 {
-		return ErrNetworkGrantChanged
+		return s.explainGrantMutationFailure(network.ID, actorID)
 	}
 
 	logger.Info("service: network access revoked",
@@ -456,6 +477,44 @@ func (s *NetworkService) TransferNetworkOwnership(networkID, actorID, targetUser
 		zap.String("to_user_id", targetUserID),
 		zap.String("previous_owner_role", string(previousRole)))
 	return nil
+}
+
+// actorCanWriteAccess reports whether the actor still owns the network or holds
+// a manager grant. It is used only on the failure path of a conditional write,
+// to distinguish "your access was revoked" from "the target changed".
+func (s *NetworkService) actorCanWriteAccess(networkID, actorID string) (bool, error) {
+	db := s.getDB()
+	if db == nil {
+		return false, fmt.Errorf("database is not initialized")
+	}
+
+	network, err := db.GetNetworkByID(networkID)
+	if err != nil {
+		return false, err
+	}
+	if network == nil {
+		return false, nil
+	}
+	if network.OwnerID == actorID {
+		return true, nil
+	}
+
+	grant, err := db.GetNetworkGrant(networkID, models.NetworkGrantSubjectUser, actorID)
+	if err != nil {
+		return false, err
+	}
+	return grant != nil && grant.Role == string(NetworkRoleManager), nil
+}
+
+func (s *NetworkService) explainGrantMutationFailure(networkID, actorID string) error {
+	allowed, err := s.actorCanWriteAccess(networkID, actorID)
+	if err != nil {
+		return err
+	}
+	if !allowed {
+		return ErrNetworkPermissionDenied
+	}
+	return ErrNetworkGrantChanged
 }
 
 func uniqueNonEmpty(values []string) []string {
