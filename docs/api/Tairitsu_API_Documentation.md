@@ -280,11 +280,17 @@ Revokes all other sessions of the current user.
 
 ## Networks and Members
 
-Network and member access is owner-scoped:
+Network and member access is role-based:
 
-- users only see networks where they are the recorded `owner_id`
-- accessing someone else's network returns `403`
-- accessing a missing network returns `404`
+- `owner` has full control, including deleting the network and transferring ownership
+- `manager` can read and modify network settings and manage members
+- `operator` can read the network and manage devices
+- `viewer` can read the network, its devices, and its access list
+- a request that lacks the required role returns `403`
+- a missing network returns `404`
+
+`GET /networks` returns networks the current user owns; delegated networks are
+returned by `GET /networks/shared` with the caller's role.
 
 ### `GET /networks`
 

@@ -532,15 +532,19 @@ func (s *NetworkService) UpdateNetwork(id string, updateReq *zerotier.NetworkUpd
 		return nil, err
 	}
 
-	// Update network name and description in database
+	// Update network name and description in database. Use a metadata-only
+	// write so a concurrent ownership transfer cannot be overwritten by this
+	// stale full-record read.
+	name := dbNetwork.Name
+	description := dbNetwork.Description
 	if updateReq.Name != "" {
-		dbNetwork.Name = updateReq.Name
+		name = updateReq.Name
 	}
 	if updateReq.Description != "" {
-		dbNetwork.Description = updateReq.Description
+		description = updateReq.Description
 	}
 	if updateReq.Name != "" || updateReq.Description != "" {
-		if err := db.UpdateNetwork(dbNetwork); err != nil {
+		if err := db.UpdateNetworkMetadata(id, name, description, time.Now()); err != nil {
 			logger.Error("service: failed to update network information in database", zap.String("network_id", id), zap.Error(err))
 			return nil, fmt.Errorf("failed to sync network to database after controller update: %w", err)
 		}
@@ -561,8 +565,7 @@ func (s *NetworkService) UpdateNetworkMetadata(id string, name string, descripti
 		return nil, fmt.Errorf("database is not initialized")
 	}
 
-	dbNetwork, _, err := s.authorizeNetwork(id, userID, NetworkPermissionSettingsWrite)
-	if err != nil {
+	if _, _, err := s.authorizeNetwork(id, userID, NetworkPermissionSettingsWrite); err != nil {
 		logger.Warn("service: no permission to update network metadata", zap.String("network_id", id), zap.String("user_id", userID), zap.Error(err))
 		return nil, err
 	}
@@ -577,10 +580,9 @@ func (s *NetworkService) UpdateNetworkMetadata(id string, name string, descripti
 		return nil, err
 	}
 
-	// Update name and description in the database (description is database-only)
-	dbNetwork.Name = name
-	dbNetwork.Description = description
-	if err := db.UpdateNetwork(dbNetwork); err != nil {
+	// Update name and description in the database (description is database-only).
+	// The write is metadata-only so it cannot overwrite a concurrent transfer.
+	if err := db.UpdateNetworkMetadata(id, name, description, time.Now()); err != nil {
 		logger.Error("service: failed to update database network information", zap.String("network_id", id), zap.Error(err))
 		return nil, err
 	}

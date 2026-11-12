@@ -338,6 +338,33 @@ func (g *GormDB) UpdateNetwork(network *models.Network) error {
 	return result.Error
 }
 
+// UpdateNetworkMetadata writes only the display fields. A metadata request can
+// overlap an ownership transfer, so it must not write OwnerID or other columns
+// from a stale full-record read.
+func (g *GormDB) UpdateNetworkMetadata(id, name, description string, updatedAt time.Time) error {
+	result := g.db.Model(&models.Network{}).
+		Where("id = ?", id).
+		Updates(map[string]any{
+			"name":        name,
+			"description": description,
+			"updated_at":  updatedAt,
+		})
+	return result.Error
+}
+
+// UpdateNetworkOwnerIfCurrent changes the owner only while currentOwnerID still
+// owns the network. Two racing transfers therefore cannot both commit, and the
+// loser gets zero rows instead of overwriting the winner.
+func (g *GormDB) UpdateNetworkOwnerIfCurrent(networkID, currentOwnerID, newOwnerID string, updatedAt time.Time) (int64, error) {
+	result := g.db.Model(&models.Network{}).
+		Where("id = ? AND owner_id = ?", networkID, currentOwnerID).
+		Updates(map[string]any{
+			"owner_id":   newOwnerID,
+			"updated_at": updatedAt,
+		})
+	return result.RowsAffected, result.Error
+}
+
 // DeleteNetwork deletes a network
 func (g *GormDB) DeleteNetwork(id string) error {
 	result := g.db.Delete(&models.Network{}, "id = ?", id)
@@ -393,14 +420,30 @@ func (g *GormDB) GetNetworkGrantsByUserID(userID string) ([]*models.NetworkGrant
 	return grants, nil
 }
 
-func (g *GormDB) UpdateNetworkGrant(grant *models.NetworkGrant) error {
-	return g.db.Save(grant).Error
+func (g *GormDB) UpdateNetworkGrantIfRole(grant *models.NetworkGrant, expectedRole string) (int64, error) {
+	result := g.db.Model(&models.NetworkGrant{}).
+		Where("network_id = ? AND subject_type = ? AND subject_id = ? AND role = ?",
+			grant.NetworkID, grant.SubjectType, grant.SubjectID, expectedRole).
+		Updates(map[string]any{
+			"role":       grant.Role,
+			"granted_by": grant.GrantedBy,
+			"updated_at": grant.UpdatedAt,
+		})
+	return result.RowsAffected, result.Error
 }
 
 func (g *GormDB) DeleteNetworkGrant(networkID, subjectType, subjectID string) error {
 	return g.db.
 		Delete(&models.NetworkGrant{}, "network_id = ? AND subject_type = ? AND subject_id = ?", networkID, subjectType, subjectID).
 		Error
+}
+
+func (g *GormDB) DeleteNetworkGrantIfRole(networkID, subjectType, subjectID, expectedRole string) (int64, error) {
+	result := g.db.
+		Where("network_id = ? AND subject_type = ? AND subject_id = ? AND role = ?",
+			networkID, subjectType, subjectID, expectedRole).
+		Delete(&models.NetworkGrant{})
+	return result.RowsAffected, result.Error
 }
 
 func (g *GormDB) DeleteNetworkGrants(networkID string) error {
@@ -425,9 +468,11 @@ func (g *GormDB) SearchUsers(query string, limit int) ([]*models.User, error) {
 		limit = 20
 	}
 
+	escaped := strings.NewReplacer("!", "!!", "%", "!%", "_", "!_").Replace(strings.ToLower(query))
+
 	var users []*models.User
 	result := g.db.
-		Where("LOWER(username) LIKE ?", "%"+strings.ToLower(query)+"%").
+		Where("LOWER(username) LIKE ? ESCAPE '!'", "%"+escaped+"%").
 		Order("username ASC").
 		Limit(limit).
 		Find(&users)

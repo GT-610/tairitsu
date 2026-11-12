@@ -255,9 +255,27 @@ function NetworkDetail() {
         setNetworkAccess(null)
       }
     } catch (err: unknown) {
-      setError(getErrorMessage(err, translateText('获取网络详情失败')))
+      const message = getErrorMessage(err, translateText('获取网络详情失败'))
+      if (silent) {
+        showSnackbar(message, 'error')
+      } else {
+        setError(message)
+      }
     } finally {
       if (!silent) setLoading(false)
+    }
+  }
+
+  const refreshNetworkAccess = async () => {
+    if (!id) return
+    setAccessLoading(true)
+    try {
+      const response = await networkAPI.getNetworkAccess(id)
+      setNetworkAccess(response.data)
+    } catch (err: unknown) {
+      showSnackbar(getErrorMessage(err, translateText('刷新成员与权限失败')), 'error')
+    } finally {
+      setAccessLoading(false)
     }
   }
 
@@ -740,7 +758,8 @@ function NetworkDetail() {
               access={networkAccess}
               loading={accessLoading}
               canManage={permissions.includes('access.write')}
-              onChanged={async () => { await fetchNetworkDetail(true) }}
+              onChanged={refreshNetworkAccess}
+              onOwnershipChanged={async () => { await fetchNetworkDetail(true) }}
               onLeft={() => { void navigate('/networks', { replace: true }) }}
               onNotice={(message, severity = 'success') => showSnackbar(message, severity)}
             />

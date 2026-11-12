@@ -205,6 +205,14 @@ func (f *FakeDB) GetAllNetworks() ([]*models.Network, error) {
 
 func (f *FakeDB) UpdateNetwork(network *models.Network) error { return nil }
 
+func (f *FakeDB) UpdateNetworkMetadata(id, name, description string, updatedAt time.Time) error {
+	return nil
+}
+
+func (f *FakeDB) UpdateNetworkOwnerIfCurrent(networkID, currentOwnerID, newOwnerID string, updatedAt time.Time) (int64, error) {
+	return 1, nil
+}
+
 func (f *FakeDB) DeleteNetwork(id string) error { return nil }
 
 func (f *FakeDB) GetNetworksByIDs(ids []string) ([]*models.Network, error) {
@@ -225,9 +233,15 @@ func (f *FakeDB) GetNetworkGrantsByUserID(userID string) ([]*models.NetworkGrant
 	return []*models.NetworkGrant{}, nil
 }
 
-func (f *FakeDB) UpdateNetworkGrant(grant *models.NetworkGrant) error { return nil }
+func (f *FakeDB) UpdateNetworkGrantIfRole(grant *models.NetworkGrant, expectedRole string) (int64, error) {
+	return 1, nil
+}
 
 func (f *FakeDB) DeleteNetworkGrant(networkID, subjectType, subjectID string) error { return nil }
+
+func (f *FakeDB) DeleteNetworkGrantIfRole(networkID, subjectType, subjectID, expectedRole string) (int64, error) {
+	return 1, nil
+}
 
 func (f *FakeDB) DeleteNetworkGrants(networkID string) error { return nil }
 

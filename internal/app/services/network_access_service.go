@@ -218,6 +218,9 @@ func (s *NetworkService) GrantNetworkAccess(networkID, actorID, targetUserID, ro
 		CreatedAt:   now,
 		UpdatedAt:   now,
 	}); err != nil {
+		if database.IsDuplicateKey(err) {
+			return ErrNetworkGrantExists
+		}
 		return err
 	}
 
@@ -271,8 +274,12 @@ func (s *NetworkService) UpdateNetworkAccess(networkID, actorID, targetUserID, r
 	grant.Role = string(role)
 	grant.GrantedBy = actorID
 	grant.UpdatedAt = time.Now()
-	if err := db.UpdateNetworkGrant(grant); err != nil {
+	rows, err := db.UpdateNetworkGrantIfRole(grant, string(currentRole))
+	if err != nil {
 		return err
+	}
+	if rows == 0 {
+		return ErrNetworkGrantChanged
 	}
 
 	logger.Info("service: network access updated",
@@ -317,8 +324,12 @@ func (s *NetworkService) RevokeNetworkAccess(networkID, actorID, targetUserID st
 		return ErrNetworkPermissionDenied
 	}
 
-	if err := db.DeleteNetworkGrant(network.ID, models.NetworkGrantSubjectUser, targetUserID); err != nil {
+	rows, err := db.DeleteNetworkGrantIfRole(network.ID, models.NetworkGrantSubjectUser, targetUserID, string(currentRole))
+	if err != nil {
 		return err
+	}
+	if rows == 0 {
+		return ErrNetworkGrantChanged
 	}
 
 	logger.Info("service: network access revoked",
@@ -359,33 +370,11 @@ func (s *NetworkService) LeaveNetwork(networkID, userID string) error {
 }
 
 func (s *NetworkService) TransferNetworkOwnership(networkID, actorID, targetUserID, previousOwnerRole string) error {
-	network, _, err := s.authorizeNetwork(networkID, actorID, NetworkPermissionNetworkTransfer)
-	if err != nil {
+	if _, _, err := s.authorizeNetwork(networkID, actorID, NetworkPermissionNetworkTransfer); err != nil {
 		return err
 	}
 
-	if targetUserID == "" || targetUserID == actorID || targetUserID == network.OwnerID {
-		return ErrNetworkOwnerTransferInvalid
-	}
-
-	db := s.getDB()
-	if db == nil {
-		return fmt.Errorf("database is not initialized")
-	}
-
-	target, err := db.GetUserByID(targetUserID)
-	if err != nil {
-		return err
-	}
-	if target == nil {
-		return ErrUserNotFound
-	}
-
-	targetGrant, err := db.GetNetworkGrant(network.ID, models.NetworkGrantSubjectUser, target.ID)
-	if err != nil {
-		return err
-	}
-	if targetGrant == nil {
+	if targetUserID == "" || targetUserID == actorID {
 		return ErrNetworkOwnerTransferInvalid
 	}
 
@@ -403,27 +392,53 @@ func (s *NetworkService) TransferNetworkOwnership(networkID, actorID, targetUser
 		previousRole = parsed
 	}
 
+	db := s.getDB()
+	if db == nil {
+		return fmt.Errorf("database is not initialized")
+	}
+
 	now := time.Now()
 	if err := db.WithTransaction(func(tx database.DBInterface) error {
-		network.OwnerID = target.ID
-		network.UpdatedAt = now
-		if err := tx.UpdateNetwork(network); err != nil {
+		// Re-read inside the transaction: the target may have been deleted and
+		// another transfer may have completed since the authorization above.
+		target, err := tx.GetUserByID(targetUserID)
+		if err != nil {
 			return err
+		}
+		if target == nil {
+			return ErrUserNotFound
+		}
+
+		targetGrant, err := tx.GetNetworkGrant(networkID, models.NetworkGrantSubjectUser, target.ID)
+		if err != nil {
+			return err
+		}
+		if targetGrant == nil {
+			return ErrNetworkOwnerTransferInvalid
+		}
+
+		rows, err := tx.UpdateNetworkOwnerIfCurrent(networkID, actorID, target.ID, now)
+		if err != nil {
+			return err
+		}
+		if rows == 0 {
+			// The caller was no longer the owner when the write reached the row.
+			return ErrNetworkPermissionDenied
 		}
 
 		// The new owner holds the role implicitly; drop their old grant.
-		if err := tx.DeleteNetworkGrant(network.ID, models.NetworkGrantSubjectUser, target.ID); err != nil {
+		if err := tx.DeleteNetworkGrant(networkID, models.NetworkGrantSubjectUser, target.ID); err != nil {
 			return err
 		}
 
-		if err := tx.DeleteNetworkGrant(network.ID, models.NetworkGrantSubjectUser, actorID); err != nil {
+		if err := tx.DeleteNetworkGrant(networkID, models.NetworkGrantSubjectUser, actorID); err != nil {
 			return err
 		}
 		if previousRole == "" {
 			return nil
 		}
 		return tx.CreateNetworkGrant(&models.NetworkGrant{
-			NetworkID:   network.ID,
+			NetworkID:   networkID,
 			SubjectType: models.NetworkGrantSubjectUser,
 			SubjectID:   actorID,
 			Role:        string(previousRole),
@@ -436,9 +451,9 @@ func (s *NetworkService) TransferNetworkOwnership(networkID, actorID, targetUser
 	}
 
 	logger.Info("service: network ownership transferred",
-		zap.String("network_id", network.ID),
+		zap.String("network_id", networkID),
 		zap.String("from_user_id", actorID),
-		zap.String("to_user_id", target.ID),
+		zap.String("to_user_id", targetUserID),
 		zap.String("previous_owner_role", string(previousRole)))
 	return nil
 }

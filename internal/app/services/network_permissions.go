@@ -80,6 +80,7 @@ var (
 	ErrNetworkPermissionDenied     = errors.New("network permission denied")
 	ErrNetworkGrantNotFound        = errors.New("network grant not found")
 	ErrNetworkGrantExists          = errors.New("network grant already exists")
+	ErrNetworkGrantChanged         = errors.New("network grant changed while the request was in flight")
 	ErrNetworkGrantRoleInvalid     = errors.New("invalid network role")
 	ErrNetworkGrantTargetInvalid   = errors.New("network grant target is not allowed")
 	ErrNetworkGrantSelfChange      = errors.New("cannot change your own network role")

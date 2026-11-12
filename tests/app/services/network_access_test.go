@@ -354,3 +354,46 @@ func TestNetworkServiceTransferCanRemoveThePreviousOwner(t *testing.T) {
 	require.NoError(t, err)
 	assert.Nil(t, targetGrant)
 }
+
+func TestNetworkServiceAccessCandidatesTreatWildcardsLiterally(t *testing.T) {
+	db := testutil.NewSQLiteDB(t)
+	createTestUser(t, db, "owner-1", "user")
+	createTestUser(t, db, "alice", "user")
+	createTestUser(t, db, "a%b", "user")
+	createTestUser(t, db, "a_b", "user")
+	createTestUser(t, db, "zzz", "user")
+	seedAccessNetwork(t, db, "8056c2e21c000029", "owner-1")
+
+	service := services.NewNetworkService(nil, db)
+
+	percent, err := service.GetNetworkAccessCandidates("8056c2e21c000029", "owner-1", "%")
+	require.NoError(t, err)
+	assert.Equal(t, []services.NetworkAccessCandidate{{ID: "a%b", Username: "a%b"}}, percent)
+
+	underscore, err := service.GetNetworkAccessCandidates("8056c2e21c000029", "owner-1", "_")
+	require.NoError(t, err)
+	assert.Equal(t, []services.NetworkAccessCandidate{{ID: "a_b", Username: "a_b"}}, underscore)
+
+	letter, err := service.GetNetworkAccessCandidates("8056c2e21c000029", "owner-1", "a")
+	require.NoError(t, err)
+	assert.Len(t, letter, 3)
+}
+
+func TestNetworkServiceTransferRejectsADeletedTarget(t *testing.T) {
+	db := testutil.NewSQLiteDB(t)
+	createTestUser(t, db, "owner-1", "user")
+	createTestUser(t, db, "target-1", "user")
+	seedAccessNetwork(t, db, "8056c2e21c000030", "owner-1")
+
+	service := services.NewNetworkService(nil, db)
+	require.NoError(t, service.GrantNetworkAccess("8056c2e21c000030", "owner-1", "target-1", "operator"))
+	require.NoError(t, db.DeleteUser("target-1"))
+
+	err := service.TransferNetworkOwnership("8056c2e21c000030", "owner-1", "target-1", "manager")
+	require.ErrorIs(t, err, services.ErrUserNotFound)
+
+	network, err := db.GetNetworkByID("8056c2e21c000030")
+	require.NoError(t, err)
+	require.NotNil(t, network)
+	assert.Equal(t, "owner-1", network.OwnerID)
+}

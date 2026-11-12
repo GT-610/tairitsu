@@ -137,6 +137,7 @@ const messageCodes: Record<string, { en: string; 'zh-CN': string }> = {
   'network.permission_denied': { en: 'You do not have permission to perform this action on this network', 'zh-CN': '你在该网络中没有执行此操作的权限' },
   'network.grant_not_found': { en: 'Network member not found', 'zh-CN': '网络成员不存在' },
   'network.grant_exists': { en: 'User already has access to this network', 'zh-CN': '该用户已经拥有此网络的访问权限' },
+  'network.grant_conflict': { en: 'This member role changed while the request was in flight. Reload and try again.', 'zh-CN': '该成员的角色在请求期间发生了变化，请刷新后重试' },
   'network.grant_role_invalid': { en: 'Invalid network role', 'zh-CN': '无效的网络角色' },
   'network.grant_target_invalid': { en: 'This user cannot be granted access to the network', 'zh-CN': '不能为该用户授予此网络的访问权限' },
   'network.grant_self_change': { en: 'Use the leave action to remove your own access', 'zh-CN': '请使用“退出网络”来移除自己的访问权限' },
@@ -694,6 +695,15 @@ const rawEn: Record<string, string> = {
   '成员与权限加载失败': 'Failed to load members and access',
   '只有网络管理员可以修改桥接模式。': 'Only network managers can change bridge mode.',
   '已注销用户': 'Deleted user',
+
+  '网络管理员': 'Network manager',
+  '输入用户名搜索用户': 'Type a username to search',
+  '搜索失败，请重试': 'Search failed. Try again.',
+  '搜索用户失败，请重试': 'Failed to search users. Try again.',
+  '刷新网络详情失败': 'Failed to refresh network details',
+  '刷新成员与权限失败': 'Failed to refresh members and access',
+  '移除后，该用户将立即失去对此网络控制台的访问权限，但其已授权设备不会断开。': 'After removal, this user immediately loses console access to the network, but their authorized devices stay connected.',
+  '退出后，你将失去此网络控制台的访问权限，需要重新被邀请；设备连接不受影响。': 'After leaving, you lose console access to this network and need to be invited again. Device connectivity is not affected.',
 
 }
 

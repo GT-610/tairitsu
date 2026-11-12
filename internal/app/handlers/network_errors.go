@@ -21,6 +21,8 @@ func writeNetworkServiceError(c fiber.Ctx, err error, notFoundMessage string, fo
 		return writeErrorResponseWithCode(c, fiber.StatusNotFound, "network.grant_not_found", "Network member not found")
 	case errors.Is(err, services.ErrNetworkGrantExists):
 		return writeErrorResponseWithCode(c, fiber.StatusConflict, "network.grant_exists", "User already has access to this network")
+	case errors.Is(err, services.ErrNetworkGrantChanged):
+		return writeErrorResponseWithCode(c, fiber.StatusConflict, "network.grant_conflict", "This member's role changed while the request was in flight. Reload and try again.")
 	case errors.Is(err, services.ErrNetworkGrantRoleInvalid):
 		return writeErrorResponseWithCode(c, fiber.StatusBadRequest, "network.grant_role_invalid", "Invalid network role")
 	case errors.Is(err, services.ErrNetworkGrantTargetInvalid):

@@ -158,23 +158,27 @@ func TestInitMigratesLegacyNetworkViewers(t *testing.T) {
 
 	require.NoError(t, db.Init())
 
-	grant, err := db.GetNetworkGrant("8056c2e21c000001", models.NetworkGrantSubjectUser, "user-1")
-	require.NoError(t, err)
-	require.NotNil(t, grant)
-	assert.Equal(t, "viewer", grant.Role)
-	assert.Equal(t, "owner-1", grant.GrantedBy)
+	for _, networkID := range []string{"8056c2e21c000001", "8056c2e21c000002"} {
+		grant, err := db.GetNetworkGrant(networkID, models.NetworkGrantSubjectUser, "user-1")
+		require.NoError(t, err)
+		require.NotNil(t, grant)
+		assert.Equal(t, "viewer", grant.Role)
+		assert.Equal(t, "owner-1", grant.GrantedBy)
 
-	grants, err := db.GetNetworkGrants("8056c2e21c000001")
-	require.NoError(t, err)
-	assert.Len(t, grants, 1)
+		grants, err := db.GetNetworkGrants(networkID)
+		require.NoError(t, err)
+		assert.Len(t, grants, 1)
+	}
 
 	assert.False(t, hasLegacyViewerTable(t, dbPath), "the legacy table must be removed after a successful copy")
 
 	// A second start must be a no-op rather than a second copy.
 	require.NoError(t, db.Init())
-	grants, err = db.GetNetworkGrants("8056c2e21c000001")
-	require.NoError(t, err)
-	assert.Len(t, grants, 1)
+	for _, networkID := range []string{"8056c2e21c000001", "8056c2e21c000002"} {
+		grants, err := db.GetNetworkGrants(networkID)
+		require.NoError(t, err)
+		assert.Len(t, grants, 1)
+	}
 }
 
 func TestInitRemovesAnEmptyLegacyNetworkViewerTable(t *testing.T) {

@@ -2,7 +2,7 @@ import type { NetworkRole } from '../services/api'
 
 export const networkRoleLabel: Record<NetworkRole, string> = {
   owner: '所有者',
-  manager: '管理员',
+  manager: '网络管理员',
   operator: '运维',
   viewer: '查看者',
 }

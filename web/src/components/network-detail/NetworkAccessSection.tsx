@@ -50,6 +50,7 @@ interface NetworkAccessSectionProps {
   loading: boolean;
   canManage: boolean;
   onChanged: () => Promise<void>;
+  onOwnershipChanged: () => Promise<void>;
   onLeft: () => void;
   onNotice: (message: string, severity?: 'success' | 'error' | 'info') => void;
 }
@@ -60,6 +61,7 @@ function NetworkAccessSection({
   loading,
   canManage,
   onChanged,
+  onOwnershipChanged,
   onLeft,
   onNotice,
 }: NetworkAccessSectionProps) {
@@ -71,6 +73,7 @@ function NetworkAccessSection({
   const [candidateQuery, setCandidateQuery] = useState('')
   const [candidates, setCandidates] = useState<NetworkAccessCandidate[]>([])
   const [candidateLoading, setCandidateLoading] = useState(false)
+  const [candidateError, setCandidateError] = useState(false)
   const [selectedCandidate, setSelectedCandidate] = useState<NetworkAccessCandidate | null>(null)
   const [selectedRole, setSelectedRole] = useState<NetworkRole>('viewer')
 
@@ -91,8 +94,9 @@ function NetworkAccessSection({
   useEffect(() => {
     if (!addOpen) return
     const query = candidateQuery.trim()
-    if (query.length < 2) {
+    if (query.length < 1) {
       setCandidates([])
+      setCandidateError(false)
       setCandidateLoading(false)
       return
     }
@@ -100,6 +104,7 @@ function NetworkAccessSection({
     let active = true
     const timer = window.setTimeout(() => {
       setCandidateLoading(true)
+      setCandidateError(false)
       void networkAPI.getNetworkAccessCandidates(networkId, query)
         .then((response) => {
           if (active) {
@@ -107,7 +112,10 @@ function NetworkAccessSection({
           }
         })
         .catch(() => {
-          if (active) setCandidates([])
+          if (active) {
+            setCandidates([])
+            setCandidateError(true)
+          }
         })
         .finally(() => {
           if (active) setCandidateLoading(false)
@@ -124,6 +132,7 @@ function NetworkAccessSection({
     setAddOpen(false)
     setCandidateQuery('')
     setCandidates([])
+    setCandidateError(false)
     setSelectedCandidate(null)
     setSelectedRole('viewer')
     setCandidateLoading(false)
@@ -205,7 +214,7 @@ function NetworkAccessSection({
         onLeft()
         return
       }
-      await onChanged()
+      await onOwnershipChanged()
     } catch (err: unknown) {
       onNotice(getErrorMessage(err, translateText('转移所有权失败')), 'error')
     } finally {
@@ -240,6 +249,9 @@ function NetworkAccessSection({
             </Typography>
           </Box>
           <Stack direction="row" spacing={1.5}>
+            <Button variant="text" onClick={() => { void onChanged() }} disabled={saving || loading}>
+              {translateText('刷新')}
+            </Button>
             {canManage && (
               <Button variant="contained" onClick={() => setAddOpen(true)}>
                 {translateText('添加成员')}
@@ -343,15 +355,28 @@ function NetworkAccessSection({
               value={selectedCandidate}
               onChange={(_event, value) => setSelectedCandidate(value)}
               inputValue={candidateQuery}
-              onInputChange={(_event, value) => setCandidateQuery(value)}
+              onInputChange={(_event, value, reason) => {
+                setCandidateQuery(value)
+                setCandidateError(false)
+                if (reason === 'input') setSelectedCandidate(null)
+              }}
               loading={candidateLoading}
               isOptionEqualToValue={(option, value) => option.id === value.id}
-              noOptionsText={translateText(candidateQuery.trim().length < 2 ? '输入至少 2 个字符搜索用户' : '没有匹配的用户')}
+              noOptionsText={translateText(
+                candidateError
+                  ? '搜索失败，请重试'
+                  : candidateQuery.trim().length < 1
+                    ? '输入用户名搜索用户'
+                    : '没有匹配的用户',
+              )}
               renderInput={(params) => (
                 <TextField
                   {...params}
                   label={translateText('搜索用户名')}
-                  helperText={translateText('只显示尚未加入该网络的账号')}
+                  error={candidateError}
+                  helperText={translateText(
+                    candidateError ? '搜索用户失败，请重试' : '只显示尚未加入该网络的账号',
+                  )}
                 />
               )}
             />
@@ -390,7 +415,7 @@ function NetworkAccessSection({
         <DialogTitle>{translateText('移除成员')}</DialogTitle>
         <DialogContent>
           <DialogContentText>
-            {translateText('移除后，该用户将立即失去对此网络的访问权限。')}
+            {translateText('移除后，该用户将立即失去对此网络控制台的访问权限，但其已授权设备不会断开。')}
           </DialogContentText>
         </DialogContent>
         <DialogActions>
@@ -405,7 +430,7 @@ function NetworkAccessSection({
         <DialogTitle>{translateText('退出网络')}</DialogTitle>
         <DialogContent>
           <DialogContentText>
-            {translateText('退出后，你需要重新被邀请才能访问该网络。')}
+            {translateText('退出后，你将失去此网络控制台的访问权限，需要重新被邀请；设备连接不受影响。')}
           </DialogContentText>
         </DialogContent>
         <DialogActions>
