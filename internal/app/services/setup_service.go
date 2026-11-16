@@ -27,6 +27,7 @@ var (
 	ErrSetupDatabaseInitialization     = errors.New("setup.database_initialization_failed")
 	ErrSetupDatabaseConfigSaveFailed   = errors.New("setup.database_config_save_failed")
 	ErrSetupZeroTierConfigSaveFailed   = errors.New("setup.zerotier_config_save_failed")
+	ErrSetupInvalidControllerURL       = errors.New("setup.invalid_controller_url")
 	ErrSetupZeroTierClientCreateFailed = errors.New("setup.zerotier_client_create_failed")
 	ErrSetupZeroTierValidationFailed   = errors.New("setup.zerotier_validation_failed")
 	ErrSetupAlreadyInitialized         = errors.New("setup.already_initialized")
@@ -90,7 +91,14 @@ func (s *SetupService) ConfigureDatabase(dbConfig config.DatabaseConfig) (databa
 }
 
 func (s *SetupService) SaveZeroTierConfig(controllerURL, tokenPath string) (*zerotier.Status, error) {
-	if err := s.stateService.SaveZeroTierConfig(controllerURL, tokenPath); err != nil {
+	// Reject a malformed address as the caller's mistake rather than letting it
+	// reach the client, which would report it as a connection failure.
+	normalizedURL, err := config.NormalizeControllerURL(controllerURL)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrSetupInvalidControllerURL, err)
+	}
+
+	if err := s.stateService.SaveZeroTierConfig(normalizedURL, tokenPath); err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrSetupZeroTierConfigSaveFailed, err)
 	}
 

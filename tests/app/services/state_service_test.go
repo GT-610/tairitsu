@@ -174,7 +174,7 @@ func writeTokenFile(t *testing.T, token string) string {
 func TestStateService_CreateZTClientBuildsOnce(t *testing.T) {
 	testutil.UseTempDataDir(t)
 
-	tokenPath := writeTokenFile(t, "controller-token")
+	tokenPath := writeTokenFile(t, "gvyqdnryjyhm9tms336s428i")
 	stateService := services.NewStateServiceWithConfig(&config.Config{
 		ZeroTier: config.ZeroTierConfig{
 			URL:       "http://127.0.0.1:9993",
@@ -191,13 +191,13 @@ func TestStateService_CreateZTClientBuildsOnce(t *testing.T) {
 	require.NoError(t, err)
 	assert.Same(t, first, second, "the client must be built once, not per request")
 
-	assert.Equal(t, "controller-token", second.Token)
+	assert.Equal(t, "gvyqdnryjyhm9tms336s428i", second.Token)
 }
 
 func TestStateService_InvalidateZTClientDropsTheCachedClient(t *testing.T) {
 	testutil.UseTempDataDir(t)
 
-	tokenPath := writeTokenFile(t, "controller-token")
+	tokenPath := writeTokenFile(t, "gvyqdnryjyhm9tms336s428i")
 	stateService := services.NewStateServiceWithConfig(&config.Config{
 		ZeroTier: config.ZeroTierConfig{
 			URL:       "http://127.0.0.1:9993",
@@ -222,7 +222,7 @@ func TestStateService_InvalidateZTClientDropsTheCachedClient(t *testing.T) {
 func TestStateService_SaveZeroTierConfigRebuildsTheClient(t *testing.T) {
 	testutil.UseTempDataDir(t)
 
-	tokenPath := writeTokenFile(t, "controller-token")
+	tokenPath := writeTokenFile(t, "gvyqdnryjyhm9tms336s428i")
 	stateService := services.NewStateServiceWithConfig(&config.Config{
 		ZeroTier: config.ZeroTierConfig{
 			URL:       "http://127.0.0.1:9993",
@@ -236,14 +236,14 @@ func TestStateService_SaveZeroTierConfigRebuildsTheClient(t *testing.T) {
 	require.Equal(t, "http://127.0.0.1:9993", first.BaseURL)
 
 	newTokenPath := filepath.Join(config.DataRoot(), "second-authtoken.secret")
-	require.NoError(t, os.WriteFile(newTokenPath, []byte("replacement-token"), 0o600))
+	require.NoError(t, os.WriteFile(newTokenPath, []byte("2vqdnryjyhm9tms336s428iz"), 0o600))
 	require.NoError(t, stateService.SaveZeroTierConfig("http://127.0.0.1:9994", newTokenPath))
 
 	second, err := stateService.CreateZTClient()
 	require.NoError(t, err)
 	assert.NotSame(t, first, second)
 	assert.Equal(t, "http://127.0.0.1:9994", second.BaseURL)
-	assert.Equal(t, "replacement-token", second.Token)
+	assert.Equal(t, "2vqdnryjyhm9tms336s428iz", second.Token)
 }
 
 // TestStateService_GetSetupStatusDoesNotProbePerRequest is the other half of the
@@ -260,7 +260,7 @@ func TestStateService_GetSetupStatusDoesNotProbePerRequest(t *testing.T) {
 	}))
 	t.Cleanup(controller.Close)
 
-	tokenPath := writeTokenFile(t, "controller-token")
+	tokenPath := writeTokenFile(t, "gvyqdnryjyhm9tms336s428i")
 	stateService := services.NewStateServiceWithConfig(&config.Config{
 		ZeroTier: config.ZeroTierConfig{
 			URL:       controller.URL,

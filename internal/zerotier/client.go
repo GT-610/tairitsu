@@ -3,6 +3,7 @@ package zerotier
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -397,6 +398,14 @@ func NewClientWithConfig(cfg *config.Config) (*Client, error) {
 			MaxIdleConns:        20,
 			MaxIdleConnsPerHost: 10,
 			IdleConnTimeout:     90 * time.Second,
+		},
+		// The controller token travels in X-ZT1-Auth, and Go re-sends custom
+		// headers on a redirect — it only strips the well-known credential
+		// headers, which this is not. A redirect to another host therefore hands
+		// the token to that host, and a controller does not redirect, so the only
+		// outcome of following one is that leak.
+		CheckRedirect: func(*http.Request, []*http.Request) error {
+			return errors.New("the controller answered with a redirect, which the controller API does not do; check the controller URL")
 		},
 	}
 

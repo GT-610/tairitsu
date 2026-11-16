@@ -33,7 +33,8 @@ func setupErrorResponse(c fiber.Ctx, err error) error {
 	switch {
 	case errors.Is(err, services.ErrSetupUnsupportedDatabase),
 		errors.Is(err, services.ErrSetupInvalidConfig),
-		errors.Is(err, services.ErrSetupDatabasePathRejected):
+		errors.Is(err, services.ErrSetupDatabasePathRejected),
+		errors.Is(err, services.ErrSetupInvalidControllerURL):
 		status = fiber.StatusBadRequest
 	case errors.Is(err, services.ErrSetupDatabaseConnectionFailed),
 		errors.Is(err, services.ErrSetupDatabaseInitialization),
@@ -64,6 +65,9 @@ func setupErrorResponse(c fiber.Ctx, err error) error {
 	case errors.Is(err, services.ErrSetupDatabasePathRejected):
 		code = "setup.database_path_rejected"
 		message = "The SQLite file must live inside Tairitsu's data directory"
+	case errors.Is(err, services.ErrSetupInvalidControllerURL):
+		code = "setup.invalid_controller_url"
+		message = "The controller URL must be an http or https address"
 	case errors.Is(err, services.ErrSetupDatabaseConnectionFailed):
 		code = "setup.database_connection_failed"
 		message = "Database connection failed"

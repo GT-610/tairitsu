@@ -6,8 +6,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 
@@ -463,19 +465,71 @@ func SetZTTokenOn(cfg *Config, token string) error {
 	return nil
 }
 
-func SetZTConfigOn(cfg *Config, url, tokenPath string) error {
+func SetZTConfigOn(cfg *Config, controllerURL, tokenPath string) error {
 	if cfg == nil {
 		return fmt.Errorf("configuration not loaded")
 	}
 
-	cfg.ZeroTier.URL = url
-	cfg.ZeroTier.TokenPath = tokenPath
-
-	if err := LoadTokenFromPathInto(cfg, tokenPath); err != nil {
+	normalizedURL, err := NormalizeControllerURL(controllerURL)
+	if err != nil {
 		return err
 	}
 
+	// The token is read and validated before anything is assigned, so a rejected
+	// path leaves the stored settings exactly as they were instead of half
+	// updated.
+	token, err := readTokenFile(tokenPath)
+	if err != nil {
+		return err
+	}
+
+	encryptedToken, err := encryptSensitiveDataWithConfig(cfg, token)
+	if err != nil {
+		return fmt.Errorf("failed to encrypt token: %w", err)
+	}
+
+	cfg.ZeroTier.URL = normalizedURL
+	cfg.ZeroTier.TokenPath = strings.TrimSpace(tokenPath)
+	cfg.ZeroTier.Token = encryptedToken
+
 	return SaveConfig(cfg)
+}
+
+// NormalizeControllerURL validates a controller address and returns it in the
+// form the client should store.
+//
+// Only http and https are accepted. The client sends the controller token in a
+// request header to whatever this names, so a scheme the transport does not
+// understand, or credentials embedded in the URL, would be a way to widen who
+// receives it. A trailing slash is dropped because the client builds request
+// paths by concatenation.
+func NormalizeControllerURL(raw string) (string, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return "", fmt.Errorf("controller URL is required")
+	}
+
+	parsed, err := url.Parse(trimmed)
+	if err != nil {
+		return "", fmt.Errorf("controller URL is not a valid URL")
+	}
+
+	switch parsed.Scheme {
+	case "http", "https":
+	case "":
+		return "", fmt.Errorf("controller URL must include http:// or https://")
+	default:
+		return "", fmt.Errorf("controller URL must use http or https, not %q", parsed.Scheme)
+	}
+
+	if parsed.Host == "" {
+		return "", fmt.Errorf("controller URL must include a host")
+	}
+	if parsed.User != nil {
+		return "", fmt.Errorf("controller URL must not embed credentials")
+	}
+
+	return strings.TrimRight(trimmed, "/"), nil
 }
 
 // tokenFileSizeLimit caps how much of a token file is read. A ZeroTier
@@ -496,40 +550,69 @@ func LoadTokenFromPathInto(cfg *Config, path string) error {
 		return fmt.Errorf("configuration not loaded")
 	}
 
+	token, err := readTokenFile(path)
+	if err != nil {
+		return err
+	}
+
+	return SetZTTokenOn(cfg, token)
+}
+
+// controllerTokenPattern is what a ZeroTier controller token looks like: one run
+// of letters and digits. The controller writes it to authtoken.secret itself.
+//
+// Checking the content rather than the path is what makes this a control. The
+// token file lives wherever the operator installed the controller, so the path
+// cannot be confined to a directory; what can be said is that the file has to
+// contain a token. Without that, the setup surface would read any file the
+// process can reach and hand its contents to the controller address the same
+// request supplied.
+var controllerTokenPattern = regexp.MustCompile(`^[A-Za-z0-9]{16,128}$`)
+
+// readTokenFile reads the controller token at path and confirms it looks like a
+// token.
+func readTokenFile(path string) (string, error) {
 	trimmed := strings.TrimSpace(path)
 	if trimmed == "" {
-		return fmt.Errorf("token file path is empty")
+		return "", fmt.Errorf("token file path is empty")
 	}
 
 	info, err := os.Stat(trimmed)
 	if err != nil {
-		return fmt.Errorf("failed to read token file: %w", err)
+		return "", fmt.Errorf("failed to read token file: %w", err)
 	}
 	if !info.Mode().IsRegular() {
-		return fmt.Errorf("token file %q is not a regular file", trimmed)
+		return "", fmt.Errorf("token file %q is not a regular file", trimmed)
 	}
 
 	file, err := os.Open(trimmed)
 	if err != nil {
-		return fmt.Errorf("failed to read token file: %w", err)
+		return "", fmt.Errorf("failed to read token file: %w", err)
 	}
 	defer file.Close()
 
 	content, err := io.ReadAll(io.LimitReader(file, tokenFileSizeLimit+1))
 	if err != nil {
-		return fmt.Errorf("failed to read token file: %w", err)
+		return "", fmt.Errorf("failed to read token file: %w", err)
 	}
 	if len(content) > tokenFileSizeLimit {
-		return fmt.Errorf("token file %q is larger than %d bytes", trimmed, tokenFileSizeLimit)
+		return "", fmt.Errorf("token file %q is larger than %d bytes", trimmed, tokenFileSizeLimit)
 	}
 
-	// Successfully read file, remove newline and set token
 	token := strings.TrimSpace(string(content))
 	if token == "" {
-		return fmt.Errorf("token file is empty")
+		return "", fmt.Errorf("token file is empty")
 	}
 
-	return SetZTTokenOn(cfg, token)
+	// The content is deliberately absent from the error: the point of the check
+	// is that this file may be something the caller should not see.
+	if !controllerTokenPattern.MatchString(token) {
+		return "", fmt.Errorf(
+			"token file %q does not contain a ZeroTier controller token; expected a single line of 16-128 letters or digits and found %d bytes",
+			trimmed, len(token))
+	}
+
+	return token, nil
 }
 
 func encryptSensitiveDataWithConfig(cfg *Config, data string) (string, error) {

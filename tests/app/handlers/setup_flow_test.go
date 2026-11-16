@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -238,4 +239,54 @@ func TestSetupFlow_ZeroTierTokenNotFoundReturnsOriginalDetail(t *testing.T) {
 	detail, _ := responseBody["detail"].(string)
 	assert.Contains(t, detail, "/missing/authtoken.secret")
 	assert.Contains(t, detail, "no such file or directory")
+}
+
+// TestSetupFlow_ControllerURLMustBeAnHTTPAddress keeps a malformed address from
+// reaching the client, where it would surface as a connection failure rather than
+// as the mistake it is. It also keeps a scheme the transport does not understand
+// from being stored as the place the controller token gets sent.
+func TestSetupFlow_ControllerURLMustBeAnHTTPAddress(t *testing.T) {
+	testutil.UseTempDataDir(t)
+
+	originalConfig := config.AppConfig
+	t.Cleanup(func() {
+		config.AppConfig = originalConfig
+	})
+
+	tokenPath := filepath.Join(t.TempDir(), "authtoken.secret")
+	require.NoError(t, os.WriteFile(tokenPath, []byte("gvyqdnryjyhm9tms336s428i\n"), 0o600))
+
+	cfg := &config.Config{Security: config.SecurityConfig{EncryptionKey: "test-secret-key"}}
+	config.AppConfig = cfg
+
+	stateService := services.NewStateServiceWithConfig(cfg)
+	setupService := services.NewSetupService(
+		services.NewRuntimeService(nil, nil, nil, stateService),
+		stateService,
+		nil,
+		nil,
+	)
+	systemHandler := apphandlers.NewSystemHandler(setupService, services.NewSystemService())
+
+	app := fiber.New()
+	app.Post("/system/zerotier/config", systemHandler.SaveZeroTierConfig)
+
+	for _, badURL := range []string{"gopher://127.0.0.1:9993", "file:///etc/passwd", "127.0.0.1:9993"} {
+		body, err := json.Marshal(map[string]string{"controllerUrl": badURL, "tokenPath": tokenPath})
+		require.NoError(t, err)
+
+		req := httptest.NewRequest(http.MethodPost, "/system/zerotier/config", bytes.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		resp, err := app.Test(req, testRequestTimeout)
+		require.NoError(t, err)
+
+		var payload map[string]any
+		require.NoError(t, json.NewDecoder(resp.Body).Decode(&payload))
+		require.NoError(t, resp.Body.Close())
+
+		assert.Equal(t, fiber.StatusBadRequest, resp.StatusCode, "url %q", badURL)
+		assert.Equal(t, "setup.invalid_controller_url", payload["error_code"], "url %q", badURL)
+	}
+
+	assert.Empty(t, cfg.ZeroTier.URL, "a rejected address must not be stored")
 }

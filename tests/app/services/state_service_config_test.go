@@ -118,7 +118,7 @@ func TestStateServiceSaveZeroTierConfigPersistsBoundConfig(t *testing.T) {
 	})
 
 	tokenPath := filepath.Join(t.TempDir(), "authtoken.secret")
-	require.NoError(t, os.WriteFile(tokenPath, []byte("secret-token\n"), 0600))
+	require.NoError(t, os.WriteFile(tokenPath, []byte("gvyqdnryjyhm9tms336s428i\n"), 0600))
 
 	boundConfig := &config.Config{
 		Security: config.SecurityConfig{
