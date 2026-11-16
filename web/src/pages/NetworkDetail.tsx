@@ -24,7 +24,6 @@ import { Link, useParams, useNavigate } from 'react-router-dom'
 import {
   type IpAssignmentPool,
   type Network,
-  type NetworkConfig,
   type NetworkAccessDetail,
   type NetworkMetadataUpdateRequest,
   type Route,
@@ -59,8 +58,10 @@ import {
   normalizeRouteTarget,
 } from '../utils/networkAddressUtils'
 import {
+  adoptSavedConfig,
   buildMergedPools,
   buildMergedRoutes,
+  emptyNetworkConfig,
   getInitialBasicSettings,
   getInitialDNSSettings,
   getInitialIPv4Settings,
@@ -81,21 +82,6 @@ import {
 import { formatNetworkMember } from '../utils/memberUtils'
 import { networkRoleLabel } from '../utils/networkAccess'
 import { useTranslation } from '../i18n'
-
-const defaultNetworkConfig: Partial<NetworkConfig> = {
-  private: true,
-  enableBroadcast: true,
-  mtu: 2800,
-  multicastLimit: 32,
-  v4AssignMode: {
-    zt: false,
-  },
-  v6AssignMode: {
-    zt: false,
-    '6plane': false,
-    rfc4193: false,
-  },
-}
 
 const emptyBasicSettings: BasicSettingsDraft = { name: '', description: '' }
 const emptyIPv4Settings: IPv4SettingsDraft = {
@@ -212,17 +198,11 @@ function NetworkDetail() {
   // read it. The refetch above is deliberately delayed, so without this a save from
   // another section in the meantime would rebuild the shared route and pool arrays
   // from values the server has already replaced, undoing the change that succeeded.
-  const adoptSavedNetwork = (saved: Network) => {
-    // Normalised the same way the initial fetch normalises it, so a section that
-    // reads this snapshot sees the same shape either way.
-    const config: NetworkConfig = { ...defaultNetworkConfig, ...saved.config }
-    if (config.v4AssignMode) {
-      config.v4AssignMode = { ...defaultNetworkConfig.v4AssignMode, ...config.v4AssignMode }
-    }
-    if (config.v6AssignMode) {
-      config.v6AssignMode = { ...defaultNetworkConfig.v6AssignMode, ...config.v6AssignMode }
-    }
-    setNetwork((previous) => (previous ? { ...previous, config } : previous))
+  //
+  // adoptSavedConfig also drops a response that belongs to a network the page has
+  // since navigated away from.
+  const adoptSavedNetwork = (saved: Network, requestedNetworkId: string) => {
+    setNetwork((previous) => adoptSavedConfig(previous, saved, requestedNetworkId))
   }
 
   const fetchNetworkDetail = async (silent = false) => {
@@ -240,12 +220,12 @@ function NetworkDetail() {
       const networkData = networkResponse.data
       if (!networkData) return
 
-      networkData.config = { ...defaultNetworkConfig, ...networkData.config }
+      networkData.config = { ...emptyNetworkConfig, ...networkData.config }
       if (networkData.config.v4AssignMode) {
-        networkData.config.v4AssignMode = { ...defaultNetworkConfig.v4AssignMode, ...networkData.config.v4AssignMode }
+        networkData.config.v4AssignMode = { ...emptyNetworkConfig.v4AssignMode, ...networkData.config.v4AssignMode }
       }
       if (networkData.config.v6AssignMode) {
-        networkData.config.v6AssignMode = { ...defaultNetworkConfig.v6AssignMode, ...networkData.config.v6AssignMode }
+        networkData.config.v6AssignMode = { ...emptyNetworkConfig.v6AssignMode, ...networkData.config.v6AssignMode }
       }
 
       setNetwork(networkData)
@@ -510,7 +490,7 @@ function NetworkDetail() {
         ),
         v4AssignMode: { zt: ipv4Settings.autoAssign },
       })
-      adoptSavedNetwork(savedNetwork.data)
+      if (activeNetworkId.current === id) adoptSavedNetwork(savedNetwork.data, id)
       showSnackbar('IPv4配置保存成功')
       scheduleRefetch()
     } catch (err: unknown) {
@@ -552,7 +532,7 @@ function NetworkDetail() {
           rfc4193: ipv6Settings.rfc4193,
         },
       })
-      adoptSavedNetwork(savedNetwork.data)
+      if (activeNetworkId.current === id) adoptSavedNetwork(savedNetwork.data, id)
       showSnackbar('IPv6配置保存成功')
       scheduleRefetch()
     } catch (err: unknown) {
@@ -577,7 +557,7 @@ function NetworkDetail() {
           managedRoutesSettings.routes,
         ),
       })
-      adoptSavedNetwork(savedNetwork.data)
+      if (activeNetworkId.current === id) adoptSavedNetwork(savedNetwork.data, id)
       showSnackbar('托管路由保存成功')
       scheduleRefetch()
     } catch (err: unknown) {
@@ -597,7 +577,7 @@ function NetworkDetail() {
           servers: dnsSettings.servers,
         },
       })
-      adoptSavedNetwork(savedNetwork.data)
+      if (activeNetworkId.current === id) adoptSavedNetwork(savedNetwork.data, id)
       showSnackbar('DNS 设置保存成功')
       scheduleRefetch()
     } catch (err: unknown) {
@@ -615,7 +595,7 @@ function NetworkDetail() {
         multicastLimit: multicastSettings.multicastLimit,
         enableBroadcast: multicastSettings.enableBroadcast,
       })
-      adoptSavedNetwork(savedNetwork.data)
+      if (activeNetworkId.current === id) adoptSavedNetwork(savedNetwork.data, id)
       showSnackbar('多播设置保存成功')
       scheduleRefetch()
     } catch (err: unknown) {

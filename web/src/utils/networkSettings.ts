@@ -1,4 +1,4 @@
-import type { IpAssignmentPool, Network, Route } from '../services/api'
+import type { IpAssignmentPool, Network, NetworkConfig, Route } from '../services/api'
 import type {
   BasicSettingsDraft,
   DNSSettingsDraft,
@@ -116,4 +116,45 @@ export function buildMergedPools(
       ipRangeEnd: pool.ipRangeEnd.trim(),
     })) : []),
   ]
+}
+
+/**
+ * Adopts a save response as the published snapshot, or leaves it alone.
+ *
+ * A save for network A can complete after navigation has already loaded B. The read
+ * paths refuse that with an id check; the completion of a write has to as well, or B
+ * would be shown with A's configuration and the next save from B would submit it.
+ *
+ * The result is null when the response must be dropped, so the caller cannot
+ * accidentally fall back to the previous value.
+ */
+export function adoptSavedConfig(
+  previous: Network | null,
+  saved: Network,
+  settledNetworkId: string | null,
+): Network | null {
+  if (!previous) return null
+  if (settledNetworkId === null) return null
+  if (previous.id !== settledNetworkId) return null
+  if (saved.id !== settledNetworkId) return null
+
+  const config: NetworkConfig = { ...emptyNetworkConfig, ...saved.config }
+  if (config.v4AssignMode) {
+    config.v4AssignMode = { ...emptyNetworkConfig.v4AssignMode, ...config.v4AssignMode }
+  }
+  if (config.v6AssignMode) {
+    config.v6AssignMode = { ...emptyNetworkConfig.v6AssignMode, ...config.v6AssignMode }
+  }
+
+  return { ...previous, config }
+}
+
+/** The shape every render relies on, applied to both a fetch and a save response. */
+export const emptyNetworkConfig: Partial<NetworkConfig> = {
+  private: true,
+  enableBroadcast: true,
+  mtu: 2800,
+  multicastLimit: 32,
+  v4AssignMode: { zt: false },
+  v6AssignMode: { zt: false, '6plane': false, rfc4193: false },
 }
