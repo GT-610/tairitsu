@@ -197,16 +197,19 @@ func hasSQLiteHeader(root *os.Root, name string) (bool, error) {
 	return string(header) == sqliteFileHeader, nil
 }
 
-// restrictSQLiteFileMode makes the database file owner-only.
+// restrictSQLiteFileMode makes the database file and its siblings owner-only.
 //
 // The driver creates the file with the process umask, so a default deployment
-// ended up with 0644 next to a 0600 config.json — readable by every account on
-// the host, and it holds every password hash and session hash. The file is
-// created here first when it does not exist, so the driver never chooses the
-// mode, and an existing file is corrected, because a deployment may predate this.
+// ended up with 0644 next to a 0600 config.json — readable by every account on the
+// host, and it holds every password hash and session hash. The file is created
+// here first when it does not exist, so the driver never chooses the mode, and an
+// existing file is corrected, because a deployment may predate this.
 //
-// The -wal and -shm siblings are not touched: SQLite gives them the database
-// file's permissions, so fixing this one covers them.
+// The -wal and -shm siblings are corrected too rather than assumed to follow. SQLite
+// copies the database file's permissions when it *creates* them, which covers a
+// fresh database, but an existing write-ahead log keeps whatever mode it already
+// had. A process killed mid-write leaves one behind, the next start reuses it, and
+// it holds the same rows the main file does.
 func restrictSQLiteFileMode(path string) error {
 	file, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0o600)
 	if err != nil {
@@ -216,9 +219,17 @@ func restrictSQLiteFileMode(path string) error {
 		return fmt.Errorf("failed to close SQLite database file: %w", err)
 	}
 
-	// An existing file keeps the mode it was created with, so set it explicitly.
-	if err := os.Chmod(path, 0o600); err != nil {
-		return fmt.Errorf("failed to restrict SQLite database file permissions: %w", err)
+	// A file that already exists keeps the mode it was created with, so every one
+	// of these is set explicitly.
+	for _, name := range []string{path, path + "-wal", path + "-shm"} {
+		if err := os.Chmod(name, 0o600); err != nil {
+			if os.IsNotExist(err) {
+				// A sibling that is not there yet will be created later, by SQLite,
+				// with this file's permissions.
+				continue
+			}
+			return fmt.Errorf("failed to restrict SQLite database file permissions on %q: %w", name, err)
+		}
 	}
 
 	return nil
