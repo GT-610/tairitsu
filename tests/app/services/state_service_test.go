@@ -1,6 +1,11 @@
 package services
 
 import (
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"sync/atomic"
 	"testing"
 
 	"github.com/GT-610/tairitsu/internal/app/config"
@@ -9,6 +14,7 @@ import (
 	"github.com/GT-610/tairitsu/internal/app/services"
 	"github.com/GT-610/tairitsu/tests/testutil"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestStateService_GetSetupStatus_Uninitialized(t *testing.T) {
@@ -148,4 +154,127 @@ func TestStateService_GetSetupStatus_NamesTheAdministratorDuringSetup(t *testing
 	assert.True(t, status.SetupAuthorized)
 	assert.True(t, status.HasAdmin)
 	assert.Equal(t, "admin", status.AdminUsername)
+}
+
+// writeTokenFile places a controller token in the test's data directory and
+// returns its path.
+func writeTokenFile(t *testing.T, token string) string {
+	t.Helper()
+
+	path := filepath.Join(config.DataRoot(), "authtoken.secret")
+	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+	require.NoError(t, os.WriteFile(path, []byte(token), 0o600))
+	return path
+}
+
+// TestStateService_CreateZTClientBuildsOnce is the regression test for the
+// memory amplification: building the client decrypts the stored token with
+// argon2id, so doing it per request let a burst of unauthenticated requests
+// exhaust the process.
+func TestStateService_CreateZTClientBuildsOnce(t *testing.T) {
+	testutil.UseTempDataDir(t)
+
+	tokenPath := writeTokenFile(t, "controller-token")
+	stateService := services.NewStateServiceWithConfig(&config.Config{
+		ZeroTier: config.ZeroTierConfig{
+			URL:       "http://127.0.0.1:9993",
+			TokenPath: tokenPath,
+		},
+		Security: config.SecurityConfig{EncryptionKey: "test-secret-key"},
+	})
+
+	first, err := stateService.CreateZTClient()
+	require.NoError(t, err)
+	require.NotNil(t, first)
+
+	second, err := stateService.CreateZTClient()
+	require.NoError(t, err)
+	assert.Same(t, first, second, "the client must be built once, not per request")
+
+	assert.Equal(t, "controller-token", second.Token)
+}
+
+func TestStateService_InvalidateZTClientDropsTheCachedClient(t *testing.T) {
+	testutil.UseTempDataDir(t)
+
+	tokenPath := writeTokenFile(t, "controller-token")
+	stateService := services.NewStateServiceWithConfig(&config.Config{
+		ZeroTier: config.ZeroTierConfig{
+			URL:       "http://127.0.0.1:9993",
+			TokenPath: tokenPath,
+		},
+		Security: config.SecurityConfig{EncryptionKey: "test-secret-key"},
+	})
+
+	first, err := stateService.CreateZTClient()
+	require.NoError(t, err)
+
+	stateService.InvalidateZTClient()
+
+	second, err := stateService.CreateZTClient()
+	require.NoError(t, err)
+	assert.NotSame(t, first, second, "invalidation must drop the cached client")
+}
+
+// TestStateService_SaveZeroTierConfigRebuildsTheClient proves a reconfiguration
+// takes effect: the cached client was built from the previous URL and token, so
+// saving new ones has to discard it.
+func TestStateService_SaveZeroTierConfigRebuildsTheClient(t *testing.T) {
+	testutil.UseTempDataDir(t)
+
+	tokenPath := writeTokenFile(t, "controller-token")
+	stateService := services.NewStateServiceWithConfig(&config.Config{
+		ZeroTier: config.ZeroTierConfig{
+			URL:       "http://127.0.0.1:9993",
+			TokenPath: tokenPath,
+		},
+		Security: config.SecurityConfig{EncryptionKey: "test-secret-key"},
+	})
+
+	first, err := stateService.CreateZTClient()
+	require.NoError(t, err)
+	require.Equal(t, "http://127.0.0.1:9993", first.BaseURL)
+
+	newTokenPath := filepath.Join(config.DataRoot(), "second-authtoken.secret")
+	require.NoError(t, os.WriteFile(newTokenPath, []byte("replacement-token"), 0o600))
+	require.NoError(t, stateService.SaveZeroTierConfig("http://127.0.0.1:9994", newTokenPath))
+
+	second, err := stateService.CreateZTClient()
+	require.NoError(t, err)
+	assert.NotSame(t, first, second)
+	assert.Equal(t, "http://127.0.0.1:9994", second.BaseURL)
+	assert.Equal(t, "replacement-token", second.Token)
+}
+
+// TestStateService_GetSetupStatusDoesNotProbePerRequest is the other half of the
+// amplification fix: polling the public status endpoint used to reach out to the
+// controller on every single request.
+func TestStateService_GetSetupStatusDoesNotProbePerRequest(t *testing.T) {
+	testutil.UseTempDataDir(t)
+
+	var calls atomic.Int32
+	controller := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"version":"1.14.2","address":"9bfb5c0b7e","online":true}`))
+	}))
+	t.Cleanup(controller.Close)
+
+	tokenPath := writeTokenFile(t, "controller-token")
+	stateService := services.NewStateServiceWithConfig(&config.Config{
+		ZeroTier: config.ZeroTierConfig{
+			URL:       controller.URL,
+			TokenPath: tokenPath,
+		},
+		Security: config.SecurityConfig{EncryptionKey: "test-secret-key"},
+	})
+
+	for i := 0; i < 5; i++ {
+		status := stateService.GetSetupStatus(nil, nil, false)
+		require.NotNil(t, status.ZTStatus, "probe %d must report the controller", i)
+		assert.True(t, status.ZTStatus.Online)
+		assert.Equal(t, "9bfb5c0b7e", status.ZTStatus.Address)
+	}
+
+	assert.Equal(t, int32(1), calls.Load(), "five status polls must not become five controller requests")
 }
