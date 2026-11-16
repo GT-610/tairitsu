@@ -78,9 +78,11 @@ export interface NetworkSummary {
   description?: string;
   owner_id: string;
   role: NetworkRole;
-  member_count: number;
-  authorized_member_count: number;
-  pending_member_count: number;
+  // Null when the controller could not be reached: "no members" and "members
+  // unknown" are different facts and must not be shown as the same zero.
+  member_count: number | null;
+  authorized_member_count: number | null;
+  pending_member_count: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -92,9 +94,11 @@ export interface SharedNetworkSummary {
   owner_id: string;
   owner_username: string;
   role: NetworkRole;
-  member_count: number;
-  authorized_member_count: number;
-  pending_member_count: number;
+  // Null when the controller could not be reached: "no members" and "members
+  // unknown" are different facts and must not be shown as the same zero.
+  member_count: number | null;
+  authorized_member_count: number | null;
+  pending_member_count: number | null;
   created_at: string;
   updated_at: string;
 }
