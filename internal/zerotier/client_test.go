@@ -250,3 +250,36 @@ func TestClientDoesNotFollowRedirects(t *testing.T) {
 	require.Error(t, err, "a redirect must not be followed")
 	assert.Empty(t, leaked, "the controller token must never reach the redirect target")
 }
+
+// TestNetworkUpdateRequestOmitsFieldsTheCallerDidNotName pins the serialisation
+// the controller's partial update depends on: a bool that was not in the request
+// must not appear in the body, or it replaces the stored value with false.
+func TestNetworkUpdateRequestOmitsFieldsTheCallerDidNotName(t *testing.T) {
+	body, err := json.Marshal(&NetworkUpdateRequest{
+		DNS: &DNSConfig{Domain: "example.test"},
+	})
+	require.NoError(t, err)
+
+	var decoded map[string]any
+	require.NoError(t, json.Unmarshal(body, &decoded))
+
+	assert.NotContains(t, decoded, "private", "an unnamed private flag must not be sent")
+	assert.NotContains(t, decoded, "enableBroadcast", "an unnamed broadcast flag must not be sent")
+	assert.Contains(t, decoded, "dns")
+}
+
+func TestNetworkUpdateRequestSendsFlagsTheCallerNamed(t *testing.T) {
+	private := true
+	broadcast := false
+	body, err := json.Marshal(&NetworkUpdateRequest{
+		Private:         &private,
+		EnableBroadcast: &broadcast,
+	})
+	require.NoError(t, err)
+
+	var decoded map[string]any
+	require.NoError(t, json.Unmarshal(body, &decoded))
+
+	assert.Equal(t, true, decoded["private"])
+	assert.Equal(t, false, decoded["enableBroadcast"], "an explicit false must still be sent")
+}

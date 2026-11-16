@@ -473,19 +473,23 @@ function NetworkDetail() {
 
     setSaving(true)
     try {
+      // The route and pool arrays are shared between the IPv4 and IPv6 sections,
+      // so an IPv4 save has to carry IPv6 values as well — the saved ones, not
+      // whatever is typed into the IPv6 section and not yet applied.
+      const publishedIPv6 = getInitialIPv6Settings(network)
       await networkAPI.updateNetwork(id, {
         routes: buildMergedRoutes(
           network.config.routes || [],
           ipv4Settings.subnet,
-          ipv6Settings.subnet,
-          ipv6Settings.customAssign,
+          publishedIPv6.subnet,
+          publishedIPv6.customAssign,
           managedRoutesSettings.routes,
         ),
         ipAssignmentPools: buildMergedPools(
           ipv4Settings.autoAssign,
           ipv4Settings.pools,
-          ipv6Settings.customAssign,
-          ipv6Settings.pools,
+          publishedIPv6.customAssign,
+          publishedIPv6.pools,
         ),
         v4AssignMode: { zt: ipv4Settings.autoAssign },
       })
@@ -507,17 +511,20 @@ function NetworkDetail() {
 
     setSaving(true)
     try {
+      // Same shared arrays, with the saved IPv4 values standing in for the IPv4
+      // section's unsaved draft.
+      const publishedIPv4 = getInitialIPv4Settings(network)
       await networkAPI.updateNetwork(id, {
         routes: buildMergedRoutes(
           network.config.routes || [],
-          ipv4Settings.subnet,
+          publishedIPv4.subnet,
           ipv6Settings.subnet,
           ipv6Settings.customAssign,
           managedRoutesSettings.routes,
         ),
         ipAssignmentPools: buildMergedPools(
-          ipv4Settings.autoAssign,
-          ipv4Settings.pools,
+          publishedIPv4.autoAssign,
+          publishedIPv4.pools,
           ipv6Settings.customAssign,
           ipv6Settings.pools,
         ),
@@ -540,12 +547,14 @@ function NetworkDetail() {
     if (!id || !network || !canWriteSettings) return
     setSaving(true)
     try {
+      const publishedIPv4 = getInitialIPv4Settings(network)
+      const publishedIPv6 = getInitialIPv6Settings(network)
       await networkAPI.updateNetwork(id, {
         routes: buildMergedRoutes(
           network.config.routes || [],
-          ipv4Settings.subnet,
-          ipv6Settings.subnet,
-          ipv6Settings.customAssign,
+          publishedIPv4.subnet,
+          publishedIPv6.subnet,
+          publishedIPv6.customAssign,
           managedRoutesSettings.routes,
         ),
       })

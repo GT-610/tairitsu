@@ -89,11 +89,17 @@ func (n *Network) UnmarshalJSON(data []byte) error {
 }
 
 // NetworkUpdateRequest is a partial network update request (no required fields).
+//
+// The controller applies a partial update by replacing the fields it receives, so
+// a bool that is merely absent from the request must not be serialised at all.
+// Private and EnableBroadcast are pointers for exactly that reason: as plain
+// bools their zero value was always sent, and a request that meant to change only
+// the DNS settings also turned broadcast off.
 type NetworkUpdateRequest struct {
 	Name              string             `json:"name,omitempty"`
 	Description       string             `json:"description,omitempty"`
-	Private           bool               `json:"private"`
-	EnableBroadcast   bool               `json:"enableBroadcast"`
+	Private           *bool              `json:"private,omitempty"`
+	EnableBroadcast   *bool              `json:"enableBroadcast,omitempty"`
 	Mtu               *int               `json:"mtu,omitempty"`
 	MulticastLimit    *int               `json:"multicastLimit,omitempty"`
 	IpAssignmentPools []IpAssignmentPool `json:"ipAssignmentPools,omitempty"`
