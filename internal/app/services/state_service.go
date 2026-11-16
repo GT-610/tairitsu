@@ -53,6 +53,10 @@ const ztProbeTTL = 5 * time.Second
 type ztProbeResult struct {
 	status    *zerotier.Status
 	expiresAt time.Time
+	// generation is the configuration this answer was produced under. A probe can
+	// outlive the configuration it started with, and publishing its answer then
+	// would report the previous controller for the life of the cache entry.
+	generation uint64
 }
 
 type StateService struct {
@@ -67,6 +71,9 @@ type StateService struct {
 	cacheMutex sync.Mutex
 	ztClient   *zerotier.Client
 	ztProbe    *ztProbeResult
+	// cacheGeneration advances whenever the configuration the caches were built
+	// from changes, so an in-flight probe can tell that its answer is stale.
+	cacheGeneration uint64
 }
 
 func NewStateServiceWithConfig(cfg *config.Config) *StateService {
@@ -110,13 +117,13 @@ func (s *StateService) SaveDatabaseConfig(dbCfg database.Config) error {
 
 func (s *StateService) SaveZeroTierConfig(url, tokenPath string) error {
 	cfg := s.ensureConfig()
-	if err := config.SetZTConfigOn(cfg, url, tokenPath); err != nil {
-		return err
-	}
-	// The cached client was built from the previous URL and token, so it must
-	// not keep answering for the new ones.
+	err := config.SetZTConfigOn(cfg, url, tokenPath)
+	// Dropped whether or not the write succeeded. SetZTConfigOn assigns the new URL
+	// and token before it saves, so on a failed save the in-memory configuration is
+	// already the new one while the cached client is still the old one; keeping it
+	// would leave the two disagreeing.
 	s.InvalidateZTClient()
-	return nil
+	return err
 }
 
 func (s *StateService) RuntimeSettings() RuntimeSettings {
@@ -164,6 +171,7 @@ func (s *StateService) InvalidateZTClient() {
 	s.cacheMutex.Lock()
 	s.ztClient = nil
 	s.ztProbe = nil
+	s.cacheGeneration++
 	s.cacheMutex.Unlock()
 }
 
@@ -261,6 +269,7 @@ func (s *StateService) probeZeroTier(networkService *NetworkService) *zerotier.S
 		s.cacheMutex.Unlock()
 		return cached
 	}
+	generation := s.cacheGeneration
 	s.cacheMutex.Unlock()
 
 	// The probe itself runs without the cache lock: it can block for the
@@ -269,7 +278,16 @@ func (s *StateService) probeZeroTier(networkService *NetworkService) *zerotier.S
 	status := s.probeZeroTierNow(networkService)
 
 	s.cacheMutex.Lock()
-	s.ztProbe = &ztProbeResult{status: status, expiresAt: time.Now().Add(ztProbeTTL)}
+	if s.cacheGeneration == generation {
+		// Published only while the configuration is still the one it describes.
+		// A probe that overlapped a reconfiguration reports its own answer to its
+		// own caller and leaves the cache for the new configuration to fill.
+		s.ztProbe = &ztProbeResult{
+			status:     status,
+			expiresAt:  time.Now().Add(ztProbeTTL),
+			generation: generation,
+		}
+	}
 	s.cacheMutex.Unlock()
 
 	return status

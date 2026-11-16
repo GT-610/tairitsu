@@ -278,3 +278,96 @@ func TestStateService_GetSetupStatusDoesNotProbePerRequest(t *testing.T) {
 
 	assert.Equal(t, int32(1), calls.Load(), "five status polls must not become five controller requests")
 }
+
+// TestStateService_ProbeDoesNotPublishAcrossAReconfiguration is the regression test
+// for a probe that outlives the configuration it started under: publishing its
+// answer afterwards would report the previous controller for the whole cache
+// lifetime.
+func TestStateService_ProbeDoesNotPublishAcrossAReconfiguration(t *testing.T) {
+	testutil.UseTempDataDir(t)
+
+	// The first controller holds the request open, so its probe is provably still
+	// running when the configuration changes.
+	requestArrived := make(chan struct{})
+	slowRelease := make(chan struct{})
+	slow := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		close(requestArrived)
+		<-slowRelease
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"version":"old-controller","address":"aaaaaaaaaa","online":true}`))
+	}))
+	t.Cleanup(slow.Close)
+
+	fast := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"version":"new-controller","address":"bbbbbbbbbb","online":true}`))
+	}))
+	t.Cleanup(fast.Close)
+
+	tokenPath := writeTokenFile(t, "gvyqdnryjyhm9tms336s428i")
+	stateService := services.NewStateServiceWithConfig(&config.Config{
+		ZeroTier: config.ZeroTierConfig{URL: slow.URL, TokenPath: tokenPath},
+		Security: config.SecurityConfig{EncryptionKey: "test-secret-key"},
+	})
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		stateService.GetSetupStatus(nil, nil, false)
+	}()
+
+	// Wait until the probe is inside the handler, which proves it read the old
+	// configuration before the reconfiguration below.
+	<-requestArrived
+
+	newTokenPath := filepath.Join(config.DataRoot(), "second-authtoken.secret")
+	require.NoError(t, os.WriteFile(newTokenPath, []byte("2vqdnryjyhm9tms336s428iz"), 0o600))
+	require.NoError(t, stateService.SaveZeroTierConfig(fast.URL, newTokenPath))
+
+	// Let the old probe finish; it must not take over the cache.
+	close(slowRelease)
+	<-done
+
+	status := stateService.GetSetupStatus(nil, nil, false).ZTStatus
+	require.NotNil(t, status)
+	assert.Equal(t, "new-controller", status.Version,
+		"the cached answer must describe the configuration that is current")
+}
+
+// TestStateService_FailedSaveStillDropsTheCache covers the in-memory configuration
+// already having moved when the write to disk fails: a cached client built from the
+// old settings would then disagree with it.
+func TestStateService_FailedSaveStillDropsTheCache(t *testing.T) {
+	testutil.UseTempDataDir(t)
+
+	tokenPath := writeTokenFile(t, "gvyqdnryjyhm9tms336s428i")
+	cfg := &config.Config{
+		ZeroTier: config.ZeroTierConfig{URL: "http://127.0.0.1:9993", TokenPath: tokenPath},
+		Security: config.SecurityConfig{EncryptionKey: "test-secret-key"},
+	}
+	stateService := services.NewStateServiceWithConfig(cfg)
+
+	first, err := stateService.CreateZTClient()
+	require.NoError(t, err)
+	require.Equal(t, "http://127.0.0.1:9993", first.BaseURL)
+
+	// Point the data directory somewhere unwritable so the save fails after the
+	// configuration has already been assigned.
+	unwritable := filepath.Join(t.TempDir(), "blocked")
+	require.NoError(t, os.MkdirAll(unwritable, 0o500))
+	t.Setenv(config.DataDirEnv, unwritable)
+
+	newTokenPath := filepath.Join(t.TempDir(), "authtoken.secret")
+	require.NoError(t, os.WriteFile(newTokenPath, []byte("2vqdnryjyhm9tms336s428iz"), 0o600))
+
+	saveErr := stateService.SaveZeroTierConfig("http://127.0.0.1:9994", newTokenPath)
+	require.Error(t, saveErr, "precondition: the save must fail")
+
+	// The in-memory configuration is the new one, so the client must not still be
+	// the old one.
+	assert.Equal(t, "http://127.0.0.1:9994", stateService.Config().ZeroTier.URL)
+	second, err := stateService.CreateZTClient()
+	require.NoError(t, err)
+	assert.Equal(t, "http://127.0.0.1:9994", second.BaseURL,
+		"a failed save must not leave a client built from the previous settings")
+}
