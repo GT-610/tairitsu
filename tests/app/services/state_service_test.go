@@ -5,6 +5,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"sync"
 	"sync/atomic"
 	"testing"
 
@@ -298,6 +299,14 @@ func TestStateService_ProbeDoesNotPublishAcrossAReconfiguration(t *testing.T) {
 	}))
 	t.Cleanup(slow.Close)
 
+	// Registered after slow.Close, so it runs first: a failure before the release
+	// below would otherwise leave the handler blocked, and httptest.Server.Close waits
+	// for active requests — the suite would hang until the overall timeout instead of
+	// reporting what failed.
+	var releaseOnce sync.Once
+	releaseSlow := func() { releaseOnce.Do(func() { close(slowRelease) }) }
+	t.Cleanup(releaseSlow)
+
 	fast := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"version":"new-controller","address":"bbbbbbbbbb","online":true}`))
@@ -325,7 +334,7 @@ func TestStateService_ProbeDoesNotPublishAcrossAReconfiguration(t *testing.T) {
 	require.NoError(t, stateService.SaveZeroTierConfig(fast.URL, newTokenPath))
 
 	// Let the old probe finish; it must not take over the cache.
-	close(slowRelease)
+	releaseSlow()
 	<-done
 
 	status := stateService.GetSetupStatus(nil, nil, false).ZTStatus
@@ -351,11 +360,14 @@ func TestStateService_FailedSaveStillDropsTheCache(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "http://127.0.0.1:9993", first.BaseURL)
 
-	// Point the data directory somewhere unwritable so the save fails after the
-	// configuration has already been assigned.
-	unwritable := filepath.Join(t.TempDir(), "blocked")
-	require.NoError(t, os.MkdirAll(unwritable, 0o500))
-	t.Setenv(config.DataDirEnv, unwritable)
+	// Make the write itself fail, after the configuration has already been assigned.
+	// A read-only directory is not reliable: a process holding CAP_DAC_OVERRIDE writes
+	// into it anyway, so this would pass in a privileged container by not failing. A
+	// directory where the file belongs is refused by every filesystem regardless of
+	// privileges.
+	dataDir := t.TempDir()
+	t.Setenv(config.DataDirEnv, dataDir)
+	require.NoError(t, os.Mkdir(config.ConfigFilePath(), 0o755))
 
 	newTokenPath := filepath.Join(t.TempDir(), "authtoken.secret")
 	require.NoError(t, os.WriteFile(newTokenPath, []byte("2vqdnryjyhm9tms336s428iz"), 0o600))
