@@ -77,6 +77,11 @@ Request:
 
 Setup-only. Saves controller URL and token path.
 
+`controllerUrl` must be an `http` or `https` address without embedded
+credentials. `tokenPath` must name a file containing a controller token: a single
+line of 16-128 letters or digits. Anything else is rejected rather than stored,
+because the token is later sent to that URL.
+
 Request:
 
 ```json
@@ -89,6 +94,23 @@ Request:
 ### `POST /system/admin/init`
 
 Setup-only. Prepares the admin creation step.
+
+### `POST /system/admin/register`
+
+Setup-only. Creates the first administrator account, and is the only route that
+grants the administrator role without an existing administrator approving it.
+Public registration deliberately cannot: it answers before anyone can sign in and
+cannot tell the operator from any other caller. Answers 409 once an administrator
+exists or the instance is initialized.
+
+Request:
+
+```json
+{
+  "username": "admin",
+  "password": "secret123"
+}
+```
 
 ### `POST /system/initialized`
 
