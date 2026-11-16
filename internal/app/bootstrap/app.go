@@ -107,6 +107,23 @@ func newHTTPApp() *fiber.App {
 	return fiber.New(httpAppConfig())
 }
 
+// Request timeouts. Fiber leaves all three at zero by default, which means a
+// client that sends a request line and then stalls holds the connection open
+// indefinitely; enough of those exhaust the listener without ever completing a
+// request. The values are generous relative to what this API does — every
+// handler answers in milliseconds, and the slowest, a bulk network import, is
+// bounded by the number of networks the controller reports — so they bound a
+// stalled peer without cutting off real work.
+const (
+	// readTimeout covers reading the whole request, headers and body.
+	readTimeout = 30 * time.Second
+	// writeTimeout covers writing the response.
+	writeTimeout = 60 * time.Second
+	// idleTimeout covers waiting for the next request on a kept-alive
+	// connection.
+	idleTimeout = 60 * time.Second
+)
+
 func httpAppConfig() fiber.Config {
 	return fiber.Config{
 		TrustProxy:  true,
@@ -116,6 +133,9 @@ func httpAppConfig() fiber.Config {
 			Loopback: trustLoopbackProxy(),
 		},
 		EnableIPValidation: true,
+		ReadTimeout:        readTimeout,
+		WriteTimeout:       writeTimeout,
+		IdleTimeout:        idleTimeout,
 	}
 }
 
