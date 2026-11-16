@@ -528,6 +528,16 @@ func NormalizeControllerURL(raw string) (string, error) {
 	if parsed.User != nil {
 		return "", fmt.Errorf("controller URL must not embed credentials")
 	}
+	// The client appends its request path by concatenation, so anything after the
+	// base is not a component of it: with a query string the appended endpoint
+	// becomes part of the query, and a fragment absorbs it entirely. Either way the
+	// request would go somewhere other than the controller API.
+	if parsed.RawQuery != "" {
+		return "", fmt.Errorf("controller URL must not carry a query string")
+	}
+	if parsed.Fragment != "" || strings.Contains(trimmed, "#") {
+		return "", fmt.Errorf("controller URL must not carry a fragment")
+	}
 
 	return strings.TrimRight(trimmed, "/"), nil
 }
