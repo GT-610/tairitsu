@@ -491,3 +491,62 @@ func TestFillKeyFileRemovesAFileItCouldNotWrite(t *testing.T) {
 	assert.True(t, os.IsNotExist(statErr),
 		"a key file whose content could not be written must be removed, not left to block the next attempt")
 }
+
+// TestAdvanceSigningKeysWritesTheSuccessorFirst covers the ordering that keeps a failed
+// generation recoverable.
+//
+// A generation that returns an error never hands a planet to the caller, so the stored
+// pair has to remain usable for a retry. The signer is what the *deployed* world expects
+// to verify, so it is promoted last: with the writer failing on the successor, nothing
+// has changed; with it failing on the promotion, the successor is already in place and
+// the signer is untouched, so the retry is accepted.
+func TestAdvanceSigningKeysWritesTheSuccessorFirst(t *testing.T) {
+	dir := t.TempDir()
+	prevPath := filepath.Join(dir, "previous.c25519")
+	curPath := filepath.Join(dir, "current.c25519")
+	require.NoError(t, CreateSigningKeys(prevPath, curPath))
+
+	signerBefore, err := os.ReadFile(prevPath)
+	require.NoError(t, err)
+	pub, priv, err := GenerateDualPair()
+	require.NoError(t, err)
+
+	// The successor write fails: the signer must not be touched at all.
+	var attempted []string
+	failingSuccessor := func(path string, pub [ZT_C25519_PUBLIC_KEY_LEN]byte, priv [ZT_C25519_PRIVATE_KEY_LEN]byte) error {
+		attempted = append(attempted, path)
+		if path == curPath {
+			return errors.New("simulated storage failure")
+		}
+		return writeKeyFile(path, pub, priv)
+	}
+	require.Error(t, advanceSigningKeys(prevPath, curPath, pub, priv, failingSuccessor))
+	assert.Equal(t, []string{curPath}, attempted,
+		"the successor must be attempted before the signer, so nothing is consumed")
+
+	signerAfter, err := os.ReadFile(prevPath)
+	require.NoError(t, err)
+	assert.Equal(t, signerBefore, signerAfter)
+
+	// The promotion write fails: the successor is already on disk and the signer still
+	// holds what the deployed world expects, so a retry remains valid.
+	successorBefore, err := os.ReadFile(curPath)
+	require.NoError(t, err)
+	failingPromotion := func(path string, pub [ZT_C25519_PUBLIC_KEY_LEN]byte, priv [ZT_C25519_PRIVATE_KEY_LEN]byte) error {
+		if path == prevPath {
+			return errors.New("simulated storage failure")
+		}
+		return writeKeyFile(path, pub, priv)
+	}
+	require.Error(t, advanceSigningKeys(prevPath, curPath, pub, priv, failingPromotion))
+
+	signerAfterPromotion, err := os.ReadFile(prevPath)
+	require.NoError(t, err)
+	assert.Equal(t, signerBefore, signerAfterPromotion,
+		"a failed promotion must leave the signer the deployed world expects")
+
+	successorAfter, err := os.ReadFile(curPath)
+	require.NoError(t, err)
+	assert.NotEqual(t, successorBefore, successorAfter,
+		"the successor was written before the promotion was attempted")
+}

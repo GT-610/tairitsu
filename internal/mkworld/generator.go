@@ -137,7 +137,7 @@ func GeneratePlanet(opts *GenerateOptions) (*GeneratedPlanet, error) {
 	// by, so the stored ring has to move on for the next publication to match.
 	if strings.TrimSpace(opts.SigningKeyPath) != "" {
 		prevPath, curPath := signingKeyPaths(opts.SigningKeyPath)
-		if err := advanceSigningKeys(prevPath, curPath, curPub, curPriv); err != nil {
+		if err := advanceSigningKeys(prevPath, curPath, curPub, curPriv, writeKeyFile); err != nil {
 			return nil, err
 		}
 	}
@@ -299,25 +299,42 @@ func signingKeyPaths(dir string) (prevPath, curPath string) {
 // that accepted the first. Promoting the advertised key to signer, and generating a
 // fresh successor, is what makes consecutive publications a chain.
 //
-// The signer is written first. If the second write then fails, both files hold the
-// promoted key: the next publication signs with it and advertises it, which is
-// self-consistent and merely postpones the rotation, rather than naming a successor
-// the next publication cannot sign with.
-func advanceSigningKeys(prevPath, curPath string, nextPrevPub [ZT_C25519_PUBLIC_KEY_LEN]byte, nextPrevPriv [ZT_C25519_PRIVATE_KEY_LEN]byte) error {
+// The successor is written before the signer is promoted, because an error here means
+// the caller never receives a planet — so the stored pair has to stay usable for a
+// retry.
+//
+// After a successful generation the stored signer is what the *deployed* world expects
+// to verify. Promoting it is therefore the last thing that happens:
+//
+//   - If the successor write fails, nothing has changed and the retry is a plain retry.
+//   - If the promotion fails, the signer still holds the key the deployed world expects,
+//     so the retry is accepted and simply advertises the successor already on disk. The
+//     successor the failed generation would have advertised is discarded, which costs
+//     nothing because that planet was never delivered.
+//
+// Promoting first would invert both cases: the signer would advance while no planet
+// exists to carry the advertisement, and the retry would be signed by a key the deployed
+// world rejects.
+func advanceSigningKeys(prevPath, curPath string, nextPrevPub [ZT_C25519_PUBLIC_KEY_LEN]byte, nextPrevPriv [ZT_C25519_PRIVATE_KEY_LEN]byte, write keyFileWriter) error {
 	nextCurPub, nextCurPriv, err := GenerateDualPair()
 	if err != nil {
 		return err
 	}
 
-	if err := writeKeyFile(prevPath, nextPrevPub, nextPrevPriv); err != nil {
-		return fmt.Errorf("failed to promote the published signing key: %w", err)
-	}
-	if err := writeKeyFile(curPath, nextCurPub, nextCurPriv); err != nil {
+	if err := write(curPath, nextCurPub, nextCurPriv); err != nil {
 		return fmt.Errorf("failed to write the next signing key: %w", err)
+	}
+	if err := write(prevPath, nextPrevPub, nextPrevPriv); err != nil {
+		return fmt.Errorf("failed to promote the published signing key: %w", err)
 	}
 
 	return nil
 }
+
+// keyFileWriter replaces one key file. It is a parameter rather than a direct call so
+// that the ordering above — which is what keeps a failed generation recoverable — can be
+// tested by making a chosen write fail.
+type keyFileWriter func(path string, pub [ZT_C25519_PUBLIC_KEY_LEN]byte, priv [ZT_C25519_PRIVATE_KEY_LEN]byte) error
 
 func generatePlanetID() (uint64, error) {
 	b := make([]byte, 4)
