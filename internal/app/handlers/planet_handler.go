@@ -111,7 +111,7 @@ type GenerateSigningKeysResponse struct {
 func (h *PlanetHandler) GeneratePlanet(c fiber.Ctx) error {
 	var req GeneratePlanetRequest
 	if err := c.Bind().JSON(&req); err != nil {
-		return writeErrorResponse(c, fiber.StatusBadRequest, "Invalid request body: "+err.Error())
+		return writeBindError(c)
 	}
 
 	if len(req.RootNodes) == 0 {

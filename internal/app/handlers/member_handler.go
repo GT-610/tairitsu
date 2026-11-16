@@ -89,7 +89,7 @@ func (h *MemberHandler) UpdateMember(c fiber.Ctx) error {
 	var req zerotier.MemberUpdateRequest
 	if err := c.Bind().Body(&req); err != nil {
 		logger.Error("Failed to bind request", zap.String("network_id", networkID), zap.String("member_id", memberID), zap.Error(err))
-		return writeErrorResponse(c, fiber.StatusBadRequest, err.Error())
+		return writeBindError(c)
 	}
 
 	if err := validateMemberName(req.Name); err != nil {

@@ -11,6 +11,17 @@ func writeErrorResponse(c fiber.Ctx, status int, message string) error {
 	return writeErrorResponseWithCode(c, status, httpcode.DefaultErrorCode(status), message)
 }
 
+// writeBindError answers a request whose body could not be decoded.
+//
+// The decoder's own message describes the server's internals rather than the
+// caller's mistake — "json: cannot unmarshal number into Go struct field
+// RegisterRequest.username of type string" names the Go type and field it was
+// reading — so the caller's own logging records it and the response does not
+// repeat it.
+func writeBindError(c fiber.Ctx) error {
+	return writeErrorResponseWithCode(c, fiber.StatusBadRequest, "system.invalid_request", "Invalid request body")
+}
+
 func writeErrorResponseWithCode(c fiber.Ctx, status int, code string, message string) error {
 	return c.Status(status).JSON(fiber.Map{
 		"message":    message,

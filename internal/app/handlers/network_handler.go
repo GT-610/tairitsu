@@ -45,7 +45,7 @@ func (h *NetworkHandler) GetNetworks(c fiber.Ctx) error {
 	networks, err := h.networkService.GetAllNetworks(userID)
 	if err != nil {
 		logger.Error("Failed to get network list", zap.Error(err))
-		return writeErrorResponse(c, fiber.StatusInternalServerError, err.Error())
+		return writeNetworkServiceError(c, err, "Network not found", "Network access denied")
 	}
 
 	logger.Info("Network list retrieved", zap.Int("network_count", len(networks)))
@@ -63,7 +63,7 @@ func (h *NetworkHandler) GetSharedNetworks(c fiber.Ctx) error {
 	networks, err := h.networkService.GetSharedNetworks(userID)
 	if err != nil {
 		logger.Error("Failed to get shared network list", zap.String("user_id", userID), zap.Error(err))
-		return writeErrorResponse(c, fiber.StatusInternalServerError, err.Error())
+		return writeNetworkServiceError(c, err, "Network not found", "Network access denied")
 	}
 
 	return c.Status(fiber.StatusOK).JSON(networks)
@@ -100,7 +100,7 @@ func (h *NetworkHandler) CreateNetwork(c fiber.Ctx) error {
 	var req zerotier.Network
 	if err := c.Bind().Body(&req); err != nil {
 		logger.Error("Failed to bind create network request", zap.Error(err))
-		return writeErrorResponse(c, fiber.StatusBadRequest, err.Error())
+		return writeBindError(c)
 	}
 
 	if err := validateNetworkName(req.Name); err != nil {
@@ -122,7 +122,7 @@ func (h *NetworkHandler) CreateNetwork(c fiber.Ctx) error {
 	network, err := h.networkService.CreateNetwork(&req, userID)
 	if err != nil {
 		logger.Error("Failed to create network", zap.String("network_name", req.Name), zap.Error(err))
-		return writeErrorResponse(c, fiber.StatusInternalServerError, err.Error())
+		return writeNetworkServiceError(c, err, "Network not found", "Network access denied")
 	}
 
 	logger.Info("Network created", zap.String("network_id", network.ID), zap.String("network_name", network.Name))
@@ -140,7 +140,7 @@ func (h *NetworkHandler) UpdateNetwork(c fiber.Ctx) error {
 	var req zerotier.NetworkUpdateRequest
 	if err := c.Bind().Body(&req); err != nil {
 		logger.Error("Failed to bind update network request", zap.Error(err))
-		return writeErrorResponse(c, fiber.StatusBadRequest, err.Error())
+		return writeBindError(c)
 	}
 
 	logger.Info("Updating network", zap.String("network_id", id))
@@ -177,7 +177,7 @@ func (h *NetworkHandler) UpdateNetworkMetadata(c fiber.Ctx) error {
 	}
 	if err := c.Bind().Body(&req); err != nil {
 		logger.Error("Failed to bind network metadata update request", zap.Error(err))
-		return writeErrorResponse(c, fiber.StatusBadRequest, err.Error())
+		return writeBindError(c)
 	}
 
 	if err := validateNetworkName(req.Name); err != nil {
@@ -273,7 +273,7 @@ func (h *NetworkHandler) ImportNetworks(c fiber.Ctx) error {
 
 	if err := c.Bind().Body(&request); err != nil {
 		logger.Error("Failed to bind import networks request", zap.Error(err))
-		return writeErrorResponse(c, fiber.StatusBadRequest, err.Error())
+		return writeBindError(c)
 	}
 
 	if len(request.NetworkIDs) == 0 {

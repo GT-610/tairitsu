@@ -42,7 +42,7 @@ func (h *AuthHandler) Register(c fiber.Ctx) error {
 	var req models.RegisterRequest
 	if err := c.Bind().Body(&req); err != nil {
 		logger.Error("Failed to bind registration request", zap.Error(err))
-		return writeErrorResponse(c, fiber.StatusBadRequest, err.Error())
+		return writeBindError(c)
 	}
 
 	logger.Info("Starting user registration", zap.String("username", req.Username))
@@ -71,7 +71,7 @@ func (h *AuthHandler) Login(c fiber.Ctx) error {
 	var req models.LoginRequest
 	if err := c.Bind().Body(&req); err != nil {
 		logger.Error("Failed to bind login request", zap.Error(err))
-		return writeErrorResponse(c, fiber.StatusBadRequest, err.Error())
+		return writeBindError(c)
 	}
 
 	logger.Info("User login attempt", zap.String("username", req.Username))
@@ -141,7 +141,7 @@ func (h *AuthHandler) ChangePassword(c fiber.Ctx) error {
 	var req models.ChangePasswordRequest
 	if err := c.Bind().Body(&req); err != nil {
 		logger.Error("Failed to bind change password request", zap.Error(err))
-		return writeErrorResponse(c, fiber.StatusBadRequest, err.Error())
+		return writeBindError(c)
 	}
 
 	logger.Info("Processing password change request", zap.String("user_id", userID))

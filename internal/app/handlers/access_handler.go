@@ -76,7 +76,7 @@ func (h *AccessHandler) GrantNetworkAccess(c fiber.Ctx) error {
 		Role   string `json:"role"`
 	}
 	if err := c.Bind().Body(&request); err != nil {
-		return writeErrorResponse(c, fiber.StatusBadRequest, err.Error())
+		return writeBindError(c)
 	}
 	if err := validateAccessTarget(request.UserID); err != nil {
 		return writeErrorResponse(c, fiber.StatusBadRequest, err.Error())
@@ -112,7 +112,7 @@ func (h *AccessHandler) UpdateNetworkAccess(c fiber.Ctx) error {
 		Role string `json:"role"`
 	}
 	if err := c.Bind().Body(&request); err != nil {
-		return writeErrorResponse(c, fiber.StatusBadRequest, err.Error())
+		return writeBindError(c)
 	}
 	if err := validateAccessRole(request.Role); err != nil {
 		return writeErrorResponse(c, fiber.StatusBadRequest, err.Error())
@@ -165,7 +165,7 @@ func (h *AccessHandler) TransferNetworkOwnership(c fiber.Ctx) error {
 		PreviousOwnerRole string `json:"previous_owner_role"`
 	}
 	if err := c.Bind().Body(&request); err != nil {
-		return writeErrorResponse(c, fiber.StatusBadRequest, err.Error())
+		return writeBindError(c)
 	}
 	if err := validateAccessTarget(request.UserID); err != nil {
 		return writeErrorResponse(c, fiber.StatusBadRequest, err.Error())

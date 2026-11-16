@@ -451,7 +451,10 @@ func (c *Client) doRequest(method, endpoint string, body interface{}) ([]byte, e
 	}
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
-		return nil, fmt.Errorf("request failed (status %d): %s", resp.StatusCode, string(respBody))
+		// The preview, not the body: a controller can answer with megabytes, and
+		// this error is logged verbatim and used to be echoed to callers, so a
+		// full copy per failure is both a log-size and an exposure problem.
+		return nil, fmt.Errorf("request failed (status %d): %s", resp.StatusCode, responsePreview(respBody))
 	}
 
 	return respBody, nil

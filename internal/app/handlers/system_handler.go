@@ -145,7 +145,7 @@ func (h *SystemHandler) UpdateRuntimeSettings(c fiber.Ctx) error {
 	var req services.RuntimeSettings
 	if err := c.Bind().Body(&req); err != nil {
 		logger.Error("Failed to bind instance settings request", zap.Error(err))
-		return writeErrorResponseWithCode(c, fiber.StatusBadRequest, "system.invalid_request", "Invalid request body")
+		return writeBindError(c)
 	}
 
 	if err := h.setupService.UpdateRuntimeSettings(req); err != nil {
@@ -161,7 +161,7 @@ func (h *SystemHandler) ConfigureDatabase(c fiber.Ctx) error {
 	var dbConfig config.DatabaseConfig
 	if err := c.Bind().Body(&dbConfig); err != nil {
 		logger.Error("Failed to bind database configuration request", zap.Error(err))
-		return writeErrorResponseWithCode(c, fiber.StatusBadRequest, "system.invalid_request", "Invalid request body")
+		return writeBindError(c)
 	}
 
 	logger.Info("Configuring database", zap.String("type", string(dbConfig.Type)))
@@ -192,7 +192,7 @@ func (h *SystemHandler) SaveZeroTierConfig(c fiber.Ctx) error {
 
 	if err := c.Bind().Body(&req); err != nil {
 		logger.Error("Failed to bind ZeroTier configuration request", zap.Error(err))
-		return writeErrorResponseWithCode(c, fiber.StatusBadRequest, "system.invalid_request", "Invalid request body")
+		return writeBindError(c)
 	}
 
 	// Sanitize: log only hostname from URL and whether token path is present
@@ -250,7 +250,7 @@ func (h *SystemHandler) RegisterInitialAdmin(c fiber.Ctx) error {
 	var req models.RegisterRequest
 	if err := c.Bind().Body(&req); err != nil {
 		logger.Error("Failed to bind initial administrator request", zap.Error(err))
-		return writeErrorResponseWithCode(c, fiber.StatusBadRequest, "system.invalid_request", "Invalid request body")
+		return writeBindError(c)
 	}
 
 	logger.Info("Creating the initial administrator account", zap.String("username", req.Username))
@@ -286,7 +286,7 @@ func (h *SystemHandler) SetInitialized(c fiber.Ctx) error {
 
 	if err := c.Bind().Body(&req); err != nil {
 		logger.Error("Failed to bind initialization state request", zap.Error(err))
-		return writeErrorResponseWithCode(c, fiber.StatusBadRequest, "system.invalid_request", "Invalid request body")
+		return writeBindError(c)
 	}
 
 	logger.Info("Setting system initialization state", zap.Bool("initialized", req.Initialized))
