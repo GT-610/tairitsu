@@ -21,6 +21,10 @@ func SetupRoutes(router *fiber.App, dependencies *assembly.Dependencies) {
 	router.Use(compress.New())
 	router.Use(middleware.SecurityHeaders())
 	router.Use(middleware.ErrorHandler())
+	// A panic in a handler must not take the listener down with it, so it is
+	// converted into an ordinary error here. This has to sit inside the error
+	// handler above for that error to reach the response.
+	router.Use(middleware.Recover())
 
 	networkHandler := dependencies.Handlers.Network
 	memberHandler := dependencies.Handlers.Member
