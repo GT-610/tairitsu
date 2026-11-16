@@ -7,6 +7,9 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -267,4 +270,78 @@ func TestCreateSigningKeysWritesDistinctPairs(t *testing.T) {
 	if _, _, _, _, err := ReadSigningKeys(prevPath, curPath); err != nil {
 		t.Fatalf("ReadSigningKeys() error = %v", err)
 	}
+}
+
+// TestGeneratePlanetAdvancesTheSigningRing is the regression test for consecutive
+// publications that cannot both be accepted. A planet advertises current.c25519 as
+// the key its own next update must be signed by, so signing the second publication
+// with the same key as the first makes every node that took the first reject it.
+//
+// The assertion is the chain itself: after each publication, previous.c25519 has to
+// be the key that publication advertised, which is what current.c25519 held before
+// it ran.
+func TestGeneratePlanetAdvancesTheSigningRing(t *testing.T) {
+	tempDir := t.TempDir()
+	prevPath := filepath.Join(tempDir, "previous.c25519")
+	curPath := filepath.Join(tempDir, "current.c25519")
+
+	require.NoError(t, CreateSigningKeys(prevPath, curPath))
+
+	readKey := func(path string) []byte {
+		content, err := os.ReadFile(path)
+		require.NoError(t, err)
+		return content
+	}
+	generate := func() {
+		_, err := GeneratePlanet(&GenerateOptions{
+			RootNodes:       []RootNodeConfig{testRootNode(validIdentityPublic, "203.0.113.1/9993")},
+			SigningKeyPath:  tempDir,
+			RecommendValues: true,
+		})
+		require.NoError(t, err)
+	}
+
+	// First publication signs with the stored previous key and advertises the
+	// stored current key.
+	advertisedByFirst := readKey(curPath)
+	generate()
+
+	assert.Equal(t, advertisedByFirst, readKey(prevPath),
+		"the second publication must be signed by the key the first one advertised")
+	assert.NotEqual(t, advertisedByFirst, readKey(curPath),
+		"a fresh successor must be generated")
+
+	// Second publication: same rule, one step along the ring.
+	advertisedBySecond := readKey(curPath)
+	generate()
+
+	assert.Equal(t, advertisedBySecond, readKey(prevPath),
+		"the third publication must be signed by the key the second one advertised")
+	assert.NotEqual(t, advertisedBySecond, readKey(curPath))
+
+	// And the pair is still readable, so a third publication is possible at all.
+	_, _, _, _, err := ReadSigningKeys(prevPath, curPath)
+	require.NoError(t, err)
+}
+
+// TestCreateSigningKeysRefusesToReplaceAnExistingPair covers the other half: a
+// deployed planet names the stored current key, so overwriting it silently would
+// break that planet's update chain.
+func TestCreateSigningKeysRefusesToReplaceAnExistingPair(t *testing.T) {
+	tempDir := t.TempDir()
+	prevPath := filepath.Join(tempDir, "previous.c25519")
+	curPath := filepath.Join(tempDir, "current.c25519")
+
+	require.NoError(t, CreateSigningKeys(prevPath, curPath))
+
+	before, err := os.ReadFile(prevPath)
+	require.NoError(t, err)
+
+	err = CreateSigningKeys(prevPath, curPath)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, ErrSigningKeysExist), "got %v", err)
+
+	after, err := os.ReadFile(prevPath)
+	require.NoError(t, err)
+	assert.Equal(t, before, after, "a refused call must not have touched the stored keys")
 }

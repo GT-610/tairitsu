@@ -90,3 +90,14 @@ per-client limits meaningful.
 
 - it should be treated as a separate test surface
 - it should be validated independently before production use
+
+Two things about the signing keys, because getting them wrong is silent:
+
+- Each generated planet names a successor key that its **own next update** must be
+  signed by. The stored pair therefore advances on every generation: the key that was
+  advertised becomes the signer, and a fresh successor is written. Publishing from an
+  unchanged pair in two steps is how that keeps working; there is nothing to rotate by
+  hand.
+- Generating keys refuses when a pair already exists. Replacing a stored pair breaks
+  the update chain of any planet already deployed from it, so starting a new identity
+  means removing the two key files deliberately.

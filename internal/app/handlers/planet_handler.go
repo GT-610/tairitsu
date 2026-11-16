@@ -261,6 +261,12 @@ func (h *PlanetHandler) GenerateSigningKeys(c fiber.Ctx) error {
 
 	err = mkworld.CreateSigningKeys(prevPath, curPath)
 	if err != nil {
+		if errors.Is(err, mkworld.ErrSigningKeysExist) {
+			// Replacing a stored pair would break the update chain of a planet that
+			// already names it, so this is refused and explained rather than done.
+			return writeErrorResponseWithCode(c, fiber.StatusConflict, "planet.signing_keys_exist",
+				"Signing keys already exist in this directory. Replacing them breaks the update chain of any planet already deployed from them; remove the two key files deliberately to start a new identity.")
+		}
 		logger.Error("failed to generate signing keys", zap.String("path", ztPath), zap.Error(err))
 		return writeErrorResponse(c, fiber.StatusInternalServerError, "Failed to generate signing keys")
 	}

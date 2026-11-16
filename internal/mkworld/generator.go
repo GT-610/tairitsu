@@ -55,7 +55,7 @@ func GeneratePlanet(opts *GenerateOptions) (*GeneratedPlanet, error) {
 		return nil, ErrMaxRootNodesExceeded
 	}
 
-	prevPub, curPub, prevPriv, _, err := loadSigningKeys(opts.SigningKeyPath)
+	prevPub, curPub, prevPriv, curPriv, err := loadSigningKeys(opts.SigningKeyPath)
 	if err != nil {
 		return nil, err
 	}
@@ -121,6 +121,15 @@ func GeneratePlanet(opts *GenerateOptions) (*GeneratedPlanet, error) {
 	finalData, err := ztW.Serialize(false, sig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to serialize final: %w", err)
+	}
+
+	// The world just built advertises curPub as the key the next one must be signed
+	// by, so the stored ring has to move on for the next publication to match.
+	if strings.TrimSpace(opts.SigningKeyPath) != "" {
+		prevPath, curPath := signingKeyPaths(opts.SigningKeyPath)
+		if err := advanceSigningKeys(prevPath, curPath, curPub, curPriv); err != nil {
+			return nil, err
+		}
 	}
 
 	return &GeneratedPlanet{
@@ -259,13 +268,45 @@ func loadSigningKeys(signingKeyPath string) (prevPub, curPub [ZT_C25519_PUBLIC_K
 		return
 	}
 
-	prevPath := filepath.Join(signingKeyPath, "previous.c25519")
-	curPath := filepath.Join(signingKeyPath, "current.c25519")
+	prevPath, curPath := signingKeyPaths(signingKeyPath)
 	prevPub, curPub, prevPriv, curPriv, err = ReadSigningKeys(prevPath, curPath)
 	if err != nil {
 		err = fmt.Errorf("%w: %v", ErrInvalidSigningKeys, err)
 	}
 	return
+}
+
+// signingKeyPaths returns the two files a signing key directory holds.
+func signingKeyPaths(dir string) (prevPath, curPath string) {
+	return filepath.Join(dir, "previous.c25519"), filepath.Join(dir, "current.c25519")
+}
+
+// advanceSigningKeys moves the ring on so the next publication is signed by the key
+// this one advertised.
+//
+// A planet names current.c25519 as the key the next update must be signed by, so a
+// second publication signed by previous.c25519 again would be rejected by every node
+// that accepted the first. Promoting the advertised key to signer, and generating a
+// fresh successor, is what makes consecutive publications a chain.
+//
+// The signer is written first. If the second write then fails, both files hold the
+// promoted key: the next publication signs with it and advertises it, which is
+// self-consistent and merely postpones the rotation, rather than naming a successor
+// the next publication cannot sign with.
+func advanceSigningKeys(prevPath, curPath string, nextPrevPub [ZT_C25519_PUBLIC_KEY_LEN]byte, nextPrevPriv [ZT_C25519_PRIVATE_KEY_LEN]byte) error {
+	nextCurPub, nextCurPriv, err := GenerateDualPair()
+	if err != nil {
+		return err
+	}
+
+	if err := writeKeyFile(prevPath, nextPrevPub, nextPrevPriv); err != nil {
+		return fmt.Errorf("failed to promote the published signing key: %w", err)
+	}
+	if err := writeKeyFile(curPath, nextCurPub, nextCurPriv); err != nil {
+		return fmt.Errorf("failed to write the next signing key: %w", err)
+	}
+
+	return nil
 }
 
 func generatePlanetID() (uint64, error) {
@@ -288,7 +329,20 @@ func generatePlanetID() (uint64, error) {
 // pairs on purpose — writing one pair to both paths, as this used to, produced a
 // rotation in which the successor was the same key, so the rollover the model
 // exists for could never happen.
+//
+// An existing pair is refused rather than replaced. A planet that is already
+// deployed names the stored current key as the one its next update must be signed
+// by, so overwriting it silently breaks that update chain; starting a new identity
+// has to be a deliberate act, which removing the files is.
 func CreateSigningKeys(prevPath, curPath string) error {
+	for _, path := range []string{prevPath, curPath} {
+		if _, err := os.Stat(path); err == nil {
+			return fmt.Errorf("%w: %s", ErrSigningKeysExist, path)
+		} else if !os.IsNotExist(err) {
+			return fmt.Errorf("failed to inspect %s: %w", path, err)
+		}
+	}
+
 	prevPub, prevPriv, err := GenerateDualPair()
 	if err != nil {
 		return err
