@@ -461,7 +461,7 @@ func TestNetworkServiceAccessCandidatesRequireAUsableQuery(t *testing.T) {
 	for _, query := range []string{"", " ", "a", "am"} {
 		candidates, err := service.GetNetworkAccessCandidates("8056c2e21c000031", "owner-1", query, true)
 		require.NoError(t, err)
-		assert.Empty(t, candidates, "query %q is too short to answer", query)
+		assert.Empty(t, candidates, "query %q is a partial query too short to answer", query)
 	}
 
 	// Three characters is enough to identify a name.
@@ -488,4 +488,61 @@ func TestNetworkServiceAccessCandidatesStillRequireAccessWrite(t *testing.T) {
 
 	_, err := service.GetNetworkAccessCandidates("8056c2e21c000032", "viewer-1", "alice", true)
 	require.ErrorIs(t, err, services.ErrNetworkPermissionDenied)
+}
+
+// TestNetworkServiceAccessCandidatesFindAShortExactName is the regression test for
+// an account that could not be added at all: registration accepts a name of one
+// rune, but the picker refused every query below three, and no longer query can
+// match a name that is shorter than the query.
+func TestNetworkServiceAccessCandidatesFindAShortExactName(t *testing.T) {
+	db := testutil.NewSQLiteDB(t)
+	createTestUser(t, db, "owner-1", "user")
+	createTestUser(t, db, "li", "user")
+	createTestUser(t, db, "liwei", "user")
+	seedAccessNetwork(t, db, "8056c2e21c000033", "owner-1")
+
+	service := services.NewNetworkService(nil, db)
+
+	// The exact short name is found...
+	exact, err := service.GetNetworkAccessCandidates("8056c2e21c000033", "owner-1", "li", false)
+	require.NoError(t, err)
+	assert.Equal(t, []services.NetworkAccessCandidate{{ID: "li", Username: "li"}}, exact,
+		"an exact short name must be findable")
+
+	// ...without turning into a partial search: "l" matches two accounts but names
+	// neither, so it stays empty.
+	partial, err := service.GetNetworkAccessCandidates("8056c2e21c000033", "owner-1", "l", false)
+	require.NoError(t, err)
+	assert.Empty(t, partial, "a one-rune query must not list the accounts that contain it")
+
+	// A longer partial query still works for the longer name.
+	longer, err := service.GetNetworkAccessCandidates("8056c2e21c000033", "owner-1", "liw", false)
+	require.NoError(t, err)
+	assert.Equal(t, []services.NetworkAccessCandidate{{ID: "liwei", Username: "liwei"}}, longer)
+}
+
+// TestNetworkServiceAccessCandidatesShortNameRespectsExclusions keeps the exact
+// lookup from becoming a way around the owner and grant filters.
+func TestNetworkServiceAccessCandidatesShortNameRespectsExclusions(t *testing.T) {
+	db := testutil.NewSQLiteDB(t)
+	createTestUser(t, db, "li", "user")
+	createTestUser(t, db, "wu", "user")
+	seedAccessNetwork(t, db, "8056c2e21c000034", "li")
+	require.NoError(t, db.CreateNetworkGrant(&models.NetworkGrant{
+		NetworkID: "8056c2e21c000034", SubjectType: models.NetworkGrantSubjectUser,
+		SubjectID: "wu", Role: string(services.NetworkRoleViewer),
+		GrantedBy: "li", CreatedAt: time.Now(), UpdatedAt: time.Now(),
+	}))
+
+	service := services.NewNetworkService(nil, db)
+
+	// The owner is not a candidate for their own network.
+	owner, err := service.GetNetworkAccessCandidates("8056c2e21c000034", "li", "li", false)
+	require.NoError(t, err)
+	assert.Empty(t, owner)
+
+	// Nor is an account that already holds a grant.
+	granted, err := service.GetNetworkAccessCandidates("8056c2e21c000034", "li", "wu", false)
+	require.NoError(t, err)
+	assert.Empty(t, granted)
 }

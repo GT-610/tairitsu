@@ -38,8 +38,9 @@ import {
 } from '../../services/api'
 import { assignableNetworkRoles, networkRoleColor, networkRoleLabel } from '../../utils/networkAccess'
 
-// The picker and the server share this floor: below it, a prefix matches much of
-// any account directory, so the server answers nothing and the UI says why.
+// Below this many characters the server only answers an exact account name, because
+// a shorter partial query would match much of any account directory. The value is
+// kept here so the empty state can explain the rule rather than looking broken.
 const minimumCandidateQueryLength = 3
 
 const roleDescription: Record<Exclude<NetworkRole, 'owner'>, string> = {
@@ -98,9 +99,7 @@ function NetworkAccessSection({
   useEffect(() => {
     if (!addOpen) return
     const query = candidateQuery.trim()
-    // The server answers nothing below three characters, because a shorter
-    // prefix matches much of any account directory.
-    if (query.length < minimumCandidateQueryLength) {
+    if (query.length < 1) {
       setCandidates([])
       setCandidateError(false)
       setCandidateLoading(false)
@@ -372,7 +371,7 @@ function NetworkAccessSection({
                 candidateError
                   ? '搜索失败，请重试'
                   : candidateQuery.trim().length < minimumCandidateQueryLength
-                    ? '输入至少 3 个字符搜索用户'
+                    ? '输入完整用户名，或至少 3 个字符搜索'
                     : '没有匹配的用户',
               )}
               renderInput={(params) => (

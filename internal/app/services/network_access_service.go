@@ -142,11 +142,8 @@ func (s *NetworkService) GetNetworkAccessCandidates(networkID, actorID, query st
 		return nil, err
 	}
 
-	// Too short a query matches a large slice of any account directory, which
-	// makes the picker a browsing tool rather than a lookup. An empty answer is
-	// the honest response to a query that cannot identify an account anyway.
 	query = strings.TrimSpace(query)
-	if len([]rune(query)) < minCandidateQueryLength {
+	if query == "" {
 		return []NetworkAccessCandidate{}, nil
 	}
 
@@ -155,19 +152,36 @@ func (s *NetworkService) GetNetworkAccessCandidates(networkID, actorID, query st
 		return nil, fmt.Errorf("database is not initialized")
 	}
 
-	// A platform administrator can already list every account through the user
-	// endpoints, so a substring search tells them nothing they cannot get
-	// elsewhere. For a network owner or manager — whose access is scoped to one
-	// network — the search is narrowed to a prefix, so the picker cannot be used
-	// to page through the directory one letter at a time.
-	match := database.UsernamePrefix
-	if actorIsPlatformAdmin {
-		match = database.UsernameContains
-	}
+	var users []*models.User
 
-	users, err := db.SearchUsers(query, match, maxCandidateResults)
-	if err != nil {
-		return nil, err
+	if len([]rune(query)) < minCandidateQueryLength {
+		// A partial query this short would match a large slice of any account
+		// directory, which is what the floor is for. An account name may itself be
+		// that short, though, so the query is still allowed to identify one account
+		// exactly: "li" names "li" and nothing else.
+		user, err := db.GetUserByUsername(query)
+		if err != nil {
+			return nil, err
+		}
+		if user != nil {
+			users = []*models.User{user}
+		}
+	} else {
+		// A platform administrator can already list every account through the user
+		// endpoints, so a substring search tells them nothing they cannot get
+		// elsewhere. For a network owner or manager — whose access is scoped to one
+		// network — the search is narrowed to a prefix, so the picker cannot be used
+		// to page through the directory one letter at a time.
+		match := database.UsernamePrefix
+		if actorIsPlatformAdmin {
+			match = database.UsernameContains
+		}
+
+		found, err := db.SearchUsers(query, match, maxCandidateResults)
+		if err != nil {
+			return nil, err
+		}
+		users = found
 	}
 	grants, err := db.GetNetworkGrants(network.ID)
 	if err != nil {
