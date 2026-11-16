@@ -20,21 +20,24 @@ const sessionLifetime = 24 * time.Hour
 type AuthHandler struct {
 	userService    *services.UserService
 	sessionService *services.SessionService
-	runtimeService *services.RuntimeService
 	stateService   *services.StateService
 }
 
 // NewAuthHandler creates a new instance of AuthHandler
-func NewAuthHandler(userService *services.UserService, sessionService *services.SessionService, runtimeService *services.RuntimeService, stateService *services.StateService) *AuthHandler {
+func NewAuthHandler(userService *services.UserService, sessionService *services.SessionService, stateService *services.StateService) *AuthHandler {
 	return &AuthHandler{
 		userService:    userService,
 		sessionService: sessionService,
-		runtimeService: runtimeService,
 		stateService:   stateService,
 	}
 }
 
-// Register handles user registration requests
+// Register handles public user registration requests.
+//
+// It never grants the administrator role. The first administrator is created by
+// CreateInitialAdministrator on the setup surface, which requires the setup
+// token, because this endpoint answers before anyone can sign in and therefore
+// cannot tell an operator apart from anyone else who can reach the port.
 func (h *AuthHandler) Register(c fiber.Ctx) error {
 	var req models.RegisterRequest
 	if err := c.Bind().Body(&req); err != nil {
@@ -44,38 +47,18 @@ func (h *AuthHandler) Register(c fiber.Ctx) error {
 
 	logger.Info("Starting user registration", zap.String("username", req.Username))
 
-	role := "user"
 	if h.stateService != nil && h.stateService.IsInitialized() && !h.stateService.RuntimeSettings().AllowPublicRegistration {
 		logger.Warn("Public registration is disabled; rejecting runtime registration", zap.String("username", req.Username))
 		return writeUserServiceError(c, services.ErrPublicRegistrationDisabled)
 	}
-	if h.stateService != nil && !h.stateService.IsInitialized() {
-		hasAdmin, err := h.userService.HasAdminUser()
-		if err != nil {
-			logger.Warn("Failed to check administrator users; using default role", zap.Error(err))
-		} else if !hasAdmin {
-			role = "admin"
-			logger.Info("System is not initialized and no administrator exists; assigning administrator role", zap.String("username", req.Username))
-		}
-	}
 
-	user, err := h.userService.Register(&req, role)
+	user, err := h.userService.Register(&req, "user")
 	if err != nil {
 		logger.Error("User registration failed", zap.String("username", req.Username), zap.Error(err))
 		return writeUserServiceError(c, err)
 	}
 
 	logger.Info("User registered successfully", zap.String("user_id", user.ID), zap.String("username", user.Username), zap.String("role", user.Role))
-
-	// Only the setup-time admin creation path should trigger ZeroTier client initialization.
-	if h.stateService != nil && h.runtimeService != nil && !h.stateService.IsInitialized() {
-		logger.Info("Initializing ZeroTier client")
-		if _, err := h.runtimeService.InitZTClientFromConfig(); err != nil {
-			logger.Warn("ZeroTier client initialization failed; it will be retried later", zap.Error(err))
-		} else {
-			logger.Info("ZeroTier client initialized and connection validated")
-		}
-	}
 
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
 		"user":    user.ToResponse(),

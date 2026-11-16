@@ -28,7 +28,7 @@ func TestAuthHandler_ChangePasswordRevokesOtherSessionsWhenRequested(t *testing.
 
 	userService := services.NewUserService(db)
 	sessionService := services.NewSessionService(db)
-	authHandler := apphandlers.NewAuthHandler(userService, sessionService, nil, nil)
+	authHandler := apphandlers.NewAuthHandler(userService, sessionService, nil)
 
 	user, err := userService.Register(&models.RegisterRequest{
 		Username: "alice",

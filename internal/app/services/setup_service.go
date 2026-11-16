@@ -7,6 +7,7 @@ import (
 	"github.com/GT-610/tairitsu/internal/app/config"
 	"github.com/GT-610/tairitsu/internal/app/database"
 	"github.com/GT-610/tairitsu/internal/app/logger"
+	"github.com/GT-610/tairitsu/internal/app/models"
 	"github.com/GT-610/tairitsu/internal/zerotier"
 	"go.uber.org/zap"
 )
@@ -109,6 +110,44 @@ func (s *SetupService) SaveZeroTierConfig(controllerURL, tokenPath string) (*zer
 
 func (s *SetupService) GetSetupStatus(setupCaller bool) SetupStatus {
 	return s.stateService.GetSetupStatus(s.userService, s.networkService, setupCaller)
+}
+
+// CreateInitialAdministrator creates the first account and grants it the
+// administrator role. It is the only path that can produce an administrator
+// without an existing one vouching for it, so the route serving it is gated by
+// the setup token rather than by a session.
+//
+// The "already claimed" decision is made by PromoteFirstAdministrator inside the
+// insert transaction, not by a check here: asking first and writing later would
+// let two concurrent callers both observe "no administrator yet".
+func (s *SetupService) CreateInitialAdministrator(username, password string) (*models.User, error) {
+	if s.stateService.IsInitialized() {
+		return nil, ErrSetupAlreadyInitialized
+	}
+	if s.stateService.DatabaseConfig().Type == "" {
+		return nil, ErrSetupInvalidConfig
+	}
+
+	user, err := s.userService.Register(&models.RegisterRequest{
+		Username: username,
+		Password: password,
+	}, "admin")
+	if err != nil {
+		return nil, err
+	}
+
+	// The controller client is created here rather than on registration: this is
+	// the one account creation that belongs to the setup flow, and proving the
+	// controller is reachable is part of finishing setup. A failure is not fatal
+	// because the wizard validates the connection again before it marks the
+	// instance initialized.
+	if s.runtimeService != nil {
+		if _, initErr := s.runtimeService.InitZTClientFromConfig(); initErr != nil {
+			logger.Warn("ZeroTier client initialization failed after administrator creation; it will be retried later", zap.Error(initErr))
+		}
+	}
+
+	return user, nil
 }
 
 func (s *SetupService) GetRuntimeSettings() RuntimeSettings {

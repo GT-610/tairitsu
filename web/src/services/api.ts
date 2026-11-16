@@ -560,6 +560,10 @@ export const systemAPI = {
   setInitialized: (initialized: boolean) => api.post<SetInitializedResponse>('/system/initialized', { initialized }),
   // Initialize admin account creation step
   initializeAdminCreation: () => api.post<InitializeAdminCreationResponse>('/system/admin/init'),
+  // Create the first administrator. This is the only path that mints the
+  // administrator role, so it lives on the setup surface (which the setup token
+  // guards) rather than on public registration.
+  registerInitialAdmin: (data: { username: string; password: string }) => api.post<RegisterResponse>('/system/admin/register', data),
   // Get runtime settings (admin only)
   getRuntimeSettings: () => api.get<RuntimeSettings>('/system/settings'),
   // Update runtime settings (admin only)

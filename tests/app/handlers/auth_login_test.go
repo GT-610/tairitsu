@@ -29,7 +29,7 @@ func TestAuthHandler_LoginRecordsForwardedClientIP(t *testing.T) {
 	}, "user")
 	require.NoError(t, err)
 
-	authHandler := apphandlers.NewAuthHandler(userService, sessionService, nil, nil)
+	authHandler := apphandlers.NewAuthHandler(userService, sessionService, nil)
 	app := fiber.New(fiber.Config{
 		TrustProxy:         true,
 		ProxyHeader:        "X-Real-IP",
@@ -64,7 +64,7 @@ func TestAuthHandler_LoginIssuesHttpOnlySessionCookie(t *testing.T) {
 	}, "user")
 	require.NoError(t, err)
 
-	authHandler := apphandlers.NewAuthHandler(userService, sessionService, nil, nil)
+	authHandler := apphandlers.NewAuthHandler(userService, sessionService, nil)
 	app := fiber.New()
 	app.Post("/auth/login", authHandler.Login)
 	app.Get("/profile", middleware.AuthMiddleware(sessionService, userService), authHandler.GetProfile)
@@ -106,7 +106,7 @@ func TestAuthHandler_LoginResponseOmitsCredential(t *testing.T) {
 	}, "user")
 	require.NoError(t, err)
 
-	authHandler := apphandlers.NewAuthHandler(userService, sessionService, nil, nil)
+	authHandler := apphandlers.NewAuthHandler(userService, sessionService, nil)
 	app := fiber.New()
 	app.Post("/auth/login", authHandler.Login)
 
@@ -153,7 +153,7 @@ func TestAuthHandler_LogoutClearsSessionCookie(t *testing.T) {
 
 	_, credential := newTestSession(t, sessionService, user.ID, "test-agent", "127.0.0.1")
 
-	authHandler := apphandlers.NewAuthHandler(userService, sessionService, nil, nil)
+	authHandler := apphandlers.NewAuthHandler(userService, sessionService, nil)
 	app := fiber.New()
 	app.Post("/auth/logout", middleware.AuthMiddleware(sessionService, userService), authHandler.Logout)
 

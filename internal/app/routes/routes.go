@@ -80,6 +80,10 @@ func SetupRoutes(router *fiber.App, dependencies *assembly.Dependencies) {
 		api.Post("/system/zerotier/config", setupOnly, setupToken, systemHandler.SaveZeroTierConfig)
 		api.Post("/system/initialized", setupOnly, setupToken, systemHandler.SetInitialized)
 		api.Post("/system/admin/init", setupOnly, setupToken, systemHandler.InitializeAdminCreation)
+		// The first administrator is created here and nowhere else. Public
+		// registration cannot grant the role, because it answers before anyone
+		// can sign in and so cannot tell the operator from any other caller.
+		api.Post("/system/admin/register", setupOnly, setupToken, systemHandler.RegisterInitialAdmin)
 
 		api.Get("/profile", runtimeOnly, authMiddleware, authHandler.GetProfile)
 		api.Put("/profile/password", runtimeOnly, authMiddleware, authHandler.ChangePassword)

@@ -8,6 +8,7 @@ import (
 	"github.com/GT-610/tairitsu/internal/app/config"
 	"github.com/GT-610/tairitsu/internal/app/logger"
 	"github.com/GT-610/tairitsu/internal/app/middleware"
+	"github.com/GT-610/tairitsu/internal/app/models"
 	"github.com/GT-610/tairitsu/internal/app/services"
 	"github.com/gofiber/fiber/v3"
 	"go.uber.org/zap"
@@ -235,6 +236,45 @@ func (h *SystemHandler) InitializeAdminCreation(c fiber.Ctx) error {
 		"message":      "Administrator account creation step initialized successfully",
 		"resetDone":    true,
 		"databaseType": databaseType,
+	})
+}
+
+// RegisterInitialAdmin creates the first administrator account.
+//
+// It is the only endpoint that can hand out the administrator role without an
+// existing administrator approving it, so the route serving it is gated by the
+// setup token. Public registration deliberately cannot reach this: that endpoint
+// answers before anyone can sign in and cannot distinguish the operator from
+// anyone else who can reach the port.
+func (h *SystemHandler) RegisterInitialAdmin(c fiber.Ctx) error {
+	var req models.RegisterRequest
+	if err := c.Bind().Body(&req); err != nil {
+		logger.Error("Failed to bind initial administrator request", zap.Error(err))
+		return writeErrorResponseWithCode(c, fiber.StatusBadRequest, "system.invalid_request", "Invalid request body")
+	}
+
+	logger.Info("Creating the initial administrator account", zap.String("username", req.Username))
+
+	user, err := h.setupService.CreateInitialAdministrator(req.Username, req.Password)
+	if err != nil {
+		// Setup-state failures carry their own codes; account-shape failures reuse
+		// the user error mapping so the wizard shows the same messages as
+		// registration does.
+		if errors.Is(err, services.ErrSetupAlreadyInitialized) || errors.Is(err, services.ErrSetupInvalidConfig) {
+			logger.Error("Initial administrator creation rejected by setup state", zap.Error(err))
+			return setupErrorResponse(c, err)
+		}
+		logger.Error("Initial administrator creation failed", zap.String("username", req.Username), zap.Error(err))
+		return writeUserServiceError(c, err)
+	}
+
+	logger.Info("Initial administrator account created",
+		zap.String("user_id", user.ID),
+		zap.String("username", user.Username))
+
+	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
+		"user":    user.ToResponse(),
+		"message": "Administrator account created",
 	})
 }
 
