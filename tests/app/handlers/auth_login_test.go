@@ -3,10 +3,12 @@ package handlers
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	apphandlers "github.com/GT-610/tairitsu/internal/app/handlers"
 	"github.com/GT-610/tairitsu/internal/app/middleware"
@@ -224,4 +226,51 @@ func TestAuthHandler_LoginThrottlesAfterRepeatedFailures(t *testing.T) {
 	var body map[string]any
 	require.NoError(t, json.NewDecoder(throttled.Body).Decode(&body))
 	assert.Equal(t, "auth.too_many_attempts", body["error_code"])
+}
+
+// TestAuthHandler_LoginHonoursRememberMeForTheServerSideSession is the regression
+// test for a flag that only touched the cookie: the browser kept a credential for
+// weeks while the server-side session died at 24 hours, so "remember me" stopped
+// working the next day with nothing to explain it.
+func TestAuthHandler_LoginHonoursRememberMeForTheServerSideSession(t *testing.T) {
+	db := testutil.NewSQLiteDB(t)
+
+	userService := services.NewUserService(db)
+	sessionService := services.NewSessionService(db)
+	_, err := userService.Register(&models.RegisterRequest{
+		Username: "alice",
+		Password: "secret123",
+	}, "user")
+	require.NoError(t, err)
+
+	authHandler := apphandlers.NewAuthHandler(userService, sessionService, nil)
+	app := fiber.New()
+	app.Post("/auth/login", authHandler.Login)
+
+	login := func(rememberMe bool) models.SessionResponse {
+		body := fmt.Sprintf(`{"username":"alice","password":"secret123","remember_me":%t}`, rememberMe)
+		req := httptest.NewRequest(http.MethodPost, "/auth/login", bytes.NewBufferString(body))
+		req.Header.Set("Content-Type", "application/json")
+		resp, err := app.Test(req, testRequestTimeout)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		require.Equal(t, fiber.StatusOK, resp.StatusCode)
+
+		var payload struct {
+			Session models.SessionResponse `json:"session"`
+		}
+		require.NoError(t, json.NewDecoder(resp.Body).Decode(&payload))
+		return payload.Session
+	}
+
+	notRemembered := login(false)
+	remembered := login(true)
+
+	notRememberedLifetime := time.Until(notRemembered.ExpiresAt)
+	rememberedLifetime := time.Until(remembered.ExpiresAt)
+
+	assert.LessOrEqual(t, notRememberedLifetime, 24*time.Hour+time.Minute)
+	assert.Greater(t, rememberedLifetime, 24*time.Hour,
+		"a remembered sign-in must outlive the default server-side session")
+	assert.LessOrEqual(t, rememberedLifetime, 30*24*time.Hour+time.Minute)
 }

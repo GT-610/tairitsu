@@ -179,8 +179,12 @@ Response:
 Authenticates a user and creates a tracked session. The response sets the
 `tairitsu_session` cookie, which is `HttpOnly`, `SameSite=Lax`, and `Secure`
 whenever the request arrived over HTTPS. The credential is never included in
-the response body, and `remember_me` decides only whether the cookie outlives
-the browser session; the server-side expiry is 24 hours either way.
+the response body.
+
+`remember_me` decides how long the sign-in lasts, and the browser cookie and the
+server-side session share the same deadline: 24 hours without it, 30 days with
+it. Without the flag the cookie is also session-scoped, so closing the browser
+ends it regardless.
 
 Request:
 
@@ -208,7 +212,7 @@ Response:
     "ipAddress": "127.0.0.1",
     "rememberMe": true,
     "lastSeenAt": "2026-04-23T10:05:00Z",
-    "expiresAt": "2026-04-24T10:05:00Z",
+    "expiresAt": "2026-05-23T10:00:00Z",
     "createdAt": "2026-04-23T10:00:00Z",
     "updatedAt": "2026-04-23T10:05:00Z",
     "current": true

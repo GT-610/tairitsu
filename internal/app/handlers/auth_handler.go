@@ -12,9 +12,16 @@ import (
 	"go.uber.org/zap"
 )
 
-// sessionLifetime is how long a login stays valid before the user must sign in
-// again. The browser cookie and the server-side session share this deadline.
-const sessionLifetime = 24 * time.Hour
+// Session lifetimes. The browser cookie and the server-side session share the
+// deadline, so "remember me" has to extend both — extending only the cookie left
+// the server-side session dying at 24 hours while the browser kept offering a
+// credential that could no longer work.
+const (
+	// sessionLifetime applies to a sign-in that is not remembered.
+	sessionLifetime = 24 * time.Hour
+	// rememberedSessionLifetime applies to a sign-in that is.
+	rememberedSessionLifetime = 30 * 24 * time.Hour
+)
 
 // AuthHandler handles authentication related requests
 type AuthHandler struct {
@@ -84,7 +91,11 @@ func (h *AuthHandler) Login(c fiber.Ctx) error {
 
 	logger.Info("User logged in successfully", zap.String("user_id", user.ID), zap.String("username", user.Username))
 
-	expiresAt := time.Now().Add(sessionLifetime)
+	lifetime := sessionLifetime
+	if req.RememberMe {
+		lifetime = rememberedSessionLifetime
+	}
+	expiresAt := time.Now().Add(lifetime)
 	session, credential, err := h.sessionService.CreateSession(services.SessionCreateInput{
 		UserID:     user.ID,
 		UserAgent:  c.Get("User-Agent"),

@@ -39,6 +39,9 @@ func NewDatabase(dbConfig Config) (DBInterface, error) {
 		if err := ensureSQLiteDir(dbConfig.Path); err != nil {
 			return nil, err
 		}
+		if err := restrictSQLiteFileMode(dbConfig.Path); err != nil {
+			return nil, err
+		}
 
 		// TranslateError turns constraint violations into gorm sentinels so a
 		// lost race can be recognised without matching driver message text.
@@ -192,6 +195,33 @@ func hasSQLiteHeader(root *os.Root, name string) (bool, error) {
 	}
 
 	return string(header) == sqliteFileHeader, nil
+}
+
+// restrictSQLiteFileMode makes the database file owner-only.
+//
+// The driver creates the file with the process umask, so a default deployment
+// ended up with 0644 next to a 0600 config.json — readable by every account on
+// the host, and it holds every password hash and session hash. The file is
+// created here first when it does not exist, so the driver never chooses the
+// mode, and an existing file is corrected, because a deployment may predate this.
+//
+// The -wal and -shm siblings are not touched: SQLite gives them the database
+// file's permissions, so fixing this one covers them.
+func restrictSQLiteFileMode(path string) error {
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0o600)
+	if err != nil {
+		return fmt.Errorf("failed to create SQLite database file: %w", err)
+	}
+	if err := file.Close(); err != nil {
+		return fmt.Errorf("failed to close SQLite database file: %w", err)
+	}
+
+	// An existing file keeps the mode it was created with, so set it explicitly.
+	if err := os.Chmod(path, 0o600); err != nil {
+		return fmt.Errorf("failed to restrict SQLite database file permissions: %w", err)
+	}
+
+	return nil
 }
 
 func ensureSQLiteDir(path string) error {
