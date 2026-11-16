@@ -1,6 +1,9 @@
 package handlers
 
 import (
+	"math"
+	"strconv"
+
 	"github.com/GT-610/tairitsu/internal/app/logger"
 	"github.com/GT-610/tairitsu/internal/app/services"
 	"github.com/gofiber/fiber/v3"
@@ -22,6 +25,13 @@ func writeUserServiceError(c fiber.Ctx, err error) error {
 		return writeErrorResponseWithCode(c, fiber.StatusBadRequest, "user.invalid_password", err.Error())
 	case services.IsInvalidCredentials(err):
 		return writeErrorResponseWithCode(c, fiber.StatusUnauthorized, "user.invalid_credentials", err.Error())
+	case services.IsLoginThrottled(err):
+		// Tell the caller how long to wait rather than leaving them to guess, and
+		// keep the wording free of anything that hints whether the account exists.
+		if retryAfter := services.LoginRetryAfter(err); retryAfter > 0 {
+			c.Set(fiber.HeaderRetryAfter, strconv.Itoa(int(math.Ceil(retryAfter.Seconds()))))
+		}
+		return writeErrorResponseWithCode(c, fiber.StatusTooManyRequests, "auth.too_many_attempts", "Too many sign-in attempts. Try again later.")
 	case services.IsPublicRegistrationDisabled(err):
 		return writeErrorResponseWithCode(c, fiber.StatusForbidden, "user.public_registration_disabled", err.Error())
 	case services.IsSessionRevoked(err):

@@ -54,6 +54,36 @@ even though users reach Tairitsu over HTTPS:
 - `TAIRITSU_TRUSTED_PROXY_LOOPBACK` — set to `false` to stop trusting loopback
   proxies entirely.
 
+The client address also keys the rate limiters and the address recorded on a
+session, so getting it wrong has two failure modes that are invisible from
+outside:
+
+- **No trusted proxy listed while one is in use.** Every caller is recorded as
+  the proxy, so they share one rate limit budget and one noisy client can lock
+  the rest out.
+- **A proxy that passes the caller's own `X-Forwarded-For` through** instead of
+  appending to it. The caller then chooses their own address and the rate limit
+  stops applying to them.
+
+The second is a configuration mistake rather than a Tairitsu setting, and it is
+common enough to be worth stating: the header must *append* the peer address.
+With nginx, `$proxy_add_x_forwarded_for` does that and `$http_x_forwarded_for`
+does not:
+
+```nginx
+location / {
+    proxy_pass http://127.0.0.1:3000;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header Host $host;
+}
+```
+
+A forgotten password is throttled per account, with a delay that doubles after a
+handful of failures, so a wrong proxy configuration cannot be used to guess
+passwords without limit. Correcting the configuration is still what makes the
+per-client limits meaningful.
+
 ## Experimental Surface
 
 `Planet` generation remains available for controlled testing, but it is **experimental**:

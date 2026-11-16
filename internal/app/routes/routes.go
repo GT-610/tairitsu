@@ -66,8 +66,9 @@ func SetupRoutes(router *fiber.App, dependencies *assembly.Dependencies) {
 
 		// System status check. It has to answer before anyone can sign in, so it
 		// is public, but it only includes setup-only details for a caller that
-		// presented the setup token.
-		api.Get("/system/status", setupTokenOptional, systemHandler.GetSystemStatus)
+		// presented the setup token. Its own tighter budget applies because
+		// answering it reaches the controller.
+		api.Get("/system/status", middleware.PublicStatusRateLimit(), setupTokenOptional, systemHandler.GetSystemStatus)
 
 		auth := api.Group("/auth")
 		{

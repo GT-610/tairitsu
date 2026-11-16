@@ -61,6 +61,7 @@ func Build() (*App, error) {
 	app.Dependencies = dependencies
 	app.Dependencies.Services.Session.PurgeUnusableSessions()
 	announceSetupToken(app.Dependencies.Services.SetupToken)
+	warnAboutProxyKeying()
 	app.Router = newHTTPApp()
 	routes.SetupRoutes(app.Router, app.Dependencies)
 
@@ -191,6 +192,26 @@ func trustLoopbackProxy() bool {
 		return true
 	}
 	return enabled
+}
+
+// warnAboutProxyKeying explains the one consequence of the trust configuration
+// that an operator cannot see from the outside.
+//
+// The rate limiters key on the client address. With no trusted proxies
+// configured, a deployment behind a reverse proxy records the proxy's address for
+// every caller, so they all share one budget: one noisy client can exhaust it and
+// lock everyone else out. The reverse case is worse and is what the
+// documentation's proxy list prevents — a proxy that forwards a caller-supplied
+// X-Forwarded-For lets the caller choose the key, which retires the limit
+// entirely. Neither state is detectable from a healthy request stream, so it is
+// said once at startup.
+func warnAboutProxyKeying() {
+	if len(trustedProxies()) > 0 {
+		return
+	}
+
+	logger.Warn("no trusted proxies are configured, so per-client rate limiting and the address recorded on a session key on the direct peer; if Tairitsu runs behind a reverse proxy, set "+TrustedProxiesEnv+" to that proxy's address",
+		zap.Bool("loopback_proxy_trusted", trustLoopbackProxy()))
 }
 
 func (a *App) Listen() error {

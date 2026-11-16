@@ -20,6 +20,11 @@ const temporaryPasswordAlphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuv
 type UserService struct {
 	db    database.DBInterface
 	mutex sync.RWMutex
+	// signInLog throttles failed sign-ins per account. The client address is
+	// what the transport limiter keys on, and a proxy forwarding a caller
+	// supplied X-Forwarded-For lets the caller choose that key; the account name
+	// is what they cannot vary while attacking one account.
+	signInLog *loginThrottle
 }
 
 func (s *UserService) SetDB(db database.DBInterface) {
@@ -44,7 +49,8 @@ func (s *UserService) getDB() database.DBInterface {
 
 func NewUserService(db database.DBInterface) *UserService {
 	return &UserService{
-		db: db,
+		db:        db,
+		signInLog: newLoginThrottle(),
 	}
 }
 
@@ -240,6 +246,17 @@ func (s *UserService) Login(req *models.LoginRequest) (*models.User, error) {
 	}
 
 	username := strings.TrimSpace(req.Username)
+
+	// Refuse before touching the database when this account has burned through
+	// its allowance. The account is throttled whether or not it exists, so the
+	// refusal is not an oracle for which names are registered.
+	if retryAfter := s.signInLog.retryAfter(username); retryAfter > 0 {
+		logger.Warn("service: login refused while the account is throttled",
+			zap.String("username", username),
+			zap.Duration("retry_after", retryAfter))
+		return nil, &LoginThrottledError{RetryAfter: retryAfter}
+	}
+
 	logger.Info("service: starting user login", zap.String("username", username))
 
 	user, err := db.GetUserByUsername(username)
@@ -251,15 +268,18 @@ func (s *UserService) Login(req *models.LoginRequest) (*models.User, error) {
 		// Spend the same time as a real comparison would, so that the response
 		// does not reveal whether the username is registered.
 		_ = bcrypt.CompareHashAndPassword(unknownAccountPasswordHash, []byte(req.Password))
+		s.signInLog.recordFailure(username)
 		logger.Error("service: login failed; user does not exist", zap.String("username", username))
 		return nil, ErrInvalidCredentials
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password)); err != nil {
+		s.signInLog.recordFailure(username)
 		logger.Error("service: login failed; password mismatch", zap.String("user_id", user.ID))
 		return nil, ErrInvalidCredentials
 	}
 
+	s.signInLog.reset(username)
 	logger.Info("service: user logged in successfully", zap.String("user_id", user.ID), zap.String("username", user.Username))
 
 	return user, nil

@@ -180,3 +180,48 @@ func TestAuthHandler_LogoutClearsSessionCookie(t *testing.T) {
 	defer retryResp.Body.Close()
 	assert.Equal(t, fiber.StatusUnauthorized, retryResp.StatusCode)
 }
+
+// TestAuthHandler_LoginThrottlesAfterRepeatedFailures covers the response shape a
+// caller sees when an account has burned through its allowance: a 429 that says
+// how long to wait, rather than another indistinguishable "wrong password".
+func TestAuthHandler_LoginThrottlesAfterRepeatedFailures(t *testing.T) {
+	db := testutil.NewSQLiteDB(t)
+
+	userService := services.NewUserService(db)
+	sessionService := services.NewSessionService(db)
+	_, err := userService.Register(&models.RegisterRequest{
+		Username: "alice",
+		Password: "secret123",
+	}, "user")
+	require.NoError(t, err)
+
+	authHandler := apphandlers.NewAuthHandler(userService, sessionService, nil)
+	app := fiber.New()
+	app.Post("/auth/login", authHandler.Login)
+
+	attempt := func(password string) *http.Response {
+		req := httptest.NewRequest(http.MethodPost, "/auth/login",
+			bytes.NewBufferString(`{"username":"alice","password":"`+password+`"}`))
+		req.Header.Set("Content-Type", "application/json")
+		resp, err := app.Test(req, testRequestTimeout)
+		require.NoError(t, err)
+		return resp
+	}
+
+	// Spend the allowance; every one of these is an ordinary credential failure.
+	for round := 0; round < 6; round++ {
+		resp := attempt("wrong")
+		require.Equal(t, fiber.StatusUnauthorized, resp.StatusCode)
+		require.NoError(t, resp.Body.Close())
+	}
+
+	throttled := attempt("wrong")
+	defer throttled.Body.Close()
+
+	assert.Equal(t, fiber.StatusTooManyRequests, throttled.StatusCode)
+	assert.NotEmpty(t, throttled.Header.Get("Retry-After"), "a throttled sign-in must say when to retry")
+
+	var body map[string]any
+	require.NoError(t, json.NewDecoder(throttled.Body).Decode(&body))
+	assert.Equal(t, "auth.too_many_attempts", body["error_code"])
+}

@@ -1,6 +1,9 @@
 package services
 
-import "errors"
+import (
+	"errors"
+	"time"
+)
 
 var (
 	ErrUserDBUnavailable          = errors.New("database is not configured; complete initial setup first")
@@ -24,7 +27,29 @@ var (
 	ErrSessionAccessDenied        = errors.New("session access denied")
 	ErrSessionRevoked             = errors.New("session is no longer valid; sign in again")
 	ErrSessionExpired             = errors.New("session expired; sign in again")
+	ErrLoginThrottled             = errors.New("too many sign-in attempts; try again later")
 )
+
+// LoginThrottledError reports that sign-in was refused without the password
+// being examined, and how long the caller should wait.
+type LoginThrottledError struct {
+	RetryAfter time.Duration
+}
+
+func (e *LoginThrottledError) Error() string { return ErrLoginThrottled.Error() }
+
+// Unwrap makes errors.Is(err, ErrLoginThrottled) hold for the wrapped form.
+func (e *LoginThrottledError) Unwrap() error { return ErrLoginThrottled }
+
+// LoginRetryAfter returns how long a throttled sign-in asks the caller to wait,
+// or zero when err is not a throttling refusal.
+func LoginRetryAfter(err error) time.Duration {
+	var throttled *LoginThrottledError
+	if errors.As(err, &throttled) {
+		return throttled.RetryAfter
+	}
+	return 0
+}
 
 func IsUserDBUnavailable(err error) bool {
 	return errors.Is(err, ErrUserDBUnavailable)
@@ -108,4 +133,8 @@ func IsSessionRevoked(err error) bool {
 
 func IsSessionExpired(err error) bool {
 	return errors.Is(err, ErrSessionExpired)
+}
+
+func IsLoginThrottled(err error) bool {
+	return errors.Is(err, ErrLoginThrottled)
 }
