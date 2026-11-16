@@ -24,15 +24,28 @@ import (
 const defaultZTPath = "/var/lib/zerotier-one"
 
 type PlanetHandler struct {
-	allowedBasePath string
+	// cfg is the live configuration. The directory the filesystem endpoints may
+	// touch is derived from it per request rather than captured here: the setup
+	// wizard writes the controller token path after this handler is built, and a
+	// captured value left every planet endpoint rejecting the real data directory
+	// until the process was restarted.
+	cfg *config.Config
 }
 
 func NewPlanetHandler(cfg *config.Config) *PlanetHandler {
-	allowedBasePath := defaultZTPath
-	if cfg != nil && strings.TrimSpace(cfg.ZeroTier.TokenPath) != "" {
-		allowedBasePath = filepath.Dir(strings.TrimSpace(cfg.ZeroTier.TokenPath))
+	return &PlanetHandler{cfg: cfg}
+}
+
+// allowedBasePath is the ZeroTier data directory the filesystem endpoints are
+// confined to: the directory holding the configured controller token, or the
+// conventional location when no token path is set yet.
+func (h *PlanetHandler) allowedBasePath() string {
+	if h.cfg != nil {
+		if tokenPath := strings.TrimSpace(h.cfg.ZeroTier.TokenPath); tokenPath != "" {
+			return filepath.Dir(tokenPath)
+		}
 	}
-	return &PlanetHandler{allowedBasePath: allowedBasePath}
+	return defaultZTPath
 }
 
 func (h *PlanetHandler) sanitizeZTPath(userPath string) (string, error) {
@@ -40,7 +53,7 @@ func (h *PlanetHandler) sanitizeZTPath(userPath string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("invalid ZeroTier directory path %q", userPath)
 	}
-	baseClean, err := filepath.Abs(filepath.Clean(h.allowedBasePath))
+	baseClean, err := filepath.Abs(filepath.Clean(h.allowedBasePath()))
 	if err != nil {
 		return "", fmt.Errorf("invalid configured ZeroTier directory")
 	}
@@ -178,7 +191,7 @@ func (h *PlanetHandler) GeneratePlanet(c fiber.Ctx) error {
 }
 
 func (h *PlanetHandler) GetIdentity(c fiber.Ctx) error {
-	ztPath := c.Query("path", h.allowedBasePath)
+	ztPath := c.Query("path", h.allowedBasePath())
 	safePath, err := h.sanitizeZTPath(ztPath)
 	if err != nil {
 		return writeErrorResponse(c, fiber.StatusBadRequest, err.Error())
@@ -205,7 +218,7 @@ func (h *PlanetHandler) GetIdentity(c fiber.Ctx) error {
 }
 
 func (h *PlanetHandler) GetSigningKeysInfo(c fiber.Ctx) error {
-	ztPath := c.Query("path", h.allowedBasePath)
+	ztPath := c.Query("path", h.allowedBasePath())
 	safePath, err := h.sanitizeZTPath(ztPath)
 	if err != nil {
 		return writeErrorResponse(c, fiber.StatusBadRequest, err.Error())
@@ -238,7 +251,7 @@ func (h *PlanetHandler) GetSigningKeysInfo(c fiber.Ctx) error {
 }
 
 func (h *PlanetHandler) GenerateSigningKeys(c fiber.Ctx) error {
-	ztPath := c.Query("path", h.allowedBasePath)
+	ztPath := c.Query("path", h.allowedBasePath())
 	safePath, err := h.sanitizeZTPath(ztPath)
 	if err != nil {
 		return writeErrorResponse(c, fiber.StatusBadRequest, err.Error())

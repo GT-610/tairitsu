@@ -346,3 +346,43 @@ func TestPlanetFilesystemHandlers_RejectSymlinkEscapes(t *testing.T) {
 		})
 	}
 }
+
+// TestPlanetHandlerFollowsConfigurationChanges is the regression test for a base
+// path captured at route setup. The setup wizard writes the controller token path
+// into the same config the handler holds, after the handler was constructed, so a
+// captured value left every planet endpoint rejecting the real data directory
+// until the process restarted.
+func TestPlanetHandlerFollowsConfigurationChanges(t *testing.T) {
+	cfg := &config.Config{}
+	// Built before setup has run, so there is no token path yet.
+	handler := NewPlanetHandler(cfg)
+
+	tempDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(tempDir, "identity.public"), []byte(testIdentityPublic+"\n"), 0644); err != nil {
+		t.Fatalf("write identity.public: %v", err)
+	}
+
+	// The wizard now points the controller at that directory on the same struct.
+	cfg.ZeroTier.TokenPath = filepath.Join(tempDir, "authtoken.secret")
+
+	app := fiber.New()
+	app.Get("/identity", handler.GetIdentity)
+
+	resp, err := app.Test(httptest.NewRequest(http.MethodGet, "/identity", nil))
+	if err != nil {
+		t.Fatalf("app.Test() error = %v", err)
+	}
+	defer closeResponseBody(t, resp)
+
+	if resp.StatusCode != fiber.StatusOK {
+		t.Fatalf("status = %d, want %d; the handler still uses the pre-setup base path", resp.StatusCode, fiber.StatusOK)
+	}
+
+	var body IdentityInfoResponse
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if body.IdentityPublic == "" {
+		t.Fatal("expected identity_public in response")
+	}
+}

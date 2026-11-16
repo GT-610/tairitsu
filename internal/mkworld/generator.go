@@ -249,9 +249,13 @@ func normalizeEndpoints(values []string) []string {
 
 func loadSigningKeys(signingKeyPath string) (prevPub, curPub [ZT_C25519_PUBLIC_KEY_LEN]byte, prevPriv, curPriv [ZT_C25519_PRIVATE_KEY_LEN]byte, err error) {
 	if strings.TrimSpace(signingKeyPath) == "" {
-		prevPub, prevPriv = GenerateDualPair()
-		curPub = prevPub
-		curPriv = prevPriv
+		// No stored keys, so this is a throwaway pair. The two halves are still
+		// generated separately: previous signs the world being published and
+		// current is the successor it names.
+		if prevPub, prevPriv, err = GenerateDualPair(); err != nil {
+			return
+		}
+		curPub, curPriv, err = GenerateDualPair()
 		return
 	}
 
@@ -277,8 +281,23 @@ func generatePlanetID() (uint64, error) {
 	}
 }
 
+// CreateSigningKeys writes the rotation pair ZeroTier expects.
+//
+// previous.c25519 signs the world being published; current.c25519 is the
+// successor whose signature the next world must carry. They are two separate
+// pairs on purpose — writing one pair to both paths, as this used to, produced a
+// rotation in which the successor was the same key, so the rollover the model
+// exists for could never happen.
 func CreateSigningKeys(prevPath, curPath string) error {
-	prevPub, prevPriv := GenerateDualPair()
+	prevPub, prevPriv, err := GenerateDualPair()
+	if err != nil {
+		return err
+	}
+
+	curPub, curPriv, err := GenerateDualPair()
+	if err != nil {
+		return err
+	}
 
 	if err := EnsureDirectory(prevPath); err != nil {
 		return fmt.Errorf("failed to prepare previous key directory: %w", err)
@@ -290,7 +309,7 @@ func CreateSigningKeys(prevPath, curPath string) error {
 	if err := writeKeyFile(prevPath, prevPub, prevPriv); err != nil {
 		return fmt.Errorf("failed to write previous key: %w", err)
 	}
-	if err := writeKeyFile(curPath, prevPub, prevPriv); err != nil {
+	if err := writeKeyFile(curPath, curPub, curPriv); err != nil {
 		return fmt.Errorf("failed to write current key: %w", err)
 	}
 

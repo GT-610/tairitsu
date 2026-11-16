@@ -235,3 +235,36 @@ func TestReadSigningKeys_RejectsInvalidLength(t *testing.T) {
 		t.Fatal("ReadSigningKeys() error = nil, want error")
 	}
 }
+
+// TestCreateSigningKeysWritesDistinctPairs is the regression test for a rotation
+// pair that was really one key twice: previous.c25519 signs the published world
+// and current.c25519 is the successor, so they must differ or the rollover the
+// model exists for can never happen.
+func TestCreateSigningKeysWritesDistinctPairs(t *testing.T) {
+	tempDir := t.TempDir()
+	prevPath := filepath.Join(tempDir, "previous.c25519")
+	curPath := filepath.Join(tempDir, "current.c25519")
+
+	if err := CreateSigningKeys(prevPath, curPath); err != nil {
+		t.Fatalf("CreateSigningKeys() error = %v", err)
+	}
+
+	prevFile, err := os.ReadFile(prevPath)
+	if err != nil {
+		t.Fatalf("read previous key: %v", err)
+	}
+	curFile, err := os.ReadFile(curPath)
+	if err != nil {
+		t.Fatalf("read current key: %v", err)
+	}
+
+	if string(prevFile) == string(curFile) {
+		t.Fatal("the rotation pair is the same key twice; current.c25519 must be a successor, not a copy")
+	}
+
+	// Both halves have to be readable as a pair, which is what publishing a
+	// planet relies on.
+	if _, _, _, _, err := ReadSigningKeys(prevPath, curPath); err != nil {
+		t.Fatalf("ReadSigningKeys() error = %v", err)
+	}
+}
