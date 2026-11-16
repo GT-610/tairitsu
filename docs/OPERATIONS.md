@@ -91,7 +91,7 @@ per-client limits meaningful.
 - it should be treated as a separate test surface
 - it should be validated independently before production use
 
-Four things about the signing keys, because getting them wrong is silent:
+Five things about the signing keys, because getting them wrong is silent:
 
 - Each generated planet names a successor key that its **own next update** must be
   signed by. The stored pair therefore advances on every generation: the key that was
@@ -102,6 +102,12 @@ Four things about the signing keys, because getting them wrong is silent:
   deployed: generate twice and deploy only the second, and the deployed planet is
   signed with a key the previously deployed world does not accept. Generate and deploy
   one at a time.
+- **Do not blindly retry a generation whose response you did not receive.** The keys
+  advance before the result is handed back, so an attempt you cannot see the outcome of
+  may still have consumed the signer — and the retry then produces a planet the
+  deployed world rejects. Back up the signing-key directory (restricted access, it holds
+  private keys) before each generation; if a response is lost, restore that pre-generation
+  pair before generating again.
 - A planet generated **without** a signing key directory uses a throwaway pair and
   stores no successor, so no later generation can sign an update for it. That mode is
   for a one-shot test world. To be able to publish updates, set `signing_key_path`

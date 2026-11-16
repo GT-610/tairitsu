@@ -470,3 +470,24 @@ func TestKeyRotationLeavesNoTemporaryFiles(t *testing.T) {
 	_, _, _, _, err = ReadSigningKeys(prevPath, curPath)
 	require.NoError(t, err)
 }
+
+// TestFillKeyFileRemovesAFileItCouldNotWrite covers the recovery path: a key file that
+// was created but could not be filled must not be left behind, because the existence
+// check would then refuse every later attempt and only a manual deletion would clear it.
+func TestFillKeyFileRemovesAFileItCouldNotWrite(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "previous.c25519")
+
+	// Created exclusively, as createKeyFile does, then closed so the content write
+	// fails the way a storage error would.
+	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
+	require.NoError(t, err)
+	require.NoError(t, file.Close())
+
+	pub, priv, err := GenerateDualPair()
+	require.NoError(t, err)
+	require.Error(t, fillKeyFile(path, file, pub, priv))
+
+	_, statErr := os.Stat(path)
+	assert.True(t, os.IsNotExist(statErr),
+		"a key file whose content could not be written must be removed, not left to block the next attempt")
+}

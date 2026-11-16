@@ -435,11 +435,20 @@ func createKeyFile(path string, pub [ZT_C25519_PUBLIC_KEY_LEN]byte, priv [ZT_C25
 		return err
 	}
 
-	written, err := writeKeyContent(file, pub, priv)
-	if err != nil {
+	return fillKeyFile(path, file, pub, priv)
+}
+
+// fillKeyFile writes a key file that was just created exclusively, and removes it if the
+// content cannot be written.
+//
+// Leaving the file behind would be worse than the original error: the directory would
+// then fail the existence check on every later attempt, holding nothing usable, and only
+// a manual deletion would recover it.
+func fillKeyFile(path string, file *os.File, pub [ZT_C25519_PUBLIC_KEY_LEN]byte, priv [ZT_C25519_PRIVATE_KEY_LEN]byte) error {
+	if err := writeKeyContent(file, pub, priv); err != nil {
 		_ = file.Close()
-		if !written {
-			_ = os.Remove(path)
+		if removeErr := os.Remove(path); removeErr != nil {
+			return fmt.Errorf("%w (and failed to remove the incomplete %s: %v)", err, path, removeErr)
 		}
 		return err
 	}
@@ -471,7 +480,7 @@ func writeKeyFile(path string, pub [ZT_C25519_PUBLIC_KEY_LEN]byte, priv [ZT_C255
 		}
 	}()
 
-	if _, err := writeKeyContent(temp, pub, priv); err != nil {
+	if err := writeKeyContent(temp, pub, priv); err != nil {
 		_ = temp.Close()
 		return err
 	}
@@ -487,19 +496,19 @@ func writeKeyFile(path string, pub [ZT_C25519_PUBLIC_KEY_LEN]byte, priv [ZT_C255
 	return nil
 }
 
-// writeKeyContent writes the two halves of a key pair and reports whether anything
-// reached the file.
-func writeKeyContent(file *os.File, pub [ZT_C25519_PUBLIC_KEY_LEN]byte, priv [ZT_C25519_PRIVATE_KEY_LEN]byte) (bool, error) {
+// writeKeyContent writes the two halves of a key pair. A failure means the file must be
+// discarded: it holds a partial key, which ReadSigningKeys rejects.
+func writeKeyContent(file *os.File, pub [ZT_C25519_PUBLIC_KEY_LEN]byte, priv [ZT_C25519_PRIVATE_KEY_LEN]byte) error {
 	if err := file.Chmod(0600); err != nil {
-		return false, err
+		return err
 	}
 	if _, err := file.Write(pub[:]); err != nil {
-		return true, err
+		return err
 	}
 	if _, err := file.Write(priv[:]); err != nil {
-		return true, err
+		return err
 	}
-	return true, nil
+	return nil
 }
 
 func ReadSigningKeys(prevPath, curPath string) (prevPub, curPub [ZT_C25519_PUBLIC_KEY_LEN]byte, prevPriv, curPriv [ZT_C25519_PRIVATE_KEY_LEN]byte, err error) {
