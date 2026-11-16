@@ -5,6 +5,8 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -344,4 +346,127 @@ func TestCreateSigningKeysRefusesToReplaceAnExistingPair(t *testing.T) {
 	after, err := os.ReadFile(prevPath)
 	require.NoError(t, err)
 	assert.Equal(t, before, after, "a refused call must not have touched the stored keys")
+}
+
+// TestLockSigningKeyDirectorySerialisesPerDirectory covers the primitive that keeps
+// two generations from advancing one ring from the same snapshot: holders of the
+// same directory never overlap, and different directories do not wait for each other.
+func TestLockSigningKeyDirectorySerialisesPerDirectory(t *testing.T) {
+	var active, peak int32
+	var waitGroup sync.WaitGroup
+
+	for worker := 0; worker < 8; worker++ {
+		waitGroup.Add(1)
+		go func() {
+			defer waitGroup.Done()
+
+			unlock := lockSigningKeyDirectory("/keys/shared")
+			defer unlock()
+
+			current := atomic.AddInt32(&active, 1)
+			for {
+				observed := atomic.LoadInt32(&peak)
+				if current <= observed || atomic.CompareAndSwapInt32(&peak, observed, current) {
+					break
+				}
+			}
+			time.Sleep(time.Millisecond)
+			atomic.AddInt32(&active, -1)
+		}()
+	}
+	waitGroup.Wait()
+
+	assert.Equal(t, int32(1), atomic.LoadInt32(&peak),
+		"two holders of one directory must never overlap")
+
+	// A different directory has its own lock, so the two do not block each other.
+	first := lockSigningKeyDirectory("/keys/first")
+	second := lockSigningKeyDirectory("/keys/second")
+	second()
+	first()
+}
+
+// TestCreateSigningKeysAllowsExactlyOneConcurrentCreator covers two requests racing
+// to create a pair: the second must lose rather than replace the first, and what it
+// wrote must be a complete, readable pair.
+func TestCreateSigningKeysAllowsExactlyOneConcurrentCreator(t *testing.T) {
+	tempDir := t.TempDir()
+	prevPath := filepath.Join(tempDir, "previous.c25519")
+	curPath := filepath.Join(tempDir, "current.c25519")
+
+	var waitGroup sync.WaitGroup
+	var mutex sync.Mutex
+	var succeeded int
+	for worker := 0; worker < 8; worker++ {
+		waitGroup.Add(1)
+		go func() {
+			defer waitGroup.Done()
+			if err := CreateSigningKeys(prevPath, curPath); err == nil {
+				mutex.Lock()
+				succeeded++
+				mutex.Unlock()
+			}
+		}()
+	}
+	waitGroup.Wait()
+
+	assert.Equal(t, 1, succeeded, "only one creator may win")
+	_, _, _, _, err := ReadSigningKeys(prevPath, curPath)
+	require.NoError(t, err, "the winning pair must be complete")
+}
+
+// TestCreateKeyFileRefusesToReplaceAnExistingFile is the primitive behind the above:
+// creation is exclusive, so the only copy of a key cannot be truncated by a second
+// writer — including one in another process, which the in-process lock cannot stop.
+func TestCreateKeyFileRefusesToReplaceAnExistingFile(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "current.c25519")
+
+	pub, priv, err := GenerateDualPair()
+	require.NoError(t, err)
+	require.NoError(t, createKeyFile(path, pub, priv))
+
+	before, err := os.ReadFile(path)
+	require.NoError(t, err)
+
+	otherPub, otherPriv, err := GenerateDualPair()
+	require.NoError(t, err)
+	err = createKeyFile(path, otherPub, otherPriv)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, ErrSigningKeysExist), "got %v", err)
+
+	after, err := os.ReadFile(path)
+	require.NoError(t, err)
+	assert.Equal(t, before, after, "a refused create must not have touched the file")
+}
+
+// TestKeyRotationLeavesNoTemporaryFiles covers the atomic replacement: the new key is
+// written beside the target and renamed over it, which must not leave debris in the
+// directory an operator is told to keep.
+func TestKeyRotationLeavesNoTemporaryFiles(t *testing.T) {
+	tempDir := t.TempDir()
+	prevPath := filepath.Join(tempDir, "previous.c25519")
+	curPath := filepath.Join(tempDir, "current.c25519")
+
+	require.NoError(t, CreateSigningKeys(prevPath, curPath))
+	_, err := GeneratePlanet(&GenerateOptions{
+		RootNodes:       []RootNodeConfig{testRootNode(validIdentityPublic, "203.0.113.1/9993")},
+		SigningKeyPath:  tempDir,
+		RecommendValues: true,
+	})
+	require.NoError(t, err)
+
+	entries, err := os.ReadDir(tempDir)
+	require.NoError(t, err)
+
+	names := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		names = append(names, entry.Name())
+	}
+	assert.ElementsMatch(t, []string{"previous.c25519", "current.c25519"}, names,
+		"rotation must leave exactly the two key files")
+
+	// And the rotated pair is readable, which a partial write would prevent.
+	_, _, _, _, err = ReadSigningKeys(prevPath, curPath)
+	require.NoError(t, err)
 }

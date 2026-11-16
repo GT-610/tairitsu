@@ -14,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -53,6 +54,15 @@ func GeneratePlanet(opts *GenerateOptions) (*GeneratedPlanet, error) {
 	}
 	if len(opts.RootNodes) > ZT_WORLD_MAX_ROOTS {
 		return nil, ErrMaxRootNodesExceeded
+	}
+
+	// Reading the ring, signing with it, and advancing it are one operation. Two
+	// overlapping generations that both read the same snapshot would have the later
+	// writer move the ring back, and later planets would then use a signer nothing
+	// is expecting. The lock covers the whole sequence.
+	if dir := strings.TrimSpace(opts.SigningKeyPath); dir != "" {
+		unlock := lockSigningKeyDirectory(dir)
+		defer unlock()
 	}
 
 	prevPub, curPub, prevPriv, curPriv, err := loadSigningKeys(opts.SigningKeyPath)
@@ -335,6 +345,11 @@ func generatePlanetID() (uint64, error) {
 // by, so overwriting it silently breaks that update chain; starting a new identity
 // has to be a deliberate act, which removing the files is.
 func CreateSigningKeys(prevPath, curPath string) error {
+	// Held across the existence check and both writes, so two overlapping requests
+	// cannot both find the directory empty.
+	unlock := lockSigningKeyDirectory(filepath.Dir(prevPath))
+	defer unlock()
+
 	for _, path := range []string{prevPath, curPath} {
 		if _, err := os.Stat(path); err == nil {
 			return fmt.Errorf("%w: %s", ErrSigningKeysExist, path)
@@ -360,37 +375,131 @@ func CreateSigningKeys(prevPath, curPath string) error {
 		return fmt.Errorf("failed to prepare current key directory: %w", err)
 	}
 
-	if err := writeKeyFile(prevPath, prevPub, prevPriv); err != nil {
+	if err := createKeyFile(prevPath, prevPub, prevPriv); err != nil {
 		return fmt.Errorf("failed to write previous key: %w", err)
 	}
-	if err := writeKeyFile(curPath, curPub, curPriv); err != nil {
+	if err := createKeyFile(curPath, curPub, curPriv); err != nil {
+		// Half a pair is not usable, so the half just written is removed rather than
+		// left to block the next attempt. Only a file this call created exclusively
+		// is removed, so a pair someone else owns is never touched.
+		if removeErr := os.Remove(prevPath); removeErr != nil {
+			return fmt.Errorf("failed to write current key: %w (and failed to remove the partial pair: %v)", err, removeErr)
+		}
 		return fmt.Errorf("failed to write current key: %w", err)
 	}
 
 	return nil
 }
 
-func writeKeyFile(path string, pub [ZT_C25519_PUBLIC_KEY_LEN]byte, priv [ZT_C25519_PRIVATE_KEY_LEN]byte) error {
-	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
+// signingKeyLocks serialises the signing key ring of each directory.
+//
+// A process-wide map rather than a field on a caller, because the two entry points
+// that touch a ring are reached through different paths and only agree on the
+// directory. The number of directories is whatever the operator configured, so the
+// map stays small.
+var signingKeyLocks struct {
+	mutex        sync.Mutex
+	perDirectory map[string]*sync.Mutex
+}
+
+// lockSigningKeyDirectory locks dir and returns the function that releases it.
+func lockSigningKeyDirectory(dir string) func() {
+	clean := filepath.Clean(dir)
+
+	signingKeyLocks.mutex.Lock()
+	if signingKeyLocks.perDirectory == nil {
+		signingKeyLocks.perDirectory = make(map[string]*sync.Mutex)
+	}
+	lock, ok := signingKeyLocks.perDirectory[clean]
+	if !ok {
+		lock = &sync.Mutex{}
+		signingKeyLocks.perDirectory[clean] = lock
+	}
+	signingKeyLocks.mutex.Unlock()
+
+	lock.Lock()
+	return lock.Unlock
+}
+
+// createKeyFile writes a key file and fails if the path already exists.
+//
+// O_EXCL makes "does it exist" and "create it" one operation, so a second writer
+// cannot replace a pair the first just wrote — which would destroy the private key a
+// deployed planet depends on.
+func createKeyFile(path string, pub [ZT_C25519_PUBLIC_KEY_LEN]byte, priv [ZT_C25519_PRIVATE_KEY_LEN]byte) error {
+	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
 	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	// Ensure permissions are 0600 even for pre-existing files (O_CREATE|O_TRUNC
-	// does not change the mode of an already-existing file on Linux).
-	if err := file.Chmod(0600); err != nil {
+		if os.IsExist(err) {
+			return fmt.Errorf("%w: %s", ErrSigningKeysExist, path)
+		}
 		return err
 	}
 
-	if _, err := file.Write(pub[:]); err != nil {
+	written, err := writeKeyContent(file, pub, priv)
+	if err != nil {
+		_ = file.Close()
+		if !written {
+			_ = os.Remove(path)
+		}
 		return err
 	}
-	if _, err := file.Write(priv[:]); err != nil {
+
+	return file.Close()
+}
+
+// writeKeyFile replaces a key file atomically.
+//
+// Rotating a ring always overwrites, and truncating the only copy of a key before
+// writing the new one would leave a partial file that ReadSigningKeys rejects, so
+// generation would fail even after storage recovered. The complete key is written
+// beside the target and then renamed over it, which leaves either the old file or
+// the new one and never a fragment.
+func writeKeyFile(path string, pub [ZT_C25519_PUBLIC_KEY_LEN]byte, priv [ZT_C25519_PRIVATE_KEY_LEN]byte) error {
+	directory := filepath.Dir(path)
+
+	// CreateTemp creates with 0600, which is the mode a key file must have.
+	temp, err := os.CreateTemp(directory, ".key-*")
+	if err != nil {
+		return fmt.Errorf("failed to create a temporary key file: %w", err)
+	}
+	tempName := temp.Name()
+
+	keepTemp := false
+	defer func() {
+		if !keepTemp {
+			_ = os.Remove(tempName)
+		}
+	}()
+
+	if _, err := writeKeyContent(temp, pub, priv); err != nil {
+		_ = temp.Close()
 		return err
 	}
+	if err := temp.Close(); err != nil {
+		return fmt.Errorf("failed to close the temporary key file: %w", err)
+	}
+
+	if err := os.Rename(tempName, path); err != nil {
+		return fmt.Errorf("failed to replace %s: %w", path, err)
+	}
+	keepTemp = true
 
 	return nil
+}
+
+// writeKeyContent writes the two halves of a key pair and reports whether anything
+// reached the file.
+func writeKeyContent(file *os.File, pub [ZT_C25519_PUBLIC_KEY_LEN]byte, priv [ZT_C25519_PRIVATE_KEY_LEN]byte) (bool, error) {
+	if err := file.Chmod(0600); err != nil {
+		return false, err
+	}
+	if _, err := file.Write(pub[:]); err != nil {
+		return true, err
+	}
+	if _, err := file.Write(priv[:]); err != nil {
+		return true, err
+	}
+	return true, nil
 }
 
 func ReadSigningKeys(prevPath, curPath string) (prevPub, curPub [ZT_C25519_PUBLIC_KEY_LEN]byte, prevPriv, curPriv [ZT_C25519_PRIVATE_KEY_LEN]byte, err error) {
