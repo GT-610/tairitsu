@@ -3,6 +3,7 @@ package services
 import (
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -205,34 +206,104 @@ func TestLoginThrottle_RefusesConcurrentVerifications(t *testing.T) {
 
 // TestLoginThrottle_BoundsConcurrentVerificationsUnderLoad is the same property
 // observed the way an attacker would apply it: many goroutines at once.
+//
+// Every worker attempts admission before the accepted one is released, so the count
+// cannot drift because a late worker legitimately found the slot free again.
 func TestLoginThrottle_BoundsConcurrentVerificationsUnderLoad(t *testing.T) {
 	now := time.Date(2026, 11, 16, 12, 0, 0, 0, time.UTC)
 	throttle := newTestThrottle(&now)
 
-	var mutex sync.Mutex
-	admitted := 0
-	var waitGroup sync.WaitGroup
-	for attempt := 0; attempt < 50; attempt++ {
-		waitGroup.Add(1)
+	const workers = 50
+	var attempted, finished sync.WaitGroup
+	var accepted int32
+	release := make(chan struct{})
+
+	attempted.Add(workers)
+	finished.Add(workers)
+	for worker := 0; worker < workers; worker++ {
 		go func() {
-			defer waitGroup.Done()
-			// Hold the slot, as a password comparison would.
-			ok := false
-			if _, got := throttle.admit("alice"); got {
-				mutex.Lock()
-				admitted++
-				mutex.Unlock()
-				ok = true
-				time.Sleep(2 * time.Millisecond)
+			defer finished.Done()
+
+			_, admitted := throttle.admit("alice")
+			attempted.Done()
+
+			if !admitted {
+				return
 			}
-			if ok {
-				throttle.finish("alice", false)
-			}
+			atomic.AddInt32(&accepted, 1)
+			// Hold the verification until every worker has tried, so the assertion
+			// below cannot be disturbed by one arriving after the slot was freed.
+			<-release
+			throttle.finish("alice", false)
 		}()
 	}
-	waitGroup.Wait()
 
-	assert.Equal(t, 1, admitted, "only one verification may be in flight per account")
+	attempted.Wait()
+	close(release)
+	finished.Wait()
+
+	assert.Equal(t, int32(1), accepted, "only one verification may be in flight per account")
+}
+
+// TestLoginThrottle_BoundsAnUntrackedAccount is the regression test for the
+// fail-open path. When the table is saturated with records that must not be
+// discarded, an account that is not tracked is admitted without a reservation — so
+// per-account counting has no opinion about it. The process-wide ceiling still
+// applies, which is what bounds a caller spreading requests across client addresses.
+func TestLoginThrottle_BoundsAnUntrackedAccount(t *testing.T) {
+	now := time.Date(2026, 11, 16, 12, 0, 0, 0, time.UTC)
+	throttle := newTestThrottle(&now)
+
+	// Fill every slot with an account that is currently blocked, so nothing is
+	// evictable and the next new name falls through to the fail-open path.
+	for index := 0; index < maxTrackedLoginAccounts; index++ {
+		spendFailures(t, throttle, fmt.Sprintf("blocked-%d", index), loginFailureAllowance+1)
+	}
+	require.Len(t, throttle.records, maxTrackedLoginAccounts)
+
+	// The untracked name is admitted, because there is no room to track it...
+	held := make([]string, 0, maxConcurrentLoginVerifications)
+	for index := 0; index < maxConcurrentLoginVerifications; index++ {
+		name := fmt.Sprintf("untracked-%d", index)
+		_, admitted := throttle.admit(name)
+		require.True(t, admitted, "the fail-open path admits %s", name)
+		require.NotContains(t, throttle.records, name, "precondition: it is not being tracked")
+		held = append(held, name)
+	}
+
+	// ...but not without limit: the process-wide ceiling still holds.
+	_, admitted := throttle.admit("untracked-overflow")
+	assert.False(t, admitted, "an untracked account is still bounded process-wide")
+
+	for _, name := range held {
+		throttle.finish(name, false)
+	}
+}
+
+// TestLoginThrottle_DoesNotExpireARecordHoldingAVerification covers the case the
+// sweep already guards: a verification that outlives the window must not have its
+// record discarded, or a second attempt could reserve a replacement and the first
+// attempt's outcome would land on it.
+func TestLoginThrottle_DoesNotExpireARecordHoldingAVerification(t *testing.T) {
+	now := time.Date(2026, 11, 16, 12, 0, 0, 0, time.UTC)
+	throttle := newTestThrottle(&now)
+
+	_, admitted := throttle.admit("alice")
+	require.True(t, admitted)
+
+	// The verification takes longer than the expiry window allows for.
+	now = now.Add(loginAttemptWindow + time.Minute)
+
+	retryAfter, admitted := throttle.admit("alice")
+	assert.False(t, admitted, "the record is still holding a verification")
+	assert.Positive(t, retryAfter)
+
+	throttle.finish("alice", false)
+
+	record, ok := throttle.records["alice"]
+	require.True(t, ok, "the outcome must land on the record it belongs to")
+	assert.Equal(t, 1, record.failures)
+	assert.Equal(t, 0, record.inFlight)
 }
 
 func TestLoginThrottle_ForgetsIdleAccounts(t *testing.T) {

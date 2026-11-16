@@ -38,6 +38,19 @@ const (
 	// loginSweepInterval limits how often expired records are collected, so a
 	// failed sign-in does not pay for a full scan.
 	loginSweepInterval = time.Minute
+
+	// maxConcurrentLoginVerifications caps how many passwords are being checked at
+	// once, across every account and every caller.
+	//
+	// Per-account counting cannot be the only ceiling: when the account table is
+	// saturated with records that are all blocking or in flight, an untracked name
+	// is admitted without a reservation, and a caller spreading requests across many
+	// client addresses would otherwise reach it with nothing bounding the rate. A
+	// process-wide ceiling does not care which name or which address, so it caps
+	// guessing in exactly the state where the per-account checks have no opinion.
+	// Eight slot holders is far above a console's real concurrent sign-ins and far
+	// below what a brute force needs.
+	maxConcurrentLoginVerifications = 8
 )
 
 // loginAttemptRecord is one account's recent failed sign-ins.
@@ -61,6 +74,10 @@ type loginThrottle struct {
 	records   map[string]*loginAttemptRecord
 	lastSweep time.Time
 	now       func() time.Time
+
+	// verifications is how many password checks are in progress, across every
+	// account and caller. Guarded by mutex.
+	verifications int
 }
 
 func newLoginThrottle() *loginThrottle {
@@ -94,12 +111,21 @@ func throttleKey(username string) string {
 // comparison.
 func (t *loginThrottle) admit(username string) (retryAfter time.Duration, admitted bool) {
 	key := throttleKey(username)
-	if key == "" {
-		return 0, true
-	}
 
 	t.mutex.Lock()
 	defer t.mutex.Unlock()
+
+	// The process-wide ceiling comes first, and covers every admitted attempt
+	// including one this throttle declines to track, so every admission is counted
+	// against it and finish always has one to give back.
+	if t.verifications >= maxConcurrentLoginVerifications {
+		return time.Second, false
+	}
+
+	if key == "" {
+		t.verifications++
+		return 0, true
+	}
 
 	now := t.now()
 	t.sweepLocked(now)
@@ -120,26 +146,38 @@ func (t *loginThrottle) admit(username string) (retryAfter time.Duration, admitt
 		record = t.reserveRecordLocked(key, now)
 		if record == nil {
 			// The table is full of other accounts' live records. Refusing to track
-			// this one is the only bounded option that keeps those records, and it
-			// fails open for a name that is not being tracked rather than losing
-			// protection for names that are.
+			// this one keeps those records, and it fails open for a name that is not
+			// being tracked rather than losing protection for names that are. The
+			// attempt still holds a process-wide slot, so it is bounded even though
+			// it is not counted against an account.
+			t.verifications++
 			return 0, true
 		}
 	}
 
+	t.verifications++
 	record.inFlight++
 	return 0, true
 }
 
 // finish releases the in-flight slot and records the outcome.
+// finish records the outcome of an admitted attempt and releases its slot. It must
+// be called exactly once per admitted attempt.
 func (t *loginThrottle) finish(username string, succeeded bool) {
 	key := throttleKey(username)
-	if key == "" {
-		return
-	}
 
 	t.mutex.Lock()
 	defer t.mutex.Unlock()
+
+	// Released after the outcome is recorded, so a replacement attempt cannot start
+	// verifying before this one has been counted.
+	if t.verifications > 0 {
+		t.verifications--
+	}
+
+	if key == "" {
+		return
+	}
 
 	record, ok := t.records[key]
 	if !ok {
@@ -201,7 +239,11 @@ func (t *loginThrottle) liveRecordLocked(key string, now time.Time) *loginAttemp
 
 	idle := now.Sub(record.lastFailure) > loginAttemptWindow
 	blocking := now.Before(record.blockedUntil)
-	if idle && !blocking {
+	// A record that is holding a verification is never expired, for the same reason
+	// the sweep skips it: dropping it would let a second attempt reserve a
+	// replacement record, and the first attempt's outcome would then land on that
+	// replacement.
+	if idle && !blocking && record.inFlight == 0 {
 		delete(t.records, key)
 		return nil
 	}
