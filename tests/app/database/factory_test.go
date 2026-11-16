@@ -132,3 +132,55 @@ func TestSQLiteRestrictsAPreExistingWriteAheadLog(t *testing.T) {
 			"tairitsu.db%s holds the same rows as the database and must be owner-only", suffix)
 	}
 }
+
+// TestSQLiteRestrictsSidecarsOfASymlinkedDatabase covers the resolution SQLite does
+// itself: it follows a symlinked database filename and derives the -wal and -shm names
+// from the target, so correcting the link's own name reaches neither sidecar. The
+// database file happens to be corrected either way, because os.Chmod follows the link —
+// the sidecars are where the difference shows, so the test keeps one on disk.
+func TestSQLiteRestrictsSidecarsOfASymlinkedDatabase(t *testing.T) {
+	targetDir := t.TempDir()
+	linkDir := t.TempDir()
+
+	target := filepath.Join(targetDir, "tairitsu.db")
+	link := filepath.Join(linkDir, "tairitsu.db")
+
+	// A connection left open, so the write-ahead log is still on disk to be corrected.
+	handle, err := sql.Open("sqlite3", target+"?_journal_mode=WAL&_busy_timeout=5000")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = handle.Close() })
+	_, err = handle.Exec(`CREATE TABLE probe (id INTEGER PRIMARY KEY, payload TEXT)`)
+	require.NoError(t, err)
+	_, err = handle.Exec(`INSERT INTO probe (payload) VALUES ('row in the log')`)
+	require.NoError(t, err)
+
+	for _, name := range []string{target, target + "-wal", target + "-shm"} {
+		if err := os.Chmod(name, 0o644); err != nil {
+			if os.IsNotExist(err) {
+				continue
+			}
+			require.NoError(t, err)
+		}
+	}
+	_, err = os.Stat(target + "-wal")
+	require.NoError(t, err, "precondition: the snapshot must include a write-ahead log")
+
+	require.NoError(t, os.Symlink(target, link))
+
+	// Opened through the link, corrected on the target.
+	db, err := appdb.NewDatabase(appdb.Config{Type: appdb.SQLite, Path: link})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, db.Close()) })
+
+	for _, suffix := range []string{"", "-wal", "-shm"} {
+		info, statErr := os.Stat(target + suffix)
+		if statErr != nil {
+			if os.IsNotExist(statErr) {
+				continue
+			}
+			require.NoError(t, statErr)
+		}
+		assert.Equal(t, os.FileMode(0o600), info.Mode().Perm(),
+			"tairitsu.db%s is what SQLite actually uses and must be owner-only", suffix)
+	}
+}

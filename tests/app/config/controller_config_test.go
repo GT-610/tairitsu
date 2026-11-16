@@ -44,6 +44,14 @@ func TestNormalizeControllerURLRejectsUnsafeAddresses(t *testing.T) {
 		"//127.0.0.1:9993":           "scheme-relative",
 		"http://":                    "no host",
 		"http://user:pass@127.0.0.1": "embedded credentials",
+
+		// The client appends its request path by concatenation, so anything after the
+		// base captures the appended endpoint instead of following it.
+		"http://127.0.0.1:9993?mode=test": "query string",
+		"http://127.0.0.1:9993/?a=b":      "query string after a slash",
+		"http://127.0.0.1:9993?":          "bare question mark",
+		"http://127.0.0.1:9993#fragment":  "fragment",
+		"http://127.0.0.1:9993/zt#top":    "fragment on a path",
 	}
 
 	for input, description := range cases {

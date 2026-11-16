@@ -211,6 +211,15 @@ func hasSQLiteHeader(root *os.Root, name string) (bool, error) {
 // had. A process killed mid-write leaves one behind, the next start reuses it, and
 // it holds the same rows the main file does.
 func restrictSQLiteFileMode(path string) error {
+	// SQLite's VFS resolves symbolic links in the database filename before it derives
+	// the sidecar names, so if the configured path is a link the files it actually
+	// uses are named after the target. Correcting the link's own name would reach
+	// neither of them. This resolves as far as the path exists; a path that does not
+	// exist yet has no target to miss.
+	if resolved, resolveErr := filepath.EvalSymlinks(path); resolveErr == nil {
+		path = resolved
+	}
+
 	file, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0o600)
 	if err != nil {
 		return fmt.Errorf("failed to create SQLite database file: %w", err)
