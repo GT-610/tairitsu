@@ -45,8 +45,11 @@ jobs:
       # maintainer's routine.
       - name: Vulnerability scan
         run: |
-          go install golang.org/x/vuln/cmd/govulncheck@latest
-          govulncheck ./...
+          # Pinned, and invoked through the module cache path rather than
+          # assuming GOPATH/bin is on PATH: a floating version would silently
+          # change what the gate enforces.
+          go install golang.org/x/vuln/cmd/govulncheck@v1.9.0
+          "$(go env GOPATH)/bin/govulncheck" ./...
 
       # The suite drives concurrent member loading and shares a rate-limiter
       # map, and the race detector is the only thing that inspects that. -count=1
