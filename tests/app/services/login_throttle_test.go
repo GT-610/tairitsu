@@ -1,6 +1,8 @@
 package services
 
 import (
+	"errors"
+	"sync"
 	"testing"
 	"time"
 
@@ -97,19 +99,64 @@ func TestUserService_LoginThrottleDoesNotRevealWhetherAnAccountExists(t *testing
 	assert.Equal(t, knownErr.Error(), unknownErr.Error())
 }
 
-// TestUserService_LoginThrottleFoldsCase stops a caller from buying a fresh
-// allowance by respelling the same account.
-func TestUserService_LoginThrottleFoldsCase(t *testing.T) {
+// TestUserService_LoginThrottleSeparatesAccountsThatDifferOnlyByCase is the
+// regression test for sharing one record between two accounts. Account lookup is
+// case-sensitive, so "alice" and "ALICE" can both exist; a shared record let
+// whoever holds the second clear the first's backoff by signing in.
+func TestUserService_LoginThrottleSeparatesAccountsThatDifferOnlyByCase(t *testing.T) {
+	db := testutil.NewSQLiteDB(t)
+	userService := services.NewUserService(db)
+
+	_, err := userService.Register(&models.RegisterRequest{Username: "alice", Password: "secret123"}, "user")
+	require.NoError(t, err)
+	_, err = userService.Register(&models.RegisterRequest{Username: "ALICE", Password: "other12345"}, "user")
+	require.NoError(t, err)
+
+	// Block alice.
+	for attempt := 0; attempt < 6; attempt++ {
+		_, _ = userService.Login(&models.LoginRequest{Username: "alice", Password: "wrong"})
+	}
+	_, err = userService.Login(&models.LoginRequest{Username: "alice", Password: "wrong"})
+	require.ErrorIs(t, err, services.ErrLoginThrottled)
+
+	// Signing in to the other account must not clear alice's backoff.
+	_, err = userService.Login(&models.LoginRequest{Username: "ALICE", Password: "other12345"})
+	require.NoError(t, err, "the other account is not blocked")
+
+	_, err = userService.Login(&models.LoginRequest{Username: "alice", Password: "wrong"})
+	require.ErrorIs(t, err, services.ErrLoginThrottled, "the other account's success must not clear alice's block")
+}
+
+// TestUserService_LoginThrottleOneVerificationAtATime covers the parallel case: a
+// burst for one account must not each reach the password comparison before any of
+// them has recorded a failure.
+func TestUserService_LoginThrottleOneVerificationAtATime(t *testing.T) {
 	db := testutil.NewSQLiteDB(t)
 	userService := services.NewUserService(db)
 
 	_, err := userService.Register(&models.RegisterRequest{Username: "alice", Password: "secret123"}, "user")
 	require.NoError(t, err)
 
-	for attempt := 0; attempt < 6; attempt++ {
-		_, _ = userService.Login(&models.LoginRequest{Username: "alice", Password: "wrong"})
+	// Occupy the account the way an in-progress verification would.
+	//
+	// This goes through the exported surface only, so it drives real logins: some
+	// of the burst is refused rather than all of it being served.
+	var mutex sync.Mutex
+	throttled := 0
+	var waitGroup sync.WaitGroup
+	for attempt := 0; attempt < 30; attempt++ {
+		waitGroup.Add(1)
+		go func() {
+			defer waitGroup.Done()
+			_, loginErr := userService.Login(&models.LoginRequest{Username: "alice", Password: "wrong"})
+			if errors.Is(loginErr, services.ErrLoginThrottled) {
+				mutex.Lock()
+				throttled++
+				mutex.Unlock()
+			}
+		}()
 	}
+	waitGroup.Wait()
 
-	_, err = userService.Login(&models.LoginRequest{Username: "ALICE", Password: "wrong"})
-	require.ErrorIs(t, err, services.ErrLoginThrottled)
+	assert.Positive(t, throttled, "a burst must be partly refused rather than all served")
 }

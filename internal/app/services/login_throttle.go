@@ -45,6 +45,10 @@ type loginAttemptRecord struct {
 	failures     int
 	blockedUntil time.Time
 	lastFailure  time.Time
+	// inFlight is the number of attempts currently verifying a password for this
+	// account. It is what stops a burst of concurrent requests from every one of
+	// them observing an unblocked account and reaching the credential check.
+	inFlight int
 }
 
 // loginThrottle counts failed sign-ins per account and answers how long a caller
@@ -68,13 +72,95 @@ func newLoginThrottle() *loginThrottle {
 
 // throttleKey normalises an account name into the throttle's key.
 //
-// Case is folded because account lookup is exact-match while a caller is free to
-// vary the spelling they try; without folding, "Alice" and "alice" would count
-// as different targets even though a human reads them as the same account. This
-// only ever makes the throttle stricter, and never gives an attacker a way to
-// reach an account they could not already reach.
+// Case is *not* folded. Account lookup is case-sensitive and the column has no
+// case-insensitive collation, so "alice" and "ALICE" can be two different
+// accounts; sharing one record would let whoever controls the second clear the
+// first's failures by signing in. Folding does not help guessing either: a password
+// submitted for a respelled name is checked against a different account, so it can
+// never be a correct guess for this one.
 func throttleKey(username string) string {
-	return strings.ToLower(strings.TrimSpace(username))
+	return strings.TrimSpace(username)
+}
+
+// admit decides whether an attempt may proceed.
+//
+// It returns the delay to report when it may not, and reserves the account's
+// in-flight slot when it may. A caller that is admitted must call finish exactly
+// once, or the account stays occupied.
+//
+// The reservation is what closes the window a plain check leaves open: a burst of
+// concurrent attempts would otherwise all read an unblocked account before any of
+// them recorded a failure, and every one of them would reach the password
+// comparison.
+func (t *loginThrottle) admit(username string) (retryAfter time.Duration, admitted bool) {
+	key := throttleKey(username)
+	if key == "" {
+		return 0, true
+	}
+
+	t.mutex.Lock()
+	defer t.mutex.Unlock()
+
+	now := t.now()
+	t.sweepLocked(now)
+	record := t.liveRecordLocked(key, now)
+
+	if record != nil {
+		if remaining := record.blockedUntil.Sub(now); remaining > 0 {
+			return remaining, false
+		}
+		// One verification at a time per account. A second concurrent attempt is
+		// refused instead of being allowed to check the password too, which keeps
+		// the number of verifications bounded by the throttle rather than by the
+		// caller's parallelism. A double-submitted form retries a second later.
+		if record.inFlight > 0 {
+			return time.Second, false
+		}
+	} else {
+		record = t.reserveRecordLocked(key, now)
+		if record == nil {
+			// The table is full of other accounts' live records. Refusing to track
+			// this one is the only bounded option that keeps those records, and it
+			// fails open for a name that is not being tracked rather than losing
+			// protection for names that are.
+			return 0, true
+		}
+	}
+
+	record.inFlight++
+	return 0, true
+}
+
+// finish releases the in-flight slot and records the outcome.
+func (t *loginThrottle) finish(username string, succeeded bool) {
+	key := throttleKey(username)
+	if key == "" {
+		return
+	}
+
+	t.mutex.Lock()
+	defer t.mutex.Unlock()
+
+	record, ok := t.records[key]
+	if !ok {
+		return
+	}
+	if record.inFlight > 0 {
+		record.inFlight--
+	}
+
+	if succeeded {
+		delete(t.records, key)
+		return
+	}
+
+	now := t.now()
+	record.failures++
+	record.lastFailure = now
+
+	if record.failures > loginFailureAllowance {
+		record.blockedUntil = now.Add(loginBackoffFor(record.failures))
+	}
 }
 
 // retryAfter reports how long the caller must wait before another attempt at this
@@ -88,8 +174,8 @@ func (t *loginThrottle) retryAfter(username string) time.Duration {
 	t.mutex.Lock()
 	defer t.mutex.Unlock()
 
-	record, ok := t.records[key]
-	if !ok {
+	record := t.liveRecordLocked(key, t.now())
+	if record == nil {
 		return 0
 	}
 
@@ -100,53 +186,70 @@ func (t *loginThrottle) retryAfter(username string) time.Duration {
 	return remaining
 }
 
-// recordFailure counts one failed attempt and reports the delay it earned.
-func (t *loginThrottle) recordFailure(username string) time.Duration {
-	key := throttleKey(username)
-	if key == "" {
-		return 0
-	}
-
-	t.mutex.Lock()
-	defer t.mutex.Unlock()
-
-	now := t.now()
-	t.sweepLocked(now)
-
+// liveRecordLocked returns the account's live record, discarding one that has gone
+// a full window without a failure.
+//
+// The periodic sweep alone is not enough: it runs at most once a minute, so an
+// account whose record has aged out can still be found here with its old failure
+// count, and the next failure would then be counted on top of an expired history
+// and block somebody who has a clean slate. The caller holds the mutex.
+func (t *loginThrottle) liveRecordLocked(key string, now time.Time) *loginAttemptRecord {
 	record, ok := t.records[key]
 	if !ok {
-		if len(t.records) >= maxTrackedLoginAccounts {
-			// Every slot is taken by other accounts. Forgetting them costs one
-			// round of forgiveness, which is better than letting the map grow
-			// until the process runs out of memory.
-			t.records = make(map[string]*loginAttemptRecord)
-		}
-		record = &loginAttemptRecord{}
-		t.records[key] = record
+		return nil
 	}
 
-	record.failures++
-	record.lastFailure = now
-
-	if record.failures <= loginFailureAllowance {
-		return 0
+	idle := now.Sub(record.lastFailure) > loginAttemptWindow
+	blocking := now.Before(record.blockedUntil)
+	if idle && !blocking {
+		delete(t.records, key)
+		return nil
 	}
-
-	delay := loginBackoffFor(record.failures)
-	record.blockedUntil = now.Add(delay)
-	return delay
+	return record
 }
 
-// reset forgets an account's failures after a successful sign-in.
-func (t *loginThrottle) reset(username string) {
-	key := throttleKey(username)
-	if key == "" {
-		return
+// reserveRecordLocked makes room for one more account and returns its record, or
+// nil when there is no room to make without discarding a live record. The caller
+// holds the mutex.
+func (t *loginThrottle) reserveRecordLocked(key string, now time.Time) *loginAttemptRecord {
+	if len(t.records) >= maxTrackedLoginAccounts {
+		if !t.evictOneLocked(now) {
+			return nil
+		}
 	}
 
-	t.mutex.Lock()
-	delete(t.records, key)
-	t.mutex.Unlock()
+	// lastFailure is stamped at admission, not only when the attempt fails: the
+	// record has to look live to the expiry check for as long as the verification
+	// it is holding a slot for is still running.
+	record := &loginAttemptRecord{lastFailure: now}
+	t.records[key] = record
+	return record
+}
+
+// evictOneLocked frees a single slot by dropping the least recently failed account
+// that is not currently blocking anyone, and reports whether it found one.
+//
+// A record that is blocking is never chosen: discarding it would be a way to clear
+// an account's backoff just by filling the table, which is the whole point of the
+// table.
+func (t *loginThrottle) evictOneLocked(now time.Time) bool {
+	var oldestKey string
+	var oldestFailure time.Time
+
+	for key, record := range t.records {
+		if now.Before(record.blockedUntil) || record.inFlight > 0 {
+			continue
+		}
+		if oldestKey == "" || record.lastFailure.Before(oldestFailure) {
+			oldestKey, oldestFailure = key, record.lastFailure
+		}
+	}
+
+	if oldestKey == "" {
+		return false
+	}
+	delete(t.records, oldestKey)
+	return true
 }
 
 // loginBackoffFor returns the delay a failure count earns: nothing up to the
@@ -170,8 +273,8 @@ func loginBackoffFor(failures int) time.Duration {
 	return delay
 }
 
-// sweepLocked drops records that are past the window and no longer blocking
-// anyone. The caller holds the mutex.
+// sweepLocked drops records that are past the window and no longer holding a
+// verification or blocking anyone. The caller holds the mutex.
 func (t *loginThrottle) sweepLocked(now time.Time) {
 	if now.Sub(t.lastSweep) < loginSweepInterval {
 		return
@@ -179,8 +282,10 @@ func (t *loginThrottle) sweepLocked(now time.Time) {
 	t.lastSweep = now
 
 	for key, record := range t.records {
-		idle := now.Sub(record.lastFailure) > loginAttemptWindow
-		if idle && !now.Before(record.blockedUntil) {
+		if record.inFlight > 0 || now.Before(record.blockedUntil) {
+			continue
+		}
+		if now.Sub(record.lastFailure) > loginAttemptWindow {
 			delete(t.records, key)
 		}
 	}

@@ -1,6 +1,8 @@
 package services
 
 import (
+	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -11,18 +13,14 @@ import (
 // TestLoginBackoffGrowsThenCaps pins the shape of the delay: nothing up to the
 // allowance, then doubling, then a ceiling so an account recovers on its own.
 func TestLoginBackoffGrowsThenCaps(t *testing.T) {
-	// Up to the allowance a caller pays nothing: mistyping a password a few times
-	// is ordinary.
 	for failures := 0; failures <= loginFailureAllowance; failures++ {
 		assert.Zero(t, loginBackoffFor(failures), "failures=%d", failures)
 	}
 
-	// Past it, each failure doubles the wait.
 	assert.Equal(t, 2*time.Second, loginBackoffFor(loginFailureAllowance+1))
 	assert.Equal(t, 4*time.Second, loginBackoffFor(loginFailureAllowance+2))
 	assert.Equal(t, 8*time.Second, loginBackoffFor(loginFailureAllowance+3))
 
-	// And it stops growing, so an account is never locked out permanently.
 	assert.Equal(t, loginBackoffCeiling, loginBackoffFor(30))
 	assert.Equal(t, loginBackoffCeiling, loginBackoffFor(10000))
 }
@@ -34,80 +32,218 @@ func newTestThrottle(now *time.Time) *loginThrottle {
 	return throttle
 }
 
+// spendFailures admits and fails one attempt at a time, the way a client retrying
+// a wrong password does.
+func spendFailures(t *testing.T, throttle *loginThrottle, username string, attempts int) {
+	t.Helper()
+	for attempt := 0; attempt < attempts; attempt++ {
+		retryAfter, admitted := throttle.admit(username)
+		require.True(t, admitted, "attempt %d was refused with %v", attempt, retryAfter)
+		throttle.finish(username, false)
+	}
+}
+
 func TestLoginThrottle_AllowsTheAllowanceThenBlocks(t *testing.T) {
 	now := time.Date(2026, 11, 16, 12, 0, 0, 0, time.UTC)
 	throttle := newTestThrottle(&now)
 
 	for attempt := 1; attempt <= loginFailureAllowance; attempt++ {
-		assert.Zero(t, throttle.recordFailure("alice"), "attempt %d must not delay", attempt)
-		assert.Zero(t, throttle.retryAfter("alice"), "attempt %d must not block", attempt)
+		retryAfter, admitted := throttle.admit("alice")
+		require.True(t, admitted, "attempt %d must be allowed", attempt)
+		assert.Zero(t, retryAfter)
+		throttle.finish("alice", false)
 	}
 
-	delay := throttle.recordFailure("alice")
-	assert.Equal(t, loginBackoffBase, delay)
-	assert.Equal(t, loginBackoffBase, throttle.retryAfter("alice"))
+	// The failure past the allowance blocks the next admission.
+	throttle.finish("alice", false)
+	retryAfter, admitted := throttle.admit("alice")
+	assert.False(t, admitted)
+	assert.Positive(t, retryAfter)
 
 	// The block expires with the clock, not with a restart.
-	now = now.Add(loginBackoffBase)
-	assert.Zero(t, throttle.retryAfter("alice"))
+	now = now.Add(loginBackoffCeiling)
+	_, admitted = throttle.admit("alice")
+	assert.True(t, admitted)
 }
 
 func TestLoginThrottle_BlocksIndependentlyPerAccount(t *testing.T) {
 	now := time.Date(2026, 11, 16, 12, 0, 0, 0, time.UTC)
 	throttle := newTestThrottle(&now)
 
-	for attempt := 0; attempt < loginFailureAllowance+1; attempt++ {
-		throttle.recordFailure("alice")
-	}
-	assert.Positive(t, throttle.retryAfter("alice"))
-	assert.Zero(t, throttle.retryAfter("bob"), "one account's failures must not block another")
+	spendFailures(t, throttle, "alice", loginFailureAllowance+1)
+
+	_, admitted := throttle.admit("alice")
+	assert.False(t, admitted)
+	_, admitted = throttle.admit("bob")
+	assert.True(t, admitted, "one account's failures must not block another")
 }
 
-// TestLoginThrottle_FoldsCase stops a caller from buying a fresh allowance by
-// respelling the same account.
-func TestLoginThrottle_FoldsCaseAndWhitespace(t *testing.T) {
+// TestLoginThrottle_KeysOnTheExactUsername is the regression test for sharing one
+// record between two accounts whose names differ only by case. Account lookup is
+// case-sensitive, so they can both exist, and a shared record let whoever holds
+// the second clear the first's failures by signing in.
+func TestLoginThrottle_KeysOnTheExactUsername(t *testing.T) {
 	now := time.Date(2026, 11, 16, 12, 0, 0, 0, time.UTC)
 	throttle := newTestThrottle(&now)
 
-	for attempt := 0; attempt < loginFailureAllowance+1; attempt++ {
-		throttle.recordFailure("alice")
-	}
+	spendFailures(t, throttle, "alice", loginFailureAllowance+1)
+	_, admitted := throttle.admit("alice")
+	require.False(t, admitted, "precondition: alice is blocked")
 
-	assert.Positive(t, throttle.retryAfter("ALICE"))
-	assert.Positive(t, throttle.retryAfter("  Alice  "))
+	// A successful sign-in to the other account must not clear alice's record.
+	retryAfter, admitted := throttle.admit("ALICE")
+	require.True(t, admitted, "a different account is not blocked: %v", retryAfter)
+	throttle.finish("ALICE", true)
+
+	_, admitted = throttle.admit("alice")
+	assert.False(t, admitted, "the other account's success must not clear alice's block")
 }
 
-func TestLoginThrottle_ResetClearsTheRecord(t *testing.T) {
+func TestLoginThrottle_TrimsWhitespace(t *testing.T) {
 	now := time.Date(2026, 11, 16, 12, 0, 0, 0, time.UTC)
 	throttle := newTestThrottle(&now)
 
-	for attempt := 0; attempt < loginFailureAllowance+1; attempt++ {
-		throttle.recordFailure("alice")
-	}
-	require.Positive(t, throttle.retryAfter("alice"))
+	spendFailures(t, throttle, "alice", loginFailureAllowance+1)
 
-	throttle.reset("alice")
-	assert.Zero(t, throttle.retryAfter("alice"))
+	_, admitted := throttle.admit("  alice  ")
+	assert.False(t, admitted, "padding must not buy a fresh allowance")
+}
 
-	// A clean slate means the allowance applies again.
-	for attempt := 1; attempt <= loginFailureAllowance; attempt++ {
-		assert.Zero(t, throttle.recordFailure("alice"))
+// TestLoginThrottle_ForgetsAnExpiredRecordBeforeCountingOnIt is the regression test
+// for resuming an aged-out count.
+//
+// The periodic sweep is time-gated, so it can be skipped while a record is already
+// past the window: the record ages out between two sweeps that are less than the
+// sweep interval apart. Counting on top of it would block an account that has a
+// clean slate, so the record's own age has to be checked when it is read.
+func TestLoginThrottle_ForgetsAnExpiredRecordBeforeCountingOnIt(t *testing.T) {
+	now := time.Date(2026, 11, 16, 12, 0, 0, 0, time.UTC)
+	throttle := newTestThrottle(&now)
+
+	// Use the allowance without blocking, so the record is idle but not blocking.
+	spendFailures(t, throttle, "alice", loginFailureAllowance)
+
+	// A sweep runs just before the record ages out, which keeps it and moves the
+	// sweep clock forward.
+	now = now.Add(loginAttemptWindow - 24*time.Second)
+	spendFailures(t, throttle, "sweeper", 1)
+	require.Contains(t, throttle.records, "alice")
+
+	// The record now ages out, but less than the sweep interval has passed, so the
+	// next lookup will not sweep.
+	now = now.Add(36 * time.Second)
+	require.True(t, now.Sub(recordLastFailure(throttle, "alice")) > loginAttemptWindow,
+		"precondition: alice's record is past the window")
+
+	// One more failure must start a clean count rather than adding to the expired
+	// one, which would block her.
+	spendFailures(t, throttle, "alice", 1)
+
+	_, admitted := throttle.admit("alice")
+	assert.True(t, admitted, "an expired history must not count against a fresh attempt")
+	if record, ok := throttle.records["alice"]; ok {
+		assert.Equal(t, 1, record.failures, "the count must have restarted")
 	}
 }
 
-// TestLoginThrottle_ForgetsIdleAccounts keeps the map from growing without bound
-// over a long uptime.
+// recordLastFailure reads the recorded failure time for an account.
+func recordLastFailure(throttle *loginThrottle, username string) time.Time {
+	throttle.mutex.Lock()
+	defer throttle.mutex.Unlock()
+	if record, ok := throttle.records[throttleKey(username)]; ok {
+		return record.lastFailure
+	}
+	return time.Time{}
+}
+
+// TestLoginThrottle_CapacityDoesNotDiscardBlocks is the regression test for clearing
+// the table to make room: an unauthenticated caller could fill it with distinct
+// names and drop the target account's block without waiting for Retry-After.
+func TestLoginThrottle_CapacityDoesNotDiscardBlocks(t *testing.T) {
+	now := time.Date(2026, 11, 16, 12, 0, 0, 0, time.UTC)
+	throttle := newTestThrottle(&now)
+
+	// Block the account we care about.
+	spendFailures(t, throttle, "target", loginFailureAllowance+1)
+	_, admitted := throttle.admit("target")
+	require.False(t, admitted, "precondition: the target is blocked")
+
+	// Fill every other slot with names that are not blocking anyone.
+	for index := 0; index < maxTrackedLoginAccounts; index++ {
+		spendFailures(t, throttle, fmt.Sprintf("filler-%d", index), 1)
+	}
+	require.Len(t, throttle.records, maxTrackedLoginAccounts)
+
+	// One more failure forces an eviction.
+	spendFailures(t, throttle, "latecomer", 1)
+
+	_, admitted = throttle.admit("target")
+	assert.False(t, admitted, "filling the table must not clear a block")
+}
+
+// TestLoginThrottle_RefusesConcurrentVerifications is the regression test for a
+// burst of parallel attempts: every one of them read an unblocked account before
+// any had recorded a failure, so all of them reached the password comparison.
+func TestLoginThrottle_RefusesConcurrentVerifications(t *testing.T) {
+	now := time.Date(2026, 11, 16, 12, 0, 0, 0, time.UTC)
+	throttle := newTestThrottle(&now)
+
+	_, admitted := throttle.admit("alice")
+	require.True(t, admitted, "the first attempt proceeds")
+
+	// While it is still verifying, a second does not get its own check.
+	retryAfter, admitted := throttle.admit("alice")
+	assert.False(t, admitted)
+	assert.Positive(t, retryAfter)
+
+	throttle.finish("alice", false)
+
+	// Once it completes, the next attempt is admitted again.
+	_, admitted = throttle.admit("alice")
+	assert.True(t, admitted)
+}
+
+// TestLoginThrottle_BoundsConcurrentVerificationsUnderLoad is the same property
+// observed the way an attacker would apply it: many goroutines at once.
+func TestLoginThrottle_BoundsConcurrentVerificationsUnderLoad(t *testing.T) {
+	now := time.Date(2026, 11, 16, 12, 0, 0, 0, time.UTC)
+	throttle := newTestThrottle(&now)
+
+	var mutex sync.Mutex
+	admitted := 0
+	var waitGroup sync.WaitGroup
+	for attempt := 0; attempt < 50; attempt++ {
+		waitGroup.Add(1)
+		go func() {
+			defer waitGroup.Done()
+			// Hold the slot, as a password comparison would.
+			ok := false
+			if _, got := throttle.admit("alice"); got {
+				mutex.Lock()
+				admitted++
+				mutex.Unlock()
+				ok = true
+				time.Sleep(2 * time.Millisecond)
+			}
+			if ok {
+				throttle.finish("alice", false)
+			}
+		}()
+	}
+	waitGroup.Wait()
+
+	assert.Equal(t, 1, admitted, "only one verification may be in flight per account")
+}
+
 func TestLoginThrottle_ForgetsIdleAccounts(t *testing.T) {
 	now := time.Date(2026, 11, 16, 12, 0, 0, 0, time.UTC)
 	throttle := newTestThrottle(&now)
 
-	throttle.recordFailure("alice")
+	spendFailures(t, throttle, "alice", 1)
 	require.Len(t, throttle.records, 1)
 
-	// Past the window, and no longer blocking anyone, the record is collected on
-	// the next sweep.
 	now = now.Add(loginAttemptWindow + loginSweepInterval)
-	throttle.recordFailure("bob")
+	spendFailures(t, throttle, "bob", 1)
 
 	assert.NotContains(t, throttle.records, "alice")
 	assert.Contains(t, throttle.records, "bob")
@@ -117,7 +253,8 @@ func TestLoginThrottle_EmptyUsernameIsIgnored(t *testing.T) {
 	now := time.Date(2026, 11, 16, 12, 0, 0, 0, time.UTC)
 	throttle := newTestThrottle(&now)
 
-	assert.Zero(t, throttle.recordFailure(""))
-	assert.Zero(t, throttle.retryAfter(""))
+	_, admitted := throttle.admit("")
+	assert.True(t, admitted)
+	throttle.finish("", false)
 	assert.Empty(t, throttle.records)
 }

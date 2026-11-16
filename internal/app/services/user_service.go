@@ -247,39 +247,57 @@ func (s *UserService) Login(req *models.LoginRequest) (*models.User, error) {
 
 	username := strings.TrimSpace(req.Username)
 
-	// Refuse before touching the database when this account has burned through
-	// its allowance. The account is throttled whether or not it exists, so the
-	// refusal is not an oracle for which names are registered.
-	if retryAfter := s.signInLog.retryAfter(username); retryAfter > 0 {
+	// Admit at most one verification per account at a time, and refuse outright
+	// once the account has burned through its allowance. Reserving the slot here
+	// rather than only checking the clock is what stops a burst of concurrent
+	// requests from every one of them finding an unblocked account before any of
+	// them has recorded a failure.
+	//
+	// The account is throttled whether or not it exists, so the refusal is not an
+	// oracle for which names are registered.
+	retryAfter, admitted := s.signInLog.admit(username)
+	if !admitted {
 		logger.Warn("service: login refused while the account is throttled",
 			zap.String("username", username),
 			zap.Duration("retry_after", retryAfter))
 		return nil, &LoginThrottledError{RetryAfter: retryAfter}
 	}
+	// Every path below records the outcome, so the account's slot is released
+	// even when the lookup fails.
+	finished := false
+	recordOutcome := func(succeeded bool) {
+		if finished {
+			return
+		}
+		finished = true
+		s.signInLog.finish(username, succeeded)
+	}
+	defer func() { recordOutcome(false) }()
 
 	logger.Info("service: starting user login", zap.String("username", username))
 
 	user, err := db.GetUserByUsername(username)
 	if err != nil {
 		logger.Error("service: login failed while querying user", zap.String("username", username), zap.Error(err))
+		recordOutcome(false)
 		return nil, ErrInvalidCredentials
 	}
 	if user == nil {
 		// Spend the same time as a real comparison would, so that the response
 		// does not reveal whether the username is registered.
 		_ = bcrypt.CompareHashAndPassword(unknownAccountPasswordHash, []byte(req.Password))
-		s.signInLog.recordFailure(username)
 		logger.Error("service: login failed; user does not exist", zap.String("username", username))
+		recordOutcome(false)
 		return nil, ErrInvalidCredentials
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password)); err != nil {
-		s.signInLog.recordFailure(username)
 		logger.Error("service: login failed; password mismatch", zap.String("user_id", user.ID))
+		recordOutcome(false)
 		return nil, ErrInvalidCredentials
 	}
 
-	s.signInLog.reset(username)
+	recordOutcome(true)
 	logger.Info("service: user logged in successfully", zap.String("user_id", user.ID), zap.String("username", user.Username))
 
 	return user, nil
