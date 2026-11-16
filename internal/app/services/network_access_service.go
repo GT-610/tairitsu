@@ -33,6 +33,16 @@ type NetworkAccessDetail struct {
 	Entries       []NetworkAccessEntry `json:"entries"`
 }
 
+// Candidate search policy.
+const (
+	// minCandidateQueryLength is how much of a name a caller has to supply before
+	// the picker answers. One character matches a large slice of any account
+	// directory.
+	minCandidateQueryLength = 3
+	// maxCandidateResults bounds one answer.
+	maxCandidateResults = 20
+)
+
 // NetworkAccessCandidate is an account that can still be added to a network.
 type NetworkAccessCandidate struct {
 	ID       string `json:"id"`
@@ -126,14 +136,17 @@ func (s *NetworkService) GetNetworkAccess(networkID, actorID string) (*NetworkAc
 	return detail, nil
 }
 
-func (s *NetworkService) GetNetworkAccessCandidates(networkID, actorID, query string) ([]NetworkAccessCandidate, error) {
+func (s *NetworkService) GetNetworkAccessCandidates(networkID, actorID, query string, actorIsPlatformAdmin bool) ([]NetworkAccessCandidate, error) {
 	network, _, err := s.authorizeNetwork(networkID, actorID, NetworkPermissionAccessWrite)
 	if err != nil {
 		return nil, err
 	}
 
+	// Too short a query matches a large slice of any account directory, which
+	// makes the picker a browsing tool rather than a lookup. An empty answer is
+	// the honest response to a query that cannot identify an account anyway.
 	query = strings.TrimSpace(query)
-	if query == "" {
+	if len([]rune(query)) < minCandidateQueryLength {
 		return []NetworkAccessCandidate{}, nil
 	}
 
@@ -142,7 +155,17 @@ func (s *NetworkService) GetNetworkAccessCandidates(networkID, actorID, query st
 		return nil, fmt.Errorf("database is not initialized")
 	}
 
-	users, err := db.SearchUsers(query, 20)
+	// A platform administrator can already list every account through the user
+	// endpoints, so a substring search tells them nothing they cannot get
+	// elsewhere. For a network owner or manager — whose access is scoped to one
+	// network — the search is narrowed to a prefix, so the picker cannot be used
+	// to page through the directory one letter at a time.
+	match := database.UsernamePrefix
+	if actorIsPlatformAdmin {
+		match = database.UsernameContains
+	}
+
+	users, err := db.SearchUsers(query, match, maxCandidateResults)
 	if err != nil {
 		return nil, err
 	}

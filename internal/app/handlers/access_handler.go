@@ -51,7 +51,11 @@ func (h *AccessHandler) GetNetworkAccessCandidates(c fiber.Ctx) error {
 		return authErr
 	}
 
-	candidates, err := h.networkService.GetNetworkAccessCandidates(networkID, userID, c.Query("q"))
+	// The platform role widens the search, because an administrator can already
+	// list every account through the user endpoints.
+	platformRole, _ := c.Locals("role").(string)
+
+	candidates, err := h.networkService.GetNetworkAccessCandidates(networkID, userID, c.Query("q"), platformRole == "admin")
 	if err != nil {
 		logger.Error("Failed to get network access candidates", zap.String("network_id", networkID), zap.Error(err))
 		return writeNetworkServiceError(c, err, "Network not found", "Network access denied")

@@ -38,6 +38,10 @@ import {
 } from '../../services/api'
 import { assignableNetworkRoles, networkRoleColor, networkRoleLabel } from '../../utils/networkAccess'
 
+// The picker and the server share this floor: below it, a prefix matches much of
+// any account directory, so the server answers nothing and the UI says why.
+const minimumCandidateQueryLength = 3
+
 const roleDescription: Record<Exclude<NetworkRole, 'owner'>, string> = {
   manager: '可以修改网络设置、管理设备和其他成员。',
   operator: '可以审批和管理设备，不能修改网络设置或成员。',
@@ -94,7 +98,9 @@ function NetworkAccessSection({
   useEffect(() => {
     if (!addOpen) return
     const query = candidateQuery.trim()
-    if (query.length < 1) {
+    // The server answers nothing below three characters, because a shorter
+    // prefix matches much of any account directory.
+    if (query.length < minimumCandidateQueryLength) {
       setCandidates([])
       setCandidateError(false)
       setCandidateLoading(false)
@@ -365,8 +371,8 @@ function NetworkAccessSection({
               noOptionsText={translateText(
                 candidateError
                   ? '搜索失败，请重试'
-                  : candidateQuery.trim().length < 1
-                    ? '输入用户名搜索用户'
+                  : candidateQuery.trim().length < minimumCandidateQueryLength
+                    ? '输入至少 3 个字符搜索用户'
                     : '没有匹配的用户',
               )}
               renderInput={(params) => (
