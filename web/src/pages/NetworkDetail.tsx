@@ -208,6 +208,23 @@ function NetworkDetail() {
     }, 1000)
   }
 
+  // Adopt the controller's answer as the published snapshot before another save can
+  // read it. The refetch above is deliberately delayed, so without this a save from
+  // another section in the meantime would rebuild the shared route and pool arrays
+  // from values the server has already replaced, undoing the change that succeeded.
+  const adoptSavedNetwork = (saved: Network) => {
+    // Normalised the same way the initial fetch normalises it, so a section that
+    // reads this snapshot sees the same shape either way.
+    const config: NetworkConfig = { ...defaultNetworkConfig, ...saved.config }
+    if (config.v4AssignMode) {
+      config.v4AssignMode = { ...defaultNetworkConfig.v4AssignMode, ...config.v4AssignMode }
+    }
+    if (config.v6AssignMode) {
+      config.v6AssignMode = { ...defaultNetworkConfig.v6AssignMode, ...config.v6AssignMode }
+    }
+    setNetwork((previous) => (previous ? { ...previous, config } : previous))
+  }
+
   const fetchNetworkDetail = async (silent = false) => {
     // A handler for the previous network may still call this after navigation.
     // Return before touching the current page's loading state.
@@ -477,7 +494,7 @@ function NetworkDetail() {
       // so an IPv4 save has to carry IPv6 values as well — the saved ones, not
       // whatever is typed into the IPv6 section and not yet applied.
       const publishedIPv6 = getInitialIPv6Settings(network)
-      await networkAPI.updateNetwork(id, {
+      const savedNetwork = await networkAPI.updateNetwork(id, {
         routes: buildMergedRoutes(
           network.config.routes || [],
           ipv4Settings.subnet,
@@ -493,6 +510,7 @@ function NetworkDetail() {
         ),
         v4AssignMode: { zt: ipv4Settings.autoAssign },
       })
+      adoptSavedNetwork(savedNetwork.data)
       showSnackbar('IPv4配置保存成功')
       scheduleRefetch()
     } catch (err: unknown) {
@@ -514,7 +532,7 @@ function NetworkDetail() {
       // Same shared arrays, with the saved IPv4 values standing in for the IPv4
       // section's unsaved draft.
       const publishedIPv4 = getInitialIPv4Settings(network)
-      await networkAPI.updateNetwork(id, {
+      const savedNetwork = await networkAPI.updateNetwork(id, {
         routes: buildMergedRoutes(
           network.config.routes || [],
           publishedIPv4.subnet,
@@ -534,6 +552,7 @@ function NetworkDetail() {
           rfc4193: ipv6Settings.rfc4193,
         },
       })
+      adoptSavedNetwork(savedNetwork.data)
       showSnackbar('IPv6配置保存成功')
       scheduleRefetch()
     } catch (err: unknown) {
@@ -549,7 +568,7 @@ function NetworkDetail() {
     try {
       const publishedIPv4 = getInitialIPv4Settings(network)
       const publishedIPv6 = getInitialIPv6Settings(network)
-      await networkAPI.updateNetwork(id, {
+      const savedNetwork = await networkAPI.updateNetwork(id, {
         routes: buildMergedRoutes(
           network.config.routes || [],
           publishedIPv4.subnet,
@@ -558,6 +577,7 @@ function NetworkDetail() {
           managedRoutesSettings.routes,
         ),
       })
+      adoptSavedNetwork(savedNetwork.data)
       showSnackbar('托管路由保存成功')
       scheduleRefetch()
     } catch (err: unknown) {
@@ -571,12 +591,13 @@ function NetworkDetail() {
     if (!id || !canWriteSettings) return
     setSaving(true)
     try {
-      await networkAPI.updateNetwork(id, {
+      const savedNetwork = await networkAPI.updateNetwork(id, {
         dns: {
           domain: dnsSettings.domain.trim(),
           servers: dnsSettings.servers,
         },
       })
+      adoptSavedNetwork(savedNetwork.data)
       showSnackbar('DNS 设置保存成功')
       scheduleRefetch()
     } catch (err: unknown) {
@@ -590,10 +611,11 @@ function NetworkDetail() {
     if (!id || !canWriteSettings) return
     setSaving(true)
     try {
-      await networkAPI.updateNetwork(id, {
+      const savedNetwork = await networkAPI.updateNetwork(id, {
         multicastLimit: multicastSettings.multicastLimit,
         enableBroadcast: multicastSettings.enableBroadcast,
       })
+      adoptSavedNetwork(savedNetwork.data)
       showSnackbar('多播设置保存成功')
       scheduleRefetch()
     } catch (err: unknown) {
