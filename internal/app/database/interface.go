@@ -53,8 +53,8 @@ type DBInterface interface {
 	DeleteNetworkGrants(networkID string) error
 	DeleteUserNetworkGrants(userID string) error
 
-	// SearchUsers returns accounts whose username contains query, capped at limit.
-	SearchUsers(query string, limit int) ([]*models.User, error)
+	// SearchUsers returns accounts whose username matches query, capped at limit.
+	SearchUsers(query string, match UsernameMatch, limit int) ([]*models.User, error)
 
 	// Check whether an admin user already exists
 	HasAdminUser() (bool, error)
@@ -68,3 +68,17 @@ type DBInterface interface {
 	// Close the database connection
 	Close() error
 }
+
+// UsernameMatch selects how a search query is applied to usernames.
+type UsernameMatch int
+
+const (
+	// UsernameContains matches the query anywhere in the name. It answers "which
+	// accounts mention this", which is directory browsing and belongs only to a
+	// caller who may already list every account.
+	UsernameContains UsernameMatch = iota
+	// UsernamePrefix matches names that begin with the query. It answers "which
+	// account is this", which is what a picker needs and much less than a
+	// directory listing.
+	UsernamePrefix
+)

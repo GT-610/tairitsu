@@ -33,6 +33,16 @@ type NetworkAccessDetail struct {
 	Entries       []NetworkAccessEntry `json:"entries"`
 }
 
+// Candidate search policy.
+const (
+	// minCandidateQueryLength is how much of a name a caller has to supply before
+	// the picker answers. One character matches a large slice of any account
+	// directory.
+	minCandidateQueryLength = 3
+	// maxCandidateResults bounds one answer.
+	maxCandidateResults = 20
+)
+
 // NetworkAccessCandidate is an account that can still be added to a network.
 type NetworkAccessCandidate struct {
 	ID       string `json:"id"`
@@ -126,7 +136,7 @@ func (s *NetworkService) GetNetworkAccess(networkID, actorID string) (*NetworkAc
 	return detail, nil
 }
 
-func (s *NetworkService) GetNetworkAccessCandidates(networkID, actorID, query string) ([]NetworkAccessCandidate, error) {
+func (s *NetworkService) GetNetworkAccessCandidates(networkID, actorID, query string, actorIsPlatformAdmin bool) ([]NetworkAccessCandidate, error) {
 	network, _, err := s.authorizeNetwork(networkID, actorID, NetworkPermissionAccessWrite)
 	if err != nil {
 		return nil, err
@@ -142,9 +152,36 @@ func (s *NetworkService) GetNetworkAccessCandidates(networkID, actorID, query st
 		return nil, fmt.Errorf("database is not initialized")
 	}
 
-	users, err := db.SearchUsers(query, 20)
-	if err != nil {
-		return nil, err
+	var users []*models.User
+
+	if len([]rune(query)) < minCandidateQueryLength {
+		// A partial query this short would match a large slice of any account
+		// directory, which is what the floor is for. An account name may itself be
+		// that short, though, so the query is still allowed to identify one account
+		// exactly: "li" names "li" and nothing else.
+		user, err := db.GetUserByUsername(query)
+		if err != nil {
+			return nil, err
+		}
+		if user != nil {
+			users = []*models.User{user}
+		}
+	} else {
+		// A platform administrator can already list every account through the user
+		// endpoints, so a substring search tells them nothing they cannot get
+		// elsewhere. For a network owner or manager — whose access is scoped to one
+		// network — the search is narrowed to a prefix, so the picker cannot be used
+		// to page through the directory one letter at a time.
+		match := database.UsernamePrefix
+		if actorIsPlatformAdmin {
+			match = database.UsernameContains
+		}
+
+		found, err := db.SearchUsers(query, match, maxCandidateResults)
+		if err != nil {
+			return nil, err
+		}
+		users = found
 	}
 	grants, err := db.GetNetworkGrants(network.ID)
 	if err != nil {

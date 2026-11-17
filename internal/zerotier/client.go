@@ -3,6 +3,7 @@ package zerotier
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -88,11 +89,17 @@ func (n *Network) UnmarshalJSON(data []byte) error {
 }
 
 // NetworkUpdateRequest is a partial network update request (no required fields).
+//
+// The controller applies a partial update by replacing the fields it receives, so
+// a bool that is merely absent from the request must not be serialised at all.
+// Private and EnableBroadcast are pointers for exactly that reason: as plain
+// bools their zero value was always sent, and a request that meant to change only
+// the DNS settings also turned broadcast off.
 type NetworkUpdateRequest struct {
 	Name              string             `json:"name,omitempty"`
 	Description       string             `json:"description,omitempty"`
-	Private           bool               `json:"private"`
-	EnableBroadcast   bool               `json:"enableBroadcast"`
+	Private           *bool              `json:"private,omitempty"`
+	EnableBroadcast   *bool              `json:"enableBroadcast,omitempty"`
 	Mtu               *int               `json:"mtu,omitempty"`
 	MulticastLimit    *int               `json:"multicastLimit,omitempty"`
 	IpAssignmentPools []IpAssignmentPool `json:"ipAssignmentPools,omitempty"`
@@ -398,6 +405,14 @@ func NewClientWithConfig(cfg *config.Config) (*Client, error) {
 			MaxIdleConnsPerHost: 10,
 			IdleConnTimeout:     90 * time.Second,
 		},
+		// The controller token travels in X-ZT1-Auth, and Go re-sends custom
+		// headers on a redirect — it only strips the well-known credential
+		// headers, which this is not. A redirect to another host therefore hands
+		// the token to that host, and a controller does not redirect, so the only
+		// outcome of following one is that leak.
+		CheckRedirect: func(*http.Request, []*http.Request) error {
+			return errors.New("the controller answered with a redirect, which the controller API does not do; check the controller URL")
+		},
 	}
 
 	baseURL := cfg.ZeroTier.URL
@@ -451,7 +466,10 @@ func (c *Client) doRequest(method, endpoint string, body interface{}) ([]byte, e
 	}
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
-		return nil, fmt.Errorf("request failed (status %d): %s", resp.StatusCode, string(respBody))
+		// The preview, not the body: a controller can answer with megabytes, and
+		// this error is logged verbatim and used to be echoed to callers, so a
+		// full copy per failure is both a log-size and an exposure problem.
+		return nil, fmt.Errorf("request failed (status %d): %s", resp.StatusCode, responsePreview(respBody))
 	}
 
 	return respBody, nil

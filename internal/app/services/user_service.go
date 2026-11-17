@@ -20,6 +20,11 @@ const temporaryPasswordAlphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuv
 type UserService struct {
 	db    database.DBInterface
 	mutex sync.RWMutex
+	// signInLog throttles failed sign-ins per account. The client address is
+	// what the transport limiter keys on, and a proxy forwarding a caller
+	// supplied X-Forwarded-For lets the caller choose that key; the account name
+	// is what they cannot vary while attacking one account.
+	signInLog *loginThrottle
 }
 
 func (s *UserService) SetDB(db database.DBInterface) {
@@ -44,7 +49,8 @@ func (s *UserService) getDB() database.DBInterface {
 
 func NewUserService(db database.DBInterface) *UserService {
 	return &UserService{
-		db: db,
+		db:        db,
+		signInLog: newLoginThrottle(),
 	}
 }
 
@@ -240,11 +246,40 @@ func (s *UserService) Login(req *models.LoginRequest) (*models.User, error) {
 	}
 
 	username := strings.TrimSpace(req.Username)
+
+	// Admit at most one verification per account at a time, and refuse outright
+	// once the account has burned through its allowance. Reserving the slot here
+	// rather than only checking the clock is what stops a burst of concurrent
+	// requests from every one of them finding an unblocked account before any of
+	// them has recorded a failure.
+	//
+	// The account is throttled whether or not it exists, so the refusal is not an
+	// oracle for which names are registered.
+	retryAfter, admitted := s.signInLog.admit(username)
+	if !admitted {
+		logger.Warn("service: login refused while the account is throttled",
+			zap.String("username", username),
+			zap.Duration("retry_after", retryAfter))
+		return nil, &LoginThrottledError{RetryAfter: retryAfter}
+	}
+	// Every path below records the outcome, so the account's slot is released
+	// even when the lookup fails.
+	finished := false
+	recordOutcome := func(succeeded bool) {
+		if finished {
+			return
+		}
+		finished = true
+		s.signInLog.finish(username, succeeded)
+	}
+	defer func() { recordOutcome(false) }()
+
 	logger.Info("service: starting user login", zap.String("username", username))
 
 	user, err := db.GetUserByUsername(username)
 	if err != nil {
 		logger.Error("service: login failed while querying user", zap.String("username", username), zap.Error(err))
+		recordOutcome(false)
 		return nil, ErrInvalidCredentials
 	}
 	if user == nil {
@@ -252,14 +287,17 @@ func (s *UserService) Login(req *models.LoginRequest) (*models.User, error) {
 		// does not reveal whether the username is registered.
 		_ = bcrypt.CompareHashAndPassword(unknownAccountPasswordHash, []byte(req.Password))
 		logger.Error("service: login failed; user does not exist", zap.String("username", username))
+		recordOutcome(false)
 		return nil, ErrInvalidCredentials
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password)); err != nil {
 		logger.Error("service: login failed; password mismatch", zap.String("user_id", user.ID))
+		recordOutcome(false)
 		return nil, ErrInvalidCredentials
 	}
 
+	recordOutcome(true)
 	logger.Info("service: user logged in successfully", zap.String("user_id", user.ID), zap.String("username", user.Username))
 
 	return user, nil

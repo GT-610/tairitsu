@@ -665,7 +665,8 @@ const rawEn: Record<string, string> = {
   '添加成员失败': 'Failed to add member',
   '搜索用户名': 'Search by username',
   '只显示尚未加入该网络的账号': 'Only accounts that are not on this network are shown',
-  '输入至少 2 个字符搜索用户': 'Type at least 2 characters to search',
+  '输入完整用户名，或至少 3 个字符搜索': 'Type the full username, or at least 3 characters',
+  '无法从控制器读取成员数量': 'Member count could not be read from the controller',
   '没有匹配的用户': 'No matching users',
   '可以修改网络设置、管理设备和其他成员。': 'Can change network settings, manage devices, and manage other members.',
   '可以审批和管理设备，不能修改网络设置或成员。': 'Can approve and manage devices, but cannot change network settings or members.',
@@ -697,7 +698,6 @@ const rawEn: Record<string, string> = {
   '已注销用户': 'Deleted user',
 
   '网络管理员': 'Network manager',
-  '输入用户名搜索用户': 'Type a username to search',
   '搜索失败，请重试': 'Search failed. Try again.',
   '搜索用户失败，请重试': 'Failed to search users. Try again.',
   '刷新网络详情失败': 'Failed to refresh network details',

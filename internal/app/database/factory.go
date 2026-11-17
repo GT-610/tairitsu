@@ -39,6 +39,9 @@ func NewDatabase(dbConfig Config) (DBInterface, error) {
 		if err := ensureSQLiteDir(dbConfig.Path); err != nil {
 			return nil, err
 		}
+		if err := restrictSQLiteFileMode(dbConfig.Path); err != nil {
+			return nil, err
+		}
 
 		// TranslateError turns constraint violations into gorm sentinels so a
 		// lost race can be recognised without matching driver message text.
@@ -192,6 +195,53 @@ func hasSQLiteHeader(root *os.Root, name string) (bool, error) {
 	}
 
 	return string(header) == sqliteFileHeader, nil
+}
+
+// restrictSQLiteFileMode makes the database file and its siblings owner-only.
+//
+// The driver creates the file with the process umask, so a default deployment
+// ended up with 0644 next to a 0600 config.json — readable by every account on the
+// host, and it holds every password hash and session hash. The file is created
+// here first when it does not exist, so the driver never chooses the mode, and an
+// existing file is corrected, because a deployment may predate this.
+//
+// The -wal and -shm siblings are corrected too rather than assumed to follow. SQLite
+// copies the database file's permissions when it *creates* them, which covers a
+// fresh database, but an existing write-ahead log keeps whatever mode it already
+// had. A process killed mid-write leaves one behind, the next start reuses it, and
+// it holds the same rows the main file does.
+func restrictSQLiteFileMode(path string) error {
+	// SQLite's VFS resolves symbolic links in the database filename before it derives
+	// the sidecar names, so if the configured path is a link the files it actually
+	// uses are named after the target. Correcting the link's own name would reach
+	// neither of them. This resolves as far as the path exists; a path that does not
+	// exist yet has no target to miss.
+	if resolved, resolveErr := filepath.EvalSymlinks(path); resolveErr == nil {
+		path = resolved
+	}
+
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0o600)
+	if err != nil {
+		return fmt.Errorf("failed to create SQLite database file: %w", err)
+	}
+	if err := file.Close(); err != nil {
+		return fmt.Errorf("failed to close SQLite database file: %w", err)
+	}
+
+	// A file that already exists keeps the mode it was created with, so every one
+	// of these is set explicitly.
+	for _, name := range []string{path, path + "-wal", path + "-shm"} {
+		if err := os.Chmod(name, 0o600); err != nil {
+			if os.IsNotExist(err) {
+				// A sibling that is not there yet will be created later, by SQLite,
+				// with this file's permissions.
+				continue
+			}
+			return fmt.Errorf("failed to restrict SQLite database file permissions on %q: %w", name, err)
+		}
+	}
+
+	return nil
 }
 
 func ensureSQLiteDir(path string) error {

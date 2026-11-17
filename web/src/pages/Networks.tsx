@@ -14,9 +14,9 @@ type DisplayNetwork = {
   description?: string;
   owner_id: string;
   owner_username?: string;
-  member_count: number;
-  authorized_member_count: number;
-  pending_member_count: number;
+  member_count: number | null;
+  authorized_member_count: number | null;
+  pending_member_count: number | null;
   created_at: string;
   updated_at: string;
   role: NetworkRole;
@@ -349,10 +349,14 @@ function Networks() {
                       </TableCell>
                       <TableCell>{network.id}</TableCell>
                       <TableCell>
-                        {network.member_count}{translateText(' 台')}
-                        <Typography variant="body2" color="text.secondary">
-                          {translateText('已授权 ')}{network.authorized_member_count} / {translateText('待授权 ')}{network.pending_member_count}
-                        </Typography>
+                        {network.member_count === null
+                          ? <span title={translateText('无法从控制器读取成员数量')}>—</span>
+                          : `${network.member_count}${translateText(' 台')}`}
+                        {network.authorized_member_count === null || network.pending_member_count === null ? null : (
+                          <Typography variant="body2" color="text.secondary">
+                            {translateText('已授权 ')}{network.authorized_member_count} / {translateText('待授权 ')}{network.pending_member_count}
+                          </Typography>
+                        )}
                       </TableCell>
                       <TableCell>
                         <Box sx={{ display: 'flex', gap: 1 }}>

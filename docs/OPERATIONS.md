@@ -54,9 +54,67 @@ even though users reach Tairitsu over HTTPS:
 - `TAIRITSU_TRUSTED_PROXY_LOOPBACK` — set to `false` to stop trusting loopback
   proxies entirely.
 
+The client address also keys the rate limiters and the address recorded on a
+session, so getting it wrong has two failure modes that are invisible from
+outside:
+
+- **No trusted proxy listed while one is in use.** Every caller is recorded as
+  the proxy, so they share one rate limit budget and one noisy client can lock
+  the rest out.
+- **A proxy that passes the caller's own `X-Forwarded-For` through** instead of
+  appending to it. The caller then chooses their own address and the rate limit
+  stops applying to them.
+
+The second is a configuration mistake rather than a Tairitsu setting, and it is
+common enough to be worth stating: the header must *append* the peer address.
+With nginx, `$proxy_add_x_forwarded_for` does that and `$http_x_forwarded_for`
+does not:
+
+```nginx
+location / {
+    proxy_pass http://127.0.0.1:3000;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header Host $host;
+}
+```
+
+A forgotten password is throttled per account, with a delay that doubles after a
+handful of failures, so a wrong proxy configuration cannot be used to guess
+passwords without limit. Correcting the configuration is still what makes the
+per-client limits meaningful.
+
 ## Experimental Surface
 
 `Planet` generation remains available for controlled testing, but it is **experimental**:
 
 - it should be treated as a separate test surface
 - it should be validated independently before production use
+
+Six things about the signing keys, because getting them wrong is silent:
+
+- Each generated planet names a successor key that its **own next update** must be
+  signed by. The stored pair therefore advances on every generation: the key that was
+  advertised becomes the signer, and a fresh successor is written. There is nothing to
+  rotate by hand.
+- Because of that, **deploy every generated planet in the order it was generated**. A
+  generation consumes the signer for the next one, whether or not its output is
+  deployed: generate twice and deploy only the second, and the deployed planet is
+  signed with a key the previously deployed world does not accept. Generate and deploy
+  one at a time.
+- **A generation that returns an error can simply be retried.** The successor is written
+  before the signer is promoted, so an attempt that fails leaves the stored pair exactly
+  as usable as it was, and the retry produces a planet the deployed world still accepts.
+- **A generation whose response you never received is the case to be careful with.** It
+  may have succeeded: the signer would then have advanced with no planet to carry the
+  advertisement, and a retry would sign an update the deployed planet rejects. Back up
+  the signing-key directory before each generation (restricted access — it holds private
+  keys), and if a response is lost or doubtful, restore that pre-generation pair before
+  generating again. Do not retry it blind.
+- A planet generated **without** a signing key directory uses a throwaway pair and
+  stores no successor, so no later generation can sign an update for it. That mode is
+  for a one-shot test world. To be able to publish updates, set `signing_key_path`
+  (advanced mode, custom signing keys) and keep that directory.
+- Generating keys refuses when a pair already exists. Replacing a stored pair breaks
+  the update chain of any planet already deployed from it, so starting a new identity
+  means removing the two key files deliberately.

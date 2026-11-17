@@ -251,10 +251,16 @@ func (f *FakeDB) DeleteNetworkGrants(networkID string) error { return nil }
 
 func (f *FakeDB) DeleteUserNetworkGrants(userID string) error { return nil }
 
-func (f *FakeDB) SearchUsers(query string, limit int) ([]*models.User, error) {
+func (f *FakeDB) SearchUsers(query string, match database.UsernameMatch, limit int) ([]*models.User, error) {
+	needle := strings.ToLower(query)
 	result := make([]*models.User, 0)
 	for _, user := range f.users {
-		if strings.Contains(strings.ToLower(user.Username), strings.ToLower(query)) {
+		name := strings.ToLower(user.Username)
+		matched := strings.Contains(name, needle)
+		if match == database.UsernamePrefix {
+			matched = strings.HasPrefix(name, needle)
+		}
+		if matched {
 			result = append(result, user)
 		}
 		if len(result) >= limit {

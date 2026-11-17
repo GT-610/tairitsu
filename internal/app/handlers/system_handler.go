@@ -8,6 +8,7 @@ import (
 	"github.com/GT-610/tairitsu/internal/app/config"
 	"github.com/GT-610/tairitsu/internal/app/logger"
 	"github.com/GT-610/tairitsu/internal/app/middleware"
+	"github.com/GT-610/tairitsu/internal/app/models"
 	"github.com/GT-610/tairitsu/internal/app/services"
 	"github.com/gofiber/fiber/v3"
 	"go.uber.org/zap"
@@ -32,7 +33,8 @@ func setupErrorResponse(c fiber.Ctx, err error) error {
 	switch {
 	case errors.Is(err, services.ErrSetupUnsupportedDatabase),
 		errors.Is(err, services.ErrSetupInvalidConfig),
-		errors.Is(err, services.ErrSetupDatabasePathRejected):
+		errors.Is(err, services.ErrSetupDatabasePathRejected),
+		errors.Is(err, services.ErrSetupInvalidControllerURL):
 		status = fiber.StatusBadRequest
 	case errors.Is(err, services.ErrSetupDatabaseConnectionFailed),
 		errors.Is(err, services.ErrSetupDatabaseInitialization),
@@ -63,6 +65,9 @@ func setupErrorResponse(c fiber.Ctx, err error) error {
 	case errors.Is(err, services.ErrSetupDatabasePathRejected):
 		code = "setup.database_path_rejected"
 		message = "The SQLite file must live inside Tairitsu's data directory"
+	case errors.Is(err, services.ErrSetupInvalidControllerURL):
+		code = "setup.invalid_controller_url"
+		message = "The controller URL must be an http or https address"
 	case errors.Is(err, services.ErrSetupDatabaseConnectionFailed):
 		code = "setup.database_connection_failed"
 		message = "Database connection failed"
@@ -144,7 +149,7 @@ func (h *SystemHandler) UpdateRuntimeSettings(c fiber.Ctx) error {
 	var req services.RuntimeSettings
 	if err := c.Bind().Body(&req); err != nil {
 		logger.Error("Failed to bind instance settings request", zap.Error(err))
-		return writeErrorResponseWithCode(c, fiber.StatusBadRequest, "system.invalid_request", "Invalid request body")
+		return writeBindError(c)
 	}
 
 	if err := h.setupService.UpdateRuntimeSettings(req); err != nil {
@@ -160,7 +165,7 @@ func (h *SystemHandler) ConfigureDatabase(c fiber.Ctx) error {
 	var dbConfig config.DatabaseConfig
 	if err := c.Bind().Body(&dbConfig); err != nil {
 		logger.Error("Failed to bind database configuration request", zap.Error(err))
-		return writeErrorResponseWithCode(c, fiber.StatusBadRequest, "system.invalid_request", "Invalid request body")
+		return writeBindError(c)
 	}
 
 	logger.Info("Configuring database", zap.String("type", string(dbConfig.Type)))
@@ -191,7 +196,7 @@ func (h *SystemHandler) SaveZeroTierConfig(c fiber.Ctx) error {
 
 	if err := c.Bind().Body(&req); err != nil {
 		logger.Error("Failed to bind ZeroTier configuration request", zap.Error(err))
-		return writeErrorResponseWithCode(c, fiber.StatusBadRequest, "system.invalid_request", "Invalid request body")
+		return writeBindError(c)
 	}
 
 	// Sanitize: log only hostname from URL and whether token path is present
@@ -238,6 +243,45 @@ func (h *SystemHandler) InitializeAdminCreation(c fiber.Ctx) error {
 	})
 }
 
+// RegisterInitialAdmin creates the first administrator account.
+//
+// It is the only endpoint that can hand out the administrator role without an
+// existing administrator approving it, so the route serving it is gated by the
+// setup token. Public registration deliberately cannot reach this: that endpoint
+// answers before anyone can sign in and cannot distinguish the operator from
+// anyone else who can reach the port.
+func (h *SystemHandler) RegisterInitialAdmin(c fiber.Ctx) error {
+	var req models.RegisterRequest
+	if err := c.Bind().Body(&req); err != nil {
+		logger.Error("Failed to bind initial administrator request", zap.Error(err))
+		return writeBindError(c)
+	}
+
+	logger.Info("Creating the initial administrator account", zap.String("username", req.Username))
+
+	user, err := h.setupService.CreateInitialAdministrator(req.Username, req.Password)
+	if err != nil {
+		// Setup-state failures carry their own codes; account-shape failures reuse
+		// the user error mapping so the wizard shows the same messages as
+		// registration does.
+		if errors.Is(err, services.ErrSetupAlreadyInitialized) || errors.Is(err, services.ErrSetupInvalidConfig) {
+			logger.Error("Initial administrator creation rejected by setup state", zap.Error(err))
+			return setupErrorResponse(c, err)
+		}
+		logger.Error("Initial administrator creation failed", zap.String("username", req.Username), zap.Error(err))
+		return writeUserServiceError(c, err)
+	}
+
+	logger.Info("Initial administrator account created",
+		zap.String("user_id", user.ID),
+		zap.String("username", user.Username))
+
+	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
+		"user":    user.ToResponse(),
+		"message": "Administrator account created",
+	})
+}
+
 // SetInitialized updates the system initialization status
 func (h *SystemHandler) SetInitialized(c fiber.Ctx) error {
 	var req struct {
@@ -246,7 +290,7 @@ func (h *SystemHandler) SetInitialized(c fiber.Ctx) error {
 
 	if err := c.Bind().Body(&req); err != nil {
 		logger.Error("Failed to bind initialization state request", zap.Error(err))
-		return writeErrorResponseWithCode(c, fiber.StatusBadRequest, "system.invalid_request", "Invalid request body")
+		return writeBindError(c)
 	}
 
 	logger.Info("Setting system initialization state", zap.Bool("initialized", req.Initialized))

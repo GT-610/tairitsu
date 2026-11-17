@@ -166,9 +166,20 @@ var apiRateLimiter = newRateLimiter(100, 10) // 100 tokens, refills 10 per secon
 // authenticationRateLimiter is the stricter budget for authentication endpoints.
 var authenticationRateLimiter = newRateLimiter(20, 2) // 20 tokens, refills 2 per second
 
+// publicStatusRateLimiter covers the one expensive endpoint that has to answer
+// without a session.
+//
+// GET /api/system/status is public because the wizard needs it before anyone can
+// sign in, and answering it costs a controller round trip. The general API
+// budget is far too generous for that: an unauthenticated caller should not get
+// a hundred of them to spend. The budget below still covers the console polling
+// every few seconds, from several tabs.
+var publicStatusRateLimiter = newRateLimiter(20, 2) // 20 tokens, refills 2 per second
+
 func init() {
 	apiRateLimiter.startCleanup()
 	authenticationRateLimiter.startCleanup()
+	publicStatusRateLimiter.startCleanup()
 }
 
 // RateLimit is the API rate limiting middleware.
@@ -179,6 +190,12 @@ func RateLimit() fiber.Handler {
 // AuthRateLimit is the stricter rate limiting middleware for auth endpoints.
 func AuthRateLimit() fiber.Handler {
 	return rateLimitHandler(authenticationRateLimiter)
+}
+
+// PublicStatusRateLimit is the budget for the unauthenticated setup status
+// endpoint, which is both public and expensive to answer.
+func PublicStatusRateLimit() fiber.Handler {
+	return rateLimitHandler(publicStatusRateLimiter)
 }
 
 func rateLimitHandler(limiter *rateLimiter) fiber.Handler {

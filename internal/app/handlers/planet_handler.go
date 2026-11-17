@@ -24,15 +24,28 @@ import (
 const defaultZTPath = "/var/lib/zerotier-one"
 
 type PlanetHandler struct {
-	allowedBasePath string
+	// cfg is the live configuration. The directory the filesystem endpoints may
+	// touch is derived from it per request rather than captured here: the setup
+	// wizard writes the controller token path after this handler is built, and a
+	// captured value left every planet endpoint rejecting the real data directory
+	// until the process was restarted.
+	cfg *config.Config
 }
 
 func NewPlanetHandler(cfg *config.Config) *PlanetHandler {
-	allowedBasePath := defaultZTPath
-	if cfg != nil && strings.TrimSpace(cfg.ZeroTier.TokenPath) != "" {
-		allowedBasePath = filepath.Dir(strings.TrimSpace(cfg.ZeroTier.TokenPath))
+	return &PlanetHandler{cfg: cfg}
+}
+
+// allowedBasePath is the ZeroTier data directory the filesystem endpoints are
+// confined to: the directory holding the configured controller token, or the
+// conventional location when no token path is set yet.
+func (h *PlanetHandler) allowedBasePath() string {
+	if h.cfg != nil {
+		if tokenPath := strings.TrimSpace(h.cfg.ZeroTier.TokenPath); tokenPath != "" {
+			return filepath.Dir(tokenPath)
+		}
 	}
-	return &PlanetHandler{allowedBasePath: allowedBasePath}
+	return defaultZTPath
 }
 
 func (h *PlanetHandler) sanitizeZTPath(userPath string) (string, error) {
@@ -40,7 +53,7 @@ func (h *PlanetHandler) sanitizeZTPath(userPath string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("invalid ZeroTier directory path %q", userPath)
 	}
-	baseClean, err := filepath.Abs(filepath.Clean(h.allowedBasePath))
+	baseClean, err := filepath.Abs(filepath.Clean(h.allowedBasePath()))
 	if err != nil {
 		return "", fmt.Errorf("invalid configured ZeroTier directory")
 	}
@@ -111,7 +124,7 @@ type GenerateSigningKeysResponse struct {
 func (h *PlanetHandler) GeneratePlanet(c fiber.Ctx) error {
 	var req GeneratePlanetRequest
 	if err := c.Bind().JSON(&req); err != nil {
-		return writeErrorResponse(c, fiber.StatusBadRequest, "Invalid request body: "+err.Error())
+		return writeBindError(c)
 	}
 
 	if len(req.RootNodes) == 0 {
@@ -178,7 +191,7 @@ func (h *PlanetHandler) GeneratePlanet(c fiber.Ctx) error {
 }
 
 func (h *PlanetHandler) GetIdentity(c fiber.Ctx) error {
-	ztPath := c.Query("path", h.allowedBasePath)
+	ztPath := c.Query("path", h.allowedBasePath())
 	safePath, err := h.sanitizeZTPath(ztPath)
 	if err != nil {
 		return writeErrorResponse(c, fiber.StatusBadRequest, err.Error())
@@ -205,7 +218,7 @@ func (h *PlanetHandler) GetIdentity(c fiber.Ctx) error {
 }
 
 func (h *PlanetHandler) GetSigningKeysInfo(c fiber.Ctx) error {
-	ztPath := c.Query("path", h.allowedBasePath)
+	ztPath := c.Query("path", h.allowedBasePath())
 	safePath, err := h.sanitizeZTPath(ztPath)
 	if err != nil {
 		return writeErrorResponse(c, fiber.StatusBadRequest, err.Error())
@@ -238,7 +251,7 @@ func (h *PlanetHandler) GetSigningKeysInfo(c fiber.Ctx) error {
 }
 
 func (h *PlanetHandler) GenerateSigningKeys(c fiber.Ctx) error {
-	ztPath := c.Query("path", h.allowedBasePath)
+	ztPath := c.Query("path", h.allowedBasePath())
 	safePath, err := h.sanitizeZTPath(ztPath)
 	if err != nil {
 		return writeErrorResponse(c, fiber.StatusBadRequest, err.Error())
@@ -248,6 +261,12 @@ func (h *PlanetHandler) GenerateSigningKeys(c fiber.Ctx) error {
 
 	err = mkworld.CreateSigningKeys(prevPath, curPath)
 	if err != nil {
+		if errors.Is(err, mkworld.ErrSigningKeysExist) {
+			// Replacing a stored pair would break the update chain of a planet that
+			// already names it, so this is refused and explained rather than done.
+			return writeErrorResponseWithCode(c, fiber.StatusConflict, "planet.signing_keys_exist",
+				"Signing keys already exist in this directory. Replacing them breaks the update chain of any planet already deployed from them; remove the two key files deliberately to start a new identity.")
+		}
 		logger.Error("failed to generate signing keys", zap.String("path", ztPath), zap.Error(err))
 		return writeErrorResponse(c, fiber.StatusInternalServerError, "Failed to generate signing keys")
 	}

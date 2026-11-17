@@ -21,6 +21,10 @@ func SetupRoutes(router *fiber.App, dependencies *assembly.Dependencies) {
 	router.Use(compress.New())
 	router.Use(middleware.SecurityHeaders())
 	router.Use(middleware.ErrorHandler())
+	// A panic in a handler must not take the listener down with it, so it is
+	// converted into an ordinary error here. This has to sit inside the error
+	// handler above for that error to reach the response.
+	router.Use(middleware.Recover())
 
 	networkHandler := dependencies.Handlers.Network
 	memberHandler := dependencies.Handlers.Member
@@ -62,8 +66,9 @@ func SetupRoutes(router *fiber.App, dependencies *assembly.Dependencies) {
 
 		// System status check. It has to answer before anyone can sign in, so it
 		// is public, but it only includes setup-only details for a caller that
-		// presented the setup token.
-		api.Get("/system/status", setupTokenOptional, systemHandler.GetSystemStatus)
+		// presented the setup token. Its own tighter budget applies because
+		// answering it reaches the controller.
+		api.Get("/system/status", middleware.PublicStatusRateLimit(), setupTokenOptional, systemHandler.GetSystemStatus)
 
 		auth := api.Group("/auth")
 		{
@@ -80,6 +85,10 @@ func SetupRoutes(router *fiber.App, dependencies *assembly.Dependencies) {
 		api.Post("/system/zerotier/config", setupOnly, setupToken, systemHandler.SaveZeroTierConfig)
 		api.Post("/system/initialized", setupOnly, setupToken, systemHandler.SetInitialized)
 		api.Post("/system/admin/init", setupOnly, setupToken, systemHandler.InitializeAdminCreation)
+		// The first administrator is created here and nowhere else. Public
+		// registration cannot grant the role, because it answers before anyone
+		// can sign in and so cannot tell the operator from any other caller.
+		api.Post("/system/admin/register", setupOnly, setupToken, systemHandler.RegisterInitialAdmin)
 
 		api.Get("/profile", runtimeOnly, authMiddleware, authHandler.GetProfile)
 		api.Put("/profile/password", runtimeOnly, authMiddleware, authHandler.ChangePassword)

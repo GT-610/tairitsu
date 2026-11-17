@@ -10,6 +10,8 @@ import (
 	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/sha512"
+	"fmt"
+	"io"
 
 	"golang.org/x/crypto/curve25519"
 )
@@ -34,10 +36,22 @@ func SignMessage(pub [ZT_C25519_PUBLIC_KEY_LEN]byte, priv [ZT_C25519_PRIVATE_KEY
 	return finalSig, nil
 }
 
-func GenerateDualPair() (pub [64]byte, priv [64]byte) {
-	k0pub, k0priv, _ := ed25519.GenerateKey(rand.Reader)
+// GenerateDualPair produces one ZeroTier identity pair: a Curve25519 half and an
+// Ed25519 half.
+//
+// A failure from the random source is returned rather than ignored. Ignoring it
+// would leave the Curve25519 private half at its zero value, which is a key
+// anyone can reproduce.
+func GenerateDualPair() (pub [64]byte, priv [64]byte, err error) {
+	k0pub, k0priv, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		return pub, priv, fmt.Errorf("failed to generate the ed25519 key: %w", err)
+	}
+
 	var k1pub, k1priv [32]byte
-	rand.Read(k1priv[:])
+	if _, err := io.ReadFull(rand.Reader, k1priv[:]); err != nil {
+		return pub, priv, fmt.Errorf("failed to generate the curve25519 key: %w", err)
+	}
 	curve25519.ScalarBaseMult(&k1pub, &k1priv)
 
 	copy(pub[0:32], k1pub[:])
@@ -45,5 +59,5 @@ func GenerateDualPair() (pub [64]byte, priv [64]byte) {
 	copy(pub[32:64], k0pub[:])
 	copy(priv[32:64], k0priv[:])
 
-	return
+	return pub, priv, nil
 }

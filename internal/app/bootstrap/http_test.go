@@ -261,3 +261,18 @@ func TestHTTPAppOmitsHSTSForUntrustedHTTPSClaim(t *testing.T) {
 	defer resp.Body.Close()
 	assert.Empty(t, resp.Header.Get("Strict-Transport-Security"))
 }
+
+// TestHTTPAppConfigBoundsRequestTimeouts guards the setting that stops a client
+// from holding a connection open with a half-sent request. Leaving these at zero
+// is the default and the failure mode: a stalled peer is never timed out.
+func TestHTTPAppConfigBoundsRequestTimeouts(t *testing.T) {
+	appConfig := httpAppConfig()
+
+	assert.Equal(t, readTimeout, appConfig.ReadTimeout)
+	assert.Equal(t, writeTimeout, appConfig.WriteTimeout)
+	assert.Equal(t, idleTimeout, appConfig.IdleTimeout)
+
+	assert.Positive(t, appConfig.ReadTimeout, "a zero read timeout never expires a stalled request")
+	assert.Positive(t, appConfig.WriteTimeout)
+	assert.Positive(t, appConfig.IdleTimeout)
+}

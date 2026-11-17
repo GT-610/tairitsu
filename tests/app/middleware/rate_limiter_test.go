@@ -112,3 +112,36 @@ func TestAuthRateLimitMiddlewareUsesTheSmallerBudget(t *testing.T) {
 	defer resp.Body.Close()
 	assert.Equal(t, fiber.StatusTooManyRequests, resp.StatusCode)
 }
+
+// The setup status endpoint is public and every answer reaches the controller, so
+// it must not inherit the generous general API budget.
+func TestPublicStatusRateLimitMiddlewareUsesATightBudget(t *testing.T) {
+	app := newLimitedApp(t, middleware.PublicStatusRateLimit())
+	address := nextAddress(t)
+
+	spendBudget(t, app, address, 20)
+
+	exhausted := requestFrom(t, app, address)
+	defer exhausted.Body.Close()
+	assert.Equal(t, fiber.StatusTooManyRequests, exhausted.StatusCode)
+}
+
+// A caller spending the status endpoint budget must not drain the budget for the
+// rest of the API, which is what a single shared limiter would do.
+func TestPublicStatusBudgetIsSeparateFromTheAPIBudget(t *testing.T) {
+	statusApp := newLimitedApp(t, middleware.PublicStatusRateLimit())
+	apiApp := newLimitedApp(t, middleware.RateLimit())
+
+	address := nextAddress(t)
+	spendBudget(t, statusApp, address, 20)
+
+	// The status budget is spent for this address...
+	exhausted := requestFrom(t, statusApp, address)
+	defer exhausted.Body.Close()
+	require.Equal(t, fiber.StatusTooManyRequests, exhausted.StatusCode)
+
+	// ...and the general API still serves the same address.
+	stillServed := requestFrom(t, apiApp, address)
+	defer stillServed.Body.Close()
+	assert.Equal(t, fiber.StatusNoContent, stillServed.StatusCode)
+}

@@ -334,9 +334,12 @@ func TestNetworkServiceGetAllNetworksIncludesMemberStats(t *testing.T) {
 	summaries, err := service.GetAllNetworks("user-1")
 	require.NoError(t, err)
 	require.Len(t, summaries, 1)
-	assert.Equal(t, 3, summaries[0].MemberCount)
-	assert.Equal(t, 2, summaries[0].AuthorizedMemberCount)
-	assert.Equal(t, 1, summaries[0].PendingMemberCount)
+	require.NotNil(t, summaries[0].MemberCount)
+	assert.Equal(t, 3, *summaries[0].MemberCount)
+	require.NotNil(t, summaries[0].AuthorizedMemberCount)
+	assert.Equal(t, 2, *summaries[0].AuthorizedMemberCount)
+	require.NotNil(t, summaries[0].PendingMemberCount)
+	assert.Equal(t, 1, *summaries[0].PendingMemberCount)
 }
 
 func TestNetworkServiceGetAllNetworksReusesCachedMemberStats(t *testing.T) {
@@ -365,12 +368,14 @@ func TestNetworkServiceGetAllNetworksReusesCachedMemberStats(t *testing.T) {
 	firstSummaries, err := service.GetAllNetworks("user-1")
 	require.NoError(t, err)
 	require.Len(t, firstSummaries, 1)
-	assert.Equal(t, 2, firstSummaries[0].MemberCount)
+	require.NotNil(t, firstSummaries[0].MemberCount)
+	assert.Equal(t, 2, *firstSummaries[0].MemberCount)
 
 	secondSummaries, err := service.GetAllNetworks("user-1")
 	require.NoError(t, err)
 	require.Len(t, secondSummaries, 1)
-	assert.Equal(t, 2, secondSummaries[0].MemberCount)
+	require.NotNil(t, secondSummaries[0].MemberCount)
+	assert.Equal(t, 2, *secondSummaries[0].MemberCount)
 	assert.Equal(t, int32(1), memberRequests.Load())
 }
 
@@ -439,9 +444,12 @@ func TestNetworkServiceGetAllNetworksIncludesMemberStatsFromObjectResponse(t *te
 	summaries, err := service.GetAllNetworks("user-1")
 	require.NoError(t, err)
 	require.Len(t, summaries, 1)
-	assert.Equal(t, 2, summaries[0].MemberCount)
-	assert.Equal(t, 1, summaries[0].AuthorizedMemberCount)
-	assert.Equal(t, 1, summaries[0].PendingMemberCount)
+	require.NotNil(t, summaries[0].MemberCount)
+	assert.Equal(t, 2, *summaries[0].MemberCount)
+	require.NotNil(t, summaries[0].AuthorizedMemberCount)
+	assert.Equal(t, 1, *summaries[0].AuthorizedMemberCount)
+	require.NotNil(t, summaries[0].PendingMemberCount)
+	assert.Equal(t, 1, *summaries[0].PendingMemberCount)
 }
 
 func TestZTClientGetMembersReturnsPreviewOnUnexpectedShape(t *testing.T) {
@@ -509,9 +517,12 @@ func TestNetworkServiceGetAllNetworksIncludesMemberStatsFromIndexResponse(t *tes
 	summaries, err := service.GetAllNetworks("user-1")
 	require.NoError(t, err)
 	require.Len(t, summaries, 1)
-	assert.Equal(t, 2, summaries[0].MemberCount)
-	assert.Equal(t, 1, summaries[0].AuthorizedMemberCount)
-	assert.Equal(t, 1, summaries[0].PendingMemberCount)
+	require.NotNil(t, summaries[0].MemberCount)
+	assert.Equal(t, 2, *summaries[0].MemberCount)
+	require.NotNil(t, summaries[0].AuthorizedMemberCount)
+	assert.Equal(t, 1, *summaries[0].AuthorizedMemberCount)
+	require.NotNil(t, summaries[0].PendingMemberCount)
+	assert.Equal(t, 1, *summaries[0].PendingMemberCount)
 }
 
 func TestNetworkServiceGetAllNetworksFetchesMemberStatsConcurrently(t *testing.T) {
@@ -661,4 +672,69 @@ func newTestZTClientWithMemberIndexResponse(t *testing.T, networks map[string]ze
 		MemberIndexes: memberIndexes,
 		MemberObjects: details,
 	})
+}
+
+// TestNetworkServiceMemberCountsAreUnknownRatherThanZero is the regression test
+// for a fabricated zero. When the controller could not be asked how many members
+// a network has, the summary used to report 0, so the console told an operator a
+// populated network was empty — the one thing AGENTS.md says not to do.
+func TestNetworkServiceMemberCountsAreUnknownRatherThanZero(t *testing.T) {
+	db := testutil.NewSQLiteDB(t)
+	createTestUser(t, db, "owner-1", "user")
+	require.NoError(t, db.CreateNetwork(&models.Network{
+		ID: "8056c2e21c0000a1", Name: "alpha", OwnerID: "owner-1",
+		CreatedAt: time.Now(), UpdatedAt: time.Now(),
+	}))
+
+	// The controller knows the network but not its members, so the member read
+	// fails the way an unreachable or unhappy controller would.
+	ztClient := testutil.NewFakeController(t, &testutil.FakeController{
+		Networks: map[string]zerotier.Network{
+			"8056c2e21c0000a1": {ID: "8056c2e21c0000a1", Name: "alpha"},
+		},
+	})
+
+	service := services.NewNetworkService(ztClient, db)
+	summaries, err := service.GetAllNetworks("owner-1")
+	require.NoError(t, err)
+	require.Len(t, summaries, 1)
+
+	assert.Nil(t, summaries[0].MemberCount, "an unreadable count must not be reported as zero")
+	assert.Nil(t, summaries[0].AuthorizedMemberCount)
+	assert.Nil(t, summaries[0].PendingMemberCount)
+}
+
+// TestNetworkServiceMemberCountsAreReportedWhenKnown is the other half: a real
+// zero is still a zero.
+func TestNetworkServiceMemberCountsAreReportedWhenKnown(t *testing.T) {
+	db := testutil.NewSQLiteDB(t)
+	createTestUser(t, db, "owner-1", "user")
+	require.NoError(t, db.CreateNetwork(&models.Network{
+		ID: "8056c2e21c0000a2", Name: "beta", OwnerID: "owner-1",
+		CreatedAt: time.Now(), UpdatedAt: time.Now(),
+	}))
+
+	ztClient := testutil.NewFakeController(t, &testutil.FakeController{
+		Networks: map[string]zerotier.Network{
+			"8056c2e21c0000a2": {ID: "8056c2e21c0000a2", Name: "beta"},
+		},
+		Members: map[string][]zerotier.Member{
+			"8056c2e21c0000a2": {
+				{ID: "deadbeef01", Config: zerotier.MemberConfig{Authorized: true}},
+				{ID: "deadbeef02", Config: zerotier.MemberConfig{Authorized: false}},
+			},
+		},
+	})
+
+	service := services.NewNetworkService(ztClient, db)
+	summaries, err := service.GetAllNetworks("owner-1")
+	require.NoError(t, err)
+	require.Len(t, summaries, 1)
+
+	require.NotNil(t, summaries[0].MemberCount)
+	assert.Equal(t, 2, *summaries[0].MemberCount)
+	require.NotNil(t, summaries[0].AuthorizedMemberCount)
+	assert.Equal(t, 1, *summaries[0].AuthorizedMemberCount)
+	require.NotNil(t, summaries[0].PendingMemberCount)
+	assert.Equal(t, 1, *summaries[0].PendingMemberCount)
 }

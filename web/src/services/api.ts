@@ -78,9 +78,11 @@ export interface NetworkSummary {
   description?: string;
   owner_id: string;
   role: NetworkRole;
-  member_count: number;
-  authorized_member_count: number;
-  pending_member_count: number;
+  // Null when the controller could not be reached: "no members" and "members
+  // unknown" are different facts and must not be shown as the same zero.
+  member_count: number | null;
+  authorized_member_count: number | null;
+  pending_member_count: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -92,9 +94,11 @@ export interface SharedNetworkSummary {
   owner_id: string;
   owner_username: string;
   role: NetworkRole;
-  member_count: number;
-  authorized_member_count: number;
-  pending_member_count: number;
+  // Null when the controller could not be reached: "no members" and "members
+  // unknown" are different facts and must not be shown as the same zero.
+  member_count: number | null;
+  authorized_member_count: number | null;
+  pending_member_count: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -560,6 +564,10 @@ export const systemAPI = {
   setInitialized: (initialized: boolean) => api.post<SetInitializedResponse>('/system/initialized', { initialized }),
   // Initialize admin account creation step
   initializeAdminCreation: () => api.post<InitializeAdminCreationResponse>('/system/admin/init'),
+  // Create the first administrator. This is the only path that mints the
+  // administrator role, so it lives on the setup surface (which the setup token
+  // guards) rather than on public registration.
+  registerInitialAdmin: (data: { username: string; password: string }) => api.post<RegisterResponse>('/system/admin/register', data),
   // Get runtime settings (admin only)
   getRuntimeSettings: () => api.get<RuntimeSettings>('/system/settings'),
   // Update runtime settings (admin only)

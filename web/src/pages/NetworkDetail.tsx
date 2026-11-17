@@ -24,7 +24,6 @@ import { Link, useParams, useNavigate } from 'react-router-dom'
 import {
   type IpAssignmentPool,
   type Network,
-  type NetworkConfig,
   type NetworkAccessDetail,
   type NetworkMetadataUpdateRequest,
   type Route,
@@ -59,8 +58,10 @@ import {
   normalizeRouteTarget,
 } from '../utils/networkAddressUtils'
 import {
+  adoptSavedConfig,
   buildMergedPools,
   buildMergedRoutes,
+  emptyNetworkConfig,
   getInitialBasicSettings,
   getInitialDNSSettings,
   getInitialIPv4Settings,
@@ -81,21 +82,6 @@ import {
 import { formatNetworkMember } from '../utils/memberUtils'
 import { networkRoleLabel } from '../utils/networkAccess'
 import { useTranslation } from '../i18n'
-
-const defaultNetworkConfig: Partial<NetworkConfig> = {
-  private: true,
-  enableBroadcast: true,
-  mtu: 2800,
-  multicastLimit: 32,
-  v4AssignMode: {
-    zt: false,
-  },
-  v6AssignMode: {
-    zt: false,
-    '6plane': false,
-    rfc4193: false,
-  },
-}
 
 const emptyBasicSettings: BasicSettingsDraft = { name: '', description: '' }
 const emptyIPv4Settings: IPv4SettingsDraft = {
@@ -208,6 +194,17 @@ function NetworkDetail() {
     }, 1000)
   }
 
+  // Adopt the controller's answer as the published snapshot before another save can
+  // read it. The refetch above is deliberately delayed, so without this a save from
+  // another section in the meantime would rebuild the shared route and pool arrays
+  // from values the server has already replaced, undoing the change that succeeded.
+  //
+  // adoptSavedConfig also drops a response that belongs to a network the page has
+  // since navigated away from.
+  const adoptSavedNetwork = (saved: Network, requestedNetworkId: string) => {
+    setNetwork((previous) => adoptSavedConfig(previous, saved, requestedNetworkId))
+  }
+
   const fetchNetworkDetail = async (silent = false) => {
     // A handler for the previous network may still call this after navigation.
     // Return before touching the current page's loading state.
@@ -223,12 +220,12 @@ function NetworkDetail() {
       const networkData = networkResponse.data
       if (!networkData) return
 
-      networkData.config = { ...defaultNetworkConfig, ...networkData.config }
+      networkData.config = { ...emptyNetworkConfig, ...networkData.config }
       if (networkData.config.v4AssignMode) {
-        networkData.config.v4AssignMode = { ...defaultNetworkConfig.v4AssignMode, ...networkData.config.v4AssignMode }
+        networkData.config.v4AssignMode = { ...emptyNetworkConfig.v4AssignMode, ...networkData.config.v4AssignMode }
       }
       if (networkData.config.v6AssignMode) {
-        networkData.config.v6AssignMode = { ...defaultNetworkConfig.v6AssignMode, ...networkData.config.v6AssignMode }
+        networkData.config.v6AssignMode = { ...emptyNetworkConfig.v6AssignMode, ...networkData.config.v6AssignMode }
       }
 
       setNetwork(networkData)
@@ -473,22 +470,27 @@ function NetworkDetail() {
 
     setSaving(true)
     try {
-      await networkAPI.updateNetwork(id, {
+      // The route and pool arrays are shared between the IPv4 and IPv6 sections,
+      // so an IPv4 save has to carry IPv6 values as well — the saved ones, not
+      // whatever is typed into the IPv6 section and not yet applied.
+      const publishedIPv6 = getInitialIPv6Settings(network)
+      const savedNetwork = await networkAPI.updateNetwork(id, {
         routes: buildMergedRoutes(
           network.config.routes || [],
           ipv4Settings.subnet,
-          ipv6Settings.subnet,
-          ipv6Settings.customAssign,
+          publishedIPv6.subnet,
+          publishedIPv6.customAssign,
           managedRoutesSettings.routes,
         ),
         ipAssignmentPools: buildMergedPools(
           ipv4Settings.autoAssign,
           ipv4Settings.pools,
-          ipv6Settings.customAssign,
-          ipv6Settings.pools,
+          publishedIPv6.customAssign,
+          publishedIPv6.pools,
         ),
         v4AssignMode: { zt: ipv4Settings.autoAssign },
       })
+      if (activeNetworkId.current === id) adoptSavedNetwork(savedNetwork.data, id)
       showSnackbar('IPv4配置保存成功')
       scheduleRefetch()
     } catch (err: unknown) {
@@ -507,17 +509,20 @@ function NetworkDetail() {
 
     setSaving(true)
     try {
-      await networkAPI.updateNetwork(id, {
+      // Same shared arrays, with the saved IPv4 values standing in for the IPv4
+      // section's unsaved draft.
+      const publishedIPv4 = getInitialIPv4Settings(network)
+      const savedNetwork = await networkAPI.updateNetwork(id, {
         routes: buildMergedRoutes(
           network.config.routes || [],
-          ipv4Settings.subnet,
+          publishedIPv4.subnet,
           ipv6Settings.subnet,
           ipv6Settings.customAssign,
           managedRoutesSettings.routes,
         ),
         ipAssignmentPools: buildMergedPools(
-          ipv4Settings.autoAssign,
-          ipv4Settings.pools,
+          publishedIPv4.autoAssign,
+          publishedIPv4.pools,
           ipv6Settings.customAssign,
           ipv6Settings.pools,
         ),
@@ -527,6 +532,7 @@ function NetworkDetail() {
           rfc4193: ipv6Settings.rfc4193,
         },
       })
+      if (activeNetworkId.current === id) adoptSavedNetwork(savedNetwork.data, id)
       showSnackbar('IPv6配置保存成功')
       scheduleRefetch()
     } catch (err: unknown) {
@@ -540,15 +546,18 @@ function NetworkDetail() {
     if (!id || !network || !canWriteSettings) return
     setSaving(true)
     try {
-      await networkAPI.updateNetwork(id, {
+      const publishedIPv4 = getInitialIPv4Settings(network)
+      const publishedIPv6 = getInitialIPv6Settings(network)
+      const savedNetwork = await networkAPI.updateNetwork(id, {
         routes: buildMergedRoutes(
           network.config.routes || [],
-          ipv4Settings.subnet,
-          ipv6Settings.subnet,
-          ipv6Settings.customAssign,
+          publishedIPv4.subnet,
+          publishedIPv6.subnet,
+          publishedIPv6.customAssign,
           managedRoutesSettings.routes,
         ),
       })
+      if (activeNetworkId.current === id) adoptSavedNetwork(savedNetwork.data, id)
       showSnackbar('托管路由保存成功')
       scheduleRefetch()
     } catch (err: unknown) {
@@ -562,12 +571,13 @@ function NetworkDetail() {
     if (!id || !canWriteSettings) return
     setSaving(true)
     try {
-      await networkAPI.updateNetwork(id, {
+      const savedNetwork = await networkAPI.updateNetwork(id, {
         dns: {
           domain: dnsSettings.domain.trim(),
           servers: dnsSettings.servers,
         },
       })
+      if (activeNetworkId.current === id) adoptSavedNetwork(savedNetwork.data, id)
       showSnackbar('DNS 设置保存成功')
       scheduleRefetch()
     } catch (err: unknown) {
@@ -581,10 +591,11 @@ function NetworkDetail() {
     if (!id || !canWriteSettings) return
     setSaving(true)
     try {
-      await networkAPI.updateNetwork(id, {
+      const savedNetwork = await networkAPI.updateNetwork(id, {
         multicastLimit: multicastSettings.multicastLimit,
         enableBroadcast: multicastSettings.enableBroadcast,
       })
+      if (activeNetworkId.current === id) adoptSavedNetwork(savedNetwork.data, id)
       showSnackbar('多播设置保存成功')
       scheduleRefetch()
     } catch (err: unknown) {

@@ -21,9 +21,11 @@ interface ExtendedSystemStats {
 
 interface OverviewStats {
   networkCount: number;
-  memberCount: number;
-  authorizedMemberCount: number;
-  pendingMemberCount: number;
+  // Null once any network's count is unknown: a total that silently treated an
+  // unreadable network as empty would understate the deployment.
+  memberCount: number | null;
+  authorizedMemberCount: number | null;
+  pendingMemberCount: number | null;
 }
 
 function zeroTierStatusLabel(status?: RuntimeStatus['zeroTierStatus']) {
@@ -77,11 +79,18 @@ function Dashboard() {
   const isAdmin = user?.role === 'admin';
 
   const buildOverviewStats = (networks: NetworkSummary[]): OverviewStats => {
+    // One unknown count makes the total unknown: summing the rest would report a
+    // number that is quietly too low.
+    const sumOrNull = (current: number | null, value: number | null): number | null => {
+      if (current === null || value === null) return null;
+      return current + value;
+    };
+
     return networks.reduce<OverviewStats>((summary, network) => ({
       networkCount: summary.networkCount + 1,
-      memberCount: summary.memberCount + (network.member_count || 0),
-      authorizedMemberCount: summary.authorizedMemberCount + (network.authorized_member_count || 0),
-      pendingMemberCount: summary.pendingMemberCount + (network.pending_member_count || 0),
+      memberCount: sumOrNull(summary.memberCount, network.member_count),
+      authorizedMemberCount: sumOrNull(summary.authorizedMemberCount, network.authorized_member_count),
+      pendingMemberCount: sumOrNull(summary.pendingMemberCount, network.pending_member_count),
     }), {
       networkCount: 0,
       memberCount: 0,
@@ -212,7 +221,7 @@ function Dashboard() {
                   {translateText('成员总数')}
                 </Typography>
                 <Typography variant="h4">
-                  {overviewStats.memberCount}
+                  {overviewStats.memberCount ?? '—'}
                 </Typography>
               </Box>
               <Box>
@@ -220,7 +229,7 @@ function Dashboard() {
                   {translateText('已授权成员')}
                 </Typography>
                 <Typography variant="h4">
-                  {overviewStats.authorizedMemberCount}
+                  {overviewStats.authorizedMemberCount ?? '—'}
                 </Typography>
               </Box>
               <Box>
@@ -228,7 +237,7 @@ function Dashboard() {
                   {translateText('待授权成员')}
                 </Typography>
                 <Typography variant="h4">
-                  {overviewStats.pendingMemberCount}
+                  {overviewStats.pendingMemberCount ?? '—'}
                 </Typography>
               </Box>
             </Box>

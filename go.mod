@@ -1,6 +1,6 @@
 module github.com/GT-610/tairitsu
 
-go 1.26.10
+go 1.26.11
 
 require (
 	github.com/gofiber/fiber/v3 v3.5.0
@@ -22,7 +22,7 @@ require (
 	github.com/gofiber/utils/v2 v2.6.1 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/jinzhu/now v1.1.5 // indirect
-	github.com/klauspost/compress v1.20.1 // indirect
+	github.com/klauspost/compress v1.20.2 // indirect
 	github.com/lufia/plan9stats v0.0.0-20260802145828-341c2f0c90b5 // indirect
 	github.com/mattn/go-colorable v0.1.16 // indirect
 	github.com/mattn/go-isatty v0.0.24 // indirect

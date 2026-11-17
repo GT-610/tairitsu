@@ -61,6 +61,7 @@ func Build() (*App, error) {
 	app.Dependencies = dependencies
 	app.Dependencies.Services.Session.PurgeUnusableSessions()
 	announceSetupToken(app.Dependencies.Services.SetupToken)
+	warnAboutProxyKeying()
 	app.Router = newHTTPApp()
 	routes.SetupRoutes(app.Router, app.Dependencies)
 
@@ -107,6 +108,23 @@ func newHTTPApp() *fiber.App {
 	return fiber.New(httpAppConfig())
 }
 
+// Request timeouts. Fiber leaves all three at zero by default, which means a
+// client that sends a request line and then stalls holds the connection open
+// indefinitely; enough of those exhaust the listener without ever completing a
+// request. The values are generous relative to what this API does — every
+// handler answers in milliseconds, and the slowest, a bulk network import, is
+// bounded by the number of networks the controller reports — so they bound a
+// stalled peer without cutting off real work.
+const (
+	// readTimeout covers reading the whole request, headers and body.
+	readTimeout = 30 * time.Second
+	// writeTimeout covers writing the response.
+	writeTimeout = 60 * time.Second
+	// idleTimeout covers waiting for the next request on a kept-alive
+	// connection.
+	idleTimeout = 60 * time.Second
+)
+
 func httpAppConfig() fiber.Config {
 	return fiber.Config{
 		TrustProxy:  true,
@@ -116,6 +134,9 @@ func httpAppConfig() fiber.Config {
 			Loopback: trustLoopbackProxy(),
 		},
 		EnableIPValidation: true,
+		ReadTimeout:        readTimeout,
+		WriteTimeout:       writeTimeout,
+		IdleTimeout:        idleTimeout,
 	}
 }
 
@@ -171,6 +192,26 @@ func trustLoopbackProxy() bool {
 		return true
 	}
 	return enabled
+}
+
+// warnAboutProxyKeying explains the one consequence of the trust configuration
+// that an operator cannot see from the outside.
+//
+// The rate limiters key on the client address. With no trusted proxies
+// configured, a deployment behind a reverse proxy records the proxy's address for
+// every caller, so they all share one budget: one noisy client can exhaust it and
+// lock everyone else out. The reverse case is worse and is what the
+// documentation's proxy list prevents — a proxy that forwards a caller-supplied
+// X-Forwarded-For lets the caller choose the key, which retires the limit
+// entirely. Neither state is detectable from a healthy request stream, so it is
+// said once at startup.
+func warnAboutProxyKeying() {
+	if len(trustedProxies()) > 0 {
+		return
+	}
+
+	logger.Warn("no trusted proxies are configured, so per-client rate limiting and the address recorded on a session key on the direct peer; if Tairitsu runs behind a reverse proxy, set "+TrustedProxiesEnv+" to that proxy's address",
+		zap.Bool("loopback_proxy_trusted", trustLoopbackProxy()))
 }
 
 func (a *App) Listen() error {

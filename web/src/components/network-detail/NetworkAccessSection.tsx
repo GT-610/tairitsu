@@ -38,6 +38,11 @@ import {
 } from '../../services/api'
 import { assignableNetworkRoles, networkRoleColor, networkRoleLabel } from '../../utils/networkAccess'
 
+// Below this many characters the server only answers an exact account name, because
+// a shorter partial query would match much of any account directory. The value is
+// kept here so the empty state can explain the rule rather than looking broken.
+const minimumCandidateQueryLength = 3
+
 const roleDescription: Record<Exclude<NetworkRole, 'owner'>, string> = {
   manager: '可以修改网络设置、管理设备和其他成员。',
   operator: '可以审批和管理设备，不能修改网络设置或成员。',
@@ -365,8 +370,8 @@ function NetworkAccessSection({
               noOptionsText={translateText(
                 candidateError
                   ? '搜索失败，请重试'
-                  : candidateQuery.trim().length < 1
-                    ? '输入用户名搜索用户'
+                  : candidateQuery.trim().length < minimumCandidateQueryLength
+                    ? '输入完整用户名，或至少 3 个字符搜索'
                     : '没有匹配的用户',
               )}
               renderInput={(params) => (

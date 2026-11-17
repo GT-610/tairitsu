@@ -73,7 +73,7 @@ func (h *UserHandler) CreateUser(c fiber.Ctx) error {
 	var req CreateUserRequest
 	if err := c.Bind().Body(&req); err != nil {
 		logger.Error("Failed to create user: request binding failed", zap.String("current_user_id", currentUserID), zap.Error(err))
-		return writeErrorResponse(c, fiber.StatusBadRequest, err.Error())
+		return writeBindError(c)
 	}
 
 	user, temporaryPassword, err := h.userService.CreateUserByAdmin(currentUserID, req.Username)
@@ -100,7 +100,7 @@ func (h *UserHandler) TransferAdmin(c fiber.Ctx) error {
 	var req TransferAdminRequest
 	if err := c.Bind().Body(&req); err != nil {
 		logger.Error("Failed to transfer administrator role: request binding failed", zap.String("current_user_id", currentUserID), zap.Error(err))
-		return writeErrorResponse(c, fiber.StatusBadRequest, err.Error())
+		return writeBindError(c)
 	}
 
 	user, err := h.userService.TransferAdmin(currentUserID, req.UserID)

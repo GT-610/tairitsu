@@ -520,10 +520,15 @@ func (g *GormDB) DeleteUserNetworkGrants(userID string) error {
 		Error
 }
 
-// SearchUsers returns accounts whose username contains query. An empty query
-// returns no rows so an owner cannot page through the whole account directory
-// by opening the picker.
-func (g *GormDB) SearchUsers(query string, limit int) ([]*models.User, error) {
+// SearchUsers returns accounts whose username matches query. An empty query
+// returns no rows so an owner cannot page through the whole account directory by
+// opening the picker.
+//
+// The match mode is the caller's decision because it is a permission question,
+// not a query question: a substring search answers "which accounts mention this"
+// and a prefix search answers "which account starts with this", and only the
+// latter can be handed to someone who must not enumerate the directory.
+func (g *GormDB) SearchUsers(query string, match UsernameMatch, limit int) ([]*models.User, error) {
 	query = strings.TrimSpace(query)
 	if query == "" {
 		return []*models.User{}, nil
@@ -534,9 +539,14 @@ func (g *GormDB) SearchUsers(query string, limit int) ([]*models.User, error) {
 
 	escaped := strings.NewReplacer("!", "!!", "%", "!%", "_", "!_").Replace(strings.ToLower(query))
 
+	pattern := "%" + escaped + "%"
+	if match == UsernamePrefix {
+		pattern = escaped + "%"
+	}
+
 	var users []*models.User
 	result := g.db.
-		Where("LOWER(username) LIKE ? ESCAPE '!'", "%"+escaped+"%").
+		Where("LOWER(username) LIKE ? ESCAPE '!'", pattern).
 		Order("username ASC").
 		Limit(limit).
 		Find(&users)

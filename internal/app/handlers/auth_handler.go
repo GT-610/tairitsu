@@ -12,70 +12,60 @@ import (
 	"go.uber.org/zap"
 )
 
-// sessionLifetime is how long a login stays valid before the user must sign in
-// again. The browser cookie and the server-side session share this deadline.
-const sessionLifetime = 24 * time.Hour
+// Session lifetimes. The browser cookie and the server-side session share the
+// deadline, so "remember me" has to extend both — extending only the cookie left
+// the server-side session dying at 24 hours while the browser kept offering a
+// credential that could no longer work.
+const (
+	// sessionLifetime applies to a sign-in that is not remembered.
+	sessionLifetime = 24 * time.Hour
+	// rememberedSessionLifetime applies to a sign-in that is.
+	rememberedSessionLifetime = 30 * 24 * time.Hour
+)
 
 // AuthHandler handles authentication related requests
 type AuthHandler struct {
 	userService    *services.UserService
 	sessionService *services.SessionService
-	runtimeService *services.RuntimeService
 	stateService   *services.StateService
 }
 
 // NewAuthHandler creates a new instance of AuthHandler
-func NewAuthHandler(userService *services.UserService, sessionService *services.SessionService, runtimeService *services.RuntimeService, stateService *services.StateService) *AuthHandler {
+func NewAuthHandler(userService *services.UserService, sessionService *services.SessionService, stateService *services.StateService) *AuthHandler {
 	return &AuthHandler{
 		userService:    userService,
 		sessionService: sessionService,
-		runtimeService: runtimeService,
 		stateService:   stateService,
 	}
 }
 
-// Register handles user registration requests
+// Register handles public user registration requests.
+//
+// It never grants the administrator role. The first administrator is created by
+// CreateInitialAdministrator on the setup surface, which requires the setup
+// token, because this endpoint answers before anyone can sign in and therefore
+// cannot tell an operator apart from anyone else who can reach the port.
 func (h *AuthHandler) Register(c fiber.Ctx) error {
 	var req models.RegisterRequest
 	if err := c.Bind().Body(&req); err != nil {
 		logger.Error("Failed to bind registration request", zap.Error(err))
-		return writeErrorResponse(c, fiber.StatusBadRequest, err.Error())
+		return writeBindError(c)
 	}
 
 	logger.Info("Starting user registration", zap.String("username", req.Username))
 
-	role := "user"
 	if h.stateService != nil && h.stateService.IsInitialized() && !h.stateService.RuntimeSettings().AllowPublicRegistration {
 		logger.Warn("Public registration is disabled; rejecting runtime registration", zap.String("username", req.Username))
 		return writeUserServiceError(c, services.ErrPublicRegistrationDisabled)
 	}
-	if h.stateService != nil && !h.stateService.IsInitialized() {
-		hasAdmin, err := h.userService.HasAdminUser()
-		if err != nil {
-			logger.Warn("Failed to check administrator users; using default role", zap.Error(err))
-		} else if !hasAdmin {
-			role = "admin"
-			logger.Info("System is not initialized and no administrator exists; assigning administrator role", zap.String("username", req.Username))
-		}
-	}
 
-	user, err := h.userService.Register(&req, role)
+	user, err := h.userService.Register(&req, "user")
 	if err != nil {
 		logger.Error("User registration failed", zap.String("username", req.Username), zap.Error(err))
 		return writeUserServiceError(c, err)
 	}
 
 	logger.Info("User registered successfully", zap.String("user_id", user.ID), zap.String("username", user.Username), zap.String("role", user.Role))
-
-	// Only the setup-time admin creation path should trigger ZeroTier client initialization.
-	if h.stateService != nil && h.runtimeService != nil && !h.stateService.IsInitialized() {
-		logger.Info("Initializing ZeroTier client")
-		if _, err := h.runtimeService.InitZTClientFromConfig(); err != nil {
-			logger.Warn("ZeroTier client initialization failed; it will be retried later", zap.Error(err))
-		} else {
-			logger.Info("ZeroTier client initialized and connection validated")
-		}
-	}
 
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
 		"user":    user.ToResponse(),
@@ -88,7 +78,7 @@ func (h *AuthHandler) Login(c fiber.Ctx) error {
 	var req models.LoginRequest
 	if err := c.Bind().Body(&req); err != nil {
 		logger.Error("Failed to bind login request", zap.Error(err))
-		return writeErrorResponse(c, fiber.StatusBadRequest, err.Error())
+		return writeBindError(c)
 	}
 
 	logger.Info("User login attempt", zap.String("username", req.Username))
@@ -101,7 +91,11 @@ func (h *AuthHandler) Login(c fiber.Ctx) error {
 
 	logger.Info("User logged in successfully", zap.String("user_id", user.ID), zap.String("username", user.Username))
 
-	expiresAt := time.Now().Add(sessionLifetime)
+	lifetime := sessionLifetime
+	if req.RememberMe {
+		lifetime = rememberedSessionLifetime
+	}
+	expiresAt := time.Now().Add(lifetime)
 	session, credential, err := h.sessionService.CreateSession(services.SessionCreateInput{
 		UserID:     user.ID,
 		UserAgent:  c.Get("User-Agent"),
@@ -158,7 +152,7 @@ func (h *AuthHandler) ChangePassword(c fiber.Ctx) error {
 	var req models.ChangePasswordRequest
 	if err := c.Bind().Body(&req); err != nil {
 		logger.Error("Failed to bind change password request", zap.Error(err))
-		return writeErrorResponse(c, fiber.StatusBadRequest, err.Error())
+		return writeBindError(c)
 	}
 
 	logger.Info("Processing password change request", zap.String("user_id", userID))

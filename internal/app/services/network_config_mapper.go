@@ -12,7 +12,11 @@ func NormalizeNetworkUpdateRequest(req *zerotier.NetworkUpdateRequest) *zerotier
 	}
 
 	normalized := *req
-	normalized.Private = true
+	// Every network Tairitsu manages is private, and this is the one place that
+	// is enforced on update as well as on create. EnableBroadcast is deliberately
+	// left alone: only a request that names it changes it.
+	private := true
+	normalized.Private = &private
 	normalized.Routes = cloneRoutes(req.Routes)
 	normalized.IpAssignmentPools = cloneAssignmentPools(req.IpAssignmentPools)
 

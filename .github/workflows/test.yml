@@ -38,6 +38,19 @@ jobs:
       - name: Vet
         run: go vet ./...
 
+      # A dependency advisory only matters when the affected symbol is reachable
+      # from this code, which is what govulncheck decides and what a plain
+      # version scan cannot. This repository shipped a reachable one before
+      # anything was checking, so the check belongs in the gate rather than in a
+      # maintainer's routine.
+      - name: Vulnerability scan
+        run: |
+          # Pinned, and invoked through the module cache path rather than
+          # assuming GOPATH/bin is on PATH: a floating version would silently
+          # change what the gate enforces.
+          go install golang.org/x/vuln/cmd/govulncheck@v1.9.0
+          "$(go env GOPATH)/bin/govulncheck" ./...
+
       # The suite drives concurrent member loading and shares a rate-limiter
       # map, and the race detector is the only thing that inspects that. -count=1
       # keeps a cached pass from hiding a failure.

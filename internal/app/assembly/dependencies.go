@@ -74,7 +74,7 @@ func NewDependencies(cfg *config.Config, db database.DBInterface, ztClient *zero
 	setupService := services.NewSetupService(runtimeService, stateService, userService, networkService)
 	systemService := services.NewSystemService()
 
-	authHandler := handlers.NewAuthHandler(userService, sessionService, runtimeService, stateService)
+	authHandler := handlers.NewAuthHandler(userService, sessionService, stateService)
 
 	return &Dependencies{
 		Config:   cfg,

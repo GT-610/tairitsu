@@ -18,7 +18,7 @@ import {
 } from '@mui/material';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import { useTranslation, type LanguagePreference } from '../i18n';
-import { authAPI, getSetupToken, setSetupToken, systemAPI, type DatabaseSetupConfig, type SetupStatus, type ZeroTierSetupConfig } from '../services/api';
+import { getSetupToken, setSetupToken, systemAPI, type DatabaseSetupConfig, type SetupStatus, type ZeroTierSetupConfig } from '../services/api';
 import { getErrorMessage } from '../services/errors';
 import { getInitialSetupWizardStep, getResumableSetupWizardStep } from '../utils/setupWizard';
 
@@ -172,7 +172,10 @@ function SetupWizard() {
         if (!status?.adminCreationPrepared && !status?.hasAdmin) {
           await systemAPI.initializeAdminCreation();
         }
-        await authAPI.register(adminData);
+        // The administrator role comes from this setup-gated endpoint, not from
+        // public registration, which cannot tell the operator from any other
+        // caller that reaches the port during first-run.
+        await systemAPI.registerInitialAdmin(adminData);
         const nextStatus = await fetchSetupStatus();
         setSuccess(`${translateText('首个管理员')} ${adminData.username.trim()} ${translateText('创建成功')}`);
         setAdminData((previous) => ({ ...previous, password: '' }));

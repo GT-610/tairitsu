@@ -2,7 +2,15 @@ package zerotier
 
 import (
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
+
+	"github.com/GT-610/tairitsu/internal/app/config"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestParseNetworkIDsSupportsCommonResponseShapes(t *testing.T) {
@@ -202,4 +210,76 @@ func TestNetworkUnmarshalJSONKeepsEveryConfigurationField(t *testing.T) {
 	if !config.V6AssignMode.ZT || !config.V6AssignMode.Plane6 || !config.V6AssignMode.Rfc4193 {
 		t.Errorf("V6AssignMode = %+v", config.V6AssignMode)
 	}
+}
+
+// TestClientDoesNotFollowRedirects is the regression test for controller token
+// exfiltration. Go re-sends custom headers across a redirect — X-ZT1-Auth is not
+// one of the well-known credential headers it strips — so following a redirect
+// handed the controller token to whatever host the redirect named.
+//
+// It goes through NewClientWithConfig rather than building a client by hand, so
+// the policy it exercises is the one the process actually installs.
+func TestClientDoesNotFollowRedirects(t *testing.T) {
+	t.Setenv(config.DataDirEnv, t.TempDir())
+
+	var leaked []string
+
+	// The second host stands in for wherever a redirect points.
+	sink := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		leaked = append(leaked, r.Header.Get("X-ZT1-Auth"))
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"version":"1.0.0","address":"aaaaaaaaaa","online":true}`))
+	}))
+	t.Cleanup(sink.Close)
+
+	redirector := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, sink.URL+r.URL.Path, http.StatusFound)
+	}))
+	t.Cleanup(redirector.Close)
+
+	tokenPath := filepath.Join(t.TempDir(), "authtoken.secret")
+	require.NoError(t, os.WriteFile(tokenPath, []byte("gvyqdnryjyhm9tms336s428i\n"), 0o600))
+
+	client, err := NewClientWithConfig(&config.Config{
+		ZeroTier: config.ZeroTierConfig{URL: redirector.URL, TokenPath: tokenPath},
+		Security: config.SecurityConfig{EncryptionKey: "test-secret-key"},
+	})
+	require.NoError(t, err)
+
+	_, err = client.GetStatus()
+	require.Error(t, err, "a redirect must not be followed")
+	assert.Empty(t, leaked, "the controller token must never reach the redirect target")
+}
+
+// TestNetworkUpdateRequestOmitsFieldsTheCallerDidNotName pins the serialisation
+// the controller's partial update depends on: a bool that was not in the request
+// must not appear in the body, or it replaces the stored value with false.
+func TestNetworkUpdateRequestOmitsFieldsTheCallerDidNotName(t *testing.T) {
+	body, err := json.Marshal(&NetworkUpdateRequest{
+		DNS: &DNSConfig{Domain: "example.test"},
+	})
+	require.NoError(t, err)
+
+	var decoded map[string]any
+	require.NoError(t, json.Unmarshal(body, &decoded))
+
+	assert.NotContains(t, decoded, "private", "an unnamed private flag must not be sent")
+	assert.NotContains(t, decoded, "enableBroadcast", "an unnamed broadcast flag must not be sent")
+	assert.Contains(t, decoded, "dns")
+}
+
+func TestNetworkUpdateRequestSendsFlagsTheCallerNamed(t *testing.T) {
+	private := true
+	broadcast := false
+	body, err := json.Marshal(&NetworkUpdateRequest{
+		Private:         &private,
+		EnableBroadcast: &broadcast,
+	})
+	require.NoError(t, err)
+
+	var decoded map[string]any
+	require.NoError(t, json.Unmarshal(body, &decoded))
+
+	assert.Equal(t, true, decoded["private"])
+	assert.Equal(t, false, decoded["enableBroadcast"], "an explicit false must still be sent")
 }

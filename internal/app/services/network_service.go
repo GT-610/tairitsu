@@ -23,8 +23,13 @@ type networkMemberStats struct {
 	expiresAt       time.Time
 }
 
+// memberStatsSetter receives the member counts for one network.
+//
+// The counts are pointers because "no members" and "the controller did not
+// answer" are different facts. Reporting the second as zero told an operator a
+// network was empty while the console simply could not see it.
 type memberStatsSetter interface {
-	SetMemberStats(memberCount, authorizedCount, pendingCount int)
+	SetMemberStats(memberCount, authorizedCount, pendingCount *int)
 }
 
 func (s *NetworkService) fillMemberStats(nIDs []string, targets []memberStatsSetter) {
@@ -39,7 +44,7 @@ func (s *NetworkService) fillMemberStats(nIDs []string, targets []memberStatsSet
 	limiter := make(chan struct{}, min(networkMemberStatsConcurrency, len(nIDs)))
 	for i, nID := range nIDs {
 		if stats, ok := s.getCachedMemberStats(nID); ok {
-			targets[i].SetMemberStats(stats.memberCount, stats.authorizedCount, stats.pendingCount)
+			targets[i].SetMemberStats(&stats.memberCount, &stats.authorizedCount, &stats.pendingCount)
 			continue
 		}
 
@@ -51,6 +56,9 @@ func (s *NetworkService) fillMemberStats(nIDs []string, targets []memberStatsSet
 
 			members, err := zt.GetMembers(networkID)
 			if err != nil {
+				// The counts stay unset rather than defaulting to zero: the caller
+				// must be able to tell "this network has no members" from "this
+				// network's members could not be read".
 				logger.Warn("service: failed to get network member counts", zap.String("network_id", networkID), zap.Error(err))
 				return
 			}
@@ -68,7 +76,8 @@ func (s *NetworkService) fillMemberStats(nIDs []string, targets []memberStatsSet
 				pendingCount:    pending,
 				expiresAt:       time.Now().Add(networkMemberStatsCacheTTL),
 			})
-			targets[index].SetMemberStats(len(members), authorized, pending)
+			memberCount := len(members)
+			targets[index].SetMemberStats(&memberCount, &authorized, &pending)
 		}(i, nID)
 	}
 	wg.Wait()
@@ -217,14 +226,14 @@ type NetworkSummary struct {
 	Description           string      `json:"description"`
 	OwnerID               string      `json:"owner_id"`
 	Role                  NetworkRole `json:"role"`
-	MemberCount           int         `json:"member_count"`
-	AuthorizedMemberCount int         `json:"authorized_member_count"`
-	PendingMemberCount    int         `json:"pending_member_count"`
+	MemberCount           *int        `json:"member_count"`
+	AuthorizedMemberCount *int        `json:"authorized_member_count"`
+	PendingMemberCount    *int        `json:"pending_member_count"`
 	CreatedAt             time.Time   `json:"created_at"`
 	UpdatedAt             time.Time   `json:"updated_at"`
 }
 
-func (n *NetworkSummary) SetMemberStats(memberCount, authorizedCount, pendingCount int) {
+func (n *NetworkSummary) SetMemberStats(memberCount, authorizedCount, pendingCount *int) {
 	n.MemberCount = memberCount
 	n.AuthorizedMemberCount = authorizedCount
 	n.PendingMemberCount = pendingCount
@@ -237,14 +246,14 @@ type SharedNetworkSummary struct {
 	OwnerID               string      `json:"owner_id"`
 	OwnerUsername         string      `json:"owner_username"`
 	Role                  NetworkRole `json:"role"`
-	MemberCount           int         `json:"member_count"`
-	AuthorizedMemberCount int         `json:"authorized_member_count"`
-	PendingMemberCount    int         `json:"pending_member_count"`
+	MemberCount           *int        `json:"member_count"`
+	AuthorizedMemberCount *int        `json:"authorized_member_count"`
+	PendingMemberCount    *int        `json:"pending_member_count"`
 	CreatedAt             time.Time   `json:"created_at"`
 	UpdatedAt             time.Time   `json:"updated_at"`
 }
 
-func (n *SharedNetworkSummary) SetMemberStats(memberCount, authorizedCount, pendingCount int) {
+func (n *SharedNetworkSummary) SetMemberStats(memberCount, authorizedCount, pendingCount *int) {
 	n.MemberCount = memberCount
 	n.AuthorizedMemberCount = authorizedCount
 	n.PendingMemberCount = pendingCount

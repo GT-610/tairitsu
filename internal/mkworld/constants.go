@@ -17,6 +17,7 @@ var (
 	ErrMaxRootNodesExceeded   = errors.New("root node count exceeds maximum")
 	ErrSerializedDataTooLarge = errors.New("serialized data too large")
 	ErrInvalidSigningKeys     = errors.New("invalid signing keys")
+	ErrSigningKeysExist       = errors.New("signing keys already exist")
 	ErrNoRootNodes            = errors.New("at least one root node is required")
 	ErrReservedPlanetID       = errors.New("planet id is reserved")
 	ErrInvalidBirthTime       = errors.New("birth time is invalid")

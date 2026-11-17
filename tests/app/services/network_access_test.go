@@ -38,11 +38,11 @@ func TestNetworkServiceAccessGrantAndSharedList(t *testing.T) {
 
 	service := services.NewNetworkService(nil, db)
 
-	candidates, err := service.GetNetworkAccessCandidates("8056c2e21c000021", "owner-1", "viewer")
+	candidates, err := service.GetNetworkAccessCandidates("8056c2e21c000021", "owner-1", "viewer", false)
 	require.NoError(t, err)
 	assert.Equal(t, []services.NetworkAccessCandidate{{ID: "viewer-1", Username: "viewer-1"}}, candidates)
 
-	emptyCandidates, err := service.GetNetworkAccessCandidates("8056c2e21c000021", "owner-1", " ")
+	emptyCandidates, err := service.GetNetworkAccessCandidates("8056c2e21c000021", "owner-1", " ", false)
 	require.NoError(t, err)
 	assert.Empty(t, emptyCandidates)
 
@@ -79,7 +79,7 @@ func TestNetworkServiceAccessGrantAndSharedList(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, ownerShared)
 
-	remaining, err := service.GetNetworkAccessCandidates("8056c2e21c000021", "owner-1", "viewer")
+	remaining, err := service.GetNetworkAccessCandidates("8056c2e21c000021", "owner-1", "viewer", false)
 	require.NoError(t, err)
 	assert.Empty(t, remaining)
 
@@ -89,7 +89,7 @@ func TestNetworkServiceAccessGrantAndSharedList(t *testing.T) {
 	assert.Contains(t, viewerAccess.MyPermissions, services.NetworkPermissionMembersRead)
 	assert.NotContains(t, viewerAccess.MyPermissions, services.NetworkPermissionMembersWrite)
 
-	_, err = service.GetNetworkAccessCandidates("8056c2e21c000021", "viewer-1", "outside")
+	_, err = service.GetNetworkAccessCandidates("8056c2e21c000021", "viewer-1", "outside", false)
 	require.ErrorIs(t, err, services.ErrNetworkPermissionDenied)
 }
 
@@ -368,17 +368,25 @@ func TestNetworkServiceAccessCandidatesTreatWildcardsLiterally(t *testing.T) {
 
 	service := services.NewNetworkService(nil, db)
 
-	percent, err := service.GetNetworkAccessCandidates("8056c2e21c000029", "owner-1", "%")
+	// A query that literally contains SQL pattern characters finds the account
+	// whose name contains them, and nothing else.
+	percent, err := service.GetNetworkAccessCandidates("8056c2e21c000029", "owner-1", "a%b", false)
 	require.NoError(t, err)
 	assert.Equal(t, []services.NetworkAccessCandidate{{ID: "a%b", Username: "a%b"}}, percent)
 
-	underscore, err := service.GetNetworkAccessCandidates("8056c2e21c000029", "owner-1", "_")
+	underscore, err := service.GetNetworkAccessCandidates("8056c2e21c000029", "owner-1", "a_b", false)
 	require.NoError(t, err)
 	assert.Equal(t, []services.NetworkAccessCandidate{{ID: "a_b", Username: "a_b"}}, underscore)
 
-	letter, err := service.GetNetworkAccessCandidates("8056c2e21c000029", "owner-1", "a")
+	// And a pattern character supplied as part of a prefix is escaped rather than
+	// acting as a wildcard: "al%" must not match "alice".
+	escapedPercent, err := service.GetNetworkAccessCandidates("8056c2e21c000029", "owner-1", "al%", false)
 	require.NoError(t, err)
-	assert.Len(t, letter, 3)
+	assert.Empty(t, escapedPercent)
+
+	escapedUnderscore, err := service.GetNetworkAccessCandidates("8056c2e21c000029", "owner-1", "ali_", false)
+	require.NoError(t, err)
+	assert.Empty(t, escapedUnderscore)
 }
 
 func TestNetworkServiceTransferRejectsADeletedTarget(t *testing.T) {
@@ -398,4 +406,143 @@ func TestNetworkServiceTransferRejectsADeletedTarget(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, network)
 	assert.Equal(t, "owner-1", network.OwnerID)
+}
+
+// TestNetworkServiceAccessCandidatesScopeTheSearchToAPrefix is the regression
+// test for directory enumeration: any account with a self-registered network is
+// an owner, so a substring search let them sweep the whole user table a letter at
+// a time.
+func TestNetworkServiceAccessCandidatesScopeTheSearchToAPrefix(t *testing.T) {
+	db := testutil.NewSQLiteDB(t)
+	createTestUser(t, db, "owner-1", "user")
+	createTestUser(t, db, "admin-1", "admin")
+	createTestUser(t, db, "alice", "user")
+	createTestUser(t, db, "malice", "user")
+	seedAccessNetwork(t, db, "8056c2e21c000030", "owner-1")
+	// The platform administrator still has to hold access on this network: being
+	// an administrator widens the search, not the gateway to the network.
+	require.NoError(t, db.CreateNetworkGrant(&models.NetworkGrant{
+		NetworkID: "8056c2e21c000030", SubjectType: models.NetworkGrantSubjectUser,
+		SubjectID: "admin-1", Role: string(services.NetworkRoleManager),
+		GrantedBy: "owner-1", CreatedAt: time.Now(), UpdatedAt: time.Now(),
+	}))
+
+	service := services.NewNetworkService(nil, db)
+
+	// A network owner gets prefix matches only: "lice" is inside both names, but
+	// a prefix search is not a substring search.
+	mid, err := service.GetNetworkAccessCandidates("8056c2e21c000030", "owner-1", "lice", false)
+	require.NoError(t, err)
+	assert.Empty(t, mid, "a substring must not find accounts for a network owner")
+
+	prefix, err := service.GetNetworkAccessCandidates("8056c2e21c000030", "owner-1", "ali", false)
+	require.NoError(t, err)
+	assert.Equal(t, []services.NetworkAccessCandidate{{ID: "alice", Username: "alice"}}, prefix)
+
+	// A platform administrator already has the whole table through /api/users, so
+	// the wider search tells them nothing new.
+	substring, err := service.GetNetworkAccessCandidates("8056c2e21c000030", "admin-1", "lice", true)
+	require.NoError(t, err)
+	assert.Len(t, substring, 2, "an administrator keeps the substring search")
+}
+
+// TestNetworkServiceAccessCandidatesRequireAUsableQuery keeps one character from
+// sweeping a directory.
+func TestNetworkServiceAccessCandidatesRequireAUsableQuery(t *testing.T) {
+	db := testutil.NewSQLiteDB(t)
+	createTestUser(t, db, "owner-1", "user")
+	for _, name := range []string{"adam", "alice", "amanda", "bob"} {
+		createTestUser(t, db, name, "user")
+	}
+	seedAccessNetwork(t, db, "8056c2e21c000031", "owner-1")
+
+	service := services.NewNetworkService(nil, db)
+
+	for _, query := range []string{"", " ", "a", "am"} {
+		candidates, err := service.GetNetworkAccessCandidates("8056c2e21c000031", "owner-1", query, true)
+		require.NoError(t, err)
+		assert.Empty(t, candidates, "query %q is a partial query too short to answer", query)
+	}
+
+	// Three characters is enough to identify a name.
+	candidates, err := service.GetNetworkAccessCandidates("8056c2e21c000031", "owner-1", "ama", true)
+	require.NoError(t, err)
+	assert.Equal(t, []services.NetworkAccessCandidate{{ID: "amanda", Username: "amanda"}}, candidates)
+}
+
+// TestNetworkServiceAccessCandidatesStillRequireAccessWrite confirms narrowing
+// the search did not widen who may call it.
+func TestNetworkServiceAccessCandidatesStillRequireAccessWrite(t *testing.T) {
+	db := testutil.NewSQLiteDB(t)
+	createTestUser(t, db, "owner-1", "user")
+	createTestUser(t, db, "viewer-1", "user")
+	createTestUser(t, db, "alice", "user")
+	seedAccessNetwork(t, db, "8056c2e21c000032", "owner-1")
+	require.NoError(t, db.CreateNetworkGrant(&models.NetworkGrant{
+		NetworkID: "8056c2e21c000032", SubjectType: models.NetworkGrantSubjectUser,
+		SubjectID: "viewer-1", Role: string(services.NetworkRoleViewer),
+		GrantedBy: "owner-1", CreatedAt: time.Now(), UpdatedAt: time.Now(),
+	}))
+
+	service := services.NewNetworkService(nil, db)
+
+	_, err := service.GetNetworkAccessCandidates("8056c2e21c000032", "viewer-1", "alice", true)
+	require.ErrorIs(t, err, services.ErrNetworkPermissionDenied)
+}
+
+// TestNetworkServiceAccessCandidatesFindAShortExactName is the regression test for
+// an account that could not be added at all: registration accepts a name of one
+// rune, but the picker refused every query below three, and no longer query can
+// match a name that is shorter than the query.
+func TestNetworkServiceAccessCandidatesFindAShortExactName(t *testing.T) {
+	db := testutil.NewSQLiteDB(t)
+	createTestUser(t, db, "owner-1", "user")
+	createTestUser(t, db, "li", "user")
+	createTestUser(t, db, "liwei", "user")
+	seedAccessNetwork(t, db, "8056c2e21c000033", "owner-1")
+
+	service := services.NewNetworkService(nil, db)
+
+	// The exact short name is found...
+	exact, err := service.GetNetworkAccessCandidates("8056c2e21c000033", "owner-1", "li", false)
+	require.NoError(t, err)
+	assert.Equal(t, []services.NetworkAccessCandidate{{ID: "li", Username: "li"}}, exact,
+		"an exact short name must be findable")
+
+	// ...without turning into a partial search: "l" matches two accounts but names
+	// neither, so it stays empty.
+	partial, err := service.GetNetworkAccessCandidates("8056c2e21c000033", "owner-1", "l", false)
+	require.NoError(t, err)
+	assert.Empty(t, partial, "a one-rune query must not list the accounts that contain it")
+
+	// A longer partial query still works for the longer name.
+	longer, err := service.GetNetworkAccessCandidates("8056c2e21c000033", "owner-1", "liw", false)
+	require.NoError(t, err)
+	assert.Equal(t, []services.NetworkAccessCandidate{{ID: "liwei", Username: "liwei"}}, longer)
+}
+
+// TestNetworkServiceAccessCandidatesShortNameRespectsExclusions keeps the exact
+// lookup from becoming a way around the owner and grant filters.
+func TestNetworkServiceAccessCandidatesShortNameRespectsExclusions(t *testing.T) {
+	db := testutil.NewSQLiteDB(t)
+	createTestUser(t, db, "li", "user")
+	createTestUser(t, db, "wu", "user")
+	seedAccessNetwork(t, db, "8056c2e21c000034", "li")
+	require.NoError(t, db.CreateNetworkGrant(&models.NetworkGrant{
+		NetworkID: "8056c2e21c000034", SubjectType: models.NetworkGrantSubjectUser,
+		SubjectID: "wu", Role: string(services.NetworkRoleViewer),
+		GrantedBy: "li", CreatedAt: time.Now(), UpdatedAt: time.Now(),
+	}))
+
+	service := services.NewNetworkService(nil, db)
+
+	// The owner is not a candidate for their own network.
+	owner, err := service.GetNetworkAccessCandidates("8056c2e21c000034", "li", "li", false)
+	require.NoError(t, err)
+	assert.Empty(t, owner)
+
+	// Nor is an account that already holds a grant.
+	granted, err := service.GetNetworkAccessCandidates("8056c2e21c000034", "li", "wu", false)
+	require.NoError(t, err)
+	assert.Empty(t, granted)
 }

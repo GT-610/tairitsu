@@ -5,8 +5,13 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -234,4 +239,314 @@ func TestReadSigningKeys_RejectsInvalidLength(t *testing.T) {
 	if _, _, _, _, err := ReadSigningKeys(prevPath, curPath); err == nil {
 		t.Fatal("ReadSigningKeys() error = nil, want error")
 	}
+}
+
+// TestCreateSigningKeysWritesDistinctPairs is the regression test for a rotation
+// pair that was really one key twice: previous.c25519 signs the published world
+// and current.c25519 is the successor, so they must differ or the rollover the
+// model exists for can never happen.
+func TestCreateSigningKeysWritesDistinctPairs(t *testing.T) {
+	tempDir := t.TempDir()
+	prevPath := filepath.Join(tempDir, "previous.c25519")
+	curPath := filepath.Join(tempDir, "current.c25519")
+
+	if err := CreateSigningKeys(prevPath, curPath); err != nil {
+		t.Fatalf("CreateSigningKeys() error = %v", err)
+	}
+
+	prevFile, err := os.ReadFile(prevPath)
+	if err != nil {
+		t.Fatalf("read previous key: %v", err)
+	}
+	curFile, err := os.ReadFile(curPath)
+	if err != nil {
+		t.Fatalf("read current key: %v", err)
+	}
+
+	if string(prevFile) == string(curFile) {
+		t.Fatal("the rotation pair is the same key twice; current.c25519 must be a successor, not a copy")
+	}
+
+	// Both halves have to be readable as a pair, which is what publishing a
+	// planet relies on.
+	if _, _, _, _, err := ReadSigningKeys(prevPath, curPath); err != nil {
+		t.Fatalf("ReadSigningKeys() error = %v", err)
+	}
+}
+
+// TestGeneratePlanetAdvancesTheSigningRing is the regression test for consecutive
+// publications that cannot both be accepted. A planet advertises current.c25519 as
+// the key its own next update must be signed by, so signing the second publication
+// with the same key as the first makes every node that took the first reject it.
+//
+// The assertion is the chain itself: after each publication, previous.c25519 has to
+// be the key that publication advertised, which is what current.c25519 held before
+// it ran.
+func TestGeneratePlanetAdvancesTheSigningRing(t *testing.T) {
+	tempDir := t.TempDir()
+	prevPath := filepath.Join(tempDir, "previous.c25519")
+	curPath := filepath.Join(tempDir, "current.c25519")
+
+	require.NoError(t, CreateSigningKeys(prevPath, curPath))
+
+	readKey := func(path string) []byte {
+		content, err := os.ReadFile(path)
+		require.NoError(t, err)
+		return content
+	}
+	generate := func() {
+		_, err := GeneratePlanet(&GenerateOptions{
+			RootNodes:       []RootNodeConfig{testRootNode(validIdentityPublic, "203.0.113.1/9993")},
+			SigningKeyPath:  tempDir,
+			RecommendValues: true,
+		})
+		require.NoError(t, err)
+	}
+
+	// First publication signs with the stored previous key and advertises the
+	// stored current key.
+	advertisedByFirst := readKey(curPath)
+	generate()
+
+	assert.Equal(t, advertisedByFirst, readKey(prevPath),
+		"the second publication must be signed by the key the first one advertised")
+	assert.NotEqual(t, advertisedByFirst, readKey(curPath),
+		"a fresh successor must be generated")
+
+	// Second publication: same rule, one step along the ring.
+	advertisedBySecond := readKey(curPath)
+	generate()
+
+	assert.Equal(t, advertisedBySecond, readKey(prevPath),
+		"the third publication must be signed by the key the second one advertised")
+	assert.NotEqual(t, advertisedBySecond, readKey(curPath))
+
+	// And the pair is still readable, so a third publication is possible at all.
+	_, _, _, _, err := ReadSigningKeys(prevPath, curPath)
+	require.NoError(t, err)
+}
+
+// TestCreateSigningKeysRefusesToReplaceAnExistingPair covers the other half: a
+// deployed planet names the stored current key, so overwriting it silently would
+// break that planet's update chain.
+func TestCreateSigningKeysRefusesToReplaceAnExistingPair(t *testing.T) {
+	tempDir := t.TempDir()
+	prevPath := filepath.Join(tempDir, "previous.c25519")
+	curPath := filepath.Join(tempDir, "current.c25519")
+
+	require.NoError(t, CreateSigningKeys(prevPath, curPath))
+
+	before, err := os.ReadFile(prevPath)
+	require.NoError(t, err)
+
+	err = CreateSigningKeys(prevPath, curPath)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, ErrSigningKeysExist), "got %v", err)
+
+	after, err := os.ReadFile(prevPath)
+	require.NoError(t, err)
+	assert.Equal(t, before, after, "a refused call must not have touched the stored keys")
+}
+
+// TestLockSigningKeyDirectorySerialisesPerDirectory covers the primitive that keeps
+// two generations from advancing one ring from the same snapshot: holders of the
+// same directory never overlap, and different directories do not wait for each other.
+func TestLockSigningKeyDirectorySerialisesPerDirectory(t *testing.T) {
+	var active, peak int32
+	var waitGroup sync.WaitGroup
+
+	for worker := 0; worker < 8; worker++ {
+		waitGroup.Add(1)
+		go func() {
+			defer waitGroup.Done()
+
+			unlock := lockSigningKeyDirectory("/keys/shared")
+			defer unlock()
+
+			current := atomic.AddInt32(&active, 1)
+			for {
+				observed := atomic.LoadInt32(&peak)
+				if current <= observed || atomic.CompareAndSwapInt32(&peak, observed, current) {
+					break
+				}
+			}
+			time.Sleep(time.Millisecond)
+			atomic.AddInt32(&active, -1)
+		}()
+	}
+	waitGroup.Wait()
+
+	assert.Equal(t, int32(1), atomic.LoadInt32(&peak),
+		"two holders of one directory must never overlap")
+
+	// A different directory has its own lock, so the two do not block each other.
+	first := lockSigningKeyDirectory("/keys/first")
+	second := lockSigningKeyDirectory("/keys/second")
+	second()
+	first()
+}
+
+// TestCreateSigningKeysAllowsExactlyOneConcurrentCreator covers two requests racing
+// to create a pair: the second must lose rather than replace the first, and what it
+// wrote must be a complete, readable pair.
+func TestCreateSigningKeysAllowsExactlyOneConcurrentCreator(t *testing.T) {
+	tempDir := t.TempDir()
+	prevPath := filepath.Join(tempDir, "previous.c25519")
+	curPath := filepath.Join(tempDir, "current.c25519")
+
+	var waitGroup sync.WaitGroup
+	var mutex sync.Mutex
+	var succeeded int
+	for worker := 0; worker < 8; worker++ {
+		waitGroup.Add(1)
+		go func() {
+			defer waitGroup.Done()
+			if err := CreateSigningKeys(prevPath, curPath); err == nil {
+				mutex.Lock()
+				succeeded++
+				mutex.Unlock()
+			}
+		}()
+	}
+	waitGroup.Wait()
+
+	assert.Equal(t, 1, succeeded, "only one creator may win")
+	_, _, _, _, err := ReadSigningKeys(prevPath, curPath)
+	require.NoError(t, err, "the winning pair must be complete")
+}
+
+// TestCreateKeyFileRefusesToReplaceAnExistingFile is the primitive behind the above:
+// creation is exclusive, so the only copy of a key cannot be truncated by a second
+// writer — including one in another process, which the in-process lock cannot stop.
+func TestCreateKeyFileRefusesToReplaceAnExistingFile(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "current.c25519")
+
+	pub, priv, err := GenerateDualPair()
+	require.NoError(t, err)
+	require.NoError(t, createKeyFile(path, pub, priv))
+
+	before, err := os.ReadFile(path)
+	require.NoError(t, err)
+
+	otherPub, otherPriv, err := GenerateDualPair()
+	require.NoError(t, err)
+	err = createKeyFile(path, otherPub, otherPriv)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, ErrSigningKeysExist), "got %v", err)
+
+	after, err := os.ReadFile(path)
+	require.NoError(t, err)
+	assert.Equal(t, before, after, "a refused create must not have touched the file")
+}
+
+// TestKeyRotationLeavesNoTemporaryFiles covers the atomic replacement: the new key is
+// written beside the target and renamed over it, which must not leave debris in the
+// directory an operator is told to keep.
+func TestKeyRotationLeavesNoTemporaryFiles(t *testing.T) {
+	tempDir := t.TempDir()
+	prevPath := filepath.Join(tempDir, "previous.c25519")
+	curPath := filepath.Join(tempDir, "current.c25519")
+
+	require.NoError(t, CreateSigningKeys(prevPath, curPath))
+	_, err := GeneratePlanet(&GenerateOptions{
+		RootNodes:       []RootNodeConfig{testRootNode(validIdentityPublic, "203.0.113.1/9993")},
+		SigningKeyPath:  tempDir,
+		RecommendValues: true,
+	})
+	require.NoError(t, err)
+
+	entries, err := os.ReadDir(tempDir)
+	require.NoError(t, err)
+
+	names := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		names = append(names, entry.Name())
+	}
+	assert.ElementsMatch(t, []string{"previous.c25519", "current.c25519"}, names,
+		"rotation must leave exactly the two key files")
+
+	// And the rotated pair is readable, which a partial write would prevent.
+	_, _, _, _, err = ReadSigningKeys(prevPath, curPath)
+	require.NoError(t, err)
+}
+
+// TestFillKeyFileRemovesAFileItCouldNotWrite covers the recovery path: a key file that
+// was created but could not be filled must not be left behind, because the existence
+// check would then refuse every later attempt and only a manual deletion would clear it.
+func TestFillKeyFileRemovesAFileItCouldNotWrite(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "previous.c25519")
+
+	// Created exclusively, as createKeyFile does, then closed so the content write
+	// fails the way a storage error would.
+	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
+	require.NoError(t, err)
+	require.NoError(t, file.Close())
+
+	pub, priv, err := GenerateDualPair()
+	require.NoError(t, err)
+	require.Error(t, fillKeyFile(path, file, pub, priv))
+
+	_, statErr := os.Stat(path)
+	assert.True(t, os.IsNotExist(statErr),
+		"a key file whose content could not be written must be removed, not left to block the next attempt")
+}
+
+// TestAdvanceSigningKeysWritesTheSuccessorFirst covers the ordering that keeps a failed
+// generation recoverable.
+//
+// A generation that returns an error never hands a planet to the caller, so the stored
+// pair has to remain usable for a retry. The signer is what the *deployed* world expects
+// to verify, so it is promoted last: with the writer failing on the successor, nothing
+// has changed; with it failing on the promotion, the successor is already in place and
+// the signer is untouched, so the retry is accepted.
+func TestAdvanceSigningKeysWritesTheSuccessorFirst(t *testing.T) {
+	dir := t.TempDir()
+	prevPath := filepath.Join(dir, "previous.c25519")
+	curPath := filepath.Join(dir, "current.c25519")
+	require.NoError(t, CreateSigningKeys(prevPath, curPath))
+
+	signerBefore, err := os.ReadFile(prevPath)
+	require.NoError(t, err)
+	pub, priv, err := GenerateDualPair()
+	require.NoError(t, err)
+
+	// The successor write fails: the signer must not be touched at all.
+	var attempted []string
+	failingSuccessor := func(path string, pub [ZT_C25519_PUBLIC_KEY_LEN]byte, priv [ZT_C25519_PRIVATE_KEY_LEN]byte) error {
+		attempted = append(attempted, path)
+		if path == curPath {
+			return errors.New("simulated storage failure")
+		}
+		return writeKeyFile(path, pub, priv)
+	}
+	require.Error(t, advanceSigningKeys(prevPath, curPath, pub, priv, failingSuccessor))
+	assert.Equal(t, []string{curPath}, attempted,
+		"the successor must be attempted before the signer, so nothing is consumed")
+
+	signerAfter, err := os.ReadFile(prevPath)
+	require.NoError(t, err)
+	assert.Equal(t, signerBefore, signerAfter)
+
+	// The promotion write fails: the successor is already on disk and the signer still
+	// holds what the deployed world expects, so a retry remains valid.
+	successorBefore, err := os.ReadFile(curPath)
+	require.NoError(t, err)
+	failingPromotion := func(path string, pub [ZT_C25519_PUBLIC_KEY_LEN]byte, priv [ZT_C25519_PRIVATE_KEY_LEN]byte) error {
+		if path == prevPath {
+			return errors.New("simulated storage failure")
+		}
+		return writeKeyFile(path, pub, priv)
+	}
+	require.Error(t, advanceSigningKeys(prevPath, curPath, pub, priv, failingPromotion))
+
+	signerAfterPromotion, err := os.ReadFile(prevPath)
+	require.NoError(t, err)
+	assert.Equal(t, signerBefore, signerAfterPromotion,
+		"a failed promotion must leave the signer the deployed world expects")
+
+	successorAfter, err := os.ReadFile(curPath)
+	require.NoError(t, err)
+	assert.NotEqual(t, successorBefore, successorAfter,
+		"the successor was written before the promotion was attempted")
 }
