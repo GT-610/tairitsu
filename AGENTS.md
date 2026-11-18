@@ -16,8 +16,8 @@
 ## Docker test environment
 - All local Docker test data: `build/.docker/`
 - ZeroTier data: `build/.docker/zerotier-one/`
-- Tairitsu persistent data: `build/.docker/tairitsu-data/`
+- Tempest-ZT persistent data: `build/.docker/tempest-zt-data/`
 - ZeroTier container: mount `build/.docker/zerotier-one` → `/var/lib/zerotier-one`
-- Host Tairitsu backend: use host path for ZeroTier token, e.g. `.../build/.docker/zerotier-one/authtoken.secret`
-- Docker Tairitsu + ZeroTier on same network: use container paths, e.g. `http://zerotier:9993`
+- Host Tempest-ZT backend: use host path for ZeroTier token, e.g. `.../build/.docker/zerotier-one/authtoken.secret`
+- Docker Tempest-ZT + ZeroTier on same network: use container paths, e.g. `http://zerotier:9993`
 - Local controller API access: ensure `build/.docker/zerotier-one/local.conf` has `allowManagementFrom` configured

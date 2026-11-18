@@ -13,12 +13,12 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/GT-610/tairitsu/internal/app/crypto"
-	"github.com/GT-610/tairitsu/internal/app/logger"
+	"github.com/GT-610/tempest-zt/internal/app/crypto"
+	"github.com/GT-610/tempest-zt/internal/app/logger"
 	"go.uber.org/zap"
 )
 
-// DatabaseConfig describes where Tairitsu keeps its data.
+// DatabaseConfig describes where Tempest-ZT keeps its data.
 //
 // Only SQLite is implemented: the setup wizard rejects every other type, so the
 // host, port, user, password and database-name fields that a MySQL or
@@ -46,7 +46,7 @@ type SecurityConfig struct {
 }
 
 // EncryptionKeyEnv seeds the encryption key on a fresh instance.
-const EncryptionKeyEnv = "TAIRITSU_ENCRYPTION_KEY"
+const EncryptionKeyEnv = "TEMPEST_ZT_ENCRYPTION_KEY"
 
 // legacyEncryptionKeyEnv is the name this variable had while the key was also
 // used to sign JSON Web Tokens. It is still read so that an existing
@@ -59,7 +59,7 @@ type RegistrationConfig struct {
 }
 
 // ConsolePort is the port the web console and the API listen on. It is fixed
-// rather than configurable: the container is the supported way to run Tairitsu,
+// rather than configurable: the container is the supported way to run Tempest-ZT,
 // so the port a request arrives on inside the container is an implementation
 // detail, and the port users reach is decided by their own mapping (for example
 // `-p 8080:3000`). Keeping it constant also means an existing `-p 3000:3000`
@@ -88,27 +88,27 @@ var AppConfig *Config
 var tempSettings = make(map[string]string)
 var tempSettingsMutex sync.RWMutex
 
-// dataDirName holds Tairitsu's persistent state: the configuration file and the
+// dataDirName holds Tempest-ZT's persistent state: the configuration file and the
 // SQLite database created by the setup wizard.
 const dataDirName = "data"
 
 // DataDirEnv relocates dataDirName.
-const DataDirEnv = "TAIRITSU_DATA_DIR"
+const DataDirEnv = "TEMPEST_ZT_DATA_DIR"
 
 // configFileName is the persisted configuration inside the data directory.
 const configFileName = "config.json"
 
 // defaultDatabaseFileName is the SQLite file used when setup does not name one.
-const defaultDatabaseFileName = "tairitsu.db"
+const defaultDatabaseFileName = "tempest-zt.db"
 
-// DataRoot returns the absolute path of Tairitsu's data directory.
+// DataRoot returns the absolute path of Tempest-ZT's data directory.
 //
 // Everything a request may ask the server to create or delete lives here, so
 // the directory the operator mounts is also the boundary the server enforces.
 // It is read on every call rather than cached, which keeps it correct for a
 // process whose working directory or environment changes under a test.
 func DataRoot() string {
-	root := Env(DataDirEnv)
+	root := EnvWithLegacy(DataDirEnv)
 	if root == "" {
 		root = dataDirName
 	}
@@ -126,7 +126,7 @@ func ConfigFilePath() string {
 }
 
 // ResolveDataPath resolves candidate to an absolute path and refuses anything
-// that escapes Tairitsu's data directory. An empty candidate selects the
+// that escapes Tempest-ZT's data directory. An empty candidate selects the
 // default database file.
 //
 // Setup input decides where the SQLite file lives and a later reset deletes
@@ -140,7 +140,7 @@ func ResolveDataPath(candidate string) (string, error) {
 }
 
 // OpenDataDir resolves candidate exactly as ResolveDataPath does and returns a
-// handle to Tairitsu's data directory, together with candidate expressed
+// handle to Tempest-ZT's data directory, together with candidate expressed
 // relative to it. The caller closes the handle.
 //
 // The handle is what makes deleting the named file safe. A check followed by a
@@ -156,7 +156,7 @@ func OpenDataDir(candidate string) (*os.Root, string, error) {
 
 	root, err := os.OpenRoot(resolvedRoot)
 	if err != nil {
-		return nil, "", fmt.Errorf("failed to open the Tairitsu data directory (%s): %w", resolvedRoot, err)
+		return nil, "", fmt.Errorf("failed to open the Tempest-ZT data directory (%s): %w", resolvedRoot, err)
 	}
 
 	return root, relative, nil
@@ -190,10 +190,10 @@ func resolveDataCandidate(candidate string) (string, string, string, error) {
 	// its unresolved spelling.
 	relative, err := filepath.Rel(resolveExistingPrefix(resolvedRoot), resolveExistingPrefix(absolute))
 	if err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
-		return "", "", "", fmt.Errorf("path %q is outside the Tairitsu data directory (%s)", candidate, resolvedRoot)
+		return "", "", "", fmt.Errorf("path %q is outside the Tempest-ZT data directory (%s)", candidate, resolvedRoot)
 	}
 	if relative == "." {
-		return "", "", "", fmt.Errorf("path %q is the Tairitsu data directory itself", candidate)
+		return "", "", "", fmt.Errorf("path %q is the Tempest-ZT data directory itself", candidate)
 	}
 
 	return resolvedRoot, absolute, relative, nil
@@ -408,7 +408,7 @@ func loadEnvConfig(cfg *Config) {
 	if url := Env("ZT_CONTROLLER_URL"); url != "" {
 		cfg.ZeroTier.URL = url
 	}
-	if key := Env(EncryptionKeyEnv); key != "" {
+	if key := EnvWithLegacy(EncryptionKeyEnv); key != "" {
 		cfg.Security.EncryptionKey = key
 	} else if legacy := Env(legacyEncryptionKeyEnv); legacy != "" {
 		logger.Warn("ignoring the deprecated environment variable; rename it",

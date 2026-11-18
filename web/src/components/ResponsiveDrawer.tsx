@@ -92,7 +92,7 @@ interface ResponsiveDrawerProps {
   onLogout: () => void;
 }
 
-export default function ResponsiveDrawer({ window, children, title = 'Tairitsu', user, onLogout }: ResponsiveDrawerProps) {
+export default function ResponsiveDrawer({ window, children, title = 'Tempest-ZT', user, onLogout }: ResponsiveDrawerProps) {
   const { cycleThemePreference, t, themePreference, translateText } = useTranslation();
   const [mobileOpen, setMobileOpen] = React.useState<boolean>(false);
   const [isClosing, setIsClosing] = React.useState<boolean>(false);
@@ -351,13 +351,13 @@ export default function ResponsiveDrawer({ window, children, title = 'Tairitsu',
         fullWidth
       >
         <DialogTitle id="sponsor-dialog-title">
-          {translateText('支持 Tairitsu')}
+          {translateText('支持 Tempest-ZT')}
         </DialogTitle>
         <DialogContent>
           <DialogContentText component="div" sx={{ whiteSpace: 'pre-line' }}>
-            {translateText('Tairitsu 是我开发的第一个开源生产环境项目。项目的发展离不开社区和用户的支持。')}
+            {translateText('Tempest-ZT 是我开发的第一个开源生产环境项目。项目的发展离不开社区和用户的支持。')}
             {'\n\n'}
-            {translateText('如果你觉得 Tairitsu 对你有帮助，欢迎通过以下方式支持项目：')}
+            {translateText('如果你觉得 Tempest-ZT 对你有帮助，欢迎通过以下方式支持项目：')}
             {'\n\n'}
             {translateText('• 前往 GitHub 仓库点击 Star，让更多人发现这个项目')}
             {'\n'}
@@ -369,12 +369,12 @@ export default function ResponsiveDrawer({ window, children, title = 'Tairitsu',
               {translateText('GitHub 仓库：')}
               <Box
                 component="a"
-                href="https://github.com/GT-610/tairitsu"
+                href="https://github.com/GT-610/tempest-zt"
                 target="_blank"
                 rel="noopener noreferrer"
                 sx={{ color: 'primary.main', textDecoration: 'underline' }}
               >
-                https://github.com/GT-610/tairitsu
+                https://github.com/GT-610/tempest-zt
               </Box>
             </Box>
           </DialogContentText>

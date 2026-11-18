@@ -5,7 +5,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/GT-610/tairitsu/internal/app/middleware"
+	"github.com/GT-610/tempest-zt/internal/app/middleware"
 	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

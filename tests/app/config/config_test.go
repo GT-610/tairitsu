@@ -11,14 +11,14 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/GT-610/tairitsu/internal/app/config"
+	"github.com/GT-610/tempest-zt/internal/app/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestLoadConfigGeneratesAndPersistsEncryptionKey(t *testing.T) {
 	useTemporaryWorkingDirectory(t)
-	t.Setenv("TAIRITSU_ENCRYPTION_KEY", "")
+	t.Setenv("TEMPEST_ZT_ENCRYPTION_KEY", "")
 	t.Setenv("JWT_SECRET", "")
 
 	first, err := config.LoadConfig()
@@ -39,7 +39,7 @@ func TestLoadConfigGeneratesAndPersistsEncryptionKey(t *testing.T) {
 
 func TestLoadConfigMigratesLegacyCredentialsEncryptedWithEmptyEncryptionKey(t *testing.T) {
 	useTemporaryWorkingDirectory(t)
-	t.Setenv("TAIRITSU_ENCRYPTION_KEY", "")
+	t.Setenv("TEMPEST_ZT_ENCRYPTION_KEY", "")
 	t.Setenv("JWT_SECRET", "")
 
 	legacyConfig := &config.Config{
@@ -67,7 +67,7 @@ func TestLoadConfigMigratesLegacyCredentialsEncryptedWithEmptyEncryptionKey(t *t
 
 func TestLoadConfigContinuesWhenTokenRetryFails(t *testing.T) {
 	useTemporaryWorkingDirectory(t)
-	t.Setenv("TAIRITSU_ENCRYPTION_KEY", "")
+	t.Setenv("TEMPEST_ZT_ENCRYPTION_KEY", "")
 	t.Setenv("JWT_SECRET", "")
 	t.Setenv("ZT_TOKEN_PATH", filepath.Join(t.TempDir(), "missing-authtoken.secret"))
 
@@ -82,7 +82,7 @@ func TestLoadConfigContinuesWhenTokenRetryFails(t *testing.T) {
 // on upgrade would lose them.
 func TestLoadConfigAdoptsTheLegacyEncryptionKeyName(t *testing.T) {
 	useTemporaryWorkingDirectory(t)
-	t.Setenv("TAIRITSU_ENCRYPTION_KEY", "")
+	t.Setenv("TEMPEST_ZT_ENCRYPTION_KEY", "")
 	t.Setenv("JWT_SECRET", "")
 
 	require.NoError(t, os.MkdirAll("data", 0755))
@@ -113,7 +113,7 @@ func TestLoadConfigAdoptsTheLegacyEncryptionKeyName(t *testing.T) {
 
 func TestLoadConfigReadsTheEncryptionKeyFromTheEnvironment(t *testing.T) {
 	useTemporaryWorkingDirectory(t)
-	t.Setenv("TAIRITSU_ENCRYPTION_KEY", "from-the-environment")
+	t.Setenv("TEMPEST_ZT_ENCRYPTION_KEY", "from-the-environment")
 	t.Setenv("JWT_SECRET", "from-the-old-name")
 
 	cfg, err := config.LoadConfig()
@@ -125,7 +125,7 @@ func TestLoadConfigReadsTheEncryptionKeyFromTheEnvironment(t *testing.T) {
 // than silently generating a new key.
 func TestLoadConfigFallsBackToTheDeprecatedEncryptionKeyVariable(t *testing.T) {
 	useTemporaryWorkingDirectory(t)
-	t.Setenv("TAIRITSU_ENCRYPTION_KEY", "")
+	t.Setenv("TEMPEST_ZT_ENCRYPTION_KEY", "")
 	t.Setenv("JWT_SECRET", "from-the-old-name")
 
 	cfg, err := config.LoadConfig()
@@ -138,7 +138,7 @@ func TestLoadConfigFallsBackToTheDeprecatedEncryptionKeyVariable(t *testing.T) {
 // the port the console listens on.
 func TestLoadConfigIgnoresLegacyServerPortFromExistingConfig(t *testing.T) {
 	useTemporaryWorkingDirectory(t)
-	t.Setenv("TAIRITSU_ENCRYPTION_KEY", "")
+	t.Setenv("TEMPEST_ZT_ENCRYPTION_KEY", "")
 	t.Setenv("JWT_SECRET", "")
 
 	require.NoError(t, os.MkdirAll("data", 0755))
@@ -169,7 +169,7 @@ func TestLoadConfigIgnoresLegacyServerPortFromExistingConfig(t *testing.T) {
 // port is no longer configurable and the operator maps it from the host.
 func TestLoadConfigIgnoresServerPortEnvironment(t *testing.T) {
 	useTemporaryWorkingDirectory(t)
-	t.Setenv("TAIRITSU_ENCRYPTION_KEY", "")
+	t.Setenv("TEMPEST_ZT_ENCRYPTION_KEY", "")
 	t.Setenv("JWT_SECRET", "")
 	t.Setenv("SERVER_PORT", "9090")
 
@@ -185,7 +185,7 @@ func TestLoadConfigIgnoresServerPortEnvironment(t *testing.T) {
 // so an upgraded deployment does not keep carrying a field that has no meaning.
 func TestSaveConfigDoesNotWriteLegacyServerBlock(t *testing.T) {
 	useTemporaryWorkingDirectory(t)
-	t.Setenv("TAIRITSU_ENCRYPTION_KEY", "")
+	t.Setenv("TEMPEST_ZT_ENCRYPTION_KEY", "")
 	t.Setenv("JWT_SECRET", "")
 
 	cfg, err := config.LoadConfig()

@@ -5,8 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/GT-610/tairitsu/internal/app/config"
-	"github.com/GT-610/tairitsu/internal/app/database"
+	"github.com/GT-610/tempest-zt/internal/app/config"
+	"github.com/GT-610/tempest-zt/internal/app/database"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -21,7 +21,7 @@ func newDataRoot(t *testing.T) string {
 
 func TestResetDatabaseRemovesSQLiteFileAndItsWriteAheadLog(t *testing.T) {
 	dataRoot := newDataRoot(t)
-	dbPath := filepath.Join(dataRoot, "tairitsu.db")
+	dbPath := filepath.Join(dataRoot, "tempest-zt.db")
 
 	db, err := database.NewDatabase(database.Config{Type: database.SQLite, Path: dbPath})
 	require.NoError(t, err)
@@ -60,7 +60,7 @@ func TestResetDatabaseRefusesFilesOutsideTheDataDirectory(t *testing.T) {
 
 	err := database.ResetDatabase(database.Config{Type: database.SQLite, Path: victim})
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "outside the Tairitsu data directory")
+	assert.Contains(t, err.Error(), "outside the Tempest-ZT data directory")
 
 	content, readErr := os.ReadFile(victim)
 	require.NoError(t, readErr)
@@ -101,7 +101,7 @@ func TestResetDatabaseRefusesDirectories(t *testing.T) {
 func TestResetDatabaseRemovesEmptyLeftovers(t *testing.T) {
 	dataRoot := newDataRoot(t)
 
-	leftover := filepath.Join(dataRoot, "tairitsu.db")
+	leftover := filepath.Join(dataRoot, "tempest-zt.db")
 	require.NoError(t, os.WriteFile(leftover, nil, 0600))
 
 	require.NoError(t, database.ResetDatabase(database.Config{Type: database.SQLite, Path: leftover}))
@@ -121,7 +121,7 @@ func TestResetDatabaseFollowsASymlinkThatStaysInsideTheDataDirectory(t *testing.
 	linkDir := filepath.Join(dataRoot, "link")
 	require.NoError(t, os.Symlink(realDir, linkDir))
 
-	dbPath := filepath.Join(realDir, "tairitsu.db")
+	dbPath := filepath.Join(realDir, "tempest-zt.db")
 	db, err := database.NewDatabase(database.Config{Type: database.SQLite, Path: dbPath})
 	require.NoError(t, err)
 	require.NoError(t, db.Init())
@@ -130,7 +130,7 @@ func TestResetDatabaseFollowsASymlinkThatStaysInsideTheDataDirectory(t *testing.
 	// Named through the link, so the name the handle resolves is the real one.
 	require.NoError(t, database.ResetDatabase(database.Config{
 		Type: database.SQLite,
-		Path: filepath.Join(linkDir, "tairitsu.db"),
+		Path: filepath.Join(linkDir, "tempest-zt.db"),
 	}))
 
 	_, statErr := os.Stat(dbPath)
@@ -149,18 +149,18 @@ func TestDataDirectoryHandleCannotBeRedirectedOutOfTheDataDirectory(t *testing.T
 	inside := filepath.Join(dataRoot, "nested")
 	require.NoError(t, os.MkdirAll(inside, 0755))
 
-	root, name, err := config.OpenDataDir(filepath.Join(inside, "tairitsu.db"))
+	root, name, err := config.OpenDataDir(filepath.Join(inside, "tempest-zt.db"))
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, root.Close())
 	}()
-	assert.Equal(t, filepath.Join("nested", "tairitsu.db"), name,
+	assert.Equal(t, filepath.Join("nested", "tempest-zt.db"), name,
 		"the name must be relative to the data directory")
 
 	// A file the operator must keep, and a symlink where the database directory
 	// used to be.
 	outside := t.TempDir()
-	victim := filepath.Join(outside, "tairitsu.db")
+	victim := filepath.Join(outside, "tempest-zt.db")
 	require.NoError(t, os.WriteFile(victim, []byte("do not delete"), 0600))
 
 	require.NoError(t, os.RemoveAll(inside))

@@ -1,4 +1,4 @@
-module github.com/GT-610/tairitsu
+module github.com/GT-610/tempest-zt
 
 go 1.26.11
 

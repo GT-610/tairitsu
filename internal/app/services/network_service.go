@@ -6,10 +6,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/GT-610/tairitsu/internal/app/database"
-	"github.com/GT-610/tairitsu/internal/app/logger"
-	"github.com/GT-610/tairitsu/internal/app/models"
-	"github.com/GT-610/tairitsu/internal/zerotier"
+	"github.com/GT-610/tempest-zt/internal/app/database"
+	"github.com/GT-610/tempest-zt/internal/app/logger"
+	"github.com/GT-610/tempest-zt/internal/app/models"
+	"github.com/GT-610/tempest-zt/internal/zerotier"
 	"go.uber.org/zap"
 )
 
@@ -1221,7 +1221,7 @@ func (s *NetworkService) buildImportCandidate(networkID string, dbNet *models.Ne
 		candidate.Status = ImportCandidateAvailable
 		candidate.CanImport = true
 		candidate.ReasonCode = ImportReasonUnregistered
-		candidate.ReasonMessage = "Network is not registered in Tairitsu and can be claimed directly"
+		candidate.ReasonMessage = "Network is not registered in Tempest-ZT and can be claimed directly"
 	case dbNet != nil && dbNet.OwnerID == "":
 		candidate.Status = ImportCandidateAvailable
 		candidate.CanImport = true

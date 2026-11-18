@@ -1,8 +1,8 @@
-# Tairitsu Internal HTTP Reference
+# Tempest-ZT Internal HTTP Reference
 
-This document lists the endpoints the bundled frontend and the Tairitsu server use to talk to each other. It is an **internal implementation reference, not a supported public API**: both halves are version-locked, ship in one binary, and change together. Endpoints, payload shapes, and status codes may change in any release without notice or a deprecation period.
+This document lists the endpoints the bundled frontend and the Tempest-ZT server use to talk to each other. It is an **internal implementation reference, not a supported public API**: both halves are version-locked, ship in one binary, and change together. Endpoints, payload shapes, and status codes may change in any release without notice or a deprecation period.
 
-If you want to automate Tairitsu, treat this document as a reading aid only and expect breakage on upgrade.
+If you want to automate Tempest-ZT, treat this document as a reading aid only and expect breakage on upgrade.
 
 ## Overview
 
@@ -69,7 +69,7 @@ Request:
 ```json
 {
   "type": "sqlite",
-  "path": "data/tairitsu.db"
+  "path": "data/tempest-zt.db"
 }
 ```
 
@@ -199,7 +199,7 @@ Response:
 ### `POST /auth/login`
 
 Authenticates a user and creates a tracked session. The response sets the
-`tairitsu_session` cookie, which is `HttpOnly`, `SameSite=Lax`, and `Secure`
+`tempest-zt_session` cookie, which is `HttpOnly`, `SameSite=Lax`, and `Secure`
 whenever the request arrived over HTTPS. The credential is never included in
 the response body.
 
@@ -595,7 +595,7 @@ Response:
       "status": "available",
       "can_import": true,
       "reason_code": "unregistered",
-      "reason_message": "网络尚未登记到 Tairitsu，可直接接管"
+      "reason_message": "网络尚未登记到 Tempest-ZT，可直接接管"
     }
   ],
   "summary": {

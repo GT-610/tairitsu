@@ -3,7 +3,7 @@ package handlers
 import (
 	"strings"
 
-	"github.com/GT-610/tairitsu/internal/app/httpcode"
+	"github.com/GT-610/tempest-zt/internal/app/httpcode"
 	"github.com/gofiber/fiber/v3"
 )
 

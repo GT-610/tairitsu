@@ -164,7 +164,7 @@ function Register() {
           </Box>
           
           <Typography variant="h5" component="h1" gutterBottom align="center">
-            注册到 Tairitsu
+            注册到 Tempest-ZT
           </Typography>
 
           {!isPublicRegistrationEnabled(registrationAllowed) && (
@@ -283,7 +283,7 @@ function Register() {
         </Paper>
         
         <Typography variant="body2" color="text.secondary" align="center" sx={{ mt: 4 }}>
-            © {new Date().getFullYear()} Tairitsu
+            © {new Date().getFullYear()} Tempest-ZT
           </Typography>
         </Box>
       </Container>

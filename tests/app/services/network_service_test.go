@@ -7,11 +7,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/GT-610/tairitsu/internal/app/database"
-	"github.com/GT-610/tairitsu/internal/app/models"
-	"github.com/GT-610/tairitsu/internal/app/services"
-	"github.com/GT-610/tairitsu/internal/zerotier"
-	"github.com/GT-610/tairitsu/tests/testutil"
+	"github.com/GT-610/tempest-zt/internal/app/database"
+	"github.com/GT-610/tempest-zt/internal/app/models"
+	"github.com/GT-610/tempest-zt/internal/app/services"
+	"github.com/GT-610/tempest-zt/internal/zerotier"
+	"github.com/GT-610/tempest-zt/tests/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -226,7 +226,7 @@ func TestNetworkServiceGetImportableNetworks_MarksOwnedNetworksAsNotImportable(t
 		Status:        services.ImportCandidateAvailable,
 		CanImport:     true,
 		ReasonCode:    services.ImportReasonUnregistered,
-		ReasonMessage: "Network is not registered in Tairitsu and can be claimed directly",
+		ReasonMessage: "Network is not registered in Tempest-ZT and can be claimed directly",
 	})
 	assert.Equal(t, services.ImportableNetworksSummary{Total: 2, Available: 1, Managed: 1, Blocked: 0}, result.Summary)
 }

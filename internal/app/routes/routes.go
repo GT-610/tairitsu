@@ -1,9 +1,9 @@
 package routes
 
 import (
-	"github.com/GT-610/tairitsu/internal/app/assembly"
-	"github.com/GT-610/tairitsu/internal/app/handlers"
-	"github.com/GT-610/tairitsu/internal/app/middleware"
+	"github.com/GT-610/tempest-zt/internal/app/assembly"
+	"github.com/GT-610/tempest-zt/internal/app/handlers"
+	"github.com/GT-610/tempest-zt/internal/app/middleware"
 	"github.com/gofiber/fiber/v3"
 	"github.com/gofiber/fiber/v3/middleware/compress"
 )

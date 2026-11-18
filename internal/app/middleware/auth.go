@@ -4,8 +4,8 @@ import (
 	"errors"
 	"time"
 
-	"github.com/GT-610/tairitsu/internal/app/logger"
-	"github.com/GT-610/tairitsu/internal/app/services"
+	"github.com/GT-610/tempest-zt/internal/app/logger"
+	"github.com/GT-610/tempest-zt/internal/app/services"
 	"github.com/gofiber/fiber/v3"
 	"go.uber.org/zap"
 )
@@ -13,7 +13,7 @@ import (
 // SessionCookieName is the cookie that carries the opaque session credential.
 // It is HttpOnly, so frontend code cannot read it and a script injection cannot
 // exfiltrate it.
-const SessionCookieName = "tairitsu_session"
+const SessionCookieName = "tempest-zt_session"
 
 // sessionCookiePath scopes the cookie to the whole application. The frontend is
 // served from the same origin as the API, so a narrower path is unnecessary.

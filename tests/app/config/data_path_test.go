@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/GT-610/tairitsu/internal/app/config"
+	"github.com/GT-610/tempest-zt/internal/app/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -20,7 +20,7 @@ func TestResolveDataPathConfinesPathsToTheDataDirectory(t *testing.T) {
 	t.Run("empty selects the default file", func(t *testing.T) {
 		resolved, err := config.ResolveDataPath("")
 		require.NoError(t, err)
-		assert.Equal(t, filepath.Join(dataRoot, "tairitsu.db"), resolved)
+		assert.Equal(t, filepath.Join(dataRoot, "tempest-zt.db"), resolved)
 	})
 
 	t.Run("absolute path inside the root", func(t *testing.T) {
@@ -31,7 +31,7 @@ func TestResolveDataPathConfinesPathsToTheDataDirectory(t *testing.T) {
 	})
 
 	t.Run("nested path that does not exist yet", func(t *testing.T) {
-		candidate := filepath.Join(dataRoot, "nested", "deeper", "tairitsu.db")
+		candidate := filepath.Join(dataRoot, "nested", "deeper", "tempest-zt.db")
 		resolved, err := config.ResolveDataPath(candidate)
 		require.NoError(t, err)
 		assert.Equal(t, candidate, resolved)
@@ -40,7 +40,7 @@ func TestResolveDataPathConfinesPathsToTheDataDirectory(t *testing.T) {
 	t.Run("traversal out of the root is rejected", func(t *testing.T) {
 		_, err := config.ResolveDataPath(filepath.Join(dataRoot, "..", "escape.db"))
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "outside the Tairitsu data directory")
+		assert.Contains(t, err.Error(), "outside the Tempest-ZT data directory")
 	})
 
 	t.Run("an absolute path elsewhere is rejected", func(t *testing.T) {
@@ -54,22 +54,22 @@ func TestResolveDataPathConfinesPathsToTheDataDirectory(t *testing.T) {
 	})
 
 	t.Run("a sibling with the same prefix is rejected", func(t *testing.T) {
-		_, err := config.ResolveDataPath(dataRoot + "-backup/tairitsu.db")
+		_, err := config.ResolveDataPath(dataRoot + "-backup/tempest-zt.db")
 		require.Error(t, err)
 	})
 }
 
 // A relative path keeps its historical meaning: it is resolved against the
-// working directory, which is what the documented `data/tairitsu.db` default
+// working directory, which is what the documented `data/tempest-zt.db` default
 // relies on when the data directory is not relocated.
 func TestResolveDataPathResolvesRelativePathsAgainstTheWorkingDirectory(t *testing.T) {
 	dataRoot := t.TempDir()
 	t.Setenv(config.DataDirEnv, dataRoot)
 	t.Chdir(dataRoot)
 
-	resolved, err := config.ResolveDataPath("nested/tairitsu.db")
+	resolved, err := config.ResolveDataPath("nested/tempest-zt.db")
 	require.NoError(t, err)
-	assert.Equal(t, filepath.Join(dataRoot, "nested", "tairitsu.db"), resolved)
+	assert.Equal(t, filepath.Join(dataRoot, "nested", "tempest-zt.db"), resolved)
 
 	_, err = config.ResolveDataPath("../escape.db")
 	require.Error(t, err)
@@ -85,9 +85,9 @@ func TestResolveDataPathRejectsSymlinkEscapes(t *testing.T) {
 	link := filepath.Join(dataRoot, "link")
 	require.NoError(t, os.Symlink(outside, link))
 
-	_, err := config.ResolveDataPath(filepath.Join(link, "tairitsu.db"))
+	_, err := config.ResolveDataPath(filepath.Join(link, "tempest-zt.db"))
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "outside the Tairitsu data directory")
+	assert.Contains(t, err.Error(), "outside the Tempest-ZT data directory")
 }
 
 func TestDataRootFollowsTheEnvironment(t *testing.T) {

@@ -3,7 +3,7 @@ package services
 import (
 	"strings"
 
-	"github.com/GT-610/tairitsu/internal/zerotier"
+	"github.com/GT-610/tempest-zt/internal/zerotier"
 )
 
 func NormalizeNetworkUpdateRequest(req *zerotier.NetworkUpdateRequest) *zerotier.NetworkUpdateRequest {
@@ -12,7 +12,7 @@ func NormalizeNetworkUpdateRequest(req *zerotier.NetworkUpdateRequest) *zerotier
 	}
 
 	normalized := *req
-	// Every network Tairitsu manages is private, and this is the one place that
+	// Every network Tempest-ZT manages is private, and this is the one place that
 	// is enforced on update as well as on create. EnableBroadcast is deliberately
 	// left alone: only a request that names it changes it.
 	private := true

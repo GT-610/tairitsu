@@ -5,11 +5,11 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/GT-610/tairitsu/internal/app/config"
-	"github.com/GT-610/tairitsu/internal/app/logger"
-	"github.com/GT-610/tairitsu/internal/app/middleware"
-	"github.com/GT-610/tairitsu/internal/app/models"
-	"github.com/GT-610/tairitsu/internal/app/services"
+	"github.com/GT-610/tempest-zt/internal/app/config"
+	"github.com/GT-610/tempest-zt/internal/app/logger"
+	"github.com/GT-610/tempest-zt/internal/app/middleware"
+	"github.com/GT-610/tempest-zt/internal/app/models"
+	"github.com/GT-610/tempest-zt/internal/app/services"
 	"github.com/gofiber/fiber/v3"
 	"go.uber.org/zap"
 )
@@ -64,7 +64,7 @@ func setupErrorResponse(c fiber.Ctx, err error) error {
 		message = "Setup configuration is incomplete"
 	case errors.Is(err, services.ErrSetupDatabasePathRejected):
 		code = "setup.database_path_rejected"
-		message = "The SQLite file must live inside Tairitsu's data directory"
+		message = "The SQLite file must live inside Tempest-ZT's data directory"
 	case errors.Is(err, services.ErrSetupInvalidControllerURL):
 		code = "setup.invalid_controller_url"
 		message = "The controller URL must be an http or https address"

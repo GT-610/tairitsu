@@ -1,9 +1,9 @@
 package handlers
 
 import (
-	"github.com/GT-610/tairitsu/internal/app/logger"
-	"github.com/GT-610/tairitsu/internal/app/services"
-	"github.com/GT-610/tairitsu/internal/zerotier"
+	"github.com/GT-610/tempest-zt/internal/app/logger"
+	"github.com/GT-610/tempest-zt/internal/app/services"
+	"github.com/GT-610/tempest-zt/internal/zerotier"
 	"github.com/gofiber/fiber/v3"
 	"go.uber.org/zap"
 )

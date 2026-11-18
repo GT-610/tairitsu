@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/GT-610/tairitsu/internal/app/config"
-	"github.com/GT-610/tairitsu/internal/app/logger"
+	"github.com/GT-610/tempest-zt/internal/app/config"
+	"github.com/GT-610/tempest-zt/internal/app/logger"
 )
 
 // Client is a ZeroTier controller API client.

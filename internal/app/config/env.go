@@ -5,6 +5,9 @@ import (
 	"os"
 	"strings"
 	"sync"
+
+	"github.com/GT-610/tempest-zt/internal/app/logger"
+	"go.uber.org/zap"
 )
 
 // dotEnvFileName is an optional file read from the working directory. It is a
@@ -66,10 +69,78 @@ func Env(name string) string {
 	return loadDotEnv()[name]
 }
 
+// EnvPrefix is the prefix every variable that configures the server shares.
+const EnvPrefix = "TEMPEST_ZT_"
+
+// legacyEnvPrefix is the prefix these settings used before the rename. A
+// deployment file that still spells its variables the old way keeps working, so
+// an upgrade cannot silently drop a setting that has no visible failure: losing
+// the trusted-proxy list, for example, only surfaces as rate limits keyed on the
+// wrong address.
+const legacyEnvPrefix = "TAIRITSU_"
+
+var (
+	legacyEnvReported  = map[string]struct{}{}
+	legacyEnvReportMux sync.Mutex
+)
+
+// legacyEnvName maps a current variable name to the one it replaced. A name that
+// is not ours returns "", because the ZeroTier client variables and the
+// pre-existing JWT_SECRET have their own handling.
+func legacyEnvName(name string) string {
+	if !strings.HasPrefix(name, EnvPrefix) {
+		return ""
+	}
+	return legacyEnvPrefix + strings.TrimPrefix(name, EnvPrefix)
+}
+
+// EnvWithLegacy reads name, falling back to its pre-rename spelling. The current
+// name always wins, and a fallback is reported once per variable rather than on
+// every read.
+func EnvWithLegacy(name string) string {
+	if value := Env(name); value != "" {
+		return value
+	}
+
+	legacy := legacyEnvName(name)
+	if legacy == "" {
+		return ""
+	}
+
+	value := Env(legacy)
+	if value == "" {
+		return ""
+	}
+
+	reportLegacyEnv(legacy, name)
+	return value
+}
+
+// EnvListWithLegacy is EnvList over EnvWithLegacy.
+func EnvListWithLegacy(name string) []string {
+	return splitEnvList(EnvWithLegacy(name))
+}
+
+func reportLegacyEnv(legacy, replacement string) {
+	legacyEnvReportMux.Lock()
+	defer legacyEnvReportMux.Unlock()
+
+	if _, reported := legacyEnvReported[legacy]; reported {
+		return
+	}
+	legacyEnvReported[legacy] = struct{}{}
+
+	logger.Warn("reading a deprecated environment variable; rename it",
+		zap.String("deprecated", legacy), zap.String("replacement", replacement))
+}
+
 // EnvList returns the entries of a comma, semicolon or whitespace separated
 // environment variable. Empty entries are dropped.
 func EnvList(name string) []string {
-	raw := Env(name)
+	return splitEnvList(Env(name))
+}
+
+func splitEnvList(raw string) []string {
 	if raw == "" {
 		return nil
 	}

@@ -8,13 +8,13 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/GT-610/tairitsu/internal/app/assembly"
-	"github.com/GT-610/tairitsu/internal/app/config"
-	"github.com/GT-610/tairitsu/internal/app/database"
-	"github.com/GT-610/tairitsu/internal/app/logger"
-	"github.com/GT-610/tairitsu/internal/app/routes"
-	"github.com/GT-610/tairitsu/internal/app/services"
-	"github.com/GT-610/tairitsu/internal/zerotier"
+	"github.com/GT-610/tempest-zt/internal/app/assembly"
+	"github.com/GT-610/tempest-zt/internal/app/config"
+	"github.com/GT-610/tempest-zt/internal/app/database"
+	"github.com/GT-610/tempest-zt/internal/app/logger"
+	"github.com/GT-610/tempest-zt/internal/app/routes"
+	"github.com/GT-610/tempest-zt/internal/app/services"
+	"github.com/GT-610/tempest-zt/internal/zerotier"
 	"github.com/gofiber/fiber/v3"
 	"go.uber.org/zap"
 )
@@ -79,11 +79,11 @@ func Build() (*App, error) {
 const (
 	// TrustedProxiesEnv lists the addresses or CIDR ranges of reverse proxies
 	// whose forwarding headers may be believed.
-	TrustedProxiesEnv = "TAIRITSU_TRUSTED_PROXIES"
+	TrustedProxiesEnv = "TEMPEST_ZT_TRUSTED_PROXIES"
 	// ProxyHeaderEnv overrides the header carrying the client address.
-	ProxyHeaderEnv = "TAIRITSU_PROXY_HEADER"
+	ProxyHeaderEnv = "TEMPEST_ZT_PROXY_HEADER"
 	// TrustLoopbackProxyEnv turns off the default trust for a proxy on loopback.
-	TrustLoopbackProxyEnv = "TAIRITSU_TRUSTED_PROXY_LOOPBACK"
+	TrustLoopbackProxyEnv = "TEMPEST_ZT_TRUSTED_PROXY_LOOPBACK"
 )
 
 // defaultProxyHeader is the header reverse proxies use to carry the client
@@ -100,7 +100,7 @@ func announceSetupToken(token *services.SetupToken) {
 		return
 	}
 
-	fmt.Fprintf(os.Stdout, "\n  Tairitsu is not initialized yet.\n  Setup token: %s\n  Enter it in the setup wizard. A restart issues a new token.\n\n", token.Value())
+	fmt.Fprintf(os.Stdout, "\n  Tempest-ZT is not initialized yet.\n  Setup token: %s\n  Enter it in the setup wizard. A restart issues a new token.\n\n", token.Value())
 	logger.Warn("first-run setup token issued; the setup endpoints require it, and the token is printed on standard output only")
 }
 
@@ -142,7 +142,7 @@ func httpAppConfig() fiber.Config {
 
 // proxyHeader returns the header a trusted proxy is expected to set.
 func proxyHeader() string {
-	if header := config.Env(ProxyHeaderEnv); header != "" {
+	if header := config.EnvWithLegacy(ProxyHeaderEnv); header != "" {
 		return header
 	}
 	return defaultProxyHeader
@@ -152,7 +152,7 @@ func proxyHeader() string {
 // dropping entries that cannot be parsed so that a typo degrades to "not
 // trusted" with a warning instead of being silently accepted.
 func trustedProxies() []string {
-	configured := config.EnvList(TrustedProxiesEnv)
+	configured := config.EnvListWithLegacy(TrustedProxiesEnv)
 	accepted := make([]string, 0, len(configured))
 
 	for _, entry := range configured {
@@ -180,7 +180,7 @@ func isValidProxyEntry(entry string) bool {
 // forwarding headers. It defaults to true, which covers a proxy in the same
 // container or on the host's loopback and nothing else.
 func trustLoopbackProxy() bool {
-	raw := config.Env(TrustLoopbackProxyEnv)
+	raw := config.EnvWithLegacy(TrustLoopbackProxyEnv)
 	if raw == "" {
 		return true
 	}
@@ -210,7 +210,7 @@ func warnAboutProxyKeying() {
 		return
 	}
 
-	logger.Warn("no trusted proxies are configured, so per-client rate limiting and the address recorded on a session key on the direct peer; if Tairitsu runs behind a reverse proxy, set "+TrustedProxiesEnv+" to that proxy's address",
+	logger.Warn("no trusted proxies are configured, so per-client rate limiting and the address recorded on a session key on the direct peer; if Tempest-ZT runs behind a reverse proxy, set "+TrustedProxiesEnv+" to that proxy's address",
 		zap.Bool("loopback_proxy_trusted", trustLoopbackProxy()))
 }
 

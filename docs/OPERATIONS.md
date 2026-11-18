@@ -1,10 +1,10 @@
 # Operations
 
-This document summarizes what Tairitsu currently provides, what remains experimental, and which boundaries matter in day-to-day operation.
+This document summarizes what Tempest-ZT currently provides, what remains experimental, and which boundaries matter in day-to-day operation.
 
 ## Available Capabilities
 
-Tairitsu includes:
+Tempest-ZT includes:
 
 - initialization and first admin creation
 - user registration and login
@@ -13,12 +13,12 @@ Tairitsu includes:
 - member approval, rejection, editing, and removal
 - per-network roles (owner, manager, operator, viewer)
 - IPv4, IPv6, routes, DNS, and multicast settings
-- import takeover of controller networks not yet owned in Tairitsu
+- import takeover of controller networks not yet owned in Tempest-ZT
 
 ### Upgrading from read-only shares
 
 On the first start after upgrading from a release that used `network_viewers`,
-Tairitsu copies every legacy read-only share into `network_grants` as a
+Tempest-ZT copies every legacy read-only share into `network_grants` as a
 `viewer` grant and removes the old table. Users keep their existing access and
 do not need to sign in again or re-share anything. The server log records the
 legacy row count and the number of inserted grants; no manual migration step is
@@ -43,15 +43,15 @@ client cannot claim to be someone else.
 
 If TLS terminates in a sibling container or on the Docker gateway, list that
 proxy, otherwise the session cookie loses its `Secure` flag and HSTS is not sent
-even though users reach Tairitsu over HTTPS:
+even though users reach Tempest-ZT over HTTPS:
 
-- `TAIRITSU_TRUSTED_PROXIES` — comma separated addresses or CIDR ranges, for
+- `TEMPEST_ZT_TRUSTED_PROXIES` — comma separated addresses or CIDR ranges, for
   example `172.17.0.1,10.0.0.0/8`. Entries that cannot be parsed are rejected
   with a warning.
-- `TAIRITSU_PROXY_HEADER` — the header carrying the client address. Defaults to
+- `TEMPEST_ZT_PROXY_HEADER` — the header carrying the client address. Defaults to
   `X-Forwarded-For`, which nginx, Caddy, Traefik and HAProxy all set. Set it to
   `X-Real-IP` only for an nginx that sends that instead.
-- `TAIRITSU_TRUSTED_PROXY_LOOPBACK` — set to `false` to stop trusting loopback
+- `TEMPEST_ZT_TRUSTED_PROXY_LOOPBACK` — set to `false` to stop trusting loopback
   proxies entirely.
 
 The client address also keys the rate limiters and the address recorded on a
@@ -65,7 +65,7 @@ outside:
   appending to it. The caller then chooses their own address and the rate limit
   stops applying to them.
 
-The second is a configuration mistake rather than a Tairitsu setting, and it is
+The second is a configuration mistake rather than a Tempest-ZT setting, and it is
 common enough to be worth stating: the header must *append* the peer address.
 With nginx, `$proxy_add_x_forwarded_for` does that and `$http_x_forwarded_for`
 does not:
@@ -83,6 +83,41 @@ A forgotten password is throttled per account, with a delay that doubles after a
 handful of failures, so a wrong proxy configuration cannot be used to guess
 passwords without limit. Correcting the configuration is still what makes the
 per-client limits meaningful.
+
+## Upgrading from Tairitsu
+
+The project is now called Tempest-ZT. A deployment that moves over keeps its data
+directory, database, configuration file, and stored ZeroTier token: only the
+names below changed.
+
+| What | New | Old |
+| --- | --- | --- |
+| Image and container | `ghcr.io/gt-610/tempest-zt` | `ghcr.io/gt-610/tairitsu` |
+| Binary | `tempest-zt` | `tairitsu` |
+| Session cookie | `tempest-zt_session` | `tairitsu_session` |
+| Log file | `logs/tempest-zt.log` | `logs/tairitsu.log` |
+| Default database file | `data/tempest-zt.db` | `data/tairitsu.db` |
+
+Environment variables are the exception: `TEMPEST_ZT_*` takes precedence, and the
+old `TAIRITSU_*` names still work so an existing container definition is not
+silently ignored. Each fallback is logged once at startup with the name to
+replace, so rename them when convenient.
+
+Both image names are published for now, so a deployment that still pulls
+`ghcr.io/gt-610/tairitsu` keeps receiving releases. Switching is one edit to the
+`image` field. The old name will stop being published at some point; from then
+on, pulling it still succeeds, so nothing breaks visibly — the deployment simply
+stays on the last version published under that name. That silence is why the
+console tells the administrator about it: on sign-in, an administrator sees a
+one-time notice naming both images, dismissible for the current visit or for
+good. That choice is kept in the browser, so it is not shared between devices.
+
+Published images are multi-architecture indexes covering `linux/amd64` and
+`linux/arm64`, so one tag serves an x86 server and an arm64 board alike.
+
+Everyone signs in again after the upgrade, because the session cookie is scoped
+to the new name. A database file that setup already recorded in `config.json`
+keeps its path; only the name used when no path is configured changed.
 
 ## Experimental Surface
 

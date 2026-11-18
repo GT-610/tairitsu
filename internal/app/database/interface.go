@@ -3,7 +3,7 @@ package database
 import (
 	"time"
 
-	"github.com/GT-610/tairitsu/internal/app/models"
+	"github.com/GT-610/tempest-zt/internal/app/models"
 )
 
 // DBInterface defines the database interface, supporting multiple database backends

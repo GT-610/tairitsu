@@ -171,7 +171,7 @@ function Login() {
           </Box>
           
           <Typography variant="h5" component="h1" gutterBottom align="center">
-            登录到 Tairitsu
+            登录到 Tempest-ZT
           </Typography>
           
           {navigationMessage && (
@@ -288,7 +288,7 @@ function Login() {
         </Paper>
         
         <Typography variant="body2" color="text.secondary" align="center" sx={{ mt: 4 }}>
-            © {new Date().getFullYear()} Tairitsu
+            © {new Date().getFullYear()} Tempest-ZT
           </Typography>
         </Box>
       </Container>

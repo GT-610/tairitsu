@@ -27,7 +27,7 @@ interface AdminData {
   password: string;
 }
 
-const setupCompletedEvent = 'tairitsu-setup-complete';
+const setupCompletedEvent = 'tempest-zt-setup-complete';
 
 const defaultDbConfig: DatabaseSetupConfig = {
   type: 'sqlite',
@@ -43,7 +43,7 @@ function SetupWizard() {
   const { preference, setPreference, t, translateText } = useTranslation();
 
   const steps = useMemo(() => [
-    translateText('欢迎使用 Tairitsu'),
+    translateText('欢迎使用 Tempest-ZT'),
     translateText('配置 ZeroTier 控制器'),
     translateText('配置数据库'),
     translateText('创建管理员账户'),
@@ -145,7 +145,7 @@ function SetupWizard() {
       if (activeStep === 2) {
         const response = await systemAPI.configureDatabase(dbConfig);
         const nextStatus = await fetchSetupStatus();
-        const savedPath = response.data.config.path || nextStatus.databaseConfig?.path || 'data/tairitsu.db';
+        const savedPath = response.data.config.path || nextStatus.databaseConfig?.path || 'data/tempest-zt.db';
         setSuccess(`${translateText('SQLite 配置已保存：')}${savedPath}`);
         setActiveStep(Math.max(3, getInitialSetupWizardStep(nextStatus)));
         return;
@@ -238,7 +238,7 @@ function SetupWizard() {
         return (
           <Paper sx={{ p: 3, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
             <Typography variant="h3" gutterBottom align="center" sx={{ mb: 1 }}>
-              {translateText('欢迎使用 Tairitsu')}
+              {translateText('欢迎使用 Tempest-ZT')}
             </Typography>
             <Typography variant="body1" align="center" sx={{ maxWidth: 520, mb: 2 }}>
               {translateText('本向导会依次完成 ZeroTier 控制器连接、SQLite 配置、首个管理员创建，以及运行态切换。')}
@@ -323,7 +323,7 @@ function SetupWizard() {
               {translateText('配置数据库')}
             </Typography>
             <Typography variant="body1" sx={{ mb: 2 }}>
-              {translateText('Tairitsu 将数据保存在 SQLite 中。')}
+              {translateText('Tempest-ZT 将数据保存在 SQLite 中。')}
             </Typography>
             <TextField
               margin="normal"
@@ -343,7 +343,7 @@ function SetupWizard() {
               value={dbConfig.path}
               onChange={(event) => setDbConfig((previous) => ({ ...previous, path: event.target.value }))}
               disabled={loading}
-              helperText={translateText('留空则使用默认值 data/tairitsu.db')}
+              helperText={translateText('留空则使用默认值 data/tempest-zt.db')}
             />
             {renderMessages()}
           </Paper>
@@ -400,7 +400,7 @@ function SetupWizard() {
             </Typography>
             <Box component="ul" sx={{ pl: 3, mb: 0 }}>
               <li>{translateText('ZeroTier 控制器：')}{status?.zeroTierConfig?.controllerUrl || ztConfig.controllerUrl}</li>
-              <li>{translateText('SQLite 路径：')}{status?.databaseConfig?.path || dbConfig.path || 'data/tairitsu.db'}</li>
+              <li>{translateText('SQLite 路径：')}{status?.databaseConfig?.path || dbConfig.path || 'data/tempest-zt.db'}</li>
               <li>{translateText('首个管理员：')}{status?.adminUsername || adminData.username || translateText('尚未创建')}</li>
             </Box>
             {renderMessages()}
@@ -417,7 +417,7 @@ function SetupWizard() {
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
           <Box sx={{ flex: 1 }} />
           <Typography component="h1" variant="h4" align="center" sx={{ flex: 2 }}>
-            {translateText('Tairitsu 初始化向导')}
+            {translateText('Tempest-ZT 初始化向导')}
           </Typography>
           <Box sx={{ flex: 1, display: 'flex', justifyContent: 'flex-end' }}>
             <FormControl size="small" sx={{ minWidth: 120 }}>

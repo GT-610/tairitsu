@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	appdb "github.com/GT-610/tairitsu/internal/app/database"
-	"github.com/GT-610/tairitsu/internal/app/models"
+	appdb "github.com/GT-610/tempest-zt/internal/app/database"
+	"github.com/GT-610/tempest-zt/internal/app/models"
 	// The same SQLite engine the application links, so the legacy table below is
 	// created by the very driver that has to migrate it.
 	_ "github.com/mattn/go-sqlite3"
@@ -50,7 +50,7 @@ func writeLegacyUsersTable(t *testing.T, dbPath string, usernames ...string) {
 // is correct, but the operator has to be told which names collide: the
 // driver-level failure names neither the accounts nor a way forward.
 func TestInitNamesTheDuplicateUsernamesItRefusesToMigrate(t *testing.T) {
-	dbPath := filepath.Join(t.TempDir(), "tairitsu.db")
+	dbPath := filepath.Join(t.TempDir(), "tempest-zt.db")
 	writeLegacyUsersTable(t, dbPath, "admin", "admin", "bob", "carol", "carol")
 
 	db, err := appdb.NewDatabase(appdb.Config{Type: appdb.SQLite, Path: dbPath})
@@ -68,7 +68,7 @@ func TestInitNamesTheDuplicateUsernamesItRefusesToMigrate(t *testing.T) {
 
 // The check must not be what stops an ordinary database from migrating.
 func TestInitMigratesADatabaseWithUniqueUsernames(t *testing.T) {
-	dbPath := filepath.Join(t.TempDir(), "tairitsu.db")
+	dbPath := filepath.Join(t.TempDir(), "tempest-zt.db")
 	writeLegacyUsersTable(t, dbPath, "admin", "bob")
 
 	db, err := appdb.NewDatabase(appdb.Config{Type: appdb.SQLite, Path: dbPath})
@@ -93,7 +93,7 @@ func TestInitMigratesADatabaseWithUniqueUsernames(t *testing.T) {
 func TestInitCreatesTheSchemaOnAnEmptyDatabase(t *testing.T) {
 	db, err := appdb.NewDatabase(appdb.Config{
 		Type: appdb.SQLite,
-		Path: filepath.Join(t.TempDir(), "tairitsu.db"),
+		Path: filepath.Join(t.TempDir(), "tempest-zt.db"),
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -146,7 +146,7 @@ func hasLegacyViewerTable(t *testing.T, dbPath string) bool {
 }
 
 func TestInitMigratesLegacyNetworkViewers(t *testing.T) {
-	dbPath := filepath.Join(t.TempDir(), "tairitsu.db")
+	dbPath := filepath.Join(t.TempDir(), "tempest-zt.db")
 	writeLegacyNetworkViewers(t, dbPath,
 		[3]string{"8056c2e21c000001", "user-1", "owner-1"},
 		[3]string{"8056c2e21c000002", "user-1", "owner-1"},
@@ -182,7 +182,7 @@ func TestInitMigratesLegacyNetworkViewers(t *testing.T) {
 }
 
 func TestInitRemovesAnEmptyLegacyNetworkViewerTable(t *testing.T) {
-	dbPath := filepath.Join(t.TempDir(), "tairitsu.db")
+	dbPath := filepath.Join(t.TempDir(), "tempest-zt.db")
 	writeLegacyNetworkViewers(t, dbPath)
 
 	db, err := appdb.NewDatabase(appdb.Config{Type: appdb.SQLite, Path: dbPath})
@@ -194,7 +194,7 @@ func TestInitRemovesAnEmptyLegacyNetworkViewerTable(t *testing.T) {
 }
 
 func TestInitLeavesAFreshDatabaseWithoutALegacyTable(t *testing.T) {
-	dbPath := filepath.Join(t.TempDir(), "tairitsu.db")
+	dbPath := filepath.Join(t.TempDir(), "tempest-zt.db")
 	db, err := appdb.NewDatabase(appdb.Config{Type: appdb.SQLite, Path: dbPath})
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = db.Close() })

@@ -22,7 +22,7 @@ func TestUnknownAccountPasswordHashIsAValidHashThatNeverMatches(t *testing.T) {
 	candidates := []string{
 		"",
 		"secret123",
-		"tairitsu-unknown-account-placeholder",
+		"tempest-zt-unknown-account-placeholder",
 		string(unknownAccountPasswordHash),
 	}
 	for _, candidate := range candidates {

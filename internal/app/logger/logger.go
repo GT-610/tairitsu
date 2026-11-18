@@ -42,7 +42,7 @@ func InitLogger(level string) {
 
 	// Configure log rotation
 	logWriter := zapcore.AddSync(&lumberjack.Logger{
-		Filename:   "./logs/tairitsu.log",
+		Filename:   "./logs/tempest-zt.log",
 		MaxSize:    10,   // Max 10MB per log file
 		MaxBackups: 5,    // Keep at most 5 backup files
 		MaxAge:     30,   // Retain logs for up to 30 days

@@ -3,9 +3,9 @@ package routes
 import (
 	"testing"
 
-	"github.com/GT-610/tairitsu/internal/app/assembly"
-	"github.com/GT-610/tairitsu/internal/app/config"
-	"github.com/GT-610/tairitsu/internal/app/routes"
+	"github.com/GT-610/tempest-zt/internal/app/assembly"
+	"github.com/GT-610/tempest-zt/internal/app/config"
+	"github.com/GT-610/tempest-zt/internal/app/routes"
 	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/require"
 )
@@ -14,7 +14,7 @@ import (
 // does not want rather than restating the whole configuration.
 const (
 	testEncryptionKey     = "test-secret"
-	testDatabasePath      = "/app/data/tairitsu.db"
+	testDatabasePath      = "/app/data/tempest-zt.db"
 	testZeroTierURL       = "http://127.0.0.1:9993"
 	testZeroTierTokenPath = "/var/lib/zerotier-one/authtoken.secret"
 )

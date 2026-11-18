@@ -8,18 +8,18 @@ import (
 	"testing"
 	"time"
 
-	"github.com/GT-610/tairitsu/internal/app/database"
-	apphandlers "github.com/GT-610/tairitsu/internal/app/handlers"
-	"github.com/GT-610/tairitsu/internal/app/middleware"
-	"github.com/GT-610/tairitsu/internal/app/models"
-	"github.com/GT-610/tairitsu/internal/app/services"
+	"github.com/GT-610/tempest-zt/internal/app/database"
+	apphandlers "github.com/GT-610/tempest-zt/internal/app/handlers"
+	"github.com/GT-610/tempest-zt/internal/app/middleware"
+	"github.com/GT-610/tempest-zt/internal/app/models"
+	"github.com/GT-610/tempest-zt/internal/app/services"
 	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestUserHandler_DeleteUser_AdminOnlyAndResponseShape(t *testing.T) {
-	db, err := database.NewDatabase(database.Config{Type: database.SQLite, Path: filepath.Join(t.TempDir(), "tairitsu.db")})
+	db, err := database.NewDatabase(database.Config{Type: database.SQLite, Path: filepath.Join(t.TempDir(), "tempest-zt.db")})
 	require.NoError(t, err)
 	require.NoError(t, db.Init())
 	t.Cleanup(func() {
