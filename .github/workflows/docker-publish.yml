@@ -13,6 +13,10 @@ env:
   REGISTRY: ghcr.io
   # github.repository as <account>/<repo>
   IMAGE_NAME: ${{ github.repository }}
+  # The name this image was published under before the rename. Both names get
+  # every release until the transition ends, because a pull of the retired name
+  # does not fail: it silently stays at the last version pushed under it.
+  LEGACY_IMAGE_NAME: gt-610/tairitsu
 
 
 jobs:
@@ -58,7 +62,11 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5.10.0
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          # One manifest list, two names: the layers are shared, so the second
+          # name costs a manifest per platform rather than a second upload.
+          images: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+            ${{ env.REGISTRY }}/${{ env.LEGACY_IMAGE_NAME }}
           tags: |
             type=raw,value=latest,enable={{is_default_branch}}
 
