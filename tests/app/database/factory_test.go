@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	appdb "github.com/GT-610/tairitsu/internal/app/database"
+	appdb "github.com/GT-610/tempest-zt/internal/app/database"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -18,7 +18,7 @@ import (
 // 0644 next to a 0600 config.json — and that file holds every password hash and
 // session hash. Measured before the fix: -rw-r--r--.
 func TestSQLiteFileIsOwnerOnly(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "tairitsu.db")
+	path := filepath.Join(t.TempDir(), "tempest-zt.db")
 
 	db, err := appdb.NewDatabase(appdb.Config{Type: appdb.SQLite, Path: path})
 	require.NoError(t, err)
@@ -35,7 +35,7 @@ func TestSQLiteFileIsOwnerOnly(t *testing.T) {
 // the fix: the file already exists with the wrong mode and has to be corrected
 // rather than left as it was found.
 func TestSQLiteFilePermissionsAreCorrectedOnRewrite(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "tairitsu.db")
+	path := filepath.Join(t.TempDir(), "tempest-zt.db")
 	require.NoError(t, os.WriteFile(path, nil, 0o644))
 	// The umask applies at creation, so the mode is set explicitly rather than
 	// assumed: under umask 0077 the file above is 0600 and there is nothing to fix.
@@ -59,7 +59,7 @@ func TestSQLiteFilePermissionsAreCorrectedOnRewrite(t *testing.T) {
 // in this run: it derives the -wal mode from the database file, so no separate
 // correction is needed.
 func TestSQLiteWriteAheadLogInheritsOwnerOnly(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "tairitsu.db")
+	path := filepath.Join(t.TempDir(), "tempest-zt.db")
 
 	db, err := appdb.NewDatabase(appdb.Config{Type: appdb.SQLite, Path: path})
 	require.NoError(t, err)
@@ -84,7 +84,7 @@ func TestSQLiteWriteAheadLogInheritsOwnerOnly(t *testing.T) {
 // how a leftover log looks on disk, rather than after a clean close — a clean close
 // checkpoints and removes it, and the test would then assert nothing.
 func TestSQLiteRestrictsAPreExistingWriteAheadLog(t *testing.T) {
-	live := filepath.Join(t.TempDir(), "tairitsu.db")
+	live := filepath.Join(t.TempDir(), "tempest-zt.db")
 
 	handle, err := sql.Open("sqlite3", live+"?_journal_mode=WAL&_busy_timeout=5000")
 	require.NoError(t, err)
@@ -97,7 +97,7 @@ func TestSQLiteRestrictsAPreExistingWriteAheadLog(t *testing.T) {
 
 	// Copy the trio while the log is still on disk. Nothing is writing, so the
 	// snapshot is consistent, and it is what a killed process leaves behind.
-	target := filepath.Join(t.TempDir(), "tairitsu.db")
+	target := filepath.Join(t.TempDir(), "tempest-zt.db")
 	for _, suffix := range []string{"", "-wal", "-shm"} {
 		content, readErr := os.ReadFile(live + suffix)
 		if readErr != nil {
@@ -129,7 +129,7 @@ func TestSQLiteRestrictsAPreExistingWriteAheadLog(t *testing.T) {
 			require.NoError(t, statErr)
 		}
 		assert.Equal(t, os.FileMode(0o600), info.Mode().Perm(),
-			"tairitsu.db%s holds the same rows as the database and must be owner-only", suffix)
+			"tempest-zt.db%s holds the same rows as the database and must be owner-only", suffix)
 	}
 }
 
@@ -142,8 +142,8 @@ func TestSQLiteRestrictsSidecarsOfASymlinkedDatabase(t *testing.T) {
 	targetDir := t.TempDir()
 	linkDir := t.TempDir()
 
-	target := filepath.Join(targetDir, "tairitsu.db")
-	link := filepath.Join(linkDir, "tairitsu.db")
+	target := filepath.Join(targetDir, "tempest-zt.db")
+	link := filepath.Join(linkDir, "tempest-zt.db")
 
 	// A connection left open, so the write-ahead log is still on disk to be corrected.
 	handle, err := sql.Open("sqlite3", target+"?_journal_mode=WAL&_busy_timeout=5000")
@@ -181,6 +181,6 @@ func TestSQLiteRestrictsSidecarsOfASymlinkedDatabase(t *testing.T) {
 			require.NoError(t, statErr)
 		}
 		assert.Equal(t, os.FileMode(0o600), info.Mode().Perm(),
-			"tairitsu.db%s is what SQLite actually uses and must be owner-only", suffix)
+			"tempest-zt.db%s is what SQLite actually uses and must be owner-only", suffix)
 	}
 }

@@ -1,6 +1,7 @@
 import { Outlet } from 'react-router-dom';
 import { useAuth } from '../services/auth';
 import ResponsiveDrawer from './ResponsiveDrawer';
+import ImageNameNotice from './ImageNameNotice';
 import { User } from '../services/api';
 
 // Layout组件的props类型
@@ -17,7 +18,10 @@ function Layout({ user }: LayoutProps) {
   };
 
   return (
-    <ResponsiveDrawer title="Tairitsu" user={user} onLogout={handleLogout}>
+    <ResponsiveDrawer title="Tempest-ZT" user={user} onLogout={handleLogout}>
+      {/* The administrator is the one who pulls the image, so the notice only
+          concerns that account. */}
+      {user?.role === 'admin' && <ImageNameNotice />}
       <Outlet />
     </ResponsiveDrawer>
   );

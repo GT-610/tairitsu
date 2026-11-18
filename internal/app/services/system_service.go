@@ -4,7 +4,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/GT-610/tairitsu/internal/app/logger"
+	"github.com/GT-610/tempest-zt/internal/app/logger"
 	"github.com/shirou/gopsutil/v4/cpu"
 	"github.com/shirou/gopsutil/v4/host"
 	"github.com/shirou/gopsutil/v4/mem"

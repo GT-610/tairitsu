@@ -9,11 +9,11 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/GT-610/tairitsu/internal/app/config"
-	"github.com/GT-610/tairitsu/internal/app/database"
-	apphandlers "github.com/GT-610/tairitsu/internal/app/handlers"
-	"github.com/GT-610/tairitsu/internal/app/services"
-	"github.com/GT-610/tairitsu/tests/testutil"
+	"github.com/GT-610/tempest-zt/internal/app/config"
+	"github.com/GT-610/tempest-zt/internal/app/database"
+	apphandlers "github.com/GT-610/tempest-zt/internal/app/handlers"
+	"github.com/GT-610/tempest-zt/internal/app/services"
+	"github.com/GT-610/tempest-zt/tests/testutil"
 	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -39,12 +39,12 @@ func newSetupFixture(t *testing.T, initialized bool) *setupFixture {
 		config.SetTempSetting("admin_creation_reset_done", originalResetFlag)
 	})
 
-	// The database path is confined to Tairitsu's data directory, so the test
+	// The database path is confined to Tempest-ZT's data directory, so the test
 	// declares one and places the file inside it.
 	dataRoot := t.TempDir()
 	t.Setenv(config.DataDirEnv, dataRoot)
 
-	dbPath := filepath.Join(dataRoot, "nested", "tairitsu.db")
+	dbPath := filepath.Join(dataRoot, "nested", "tempest-zt.db")
 	cfg := &config.Config{
 		Initialized: initialized,
 		Database: config.DatabaseConfig{

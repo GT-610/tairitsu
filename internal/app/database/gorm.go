@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/GT-610/tairitsu/internal/app/logger"
-	"github.com/GT-610/tairitsu/internal/app/models"
+	"github.com/GT-610/tempest-zt/internal/app/logger"
+	"github.com/GT-610/tempest-zt/internal/app/models"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )

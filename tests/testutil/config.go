@@ -3,7 +3,7 @@ package testutil
 import (
 	"testing"
 
-	"github.com/GT-610/tairitsu/internal/app/config"
+	"github.com/GT-610/tempest-zt/internal/app/config"
 )
 
 // UseTempDataDir points the configuration file at a temporary directory for the

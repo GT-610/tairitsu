@@ -9,11 +9,11 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/GT-610/tairitsu/internal/app/config"
-	"github.com/GT-610/tairitsu/internal/app/database"
-	"github.com/GT-610/tairitsu/internal/app/models"
-	"github.com/GT-610/tairitsu/internal/app/services"
-	"github.com/GT-610/tairitsu/tests/testutil"
+	"github.com/GT-610/tempest-zt/internal/app/config"
+	"github.com/GT-610/tempest-zt/internal/app/database"
+	"github.com/GT-610/tempest-zt/internal/app/models"
+	"github.com/GT-610/tempest-zt/internal/app/services"
+	"github.com/GT-610/tempest-zt/tests/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

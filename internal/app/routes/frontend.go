@@ -4,8 +4,8 @@ import (
 	"io/fs"
 	"strings"
 
-	"github.com/GT-610/tairitsu/internal/app/logger"
-	"github.com/GT-610/tairitsu/web"
+	"github.com/GT-610/tempest-zt/internal/app/logger"
+	"github.com/GT-610/tempest-zt/web"
 	"github.com/gofiber/fiber/v3"
 	"github.com/gofiber/fiber/v3/middleware/static"
 	"go.uber.org/zap"
@@ -101,9 +101,9 @@ func mountFrontend(router *fiber.App) {
 
 const frontendNotBuiltPage = `<!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><title>Tairitsu</title></head>
+<head><meta charset="utf-8"><title>Tempest-ZT</title></head>
 <body style="margin: 40px; font-family: sans-serif; color: #333">
-<h1>Tairitsu</h1>
+<h1>Tempest-ZT</h1>
 <p>The frontend bundle was not built into this binary.</p>
 <p>Run <code>bun run build</code> in <code>web/</code>, then rebuild the server.</p>
 </body>

@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/GT-610/tairitsu/internal/zerotier"
+	"github.com/GT-610/tempest-zt/internal/zerotier"
 )
 
 // FakeController is an in-process stand-in for a ZeroTier controller's HTTP API,

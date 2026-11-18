@@ -1,6 +1,8 @@
-# Tairitsu
+# Tempest-ZT
 
-Tairitsu 是一个面向独立安装 ZeroTier 控制器的自托管 Web 控制台，提供初始化、用户账户、网络与成员管理、网络设置，以及控制器网络导入等能力。
+Tempest-ZT 是一个面向独立安装 ZeroTier 控制器的自托管 Web 控制台，提供初始化、用户账户、网络与成员管理、网络设置，以及控制器网络导入等能力。
+
+Tempest-ZT 在更名前的名称是 **Tairitsu**。更名涉及镜像、二进制、会话 Cookie、日志文件和默认数据库文件名；已有数据目录、配置文件以及已保存的控制器 token 都可以继续使用。镜像目前同时以新旧两个名称发布，仍拉取旧名称的部署在过渡期内会继续收到更新。[运行维护说明](../docs/OPERATIONS.md#upgrading-from-tairitsu) 列出了新旧名称对照。
 
 ## 功能
 
@@ -8,7 +10,7 @@ Tairitsu 是一个面向独立安装 ZeroTier 控制器的自托管 Web 控制�
 - 用户能力：注册、登录、修改密码、会话管理、管理员转让、管理员创建用户、重置密码、删除用户
 - 网络创建、详情查看，以及成员授权 / 拒绝 / 移除
 - IPv4、IPv6、Managed Routes、DNS、多播设置
-- 导入尚未被 Tairitsu 接管的控制器网络
+- 导入尚未被 Tempest-ZT 接管的控制器网络
 - 实验性的 `Planet` 生成功能
 
 ## 界面预览
@@ -42,12 +44,12 @@ Tairitsu 是一个面向独立安装 ZeroTier 控制器的自托管 Web 控制�
 
 前置条件：
 
-- Tairitsu 可访问的 ZeroTier 控制器
+- Tempest-ZT 可访问的 ZeroTier 控制器
 - 控制器 token 文件访问权限
-- 一个持久化的 Tairitsu 数据目录
+- 一个持久化的 Tempest-ZT 数据目录
 - Docker 或 Podman 等容器运行时
 
-先让 ZeroTier 控制器向 Tairitsu 开放本地控制器 API。编辑 `/var/lib/zerotier-one/local.conf`：
+先让 ZeroTier 控制器向 Tempest-ZT 开放本地控制器 API。编辑 `/var/lib/zerotier-one/local.conf`：
 
 ```json
 {
@@ -62,31 +64,31 @@ Tairitsu 是一个面向独立安装 ZeroTier 控制器的自托管 Web 控制�
 
 修改后重启 ZeroTier 控制器。
 
-使用 Docker 运行 Tairitsu：
+使用 Docker 运行 Tempest-ZT：
 
 ```bash
 docker run -d \
-  --name tairitsu \
+  --name tempest-zt \
   --restart unless-stopped \
   -p 3000:3000 \
   -v /var/lib/zerotier-one:/var/lib/zerotier-one \
-  -v /path/to/tairitsu-data:/app/data \
-  ghcr.io/gt-610/tairitsu:latest
+  -v /path/to/tempest-zt-data:/app/data \
+  ghcr.io/gt-610/tempest-zt:latest
 ```
 
 或者使用 Docker Compose：
 
 ```yaml
 services:
-  tairitsu:
-    image: ghcr.io/gt-610/tairitsu:latest
-    container_name: tairitsu
+  tempest-zt:
+    image: ghcr.io/gt-610/tempest-zt:latest
+    container_name: tempest-zt
     restart: unless-stopped
     ports:
       - "3000:3000"
     volumes:
       - /var/lib/zerotier-one:/var/lib/zerotier-one
-      - /path/to/tairitsu-data:/app/data
+      - /path/to/tempest-zt-data:/app/data
 ```
 
 打开 `http://<host>:3000`，按设置向导完成初始化：
@@ -102,7 +104,7 @@ services:
 
 - [运行维护说明](../docs/OPERATIONS.md)
 
-Tairitsu 的网页控制台与 HTTP 接口由同一个进程提供。前后端版本锁定、一起打包进同一个二进制，因此二者之间的内部接口不是对外支持的公开 API。如需了解，可阅读[内部 HTTP 参考](../docs/api/Tairitsu_API_Documentation.md)，但请预期它在任何版本中发生变化。
+Tempest-ZT 的网页控制台与 HTTP 接口由同一个进程提供。前后端版本锁定、一起打包进同一个二进制，因此二者之间的内部接口不是对外支持的公开 API。如需了解，可阅读[内部 HTTP 参考](../docs/api/Tempest-ZT_API_Documentation.md)，但请预期它在任何版本中发生变化。
 
 ## 开发
 
@@ -121,8 +123,8 @@ bun run build
 cd ..
 
 # 前端产物会被嵌入二进制，因此必须先构建前端再编译服务端。
-GOCACHE=/tmp/go-build GOMODCACHE=/tmp/go-mod go build -o ./build/tairitsu ./cmd/tairitsu
-./build/tairitsu   # 在 :3000 同时提供控制台与 API
+GOCACHE=/tmp/go-build GOMODCACHE=/tmp/go-mod go build -o ./build/tempest-zt ./cmd/tempest-zt
+./build/tempest-zt   # 在 :3000 同时提供控制台与 API
 ```
 
 监听端口固定为 3000，不提供配置项；在容器中，用户实际访问的端口由你自己的映射决定（例如 `-p 8080:3000`）。
@@ -131,7 +133,7 @@ GOCACHE=/tmp/go-build GOMODCACHE=/tmp/go-mod go build -o ./build/tairitsu ./cmd/
 
 ```bash
 # 终端 1
-go run ./cmd/tairitsu
+go run ./cmd/tempest-zt
 
 # 终端 2
 cd web
@@ -146,8 +148,8 @@ bun run dev
 
 自 1.16.0 版本起，ZeroTier 的控制器组件采用[商业性的、专有的非开源许可协议](https://github.com/zerotier/ZeroTierOne/blob/main/nonfree/LICENSE.md)。
 
-Tairitsu 不重新分发任何 ZeroTier 控制器代码，而是通过官方 API 与**独立安装**的 ZeroTier 控制器通信，避免落入 ZeroTier 控制器专有代码分发范围。
+Tempest-ZT 不重新分发任何 ZeroTier 控制器代码，而是通过官方 API 与**独立安装**的 ZeroTier 控制器通信，避免落入 ZeroTier 控制器专有代码分发范围。
 
 `Generate Planet` 功能基于 [ztnodeid-go](https://github.com/kmahyyg/ztnodeid-go) 修改，遵循其 GNU GPL v3 许可证，**并非**来自 ZeroTier 本身。
 
-Tairitsu **不是** ZeroTier 的产品，也**不隶属于**、**不受认可于**、**不受支持于** ZeroTier, Inc.
+Tempest-ZT **不是** ZeroTier 的产品，也**不隶属于**、**不受认可于**、**不受支持于** ZeroTier, Inc.

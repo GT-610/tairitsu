@@ -10,7 +10,7 @@ import (
 	"io"
 	"testing"
 
-	"github.com/GT-610/tairitsu/internal/app/crypto"
+	"github.com/GT-610/tempest-zt/internal/app/crypto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

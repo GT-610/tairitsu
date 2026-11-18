@@ -1,5 +1,5 @@
 /*
- * Tairitsu - A ZeroTier Network Controller Manager
+ * Tempest-ZT - A ZeroTier Network Controller Manager
  * Copyright (C) 2025 Patmeow Lab
  * SPDX-License-Identifier: GPL-3.0-only
  */
@@ -14,9 +14,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/GT-610/tairitsu/internal/app/config"
-	"github.com/GT-610/tairitsu/internal/app/logger"
-	"github.com/GT-610/tairitsu/internal/mkworld"
+	"github.com/GT-610/tempest-zt/internal/app/config"
+	"github.com/GT-610/tempest-zt/internal/app/logger"
+	"github.com/GT-610/tempest-zt/internal/mkworld"
 	"github.com/gofiber/fiber/v3"
 	"go.uber.org/zap"
 )

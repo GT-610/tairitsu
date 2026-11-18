@@ -10,8 +10,8 @@ import (
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 
-	"github.com/GT-610/tairitsu/internal/app/config"
-	"github.com/GT-610/tairitsu/internal/app/logger"
+	"github.com/GT-610/tempest-zt/internal/app/config"
+	"github.com/GT-610/tempest-zt/internal/app/logger"
 	"go.uber.org/zap"
 )
 
@@ -33,7 +33,7 @@ func NewDatabase(dbConfig Config) (DBInterface, error) {
 	case SQLite:
 		// Use default path if none is specified
 		if dbConfig.Path == "" {
-			dbConfig.Path = filepath.Join(config.DataRoot(), "tairitsu.db")
+			dbConfig.Path = filepath.Join(config.DataRoot(), "tempest-zt.db")
 		}
 
 		if err := ensureSQLiteDir(dbConfig.Path); err != nil {
@@ -86,7 +86,7 @@ func LoadConfigFromApp(cfg *config.Config) Config {
 // an empty schema.
 // WARNING: This operation will delete all data in the database. Use with caution.
 //
-// The path is resolved and confined to Tairitsu's data directory, and the
+// The path is resolved and confined to Tempest-ZT's data directory, and the
 // target must actually look like a SQLite database, because the setup wizard
 // supplies the path: without both checks a request could name any file on the
 // host and have this function unlink it.

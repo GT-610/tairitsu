@@ -229,7 +229,7 @@ function ImportNetwork() {
       )}
 
       <Alert severity="info" sx={{ mb: 3 }}>
-        {translateText('该页面用于接管控制器中已存在但尚未纳入 Tairitsu 管理的网络，并将其分配给指定 owner。已接管网络会保留在控制器中，仅补齐 Tairitsu 侧登记和归属关系。')}
+        {translateText('该页面用于接管控制器中已存在但尚未纳入 Tempest-ZT 管理的网络，并将其分配给指定 owner。已接管网络会保留在控制器中，仅补齐 Tempest-ZT 侧登记和归属关系。')}
       </Alert>
 
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(4, 1fr)' }, gap: 2, mb: 3 }}>
@@ -347,7 +347,7 @@ function ImportNetwork() {
           <Box>
             <Typography variant="h6">{translateText('可接管网络')}</Typography>
             <Typography variant="body2" color="text.secondary">
-              {translateText('这些网络尚未纳入 Tairitsu 或尚未分配 owner，可直接选择并分配给目标 owner。')}
+              {translateText('这些网络尚未纳入 Tempest-ZT 或尚未分配 owner，可直接选择并分配给目标 owner。')}
             </Typography>
           </Box>
           <Chip label={`${translateText('已选 ')}${selectedNetworks.size} / ${availableCandidates.length}`} color="primary" size="small" />
@@ -423,7 +423,7 @@ function ImportNetwork() {
 
       <Paper elevation={3} sx={{ p: 3, mb: 3 }}>
         <Typography variant="h6" gutterBottom>
-          {translateText('已被 Tairitsu 接管')}
+          {translateText('已被 Tempest-ZT 接管')}
         </Typography>
         {managedCandidates.length === 0 ? (
           <Alert severity="success">{translateText('当前没有已接管网络。')}</Alert>

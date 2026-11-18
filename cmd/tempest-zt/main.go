@@ -6,14 +6,14 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/GT-610/tairitsu/internal/app/bootstrap"
-	"github.com/GT-610/tairitsu/internal/app/logger"
+	"github.com/GT-610/tempest-zt/internal/app/bootstrap"
+	"github.com/GT-610/tempest-zt/internal/app/logger"
 	"go.uber.org/zap"
 )
 
 // main is the application entry point
 func main() {
-	fmt.Println("Tairitsu - ZeroTier Controller Interface")
+	fmt.Println("Tempest-ZT - ZeroTier Controller Interface")
 
 	app, err := bootstrap.Build()
 	if err != nil {

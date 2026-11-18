@@ -3,7 +3,7 @@ package services
 import (
 	"errors"
 
-	"github.com/GT-610/tairitsu/internal/app/models"
+	"github.com/GT-610/tempest-zt/internal/app/models"
 )
 
 var (

@@ -1,5 +1,5 @@
 /*
- * Tairitsu - A ZeroTier Network Controller Manager
+ * Tempest-ZT - A ZeroTier Network Controller Manager
  * Copyright (C) 2025 Patmeow Lab
  * SPDX-License-Identifier: GPL-3.0-only
  */

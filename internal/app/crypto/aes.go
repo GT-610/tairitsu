@@ -20,12 +20,20 @@ var (
 	ErrEmptyKey          = errors.New("crypto.empty_key")
 )
 
+// configKeySalt feeds argon2id when deriving the configuration key.
+//
+// The value is frozen: it is an input to the key that already decrypts every
+// stored credential, so changing it (including to match a later rename) makes
+// each existing ciphertext unreadable and leaves the operator re-entering the
+// controller token. Treat it as data, not as a name.
+const configKeySalt = "tairitsu-config-encryption-salt-v1"
+
 // deriveKey uses argon2id to derive a 32-byte AES-256 key from an arbitrary-length secret.
 func deriveKey(secret string) ([]byte, error) {
 	if secret == "" {
 		return nil, ErrEmptyKey
 	}
-	salt := sha256.Sum256([]byte("tairitsu-config-encryption-salt-v1"))
+	salt := sha256.Sum256([]byte(configKeySalt))
 	return argon2.IDKey([]byte(secret), salt[:], 1, 64*1024, 4, 32), nil
 }
 

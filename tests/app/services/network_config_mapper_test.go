@@ -3,8 +3,8 @@ package services
 import (
 	"testing"
 
-	appservices "github.com/GT-610/tairitsu/internal/app/services"
-	"github.com/GT-610/tairitsu/internal/zerotier"
+	appservices "github.com/GT-610/tempest-zt/internal/app/services"
+	"github.com/GT-610/tempest-zt/internal/zerotier"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

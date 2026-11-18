@@ -3,12 +3,12 @@ package assembly
 import (
 	"fmt"
 
-	"github.com/GT-610/tairitsu/internal/app/config"
-	"github.com/GT-610/tairitsu/internal/app/database"
-	"github.com/GT-610/tairitsu/internal/app/handlers"
-	"github.com/GT-610/tairitsu/internal/app/middleware"
-	"github.com/GT-610/tairitsu/internal/app/services"
-	"github.com/GT-610/tairitsu/internal/zerotier"
+	"github.com/GT-610/tempest-zt/internal/app/config"
+	"github.com/GT-610/tempest-zt/internal/app/database"
+	"github.com/GT-610/tempest-zt/internal/app/handlers"
+	"github.com/GT-610/tempest-zt/internal/app/middleware"
+	"github.com/GT-610/tempest-zt/internal/app/services"
+	"github.com/GT-610/tempest-zt/internal/zerotier"
 	"github.com/gofiber/fiber/v3"
 )
 

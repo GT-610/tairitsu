@@ -4,8 +4,8 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/GT-610/tairitsu/internal/app/httpcode"
-	"github.com/GT-610/tairitsu/internal/app/logger"
+	"github.com/GT-610/tempest-zt/internal/app/httpcode"
+	"github.com/GT-610/tempest-zt/internal/app/logger"
 	"github.com/gofiber/fiber/v3"
 	"go.uber.org/zap"
 )

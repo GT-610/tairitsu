@@ -3,7 +3,7 @@ package middleware
 import (
 	"time"
 
-	"github.com/GT-610/tairitsu/internal/app/logger"
+	"github.com/GT-610/tempest-zt/internal/app/logger"
 	"github.com/gofiber/fiber/v3"
 	"go.uber.org/zap"
 )

@@ -1,8 +1,10 @@
-# Tairitsu
+# Tempest-ZT
 
 [**简体中文**](readme-i18n/README.zh-CN.md)
 
-Tairitsu is a self-hosted web console for a separately installed ZeroTier controller. It provides a web UI for setup, user accounts, network and member management, network settings, and controller network import.
+Tempest-ZT is a self-hosted web console for a separately installed ZeroTier controller. It provides a web UI for setup, user accounts, network and member management, network settings, and controller network import.
+
+Tempest-ZT was released as **Tairitsu** before the project was renamed. The rename covers the image, the binary, the session cookie, the log file, and the default database file name. Existing data directories, configuration files, and stored controller tokens carry over, and the image is still published under the old name as well, so a deployment that pulls it keeps receiving releases until the transition ends. The [operations guide](docs/OPERATIONS.md#upgrading-from-tairitsu) lists the old and new names side by side.
 
 ## Features
 
@@ -10,7 +12,7 @@ Tairitsu is a self-hosted web console for a separately installed ZeroTier contro
 - User registration, login, password change, session handling, admin transfer, admin-created users, password reset, and user deletion
 - Network creation, detail view, member approval / rejection / removal, and per-network roles (owner, manager, operator, viewer)
 - IPv4, IPv6, managed routes, DNS, and multicast settings
-- Import takeover for controller networks not yet owned in Tairitsu
+- Import takeover for controller networks not yet owned in Tempest-ZT
 - Experimental `Planet` generation
 
 ## Screenshots
@@ -44,12 +46,12 @@ Screenshots come from a disposable test controller with synthetic demo data.
 
 Prerequisites:
 
-- A ZeroTier controller that Tairitsu can reach
+- A ZeroTier controller that Tempest-ZT can reach
 - Access to the controller token file
-- A persistent directory for Tairitsu data
+- A persistent directory for Tempest-ZT data
 - Container runtime such as Docker or Podman
 
-Prepare the ZeroTier controller so Tairitsu can access the local controller API. Edit `/var/lib/zerotier-one/local.conf`:
+Prepare the ZeroTier controller so Tempest-ZT can access the local controller API. Edit `/var/lib/zerotier-one/local.conf`:
 
 ```json
 {
@@ -64,40 +66,40 @@ Prepare the ZeroTier controller so Tairitsu can access the local controller API.
 
 Restart the ZeroTier controller after changing `local.conf`.
 
-Run Tairitsu with Docker:
+Run Tempest-ZT with Docker:
 
 ```bash
 docker run -d \
-  --name tairitsu \
+  --name tempest-zt \
   --restart unless-stopped \
   -p 3000:3000 \
   -v /var/lib/zerotier-one:/var/lib/zerotier-one \
-  -v /path/to/tairitsu-data:/app/data \
-  ghcr.io/gt-610/tairitsu:latest
+  -v /path/to/tempest-zt-data:/app/data \
+  ghcr.io/gt-610/tempest-zt:latest
 ```
 
 Or use Docker Compose:
 
 ```yaml
 services:
-  tairitsu:
-    image: ghcr.io/gt-610/tairitsu:latest
-    container_name: tairitsu
+  tempest-zt:
+    image: ghcr.io/gt-610/tempest-zt:latest
+    container_name: tempest-zt
     restart: unless-stopped
     ports:
       - "3000:3000"
     volumes:
       - /var/lib/zerotier-one:/var/lib/zerotier-one
-      - /path/to/tairitsu-data:/app/data
+      - /path/to/tempest-zt-data:/app/data
 ```
 
-While Tairitsu is uninitialized it prints a one-time setup token on startup. The
+While Tempest-ZT is uninitialized it prints a one-time setup token on startup. The
 setup endpoints reject requests that do not carry it, so that finishing setup
 first is not a race against anyone else who can reach the port. Read it from the
 container output:
 
 ```bash
-docker logs tairitsu | grep "Setup token"
+docker logs tempest-zt | grep "Setup token"
 ```
 
 Open `http://<host>:3000` and complete the setup wizard:
@@ -108,10 +110,10 @@ Open `http://<host>:3000` and complete the setup wizard:
 4. Configure the SQLite database path if needed.
 5. Create the initial administrator account.
 
-The token is only valid for the current process: restart Tairitsu and a new one
+The token is only valid for the current process: restart Tempest-ZT and a new one
 is printed. It stops being issued at all once setup is complete.
 
-Sessions are held in an HttpOnly cookie. Serve Tairitsu over HTTPS in any
+Sessions are held in an HttpOnly cookie. Serve Tempest-ZT over HTTPS in any
 deployment reachable beyond a trusted network; on plain HTTP the cookie cannot
 carry the `Secure` flag and will also travel unencrypted.
 
@@ -119,10 +121,10 @@ carry the `Secure` flag and will also travel unencrypted.
 
 - [Operations](docs/OPERATIONS.md)
 
-Tairitsu serves its web console and its HTTP surface from a single process. The
+Tempest-ZT serves its web console and its HTTP surface from a single process. The
 frontend and server are version-locked and ship in one binary, so the internal
 endpoints between them are not a supported public API. See the
-[internal HTTP reference](docs/api/Tairitsu_API_Documentation.md) if you need to
+[internal HTTP reference](docs/api/Tempest-ZT_API_Documentation.md) if you need to
 read it; expect it to change in any release.
 
 ## Development
@@ -142,8 +144,8 @@ bun run build
 cd ..
 
 # The frontend bundle is embedded, so build it before the server.
-GOCACHE=/tmp/go-build GOMODCACHE=/tmp/go-mod go build -o ./build/tairitsu ./cmd/tairitsu
-./build/tairitsu   # serves the console and the API on :3000
+GOCACHE=/tmp/go-build GOMODCACHE=/tmp/go-mod go build -o ./build/tempest-zt ./cmd/tempest-zt
+./build/tempest-zt   # serves the console and the API on :3000
 ```
 
 The listening port is fixed at 3000 and is not configurable; in a container,
@@ -155,7 +157,7 @@ server on 3000:
 
 ```bash
 # terminal 1
-go run ./cmd/tairitsu
+go run ./cmd/tempest-zt
 
 # terminal 2
 cd web
@@ -170,8 +172,8 @@ bun run dev
 
 Since version 1.16.0, ZeroTier's controller component is licensed under a [commercial source-available non-free license](https://github.com/zerotier/ZeroTierOne/blob/main/nonfree/LICENSE.md).
 
-Tairitsu does not redistribute any ZeroTier controller code. It talks to a **separately installed** ZeroTier controller through the official API and stays outside ZeroTier's non-free controller codebase.
+Tempest-ZT does not redistribute any ZeroTier controller code. It talks to a **separately installed** ZeroTier controller through the official API and stays outside ZeroTier's non-free controller codebase.
 
 The `Generate Planet` feature is modified from [ztnodeid-go](https://github.com/kmahyyg/ztnodeid-go) under GNU GPL v3 License, **not** from ZeroTier itself.
 
-Tairitsu is **not** a ZeroTier product and is **not affiliated with, endorsed by, or supported by ZeroTier, Inc.**
+Tempest-ZT is **not** a ZeroTier product and is **not affiliated with, endorsed by, or supported by ZeroTier, Inc.**

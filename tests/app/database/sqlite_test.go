@@ -5,13 +5,13 @@ import (
 	"path/filepath"
 	"testing"
 
-	appdb "github.com/GT-610/tairitsu/internal/app/database"
+	appdb "github.com/GT-610/tempest-zt/internal/app/database"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestNewDatabase_SQLiteCreatesParentDirectory(t *testing.T) {
-	dbPath := filepath.Join(t.TempDir(), "data", "nested", "tairitsu.db")
+	dbPath := filepath.Join(t.TempDir(), "data", "nested", "tempest-zt.db")
 
 	db, err := appdb.NewDatabase(appdb.Config{
 		Type: appdb.SQLite,

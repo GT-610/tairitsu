@@ -12,11 +12,11 @@ RUN apk add --no-cache gcc musl-dev libc-dev && go mod download
 COPY . .
 # The frontend bundle is embedded into the binary, so it must be built first.
 COPY --from=frontend-builder /app/web/dist ./web/dist
-RUN CGO_ENABLED=1 go build -o tairitsu ./cmd/tairitsu
+RUN CGO_ENABLED=1 go build -o tempest-zt ./cmd/tempest-zt
 
 FROM alpine:3.22 AS production
 RUN apk add --no-cache ca-certificates
-COPY --from=backend-builder /app/tairitsu /app/tairitsu
+COPY --from=backend-builder /app/tempest-zt /app/tempest-zt
 WORKDIR /app
 # The console listens on a fixed port. Map it wherever you like, e.g. -p 8080:3000.
 EXPOSE 3000
@@ -26,4 +26,4 @@ EXPOSE 3000
 # needed in the image.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD wget -q -O /dev/null http://127.0.0.1:3000/api/ready || exit 1
-CMD ["/app/tairitsu"]
+CMD ["/app/tempest-zt"]

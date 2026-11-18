@@ -3,8 +3,8 @@ package handlers
 import (
 	"errors"
 
-	"github.com/GT-610/tairitsu/internal/app/logger"
-	"github.com/GT-610/tairitsu/internal/app/services"
+	"github.com/GT-610/tempest-zt/internal/app/logger"
+	"github.com/GT-610/tempest-zt/internal/app/services"
 	"github.com/gofiber/fiber/v3"
 	"go.uber.org/zap"
 )

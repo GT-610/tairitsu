@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/GT-610/tairitsu/internal/app/database"
-	"github.com/GT-610/tairitsu/internal/app/models"
+	"github.com/GT-610/tempest-zt/internal/app/database"
+	"github.com/GT-610/tempest-zt/internal/app/models"
 	"github.com/stretchr/testify/require"
 )
 
@@ -20,7 +20,7 @@ func NewSQLiteDB(t *testing.T) database.DBInterface {
 
 	db, err := database.NewDatabase(database.Config{
 		Type: database.SQLite,
-		Path: t.TempDir() + "/tairitsu.db",
+		Path: t.TempDir() + "/tempest-zt.db",
 	})
 	require.NoError(t, err)
 	require.NoError(t, db.Init())
